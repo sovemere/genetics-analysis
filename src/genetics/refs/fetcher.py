@@ -137,7 +137,10 @@ def _parse_content_range(header: str | None) -> tuple[int, int | None]:
 
 @dataclass(frozen=True)
 class ProgressEvent:
-    source_id: str
+    label: str
+    """What the file belongs to -- a manifest source id, or a tool id. Named for the role
+    rather than for ``Source`` because tool acquisition shares this machinery."""
+
     filename: str
     downloaded: int
     total: int | None
@@ -331,51 +334,54 @@ def _mismatch(path: Path, label: str, expected: str, observed: str) -> str:
     )
 
 
-def fetch_file(
-    source: Source,
-    item: RemoteFile,
+def download(
+    url: str,
+    target: Path,
     *,
-    root: Path,
     transport: Transport,
-    previous: lockfile.Lock,
+    expected_sha256: str | None = None,
+    expected_md5: str | None = None,
+    expected_size: int | None = None,
     progress: ProgressCallback | None = None,
+    label: str = "",
 ) -> FileResult:
-    """Download one file if needed, verify it, and report what happened."""
-    target = _destination(root, source, item)
+    """Fetch one URL to one path, resumably and verifiably.
+
+    The core of this module, kept independent of :class:`Source` so that tool acquisition
+    (M2.5) reuses it rather than growing a second, subtly different implementation of the
+    resume logic. Duplicating this is how the three corruption cases handled below get
+    fixed in one copy and not the other.
+    """
+    name = target.name
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
-    expected_sha = _expected_sha256(item, source.id, previous)
 
     if target.is_file():
         sha, md5, size = _digests(target)
-        if expected_sha and sha != expected_sha:
+        if expected_sha256 and sha != expected_sha256:
             return FileResult(
-                item.filename,
+                name,
                 FileStatus.FAILED,
                 size,
                 sha,
-                _mismatch(target, "sha256", expected_sha, sha),
+                _mismatch(target, "sha256", expected_sha256, sha),
             )
-        if item.md5 and md5 != item.md5:
+        if expected_md5 and md5 != expected_md5:
             return FileResult(
-                item.filename,
-                FileStatus.FAILED,
-                size,
-                sha,
-                _mismatch(target, "md5", item.md5, md5),
+                name, FileStatus.FAILED, size, sha, _mismatch(target, "md5", expected_md5, md5)
             )
-        return FileResult(item.filename, FileStatus.ALREADY_PRESENT, size, sha)
+        return FileResult(name, FileStatus.ALREADY_PRESENT, size, sha)
 
     offset = part.stat().st_size if part.is_file() else 0
-    if item.size_bytes is not None and offset > item.size_bytes:
+    if expected_size is not None and offset > expected_size:
         # A part longer than the whole file cannot be a prefix of it.
         part.unlink()
         offset = 0
 
     try:
-        chunked = transport.open(item.url, offset=offset)
+        chunked = transport.open(url, offset=offset)
     except (urllib.error.URLError, OSError) as exc:
-        return FileResult(item.filename, FileStatus.FAILED, detail=f"could not open: {exc}")
+        return FileResult(name, FileStatus.FAILED, detail=f"could not open: {exc}")
 
     if chunked.resumed_from > offset:
         # The server started *later* than we have bytes for, leaving a hole. Truncating to
@@ -386,9 +392,9 @@ def fetch_file(
         chunked.stream.close()
         part.unlink(missing_ok=True)
         try:
-            chunked = transport.open(item.url, offset=0)
+            chunked = transport.open(url, offset=0)
         except (urllib.error.URLError, OSError) as exc:
-            return FileResult(item.filename, FileStatus.FAILED, detail=f"could not reopen: {exc}")
+            return FileResult(name, FileStatus.FAILED, detail=f"could not reopen: {exc}")
 
     resumed = chunked.resumed_from > 0
     mode = "ab" if resumed else "wb"
@@ -405,30 +411,70 @@ def fetch_file(
                 handle.write(chunk)
                 written += len(chunk)
                 if progress is not None:
-                    progress(ProgressEvent(source.id, item.filename, written, chunked.total_size))
+                    progress(ProgressEvent(label or name, name, written, chunked.total_size))
     except (urllib.error.URLError, OSError) as exc:
         # The part stays on disk: that is the whole point of resumability.
         return FileResult(
-            item.filename,
+            name,
             FileStatus.FAILED,
             written,
             detail=f"transfer interrupted after {written} bytes ({exc}); rerun to resume",
         )
 
     sha, md5, size = _digests(part)
-    if expected_sha and sha != expected_sha:
-        detail = _mismatch(part, "sha256", expected_sha, sha)
+    if expected_sha256 and sha != expected_sha256:
+        detail = _mismatch(part, "sha256", expected_sha256, sha)
         part.unlink(missing_ok=True)
-        return FileResult(item.filename, FileStatus.FAILED, size, sha, detail)
-    if item.md5 and md5 != item.md5:
-        detail = _mismatch(part, "md5", item.md5, md5)
+        return FileResult(name, FileStatus.FAILED, size, sha, detail)
+    if expected_md5 and md5 != expected_md5:
+        detail = _mismatch(part, "md5", expected_md5, md5)
         part.unlink(missing_ok=True)
-        return FileResult(item.filename, FileStatus.FAILED, size, sha, detail)
+        return FileResult(name, FileStatus.FAILED, size, sha, detail)
 
     os.replace(part, target)
     status = FileStatus.RESUMED if resumed else FileStatus.DOWNLOADED
-    detail = "" if item.pinned else "unpinned by the manifest; digest recorded in the lock"
-    return FileResult(item.filename, status, size, sha, detail)
+    return FileResult(name, status, size, sha)
+
+
+def fetch_file(
+    source: Source,
+    item: RemoteFile,
+    *,
+    root: Path,
+    transport: Transport,
+    previous: lockfile.Lock,
+    progress: ProgressCallback | None = None,
+) -> FileResult:
+    """Download one manifest file if needed, verify it, and report what happened.
+
+    Resolves *where* it goes and *what to check it against*; :func:`download` does the
+    rest.
+    """
+    target = _destination(root, source, item)
+    result = download(
+        item.url,
+        target,
+        transport=transport,
+        expected_sha256=_expected_sha256(item, source.id, previous),
+        expected_md5=item.md5,
+        expected_size=item.size_bytes,
+        progress=progress,
+        label=source.id,
+    )
+    # Report the manifest's filename, which may include a subdirectory, rather than the
+    # basename download() knows about.
+    result = FileResult(
+        item.filename, result.status, result.size_bytes, result.sha256, result.detail
+    )
+    if result.ok and not item.pinned and not result.detail:
+        return FileResult(
+            item.filename,
+            result.status,
+            result.size_bytes,
+            result.sha256,
+            "unpinned by the manifest; digest recorded in the lock",
+        )
+    return result
 
 
 def verify_file(
@@ -466,7 +512,7 @@ def verify_file(
 # ---------------------------------------------------------------------------
 
 
-def _manual_step_satisfied(source: Source, root: Path) -> bool:
+def manual_step_satisfied(source: Source, root: Path) -> bool:
     """True when the human has done what a Tier B source needs.
 
     Presence of the expected files, plus the credential where one is required. A source
@@ -507,7 +553,7 @@ def fetch_source(
     if refusal is not None:
         return SourceResult(source.id, SourceStatus.BLOCKED_BY_LICENCE, detail=refusal)
 
-    if source.manual is not None and not _manual_step_satisfied(source, root):
+    if source.manual is not None and not manual_step_satisfied(source, root):
         return SourceResult(
             source.id,
             SourceStatus.AWAITING_MANUAL_STEP,
@@ -538,7 +584,9 @@ def fetch_source(
     )
 
 
-def _select(manifest: Manifest, only: Iterable[str] | None, include_optional: bool) -> list[Source]:
+def select_sources(
+    manifest: Manifest, only: Iterable[str] | None, include_optional: bool
+) -> list[Source]:
     if only is not None:
         wanted = list(only)
         return [manifest.get(source_id) for source_id in wanted]
@@ -563,14 +611,22 @@ def fetch(
     The lock is updated even when some sources fail: the successful ones are facts worth
     keeping, and discarding them would mean a single flaky host cost the whole run's
     record of what it received.
+
+    **``verify_only`` writes nothing.** Verification exists to answer "does what is on
+    disk still match what we recorded?", and a check that rewrites its own reference
+    answers that question with "yes" by construction. The first version did rewrite the
+    lock, which showed up immediately: running the CLI tests created a committed-path
+    ``manifest.lock`` describing sources with no files -- a lock asserting facts about
+    downloads that had never happened, which is exactly what this file must never contain.
     """
     transport = transport or UrllibTransport()
-    root.mkdir(parents=True, exist_ok=True)
+    if not verify_only:
+        root.mkdir(parents=True, exist_ok=True)
     lock_target = lock_path if lock_path is not None else _default_lock_path()
     previous = lockfile.read(lock_target)
     stamp = today or date.today().isoformat()
 
-    selected = _select(manifest, only, include_optional)
+    selected = select_sources(manifest, only, include_optional)
     warnings: list[str] = []
     if not verify_only:
         shortfall = preflight_disk(selected, root)
@@ -646,7 +702,8 @@ def fetch(
                 manual_step_pending=result.status is SourceStatus.AWAITING_MANUAL_STEP,
             )
 
-    lockfile.write(lock_target, lockfile.Lock(sources=locked))
+    if not verify_only:
+        lockfile.write(lock_target, lockfile.Lock(sources=locked))
     return FetchReport(tuple(results), tuple(warnings))
 
 

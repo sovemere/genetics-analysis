@@ -103,6 +103,17 @@ def reference_lock() -> Path:
     return references_dir() / "manifest.lock"
 
 
+def tools_manifest() -> Path:
+    """Committed. Pins each external tool's build, URL and checksum (roadmap M2.5).
+
+    Lives beside ``data/`` rather than under ``data/references/`` because a tool is not
+    reference data: it is installed to ``tools_dir()`` outside the repo, it is selected by
+    platform, and it carries no availability tier. Keeping it separate also keeps it clear
+    of the ``/data/references/**`` ignore rule, so it needs no allowlist exception.
+    """
+    return repo_root() / "data" / "tools.yaml"
+
+
 def is_inside_repo(path: Path) -> bool:
     """True if ``path`` lies within this checkout."""
     try:
@@ -131,4 +142,5 @@ def app_write_paths() -> tuple[tuple[str, Path, bool], ...]:
         ("references_dir", references_dir(), True),
         ("reference_manifest", reference_manifest(), False),
         ("reference_lock", reference_lock(), False),
+        ("tools_manifest", tools_manifest(), False),
     )

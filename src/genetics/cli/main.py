@@ -22,6 +22,20 @@ app = typer.Typer(
 )
 
 
+def _add_refs_commands() -> None:
+    """Register the M2 command groups.
+
+    Imported at module scope rather than lazily like the heavier commands below: Typer
+    builds its command tree at import time, so ``genetics refs --help`` has to know these
+    exist before anything runs. The modules they pull in are cheap -- yaml and stdlib --
+    unlike the Polars-backed ingest stack.
+    """
+    from genetics.cli.refs_cmd import refs_app, tools_app
+
+    app.add_typer(refs_app, name="refs")
+    app.add_typer(tools_app, name="tools")
+
+
 @app.command()
 def version(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
@@ -278,6 +292,9 @@ def paths(
     for row in rows:
         marker = "repo" if row["inside_repo"] else "user"
         typer.echo(f"{row['label']:<20} [{marker}] {row['path']}")
+
+
+_add_refs_commands()
 
 
 if __name__ == "__main__":

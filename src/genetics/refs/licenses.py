@@ -196,6 +196,27 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         ),
     ),
     LicenseTerms(
+        id="GPL-3.0-or-later",
+        name="GNU General Public License v3.0 or later",
+        terms_url="https://www.gnu.org/licenses/gpl-3.0.en.html",
+        commercial_ok=True,
+        derivative_ok=True,
+        redistribution_ok=True,
+        share_alike=True,
+        attribution_required=True,
+        review_status="confirmed",
+        notes=(
+            "PLINK 2 and Beagle. Copyleft, so this table classifies it restricted -- and "
+            "the tools installer deliberately does not apply the opt-in gate to it. The "
+            "gate asks a data question ('would folding this into our corpus impose its "
+            "licence on our output?'), and for a program we neither link against nor "
+            "redistribute, but merely execute as a subprocess, the answer is no: running "
+            "a GPL binary imposes nothing on the data it emits. See "
+            "genetics/refs/tools.py, which states that reasoning where the decision is "
+            "actually made."
+        ),
+    ),
+    LicenseTerms(
         id="LicenseRef-US-Government-Public-Domain",
         name="US Government work, public domain (NCBI)",
         terms_url="https://www.ncbi.nlm.nih.gov/home/about/policies/",

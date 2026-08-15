@@ -93,15 +93,40 @@ def test_every_licence_records_where_its_terms_are_published() -> None:
         assert terms.id == license_id
 
 
+#: Ids that are real entries on the SPDX licence list. Everything else must use the
+#: ``LicenseRef-`` prefix SPDX reserves for licences outside it. Maintained by hand on
+#: purpose: adding a licence should force a decision about which of the two it is, rather
+#: than letting a coined id pass as a standard one.
+SPDX_LIST_IDS = {
+    "CC0-1.0",
+    "CC-BY-4.0",
+    "CC-BY-SA-4.0",
+    "CC-BY-NC-SA-3.0-US",
+    "CC-BY-NC-ND-4.0",
+    "GPL-3.0-or-later",
+}
+
+
 def test_non_spdx_ids_use_the_licenseref_convention() -> None:
     """So a reader can tell at a glance which ids are standard and which we coined."""
-    spdx_like = {
-        "CC0-1.0",
-        "CC-BY-4.0",
-        "CC-BY-SA-4.0",
-        "CC-BY-NC-SA-3.0-US",
-        "CC-BY-NC-ND-4.0",
-    }
     for license_id in licenses.LICENSES:
-        if license_id not in spdx_like:
-            assert license_id.startswith("LicenseRef-"), license_id
+        if license_id not in SPDX_LIST_IDS:
+            assert license_id.startswith("LicenseRef-"), (
+                f"{license_id!r} is neither a known SPDX id nor prefixed LicenseRef-. "
+                "If it is on the SPDX list, add it to SPDX_LIST_IDS; if not, prefix it."
+            )
+
+
+def test_the_tool_licence_is_classified_restricted_but_not_gated_for_tools() -> None:
+    """GPLv3 is genuinely copyleft, and this table says so.
+
+    The exemption lives in the tools installer, not here, because the two ask different
+    questions: folding a share-alike *dataset* into the knowledge pack would impose its
+    licence on our output, whereas executing a GPL *binary* as a subprocess imposes
+    nothing. Recording the truth here and the exception there keeps both honest -- see
+    genetics/refs/tools.py.
+    """
+    gpl = licenses.get("GPL-3.0-or-later")
+    assert gpl.share_alike is True
+    assert gpl.standing is Standing.RESTRICTED
+    assert "subprocess" in gpl.notes

@@ -1,0 +1,100 @@
+# External tool manifest -- roadmap M2.5.
+#
+# Committed; the binaries it describes are not (`.gitignore` blocks *.exe, *.jar, *.so,
+# *.dll, *.dylib). Tools install under `tools_dir()` -- an OS user-data directory outside
+# the checkout -- not into the repository.
+#
+# Every URL, size and sha256 below was downloaded and hashed on 2026-08-15. The PLINK 2
+# version string was read off the binary by running it, not guessed:
+#     PLINK v2.0.0-a.7.3 64-bit (8 Aug 2026)
+#
+# Java and R are NOT here. Both are system-level dependencies with their own installers
+# and update stories, and R specifically must degrade gracefully when absent (AGENTS.md
+# 4.9). `genetics doctor` reports on both; nothing acquires them.
+#
+# BUILD SELECTION. Only the baseline builds are listed, not the AVX2 variants that the
+# same releases publish. An AVX2 binary on a CPU without AVX2 dies with an illegal
+# instruction, which surfaces as an unexplained crash partway through a long pipeline
+# rather than as a clear "wrong build" error. AGENTS.md 0.1C says compute cost is not the
+# binding constraint, so the safe build wins.
+
+schema_version: 1
+
+tools:
+  - id: plink2
+    name: PLINK 2.0
+    version: v2.0.0-a.7.3
+    homepage: https://www.cog-genomics.org/plink/2.0/
+    license: GPL-3.0-or-later
+    kind: executable
+    required_from: M5
+    notes: >-
+      AGENTS.md 4.6 chose PLINK 2 over ADMIXTURE because it has native Windows builds and
+      a LICENSE, and 4.9 makes it the workhorse that keeps htslib off the dependency list:
+      format conversion, LD pruning, PCA projection, --score, --homozyg and allele
+      frequencies are all one binary.
+
+      Pinned to the alpha7 build dated 2026-08-08. Note the roadmap and AGENTS.md 4.9 say
+      to pin "2.00a5.x": that advice is stale, and following it literally would now pin an
+      undocumented build. The download page no longer links alpha5 at all (only alpha6 and
+      alpha7), and PLINK has since changed its version string format -- the binary reports
+      "v2.0.0-a.7.3", not "v2.00a7". The instruction's intent was "pin an exact build
+      because alpha behaviour moves", which is honoured here twice over: by sha256 on the
+      archive, and by a version_check that runs the installed binary.
+    version_check:
+      args: ["--version"]
+      must_contain: v2.0.0-a.7.3
+    builds:
+      - platform: windows_x86_64
+        url: https://s3.amazonaws.com/plink2-assets/alpha7/plink2_win64_20260808.zip
+        filename: plink2_win64_20260808.zip
+        sha256: 6506771b58db4afe0c02abfb13d3024b4fc06dbd44fd170f33a75bdc396dc094
+        size_bytes: 9963484
+        archive: zip
+        member: plink2.exe
+      - platform: linux_x86_64
+        url: https://s3.amazonaws.com/plink2-assets/alpha7/plink2_linux_x86_64_20260808.zip
+        filename: plink2_linux_x86_64_20260808.zip
+        sha256: 4ea47198b1023ca01ffc0534b7931b40602778afeff886a3a06837ec157486c7
+        size_bytes: 7593268
+        archive: zip
+        member: plink2
+      - platform: macos_x86_64
+        url: https://s3.amazonaws.com/plink2-assets/alpha7/plink2_mac_20260808.zip
+        filename: plink2_mac_20260808.zip
+        sha256: 6fbe6c69f70097afa408f432b74faf46daed68455e3d6efec474cdce1c08a08a
+        size_bytes: 2114732
+        archive: zip
+        member: plink2
+      - platform: macos_arm64
+        url: https://s3.amazonaws.com/plink2-assets/alpha7/plink2_mac_arm64_20260808.zip
+        filename: plink2_mac_arm64_20260808.zip
+        sha256: 0c227b6e1a987f4c0cfb8ccd0a82e3ca70ed56ea423b1cf13a2e18b55a9f7cec
+        size_bytes: 1827267
+        archive: zip
+        member: plink2
+
+  - id: beagle
+    name: Beagle 5.5
+    version: 27Feb25.75f
+    homepage: https://faculty.washington.edu/browning/beagle/beagle.html
+    license: GPL-3.0-or-later
+    kind: jar
+    required_from: M8
+    notes: >-
+      Java, so imputation and phasing are the one part of the toolchain the Windows
+      constraint in AGENTS.md 4.9 does not touch. One jar, identical on every platform,
+      hence the single `any` build.
+
+      No version_check: Beagle has no --version flag, and it prints its identity only by
+      starting a JVM and refusing to run ("beagle.27Feb25.75f.jar (version 5.5)"). Paying
+      a JVM cold start to learn what the filename already says would make `tools status`
+      slow for nothing. The sha256 is what establishes identity here, which is stronger
+      than a self-reported string anyway. This matches the reasoning already documented in
+      genetics/doctor.py for the same jar.
+    builds:
+      - platform: any
+        url: https://faculty.washington.edu/browning/beagle/beagle.27Feb25.75f.jar
+        filename: beagle.27Feb25.75f.jar
+        sha256: 7319f4af9638be05c18dcc1bfb8fb41a58a09293507ebf0d54617d0e40df5a70
+        size_bytes: 316844

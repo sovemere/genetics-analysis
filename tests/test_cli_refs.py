@@ -1,0 +1,155 @@
+"""Tests for ``genetics refs`` and ``genetics tools`` (roadmap M2.6).
+
+The CLI is the contract (AGENTS.md 3), so what is asserted here is mostly that every
+command produces valid, informative JSON. A command that only renders for humans is one an
+agent cannot use, and the parity requirement in M13.5 starts being true or false here.
+
+Nothing in this file downloads anything. ``fetch`` is only ever exercised with
+``--dry-run``; the required set is 92 GB.
+"""
+
+from __future__ import annotations
+
+import json
+from typing import Any
+
+from typer.testing import CliRunner
+
+from genetics.cli.main import app
+
+runner = CliRunner()
+
+
+def run_json(*args: str) -> dict[str, Any]:
+    result = runner.invoke(app, [*args, "--json"])
+    assert result.exit_code in (0, 1), result.output
+    payload: dict[str, Any] = json.loads(result.stdout)
+    return payload
+
+
+# ---------------------------------------------------------------------------
+# refs
+# ---------------------------------------------------------------------------
+
+
+def test_refs_status_lists_every_source_with_its_state() -> None:
+    payload = run_json("refs", "status")
+    assert isinstance(payload, dict)
+    sources = payload["sources"]
+    ids = {row["id"] for row in sources}
+    assert "gnomad_exomes_r2_1_1_grch37" in ids
+    for row in sources:
+        assert row["state"] in {
+            "complete",
+            "partial",
+            "missing",
+            "manual-step",
+            "blocked-by-licence",
+            "empty",
+        }
+
+
+def test_refs_status_reports_what_a_missing_source_costs() -> None:
+    """ "gnomAD is missing" is a fact about a file. "The frequency gate cannot be computed"
+    is the fact a person actually needs."""
+    payload = run_json("refs", "status")
+    gnomad = next(r for r in payload["sources"] if r["id"] == "gnomad_exomes_r2_1_1_grch37")
+    assert any("frequency gate" in capability for capability in gnomad["enables"])
+
+
+def test_refs_fetch_dry_run_reports_size_without_downloading() -> None:
+    """The required set is 92 GB. Finding that out afterwards is not useful."""
+    payload = run_json("refs", "fetch", "--dry-run")
+    assert payload["total_bytes"] > 0
+    assert payload["sources"]
+    # Defaults to required-only, so the 495 GB optional genomes must not be included.
+    ids = {row["id"] for row in payload["sources"]}
+    assert "gnomad_genomes_r2_1_1_grch37" not in ids
+
+
+def test_refs_fetch_dry_run_all_includes_optional_sources() -> None:
+    payload = run_json("refs", "fetch", "--dry-run", "--all")
+    ids = {row["id"] for row in payload["sources"]}
+    assert "gnomad_genomes_r2_1_1_grch37" in ids
+
+
+def test_refs_fetch_dry_run_shows_a_licence_block_before_any_bytes_move() -> None:
+    payload = run_json("refs", "fetch", "--dry-run", "--only", "pharmgkb")
+    row = payload["sources"][0]
+    assert row["blocked"], "PharmGKB is share-alike and should require an opt-in"
+
+
+def test_an_opt_in_clears_the_block_in_the_dry_run() -> None:
+    payload = run_json("refs", "fetch", "--dry-run", "--only", "pharmgkb", "--opt-in", "pharmgkb")
+    assert payload["sources"][0]["blocked"] is None
+
+
+def test_refs_licenses_reports_obligations_and_the_opt_in_list() -> None:
+    """The input to the M15.4 audit, answerable before anything is downloaded."""
+    payload = run_json("refs", "licenses")
+    rows = {row["id"]: row for row in payload["sources"]}
+    assert rows["snpedia"]["needs_opt_in"] is True
+    assert rows["omim"]["needs_opt_in"] is True
+    assert rows["pgs_catalog_metadata"]["needs_opt_in"] is False
+    assert any(
+        "each record carries its own terms" in ob
+        for ob in rows["pgs_catalog_metadata"]["obligations"]
+    )
+    for row in rows.values():
+        assert row["terms_url"].startswith("https://")
+
+
+def test_refs_verify_reports_missing_files_and_exits_nonzero() -> None:
+    """Nothing is fetched in a test environment, so everything should read as missing."""
+    result = runner.invoke(app, ["refs", "verify", "--only", "phylotree_17", "--json"])
+    payload = json.loads(result.stdout)
+    assert payload["sources"][0]["files"][0]["status"] == "missing"
+    assert result.exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# tools (M2.5)
+# ---------------------------------------------------------------------------
+
+
+def test_tools_status_reports_both_tools_for_this_platform() -> None:
+    payload = run_json("tools", "status")
+    assert payload["platform"].split("_", 1)[0] in {"windows", "macos", "linux"}
+    ids = {row["tool_id"] for row in payload["tools"]}
+    assert ids == {"plink2", "beagle"}
+
+
+def test_tools_status_says_which_milestone_needs_each_tool() -> None:
+    """A missing PLINK 2 on a fresh checkout is expected, not a fault -- the same stance
+    genetics doctor takes. What matters is knowing when it starts mattering."""
+    payload = run_json("tools", "status")
+    rows = {row["tool_id"]: row for row in payload["tools"]}
+    assert rows["plink2"]["required_from"] == "M5"
+    assert rows["beagle"]["required_from"] == "M8"
+
+
+# ---------------------------------------------------------------------------
+# Shape of the interface
+# ---------------------------------------------------------------------------
+
+
+def test_every_refs_and_tools_command_supports_json() -> None:
+    """AGENTS.md 3: if a computation is only reachable from a human rendering, an agent
+    cannot review it."""
+    for args in (
+        ["refs", "status"],
+        ["refs", "licenses"],
+        ["refs", "fetch", "--dry-run"],
+        ["refs", "verify", "--only", "cpic"],
+        ["tools", "status"],
+    ):
+        result = runner.invoke(app, [*args, "--json"])
+        assert result.exit_code in (0, 1), f"{args}: {result.output}"
+        json.loads(result.stdout)
+
+
+def test_the_command_groups_are_registered() -> None:
+    result = runner.invoke(app, ["--help"])
+    assert result.exit_code == 0
+    assert "refs" in result.stdout
+    assert "tools" in result.stdout
