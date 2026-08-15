@@ -9,18 +9,15 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
-from genetics.guard import has_forbidden_name, is_allowlisted
+from genetics.guard import BINARY_SUFFIXES, has_forbidden_name, is_allowlisted
 from genetics.paths import repo_root
 from genetics.privacy import find_genotypes
 
 pytestmark = pytest.mark.privacy
-
-_BINARY_SUFFIXES = frozenset(
-    {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz", ".exe", ".dll", ".so", ".jar"}
-)
 
 
 def _git_available() -> bool:
@@ -31,14 +28,25 @@ requires_git = pytest.mark.skipif(not _git_available(), reason="git not on PATH"
 
 
 def _tracked_files() -> list[str]:
-    out = subprocess.run(
-        ["git", "ls-files"],
+    """Tracked paths, NUL-separated so non-ASCII names are not quoted and escaped."""
+    raw = subprocess.run(
+        ["git", "ls-files", "-z"],
         cwd=repo_root(),
         capture_output=True,
-        text=True,
         check=True,
     ).stdout
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    return [chunk.decode("utf-8", errors="surrogateescape") for chunk in raw.split(b"\0") if chunk]
+
+
+def _committed_blob(rel: str) -> bytes | None:
+    """Bytes of ``rel`` as git stores it, not as the working tree happens to hold it."""
+    result = subprocess.run(
+        ["git", "show", f"HEAD:{rel}"],
+        cwd=repo_root(),
+        capture_output=True,
+        check=False,
+    )
+    return result.stdout if result.returncode == 0 else None
 
 
 @requires_git
@@ -54,23 +62,29 @@ def test_no_tracked_file_contains_genotype_content() -> None:
     Synthetic fixtures are the sole allowlisted location -- they are generated from a
     seeded RNG and never derived from a real export (AGENTS.md 1.2).
     """
-    root = repo_root()
     offenders: list[str] = []
 
     for rel in _tracked_files():
         if is_allowlisted(rel):
             continue
-        path = root / rel
-        if path.suffix.lower() in _BINARY_SUFFIXES or not path.exists():
+        if Path(rel).suffix.lower() in BINARY_SUFFIXES:
             continue
+
+        # Read what git stores, not what the filesystem holds. Taking the file list from
+        # git and then the bytes from disk judges the wrong thing in both directions: a
+        # leak already committed passes once the working copy is cleaned, and an
+        # uncommitted local edit fails CI for content that was never pushed.
+        raw = _committed_blob(rel)
+        if raw is None:
+            continue  # staged but never committed; the pre-commit guard covers that
         try:
-            content = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, OSError):
+            content = raw.decode("utf-8")
+        except UnicodeDecodeError:
             continue
 
         hits = find_genotypes(content)
         if hits:
-            names = sorted({name for name, _ in hits})
+            names = sorted({hit.pattern for hit in hits})
             offenders.append(f"{rel} ({len(hits)} hits: {', '.join(names)})")
 
     assert not offenders, (
@@ -128,13 +142,32 @@ def test_synthetic_dir_holds_only_known_fixtures() -> None:
         pytest.skip("fixtures not generated")
 
     expected = {spec.name for spec in FIXTURES} | {"MANIFEST.json"}
-    actual = {p.name for p in DEFAULT_FIXTURE_DIR.iterdir() if p.is_file()}
+
+    # rglob, not iterdir. A non-recursive scan filtered by is_file() cannot see a
+    # subdirectory at all, so `synthetic/backup/<real export>` was invisible to the
+    # very test that guard.py cited as its reason for exempting the directory.
+    actual = {
+        str(p.relative_to(DEFAULT_FIXTURE_DIR)).replace("\\", "/")
+        for p in DEFAULT_FIXTURE_DIR.rglob("*")
+        if p.is_file()
+    }
 
     unexpected = actual - expected
     assert not unexpected, (
-        f"unrecognised files in the allowlisted fixture directory: {sorted(unexpected)}. "
-        "Only generator output belongs here."
+        f"unrecognised entries in the allowlisted fixture directory: {sorted(unexpected)}. "
+        "Only generator output belongs here, and only at the top level."
     )
+
+
+def test_no_subdirectories_under_the_allowlisted_fixture_dir() -> None:
+    """Nesting is how the allowlist gets abused; there is no legitimate use for it."""
+    from genetics.testing.fixtures import DEFAULT_FIXTURE_DIR
+
+    if not DEFAULT_FIXTURE_DIR.exists():
+        pytest.skip("fixtures not generated")
+
+    subdirs = [p.name for p in DEFAULT_FIXTURE_DIR.iterdir() if p.is_dir()]
+    assert not subdirs, f"subdirectories under the fixture allowlist: {subdirs}"
 
 
 def test_allowlist_is_narrow() -> None:
@@ -166,4 +199,31 @@ def test_pre_commit_hook_exists_and_is_wired() -> None:
     body = hook.read_text(encoding="utf-8")
     assert "check-staged" in body
     assert "tests/privacy" in body
+    assert "fixtures --check" in body, "the hook must verify fixtures before the push"
     assert "--no-verify" in body, "the hook must state that bypassing it is not acceptable"
+
+
+@requires_git
+def test_pre_commit_hook_is_executable_in_the_index() -> None:
+    """Mode 100644 makes the whole guard a silent no-op on Linux and macOS.
+
+    Git finds the hook, sees it is not executable, and skips it -- while
+    ``genetics install-hooks`` reports success and the developer believes they are
+    covered. The working tree's permission bits are irrelevant on Windows; the index
+    mode is what every clone gets.
+    """
+    out = subprocess.run(
+        ["git", "ls-files", "-s", ".githooks/pre-commit"],
+        cwd=repo_root(),
+        capture_output=True,
+        text=True,
+        check=True,
+    ).stdout.strip()
+
+    if not out:
+        pytest.skip("hook not tracked yet")
+    mode = out.split()[0]
+    assert mode == "100755", (
+        f"hook is committed with mode {mode}; git will not execute it on Linux/macOS. "
+        "Fix with: git update-index --chmod=+x .githooks/pre-commit"
+    )

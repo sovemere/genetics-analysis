@@ -157,6 +157,54 @@ def test_allowlist_pattern_matches_windows_separators() -> None:
 @pytest.mark.parametrize(
     "path",
     [
+        "tests/fixtures/synthetic/backup/AncestryDNA.txt",
+        "tests/fixtures/synthetic/old/sample.txt",
+        "tests/fixtures/synthetic/a/b/c.txt",
+    ],
+)
+def test_allowlist_does_not_cross_directory_boundaries(path: str) -> None:
+    """The allowlist was an fnmatch glob, and fnmatch's `*` crosses `/`.
+
+    That exempted arbitrarily-nested paths from both the name rule and the content
+    scan -- a subdirectory being exactly where someone would tuck a real export.
+    """
+    assert not is_allowlisted(path), f"{path} must not be allowlisted"
+
+
+@requires_git
+def test_nested_export_under_the_fixture_dir_is_caught(tmp_path: Path) -> None:
+    """End-to-end version of the hole: it must now produce a Finding."""
+    repo = _init_repo(tmp_path)
+    _stage(repo, "tests/fixtures/synthetic/backup/AncestryDNA.txt", f"{_row()}\n" * 50)
+
+    findings = check_staged(cwd=repo)
+    assert findings, "a nested export under the fixture dir must be blocked"
+
+
+@requires_git
+def test_non_ascii_path_is_scanned_not_skipped(tmp_path: Path) -> None:
+    """Without -z git quotes and octal-escapes the path, `git show` fails on the mangled
+    name, and the file was skipped silently -- fail-open in a fail-closed guard."""
+    repo = _init_repo(tmp_path)
+    _stage(repo, "nötes.md", f"{_row()}\n")
+
+    findings = check_staged(cwd=repo)
+    assert findings, "a genotype in a non-ASCII path must still be caught"
+
+
+@requires_git
+def test_escaped_genotype_in_source_is_caught(tmp_path: Path) -> None:
+    """The idiomatic way to write a row in Python is with escaped tabs, not real ones."""
+    repo = _init_repo(tmp_path)
+    literal = "rs900000001" + r"\t" + "1" + r"\t" + "100001" + r"\t" + "G" + r"\t" + "G"
+    _stage(repo, "src/debug.py", f'SAMPLE = "{literal}"\n')
+
+    assert [f.path for f in check_staged(cwd=repo)] == ["src/debug.py"]
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
         "ancestrydna.txt",
         "ANCESTRYDNA.TXT",
         "my_23ANDME_export.txt",

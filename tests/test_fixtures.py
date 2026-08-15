@@ -73,11 +73,47 @@ def test_generate_all_writes_manifest(tmp_path: Path) -> None:
     assert all(entry["sha256"] for entry in manifest["fixtures"])
 
 
+def test_manifest_records_marker_counts_not_line_counts(tmp_path: Path) -> None:
+    """Header lines are not markers; counting them made every fixture look different."""
+    generate_all(tmp_path)
+    manifest = json.loads((tmp_path / "MANIFEST.json").read_text(encoding="utf-8"))
+    counts = {entry["markers"] for entry in manifest["fixtures"]}
+    assert len(counts) == 1, f"all fixtures share a marker budget, got {counts}"
+
+
+def test_manifest_drift_is_detected(tmp_path: Path) -> None:
+    """The manifest is the provenance record for the one allowlisted genotype directory.
+
+    A manifest that contradicts the files it describes must not verify clean.
+    """
+    generate_all(tmp_path)
+    manifest_path = tmp_path / "MANIFEST.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["fixtures"][0]["sha256"] = "0" * 64
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+    assert "MANIFEST.json" in verify_all(tmp_path)
+
+
 def test_written_files_use_lf(tmp_path: Path) -> None:
     """Byte-identity across Windows and Linux depends on this."""
     generate_all(tmp_path)
     raw = (tmp_path / FIXTURES[0].name).read_bytes()
     assert b"\r\n" not in raw
+
+
+def test_crlf_rewrite_is_detected_as_drift(tmp_path: Path) -> None:
+    """The check .gitattributes exists to protect must actually be able to fail.
+
+    Comparing with read_text() folds CRLF to LF in universal-newline mode, so a fixture
+    whose bytes had been rewritten reported no drift -- meaning a removed eol=lf rule
+    would produce no signal from the CLI, from CI, or from the reproducibility test.
+    """
+    generate_all(tmp_path)
+    path = tmp_path / FIXTURES[0].name
+    path.write_bytes(path.read_bytes().replace(b"\n", b"\r\n"))
+
+    assert FIXTURES[0].name in verify_all(tmp_path)
 
 
 # ---------------------------------------------------------------------------
@@ -94,19 +130,61 @@ def test_fixtures_are_labelled_synthetic() -> None:
 
 
 @pytest.mark.privacy
-def test_generator_does_not_read_any_input_file() -> None:
-    """The generator must be a pure function of its seed.
+def test_generation_functions_perform_no_io() -> None:
+    """Content generation must be a pure function of the seed.
 
     If it ever grew an argument pointing at a real export, that export's genotypes could
     reach a committed fixture -- the exact failure AGENTS.md 1.2 forbids.
+
+    Scoped to the functions that *produce* content, not the whole module. A module-wide
+    grep was the obvious way to write this and it was quietly useless: it forbade
+    ``open(`` and ``read_bytes(`` while the module read files via ``read_text(``, so the
+    test passed even though the invariant it names was already broken. Naming the
+    functions makes the claim precise and keeps the writer/verifier free to touch disk.
     """
     import inspect
 
     from genetics.testing import fixtures as mod
 
-    source = inspect.getsource(mod)
-    for forbidden in ("open(", "read_bytes(", "AncestryDNA.txt"):
-        assert forbidden not in source, f"fixture generator must not use {forbidden}"
+    generators = (
+        mod.render_fixture,
+        mod.render_manifest,
+        mod._render,
+        mod._genotype,
+        mod._pick_alleles,
+        mod._allocate_markers,
+        mod._ancestry_header,
+        mod._fixture_rng,
+    )
+
+    forbidden = (
+        "open(",
+        "read_text(",
+        "read_bytes(",
+        "loadtxt",
+        "pd.read_",
+        "requests.",
+        "urlopen",
+    )
+
+    for func in generators:
+        source = inspect.getsource(func)
+        for token in forbidden:
+            assert token not in source, f"{func.__name__} must not use {token}"
+
+
+@pytest.mark.privacy
+def test_no_generation_function_takes_an_input_path() -> None:
+    """Belt and braces: purity by signature, not only by body."""
+    import inspect
+
+    from genetics.testing import fixtures as mod
+
+    for func in (mod.render_fixture, mod.render_manifest, mod._render):
+        params = set(inspect.signature(func).parameters)
+        assert not (params & {"src", "source", "input", "input_path", "path", "infile"}), (
+            f"{func.__name__} accepts an input path; generation must derive from the seed"
+        )
 
 
 # ---------------------------------------------------------------------------

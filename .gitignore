@@ -240,8 +240,14 @@ core.*
 
 # Synthetic test fixtures ONLY. See AGENTS.md: fixtures must be generated,
 # never produced by subsetting a real person's file.
+#
+# One level deep, deliberately. `**` un-ignored the entire subtree, which made
+# tests/fixtures/synthetic/<anything>/<real export> trackable -- and because the
+# guard's allowlist and the sealing test had the same blind spot, every layer
+# failed together. The trailing rule re-ignores subdirectories outright.
 !/tests/fixtures/synthetic/
-!/tests/fixtures/synthetic/**
+!/tests/fixtures/synthetic/*
+/tests/fixtures/synthetic/*/
 
 # ---------------------------------------------------------------------
 # 7. SECRETS

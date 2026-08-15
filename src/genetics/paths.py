@@ -30,15 +30,33 @@ def repo_root() -> Path:
     return Path(__file__).resolve().parents[2]
 
 
+class UnsafeDataDirError(ValueError):
+    """Raised when the configured data directory would place genotypes inside the repo."""
+
+
 def user_data_dir() -> Path:
     """Per-user application data, outside the repository.
 
     Runs live here rather than in the repo because a run bundle *is* genotype data
     (AGENTS.md 1.1), and the safest place for it is somewhere git will never see.
+
+    An override pointing inside the checkout is **rejected**, not honoured. Pointing a
+    data directory at your project is an entirely reasonable-looking thing to do, and it
+    silently defeats the 1.5 guarantee: ``.gitignore`` covers the specific paths we
+    declare, so a run bundle under some arbitrary in-repo directory is only partly
+    caught -- ``x.run.json`` matches a pattern, but ``run_001/cards.json`` does not.
+    Failing loudly here is the difference between an error message and a published genome.
     """
     override = os.environ.get(_DATA_DIR_ENV)
     if override:
-        return Path(override).expanduser().resolve()
+        resolved = Path(override).expanduser().resolve()
+        if is_inside_repo(resolved):
+            raise UnsafeDataDirError(
+                f"{_DATA_DIR_ENV} points inside the repository ({resolved}). "
+                "Analysis output is genotype data and must live outside the checkout "
+                "(AGENTS.md 1.5). Choose a path elsewhere on disk."
+            )
+        return resolved
 
     if sys.platform == "win32":
         base = os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local")
@@ -85,20 +103,6 @@ def reference_lock() -> Path:
     return references_dir() / "manifest.lock"
 
 
-# Every path the application may write to, and whether git must ignore it.
-# The privacy suite iterates this; see tests/privacy/test_output_paths.py.
-APP_WRITE_PATHS: tuple[tuple[str, Path, bool], ...] = (
-    #  label,             path,               must be gitignored
-    ("user_data_dir", user_data_dir(), True),
-    ("runs_dir", runs_dir(), True),
-    ("cache_dir", cache_dir(), True),
-    ("tools_dir", tools_dir(), True),
-    ("references_dir", references_dir(), True),
-    ("reference_manifest", reference_manifest(), False),
-    ("reference_lock", reference_lock(), False),
-)
-
-
 def is_inside_repo(path: Path) -> bool:
     """True if ``path`` lies within this checkout."""
     try:
@@ -106,3 +110,25 @@ def is_inside_repo(path: Path) -> bool:
     except ValueError:
         return False
     return True
+
+
+def app_write_paths() -> tuple[tuple[str, Path, bool], ...]:
+    """Every path the application may write to, and whether git must ignore it.
+
+    A function rather than a module constant: evaluated at import time it would freeze
+    whatever ``GENETICS_DATA_DIR`` happened to hold then, and the privacy suite would go
+    on checking a location the app no longer uses.
+
+    The privacy suite iterates this; see tests/privacy/test_output_paths.py. A new output
+    location that skips this registry is a location nothing verifies.
+    """
+    return (
+        #  label,             path,               must be gitignored
+        ("user_data_dir", user_data_dir(), True),
+        ("runs_dir", runs_dir(), True),
+        ("cache_dir", cache_dir(), True),
+        ("tools_dir", tools_dir(), True),
+        ("references_dir", references_dir(), True),
+        ("reference_manifest", reference_manifest(), False),
+        ("reference_lock", reference_lock(), False),
+    )

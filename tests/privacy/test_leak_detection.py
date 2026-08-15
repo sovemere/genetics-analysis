@@ -75,7 +75,59 @@ def test_detects_sex_chromosome_rows() -> None:
 def test_find_genotypes_reports_pattern_names() -> None:
     hits = find_genotypes(ancestry_row())
     assert hits
-    assert all(isinstance(name, str) and matched for name, matched in hits)
+    assert all(isinstance(hit.pattern, str) and hit.length > 0 for hit in hits)
+
+
+def test_hits_carry_locations_not_text() -> None:
+    """Findings must be safe to print, log, or let pytest render on failure.
+
+    An earlier version returned the matched string, so any caller doing the obvious
+    thing wrote the genotype straight to a terminal or a CI log.
+    """
+    row = ancestry_row()
+    for hit in find_genotypes(row):
+        assert not looks_like_genotype(repr(hit))
+        assert row not in repr(hit)
+
+
+# ---------------------------------------------------------------------------
+# Escaped and keyed forms -- the shapes repr() and tracebacks produce
+# ---------------------------------------------------------------------------
+
+
+def test_detects_row_with_escaped_tabs() -> None:
+    """The form that appears inside a Python string literal.
+
+    Matching only real tabs made the scanner blind to source code, log lines and
+    tracebacks -- precisely the threats the module docstring names.
+    """
+    escaped = "rs900000001" + r"\t" + "1" + r"\t" + "100001" + r"\t" + "G" + r"\t" + "G"
+    assert looks_like_genotype(escaped)
+
+
+def test_detects_a_row_that_has_been_through_repr() -> None:
+    assert looks_like_genotype(repr(ancestry_row()))
+
+
+def keyed_fields(rsid: str = "rs900000001", a1: str = "G", a2: str = "G") -> str:
+    """Assemble a dataclass-style repr without writing one literally.
+
+    Written as a literal, this line would be blocked by our own pre-commit hook -- which
+    is how it was caught the first time.
+    """
+    parts = [f"rsid='{rsid}'", "chrom='1'", "pos=100001", f"a1='{a1}'", f"a2='{a2}'"]
+    return "ParsedRecord(" + ", ".join(parts) + ")"
+
+
+def test_detects_dataclass_style_keyed_fields() -> None:
+    """The shape a record's repr produces in a traceback."""
+    assert looks_like_genotype(keyed_fields())
+
+
+def test_detects_23andme_style_i_identifiers() -> None:
+    """23andMe uses i-prefixed IDs for tens of thousands of custom probes."""
+    assert looks_like_genotype(merged_row(rsid="i5000940"))
+    assert looks_like_genotype(ancestry_row(rsid="i5000940"))
 
 
 # ---------------------------------------------------------------------------
@@ -181,10 +233,69 @@ def test_repr_omits_everything_when_nothing_declared() -> None:
 
 
 def test_repr_redacts_a_declared_field_that_turns_out_dirty() -> None:
+    """Asserts the redaction *fired*, not merely that the scanner stayed quiet.
+
+    The previous version asserted only `not looks_like_genotype(repr(...))`, which was
+    true for the wrong reason: the scanner could not see escaped tabs, so the test
+    passed while the genotype was emitted verbatim. It would have kept passing with the
+    redaction deleted entirely.
+    """
+
     class _Sloppy(NoGenotypeRepr):
         _repr_fields = ("note",)
 
         def __init__(self) -> None:
             self.note = ancestry_row()
 
-    assert not looks_like_genotype(repr(_Sloppy()))
+    out = repr(_Sloppy())
+    assert "<redacted>" in out
+    assert "rs900000001" not in out
+    assert not looks_like_genotype(out)
+
+
+def test_plain_dataclass_does_not_defeat_the_mixin() -> None:
+    """@dataclass would generate __repr__ on the subclass and shadow the mixin.
+
+    Dataclasses are the house style here, so the first genotype-bearing record class
+    would silently have got the default repr while appearing to be protected. The mixin
+    claims the __repr__ slot in __init_subclass__, and dataclasses never overwrite a name
+    already in cls.__dict__, so the generated one is skipped.
+    """
+    from dataclasses import dataclass
+
+    @dataclass
+    class _Record(NoGenotypeRepr):
+        _repr_fields = ("marker_count",)
+        marker_count: int = 1
+        raw_row: str = ""
+
+    record = _Record(marker_count=677436, raw_row=ancestry_row())
+    out = repr(record)
+
+    assert _Record.__repr__ is NoGenotypeRepr.__repr__
+    assert "677436" in out
+    assert "rs900000001" not in out
+    assert not looks_like_genotype(out)
+
+
+def test_dataclass_with_repr_false_also_works() -> None:
+    from dataclasses import dataclass
+
+    @dataclass(repr=False)
+    class _Safe(NoGenotypeRepr):
+        _repr_fields = ("marker_count",)
+        marker_count: int = 1
+        raw_row: str = ""
+
+    out = repr(_Safe(marker_count=42, raw_row=ancestry_row()))
+    assert "42" in out
+    assert not looks_like_genotype(out)
+
+
+def test_hand_written_repr_is_refused() -> None:
+    """Inheriting the mixin and then overriding it is a contradiction, not a preference."""
+    with pytest.raises(TypeError, match="__repr__"):
+
+        class _Leaky(NoGenotypeRepr):
+            def __repr__(self) -> str:
+                return "whatever"

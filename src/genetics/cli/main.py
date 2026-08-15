@@ -39,12 +39,16 @@ def fixtures(
         Path | None,
         typer.Option("--out-dir", help="Destination. Defaults to tests/fixtures/synthetic/."),
     ] = None,
+    # Defaults resolve to the library constants rather than restating the literals.
+    # Restated literals drift: rotating DEFAULT_SEED would leave the CLI (and CI, which
+    # shells through it) verifying against the old seed while tests calling the library
+    # directly used the new one -- both sides reporting success about different data.
     seed: Annotated[
-        int, typer.Option("--seed", help="RNG seed. Changing it changes output.")
-    ] = 20260815,
+        int | None, typer.Option("--seed", help="RNG seed. Changing it changes output.")
+    ] = None,
     markers: Annotated[
-        int, typer.Option("--markers", help="Approximate autosomal+sex marker count.")
-    ] = 12000,
+        int | None, typer.Option("--markers", help="Approximate autosomal+sex marker count.")
+    ] = None,
     check: Annotated[
         bool,
         typer.Option("--check", help="Verify fixtures match a fresh generation; write nothing."),
@@ -54,9 +58,17 @@ def fixtures(
 
     Fixtures are invented from a seeded RNG. They never derive from a real export.
     """
-    from genetics.testing.fixtures import DEFAULT_FIXTURE_DIR, generate_all, verify_all
+    from genetics.testing.fixtures import (
+        DEFAULT_FIXTURE_DIR,
+        DEFAULT_MARKERS,
+        DEFAULT_SEED,
+        generate_all,
+        verify_all,
+    )
 
     target = out_dir or DEFAULT_FIXTURE_DIR
+    seed = DEFAULT_SEED if seed is None else seed
+    markers = DEFAULT_MARKERS if markers is None else markers
 
     if check:
         drift = verify_all(target, seed=seed, markers=markers)
@@ -124,7 +136,15 @@ def paths(
 
     Analysis output defaults outside the repository on purpose (AGENTS.md 1.5).
     """
-    from genetics.paths import APP_WRITE_PATHS, is_inside_repo
+    from genetics.paths import UnsafeDataDirError, app_write_paths, is_inside_repo
+
+    try:
+        registry = app_write_paths()
+    except UnsafeDataDirError as exc:
+        # This is the command someone runs *because* their data directory is wrong.
+        # Letting the traceback through would bury the one message that explains it.
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
 
     rows = [
         {
@@ -133,7 +153,7 @@ def paths(
             "must_be_gitignored": ignored,
             "inside_repo": is_inside_repo(path),
         }
-        for label, path, ignored in APP_WRITE_PATHS
+        for label, path, ignored in registry
     ]
 
     if as_json:
