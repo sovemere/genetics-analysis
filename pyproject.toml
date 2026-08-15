@@ -18,6 +18,11 @@ dependencies = [
     # M1: the normalized table. Chosen in the roadmap for speed on 677k rows and for
     # having a working Windows story -- see AGENTS.md 4.9 for why that is not incidental.
     "polars>=1.2",
+    # M2: the reference manifest. Parsed with yaml.safe_load only -- see
+    # genetics/refs/manifest.py. Downloads use urllib from the standard library rather
+    # than `requests`: this is the project's only network code path and it would be a
+    # dependency shipped forever to make an offline-first tool fetch data once.
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
@@ -25,6 +30,7 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.6",
     "mypy>=1.11",
+    "types-PyYAML>=6.0",
 ]
 
 [project.scripts]

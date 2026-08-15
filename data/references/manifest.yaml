@@ -1,0 +1,711 @@
+# Reference corpus manifest -- roadmap M2.1, M2.3, M2.4.
+#
+# READ THIS BEFORE ADDING A SOURCE
+# ================================
+# The manifest is COMMITTED. The payloads it describes are NOT (AGENTS.md 1.4, 5.5).
+# `data/references/**` is gitignored with this file and manifest.lock explicitly
+# re-included; do not weaken that.
+#
+# A source names its licence, it does not describe one. `license:` is resolved against
+# genetics/refs/licenses.py, which is where the properties live. An id that module does
+# not know refuses to load rather than defaulting to permissive -- so adding a source
+# under an unfamiliar licence means reading the terms and writing an entry there, which
+# is a diff a reviewer will actually see.
+#
+# Every URL, size and digest below was verified against the live server on 2026-08-15.
+# Nothing here was written from memory. Where a publisher provides a checksum -- NCBI's
+# .md5 sidecars, the base64 md5 Google Cloud Storage returns in `x-goog-hash` -- it is
+# recorded as `md5:`. Where a file is small enough to have been downloaded and hashed
+# during authoring, it carries a real `sha256:`. Where a publisher serves only a rolling
+# "latest" URL, no honest digest exists and the file carries `unpinned_reason:` instead;
+# the fetcher records what actually arrived in manifest.lock, which is committed, so the
+# first fetch pins it for everyone afterwards.
+#
+# Sizes are exact Content-Length values, not estimates. They are large on purpose: see
+# the note on gnomAD below.
+
+schema_version: 1
+
+sources:
+  # --------------------------------------------------------------------------
+  # Monogenic health (M7). Cheap, and the frequency gate in AGENTS.md 4.1 exists
+  # precisely because these calls are unreliable -- ClinVar says what a variant means,
+  # gnomAD says how much to believe the chip about it.
+  # --------------------------------------------------------------------------
+  - id: clinvar_grch37
+    name: ClinVar GRCh37 VCF and variant summary
+    tier: A
+    required: true
+    version: "2026-08-04"
+    homepage: https://www.ncbi.nlm.nih.gov/clinvar/
+    license: LicenseRef-US-Government-Public-Domain
+    enables:
+      - ClinVar variant lookup (M7.1)
+      - ACMG secondary-finding surfacing (M7.4)
+      - array coverage honesty card (M7.6)
+    notes: >-
+      The dated archive release is pinned rather than the weekly clinvar.vcf.gz, because
+      a rolling filename cannot be checksummed and a saved run has to stay interpretable
+      after the archive moves on (AGENTS.md 5.5). variant_summary.txt.gz has no dated
+      equivalent, so it is the one unpinned file here.
+    files:
+      - url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/archive_2.0/2026/clinvar_20260804.vcf.gz
+        filename: clinvar_20260804.vcf.gz
+        size_bytes: 193086366
+        md5: 425dceceab4e142647461c09bbe2d35c
+      - url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz
+        filename: variant_summary.txt.gz
+        size_bytes: 441836319
+        unpinned_reason: "variant_summary.txt.gz is regenerated weekly under a fixed name; the dated VCF above is the pinned artifact"
+
+  # --------------------------------------------------------------------------
+  # dbSNP fills two mechanisms M1 shipped deliberately empty: the rsID merge table
+  # (M1.7) and the build anchors (M1.5). Both were built and tested against injected
+  # data and left without real coordinates, because writing GRCh37 positions from memory
+  # is exactly the invented data AGENTS.md 6 forbids. This is where the real ones come
+  # from -- see qc/build_anchors.py.
+  # --------------------------------------------------------------------------
+  - id: dbsnp_b157_grch37
+    name: dbSNP build 157, GRCh37.p13 VCF
+    tier: A
+    required: true
+    version: b157
+    homepage: https://www.ncbi.nlm.nih.gov/snp/
+    license: LicenseRef-US-Government-Public-Domain
+    enables:
+      - rsID merge-chain resolution (M1.7)
+      - GRCh37/GRCh38 build anchors (M1.5)
+    notes: >-
+      Fetched from the build-pinned archive path rather than latest_release/, which
+      silently becomes b158. The publisher's md5 sidecar is identical at both paths, which
+      was checked rather than assumed.
+    post_process:
+      - step: extract_rsid_merge_table
+        params:
+          output: rsid_merges.parquet
+      - step: extract_build_anchors
+        params:
+          output: build_anchors.json
+          count: 200
+    files:
+      - url: https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.25.gz
+        filename: GCF_000001405.25.gz
+        size_bytes: 28194800139
+        md5: 35db22bcd166f904e4775dbbc29f5965
+
+  # --------------------------------------------------------------------------
+  # gnomAD is load-bearing (AGENTS.md 4.1, 5.1): the frequency-based confidence
+  # inversion cannot be computed without it, and that inversion is the single most
+  # important thing this project has to get right.
+  #
+  # TWO ENTRIES, AND WHY. gnomAD v4 is GRCh38-only; everything in this pipeline is
+  # GRCh37, so the GRCh37 release is v2.1.1 -- note AGENTS.md 5.1 cites v4's variant
+  # counts, which describe a build we cannot use without lifting over.
+  #
+  # The exomes are one 63 GB file and cover the coding regions where essentially all
+  # ClinVar pathogenic assertions live, so they are what the 4.1 gate actually needs and
+  # they are `required`. The genomes are 495 GB across 23 files and buy non-coding
+  # allele frequencies for trait and PRS cards; real, useful, and not worth making a
+  # fresh checkout download half a terabyte before it can do anything, so they are
+  # optional. AGENTS.md 0.1C says compute cost is not a constraint, and this manifest
+  # honours that by stating the true number rather than by hiding it behind a default.
+  # --------------------------------------------------------------------------
+  - id: gnomad_exomes_r2_1_1_grch37
+    name: gnomAD v2.1.1 exomes sites VCF (GRCh37)
+    tier: A
+    required: true
+    version: r2.1.1
+    homepage: https://gnomad.broadinstitute.org/downloads
+    license: LicenseRef-gnomAD-Open-Access
+    enables:
+      - rare-variant frequency gate (M7.2) -- the AGENTS.md 4.1 requirement
+      - empirical PPV band on likely-artifact cards (M7.3)
+    post_process:
+      - step: subset_vcf_to_array_positions
+        params:
+          output: gnomad_exomes_af_array_positions.parquet
+          info_fields: AF,AF_popmax,AN,AC,nhomalt
+    files:
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/exomes/gnomad.exomes.r2.1.1.sites.vcf.bgz
+        filename: gnomad.exomes.r2.1.1.sites.vcf.bgz
+        size_bytes: 63145056967
+        md5: f034173bf6e57fbb5e8ce680e95134f2
+
+  - id: gnomad_genomes_r2_1_1_grch37
+    name: gnomAD v2.1.1 genomes sites VCF (GRCh37)
+    tier: A
+    required: false
+    version: r2.1.1
+    homepage: https://gnomad.broadinstitute.org/downloads
+    license: LicenseRef-gnomAD-Open-Access
+    enables:
+      - non-coding allele frequencies for trait and PRS card confidence
+    notes: >-
+      495 GB across 23 files. Every one carries a publisher md5, taken from the base64
+      digest Google Cloud Storage returns in x-goog-hash, so the whole set is pinned
+      without a byte having been downloaded to author this entry. Optional because the
+      frequency gate is satisfied by the exomes; fetch this when trait and PRS cards
+      need non-coding frequencies.
+    post_process:
+      - step: subset_vcf_to_array_positions
+        params:
+          output: gnomad_genomes_af_array_positions.parquet
+          info_fields: AF,AF_popmax,AN,AC,nhomalt
+    files:
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.1.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.1.vcf.bgz
+        size_bytes: 38467818838
+        md5: b81951f2b7cb2dbef63932677b58f57e
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.2.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.2.vcf.bgz
+        size_bytes: 41031495814
+        md5: f7db44e30f5be3378486c07494aa035f
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.3.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.3.vcf.bgz
+        size_bytes: 33660410706
+        md5: 69bd6a52695d5eedb6e66847fff512b9
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.4.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.4.vcf.bgz
+        size_bytes: 32564147773
+        md5: 2dbf7408b56daca57b5a33274c8d46a4
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.5.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.5.vcf.bgz
+        size_bytes: 30359795850
+        md5: b4439ed58fa62e3c9d1b67c472e521ee
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.6.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.6.vcf.bgz
+        size_bytes: 28449547285
+        md5: c66d92dc5b677df537f19f3d7d6b1815
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.7.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.7.vcf.bgz
+        size_bytes: 27966217448
+        md5: bb70cc16431d746c5a516d21019a6be5
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.8.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.8.vcf.bgz
+        size_bytes: 26278293077
+        md5: 9ed8ba30f63e2ccf2e0d91fb6b944e3c
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.9.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.9.vcf.bgz
+        size_bytes: 21507786218
+        md5: df50f25ed54b6fbca76fa302451eb139
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.10.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.10.vcf.bgz
+        size_bytes: 22789281670
+        md5: d886702d52e91632ffbfe508c7eeeec0
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.11.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.11.vcf.bgz
+        size_bytes: 23440676503
+        md5: 6f0721fe85c9fa4c4166d68b3033e9eb
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.12.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.12.vcf.bgz
+        size_bytes: 22823996537
+        md5: ae0eb6ec036f751d05375d5d38b5e54c
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.13.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.13.vcf.bgz
+        size_bytes: 16023652952
+        md5: 7d599634271e6478d64df5c193ce1d97
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.14.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.14.vcf.bgz
+        size_bytes: 15704848918
+        md5: a25f665eb214f334251b8798e893cd8f
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.15.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.15.vcf.bgz
+        size_bytes: 14784090145
+        md5: 094be1d4b82d7022f79556b469c324b3
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.16.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.16.vcf.bgz
+        size_bytes: 16568784334
+        md5: 082bedc2d5eed158c50d638529ab86da
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.17.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.17.vcf.bgz
+        size_bytes: 14514373625
+        md5: addd19da8057da3b392d5af04b8b60ba
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.18.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.18.vcf.bgz
+        size_bytes: 12957516802
+        md5: 2e72f12ffe39a6b9cc7377bd2e7f3ef1
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.19.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.19.vcf.bgz
+        size_bytes: 12044273254
+        md5: 116b0c4b52effdbccf6cd15a6c07c74e
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.20.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.20.vcf.bgz
+        size_bytes: 10327420601
+        md5: b06ce8dcedfa761ba781e4416ede6ad8
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.21.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.21.vcf.bgz
+        size_bytes: 6573049452
+        md5: afd34a5ec39d8efb1d374534637895e7
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.22.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.22.vcf.bgz
+        size_bytes: 6968754974
+        md5: 113cded38a70f8f4abbef10f5c63e81d
+      - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/genomes/gnomad.genomes.r2.1.1.sites.X.vcf.bgz
+        filename: gnomad.genomes.r2.1.1.sites.X.vcf.bgz
+        size_bytes: 19112911556
+        md5: 77d25e87e94d360eb2acedaaedaf3df1
+
+  # --------------------------------------------------------------------------
+  # One source, two roles, and the reason `imputation_panel` names a role rather than
+  # banning subsetting outright: this panel feeds both the PCA projection (M5.3, which
+  # legitimately reduces it to array-overlapping markers) and imputation (M8, which
+  # must have it whole -- AGENTS.md 5.5). Reducing it in place is forbidden; writing a
+  # separate PCA subset beside it is not.
+  # --------------------------------------------------------------------------
+  - id: thousand_genomes_phase3_grch37
+    name: 1000 Genomes phase 3 GRCh37 genotypes
+    tier: A
+    required: false
+    version: "20130502"
+    homepage: https://www.internationalgenome.org/
+    license: LicenseRef-Fort-Lauderdale
+    imputation_panel: true
+    enables:
+      - reference PCA for ancestry projection (M5.3, M5.4)
+      - phasing and imputation reference panel (M8.2)
+    notes: >-
+      EBI publishes no checksum file for this release, so the VCFs are unpinned by the
+      manifest and pinned by the lock on first fetch. The release itself is immutable --
+      note chromosome X uses the v1c filename where the autosomes use v5b, which is the
+      concrete reason this manifest does not template URLs.
+    post_process:
+      - step: build_pca_marker_subset
+        params:
+          output: pca_markers_ldpruned.pgen
+      - step: convert_to_bref3
+        params:
+          output: bref3/
+    files:
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 1165011543
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 1255861869
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 1058895733
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 1071020149
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 946995712
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 959144250
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 870098463
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 824304010
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 644258549
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 741683063
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 734583405
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 710187972
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 533918831
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 485261255
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 438397058
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 473472094
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 415901551
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 418186091
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 344793450
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 327135853
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 209774472
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        filename: ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
+        size_bytes: 205612353
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz
+        filename: ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz
+        size_bytes: 1908425030
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz
+        filename: ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz
+        size_bytes: 5656911
+        unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
+      - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel
+        filename: integrated_call_samples_v3.20130502.ALL.panel
+        size_bytes: 55156
+        sha256: b4023dc6ee2d62ee89c8d4d347db4d348e65518d66d346574cdae7a4bbd76858
+
+  # --------------------------------------------------------------------------
+  # Association corpora.
+  # --------------------------------------------------------------------------
+  - id: gwas_catalog
+    name: GWAS Catalog curated associations
+    tier: A
+    required: false
+    version: latest
+    homepage: https://www.ebi.ac.uk/gwas/
+    license: LicenseRef-EBI-Terms-Of-Use
+    enables:
+      - curated lead associations behind trait and health cards
+    notes: >-
+      Only a rolling latest/ release is published, so every file here is lock-pinned
+      rather than manifest-pinned. Post-2021 summary statistics are CC0; the curated
+      association table is under the EBI terms.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-associations_ontology-annotated-full.zip
+        filename: gwas-catalog-associations_ontology-annotated-full.zip
+        size_bytes: 72788405
+        unpinned_reason: "GWAS Catalog publishes only a rolling latest/ release; the digest is recorded in the lock on first fetch"
+      - url: https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-studies.tsv
+        filename: gwas-catalog-studies.tsv
+        size_bytes: 76486229
+        unpinned_reason: "GWAS Catalog publishes only a rolling latest/ release; the digest is recorded in the lock on first fetch"
+      - url: https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-catalog-ancestry.tsv
+        filename: gwas-catalog-ancestry.tsv
+        size_bytes: 51526300
+        unpinned_reason: "GWAS Catalog publishes only a rolling latest/ release; the digest is recorded in the lock on first fetch"
+      - url: https://ftp.ebi.ac.uk/pub/databases/gwas/releases/latest/gwas-efo-trait-mappings.tsv
+        filename: gwas-efo-trait-mappings.tsv
+        size_bytes: 19481277
+        unpinned_reason: "GWAS Catalog publishes only a rolling latest/ release; the digest is recorded in the lock on first fetch"
+
+  - id: pgs_catalog_metadata
+    name: PGS Catalog score metadata
+    tier: A
+    required: false
+    version: latest
+    homepage: https://www.pgscatalog.org/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - polygenic score selection and per-score licence gating (M9.1)
+    notes: >-
+      AGENTS.md 4.8 trap 1, verified rather than trusted: pgs_all_metadata_scores.csv
+      carries a "License/Terms of Use" column holding ten distinct values across the
+      catalogue -- the EBI default for most scores, but CC BY-NC-ND 4.0 for a few dozen
+      and academic-research-only for a handful. One refinement to 4.8 worth recording:
+      the authoritative field is that metadata column, not the scoring file header --
+      PGS000001's header carries no licence line at all. Scoring files themselves are
+      fetched per selected score in M9, not in bulk here.
+    post_process:
+      - step: parse_pgs_score_licenses
+        params:
+          output: pgs_score_licenses.json
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/metadata/pgs_all_metadata.tar.gz
+        filename: pgs_all_metadata.tar.gz
+        size_bytes: 4740517
+        unpinned_reason: "PGS Catalog metadata is regenerated on each catalogue update under a fixed name"
+
+  # --------------------------------------------------------------------------
+  # Pharmacogenomics -- the highest-value section in the app and an entirely free
+  # corpus (AGENTS.md 3.1, 5.1).
+  # --------------------------------------------------------------------------
+  - id: pharmgkb
+    name: PharmGKB clinical annotations and variants (ClinPGx)
+    tier: A
+    required: false
+    version: latest
+    homepage: https://www.clinpgx.org/
+    license: LicenseRef-PharmGKB-CC-BY-SA-4.0
+    enables:
+      - star-allele definitions and phenotype mapping (M10.1)
+      - drug-label annotations (M10.4)
+    notes: >-
+      PharmGKB now serves under ClinPGx: pharmgkb.org/downloads redirects to
+      clinpgx.org/downloads, and the historic api.pharmgkb.org host no longer resolves.
+      The URLs below are the redirect targets of the old download API, used directly so
+      a fetch does not depend on a redirect staying in place.
+
+      Share-alike, so the licence gate requires an explicit opt-in for this source id.
+      The opt-in is expected to be taken -- the point of gating it is that the
+      share-alike obligation lands in manifest.lock and reaches the M15.4 audit, not
+      that the data is avoided.
+    post_process:
+      - step: extract_zip
+    files:
+      - url: https://s3.pgkb.org/data/clinicalAnnotations.zip
+        filename: clinicalAnnotations.zip
+        size_bytes: 1231768
+        unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
+      - url: https://s3.pgkb.org/data/variants.zip
+        filename: variants.zip
+        size_bytes: 894788
+        unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
+      - url: https://s3.pgkb.org/data/clinicalVariants.zip
+        filename: clinicalVariants.zip
+        size_bytes: 74385
+        unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
+      - url: https://s3.pgkb.org/data/drugLabels.zip
+        filename: drugLabels.zip
+        size_bytes: 59489
+        unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
+      - url: https://s3.pgkb.org/data/relationships.zip
+        filename: relationships.zip
+        size_bytes: 2370578
+        unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
+
+  - id: cpic
+    name: CPIC database dump
+    tier: A
+    required: false
+    version: v1.60.0
+    homepage: https://cpicpgx.org/
+    license: LicenseRef-CPIC-Open
+    enables:
+      - CPIC guideline-linked dosing implications with evidence level (M10.4)
+      - diplotype-to-phenotype mapping for SNP-tractable genes (M10.2)
+    notes: >-
+      Version-pinned dump rather than the rolling cpic_db_dump.sql.gz, so both files
+      carry a real sha256 computed during authoring.
+    files:
+      - url: https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0.sql.gz
+        filename: cpic_db_dump-v1.60.0.sql.gz
+        size_bytes: 3833028
+        sha256: 1f02d87a492fffacb52a6d3ca5f45c5f7d6862bdfd382436d2cf7595b08d1ffe
+      - url: https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0_inserts.sql.gz
+        filename: cpic_db_dump-v1.60.0_inserts.sql.gz
+        size_bytes: 4360071
+        sha256: c6a0ca294445aca70e73debe85aef270e57ba9c4fd5cda80f3e95f370c0b0b8c
+
+  # --------------------------------------------------------------------------
+  # Ancestry.
+  # --------------------------------------------------------------------------
+  - id: phylotree_17
+    name: PhyloTree mtDNA build 17
+    tier: A
+    required: false
+    version: "17"
+    homepage: https://www.phylotree.org/
+    license: LicenseRef-PhyloTree-Academic-Attribution
+    enables:
+      - mtDNA haplogroup assignment from the array's 263 MT markers (M5.7)
+    notes: >-
+      Build 17 has been frozen since 2016-02-18. That is a ceiling on resolution, not a
+      staleness bug, and it compounds the marker-count ceiling in AGENTS.md 4.7 -- the
+      card must state both.
+    post_process:
+      - step: extract_zip
+    files:
+      - url: https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip
+        filename: mtDNA_tree_Build_17.zip
+        size_bytes: 421842
+        sha256: 3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146
+
+  - id: panukbb_manifest
+    name: Pan-UK Biobank phenotype manifest
+    tier: A
+    required: false
+    version: "2024-06-26"
+    homepage: https://pan.ukbb.broadinstitute.org/
+    license: CC-BY-4.0
+    enables:
+      - multi-ancestry summary statistics for mental health and physical health PRS
+    notes: >-
+      The manifest only. Individual per-phenotype summary-statistic files are gigabytes
+      each and are fetched per selected trait in M9, driven by the path_https column
+      here rather than by a hard-coded URL.
+    files:
+      - url: https://pan-ukb-us-east-1.s3.amazonaws.com/sumstats_release/phenotype_manifest.tsv.bgz
+        filename: phenotype_manifest.tsv.bgz
+        size_bytes: 1420758
+        sha256: 58343c50b06be5cee7a56a1d1a38c30065aa4321a8d8e6b3471d971e0a5b812c
+
+  # --------------------------------------------------------------------------
+  # FinnGen: a correction to AGENTS.md 5.2.
+  #
+  # 5.2 lists FinnGen as tier B, "requires submitting a web form to receive download
+  # instructions by email". That is no longer true of the summary statistics. The R12
+  # release manifest and every per-endpoint file it lists are served straight off public
+  # Google Cloud Storage with no account, no form and no credential -- checked on
+  # 2026-08-15 by fetching both the manifest and a 755 MB endpoint file. Individual-level
+  # data remains restricted, which is presumably what the form covers.
+  #
+  # Recorded as tier A accordingly. AGENTS.md has been updated to match.
+  # --------------------------------------------------------------------------
+  - id: finngen_r12
+    name: FinnGen R12 summary statistics manifest
+    tier: A
+    required: false
+    version: R12
+    homepage: https://www.finngen.fi/en/access_results
+    license: LicenseRef-FinnGen-Free-Use
+    enables:
+      - Finnish-cohort endpoints partially compensating the 23andMe restriction (AGENTS.md 5.3)
+    notes: >-
+      The manifest only, as with Pan-UKBB: 2,502 endpoints are not worth pre-fetching
+      when M9 needs a handful. Each row carries its own https URL.
+    files:
+      - url: https://storage.googleapis.com/finngen-public-data-r12/summary_stats/finngen_R12_manifest.tsv
+        filename: finngen_R12_manifest.tsv
+        size_bytes: 773612
+        sha256: 730fc3f54f6a73d37dc6fc9c6a0fd13159f4134bbc274e93c4db980f93120772
+
+  # --------------------------------------------------------------------------
+  # TIER B -- free, but a human has to do something once (roadmap M2.4).
+  #
+  # These are modelled as data rather than described in a README because the fetcher has
+  # to act on them: skip the source, say exactly what to do, and detect afterwards that
+  # it was done. `refs status` cannot check a README.
+  #
+  # The three ancestry panels below are tier B for an honest reason rather than a
+  # licensing one: their payload URLs could not be resolved programmatically on
+  # 2026-08-15. Harvard Dataverse answered every API request for the AADR dataset with a
+  # bare 202, and the HGDP collection on the 1000 Genomes FTP holds GRCh38 high-coverage
+  # alignments rather than the GRCh37 genotype panel M5 needs. Writing a plausible URL
+  # from memory would be the same failure as inventing a coordinate (AGENTS.md 6), so
+  # they carry instructions and no invented file list. M5 resolves them.
+  # --------------------------------------------------------------------------
+  - id: aadr
+    name: Allen Ancient DNA Resource
+    tier: B
+    version: "54.1"
+    homepage: https://doi.org/10.7910/DVN/FFIDCW
+    license: CC-BY-4.0
+    enables:
+      - ancient-population affinity projection (M5.6)
+    manual:
+      instructions: >-
+        Download the AADR 1240K genotype set from the Harvard Dataverse record and place
+        the .geno, .snp and .ind files in this source's directory. Programmatic access was
+        not available at authoring time -- Dataverse returns 202 to API requests -- so the
+        exact filenames are deliberately not guessed here.
+      url: https://doi.org/10.7910/DVN/FFIDCW
+      expected_files:
+        - v54.1_1240K_public.geno
+        - v54.1_1240K_public.snp
+        - v54.1_1240K_public.ind
+    notes: >-
+      Affinity to ancient populations is not descent, and M5.6 must label it that way.
+
+  - id: hgdp_grch37
+    name: Human Genome Diversity Project genotypes (GRCh37)
+    tier: B
+    version: unresolved
+    homepage: https://cephb.fr/en/hgdp_panel.php
+    license: LicenseRef-Fort-Lauderdale
+    enables:
+      - reference populations for PCA projection beyond 1000 Genomes (M5.3)
+    manual:
+      instructions: >-
+        Obtain the HGDP-CEPH genotype panel on GRCh37 and place it in this source's
+        directory. The HGDP collection published on the 1000 Genomes FTP is GRCh38
+        high-coverage sequence, not the GRCh37 genotype panel, so it is not a substitute.
+        Resolve the exact distribution when M5.3 is built.
+      url: https://cephb.fr/en/hgdp_panel.php
+      expected_files:
+        - hgdp_grch37.bed
+        - hgdp_grch37.bim
+        - hgdp_grch37.fam
+
+  - id: sgdp
+    name: Simons Genome Diversity Project
+    tier: B
+    version: unresolved
+    homepage: https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/
+    license: LicenseRef-Fort-Lauderdale
+    enables:
+      - additional reference populations for PCA projection (M5.3)
+    manual:
+      instructions: >-
+        Select and download the SGDP variant set appropriate for PCA projection from the
+        Reich Lab share host, then place it in this source's directory. The share host
+        publishes several differently-processed releases -- one of them named
+        "knownbugs.not_recommended" -- so choosing between them is a decision for M5.3
+        rather than something to hard-code now.
+      url: https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/
+      expected_files:
+        - sgdp_variants.vcf.gz
+
+  - id: omim
+    name: OMIM (user-supplied API key)
+    tier: B
+    version: current
+    homepage: https://www.omim.org/downloads
+    license: LicenseRef-OMIM-No-Derivatives
+    enables:
+      - gene-phenotype enrichment on monogenic cards
+    manual:
+      instructions: >-
+        Register for an OMIM API key and set OMIM_API_KEY in the environment. The key is
+        never written to the lock, never logged and never committed. OMIM is an
+        enrichment, not a dependency -- AGENTS.md 5.2 notes most of its practical value is
+        recoverable from ClinVar, ClinGen, MedGen and Orphanet, all of which are tier A.
+      url: https://www.omim.org/api
+      env_var: OMIM_API_KEY
+      expected_files:
+        - mim2gene.txt
+      retention: >-
+        Terms forbid building a derivative database or redistributing data without a Johns
+        Hopkins licence, and require weekly refresh. Cache for at most seven days, never
+        vendor, and never fold OMIM text into a committed card -- cite it instead.
+    notes: >-
+      AGENTS.md 4.8 trap 3. The licence classification here is no-derivatives and
+      non-commercial, so the gate refuses this source without an explicit opt-in on top
+      of the manual step.
+
+  # --------------------------------------------------------------------------
+  # TIER C -- restricted. Present so its absence is documented rather than mysterious.
+  # --------------------------------------------------------------------------
+  - id: snpedia
+    name: SNPedia
+    tier: C
+    version: current
+    homepage: https://www.snpedia.com/
+    license: CC-BY-NC-SA-3.0-US
+    enables:
+      - convenience trait annotations (prefer primary literature)
+    manual:
+      instructions: >-
+        SNPedia is CC BY-NC-SA 3.0 US -- non-commercial and share-alike. AGENTS.md 4.8
+        trap 2 calls it the corpus that most constrains a public, permissively-licensed
+        project. Do not vendor it and do not build a permissive derivative on it. If you
+        opt in, the resulting cards inherit the licence and must say so.
+      url: https://www.snpedia.com/index.php/SNPedia:Terms_of_Service
+      expected_files:
+        - snpedia_export.xml
+    notes: >-
+      Listed to make the decision visible. The knowledge pack should be written from
+      primary literature instead (M3.6).
+

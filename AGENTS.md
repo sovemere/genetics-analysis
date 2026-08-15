@@ -403,8 +403,15 @@ Full corpus map, availability tiers, and per-section coverage assessment live in
 The three things that will actually bite an implementer:
 
 1. **PGS Catalog licenses vary per score**, not per catalogue. Some are non-commercial.
-   The license is declared in each scoring file's header — parse it per score, do not
-   assume the catalogue-level EBI default applies.
+   Parse it per score; do not assume the catalogue-level EBI default applies.
+   *Verified and refined at M2.3 (2026-08-15):* the authoritative machine-readable field
+   is the **`License/Terms of Use` column of `pgs_all_metadata_scores.csv`**, not the
+   scoring file's own header — PGS000001's header carries no licence line at all. That
+   column holds **ten distinct values** across the catalogue: the EBI default for the
+   great majority, but **CC BY-NC-ND 4.0** for a few dozen scores, academic-research-only
+   for a handful, and one with an explicit re-identification prohibition. Note the **ND**:
+   no-derivatives is the sharper edge of that licence for us, since computing a score from
+   the weights is plausibly a derivative work even on a machine the result never leaves.
 2. **SNPedia is CC BY-NC-SA 3.0 US.** Non-commercial *and* share-alike. It is the most
    convenient trait-annotation corpus and the one that most constrains a public,
    permissively-licensed project. Do not vendor it or build a permissive derivative on it.
@@ -460,9 +467,9 @@ vendored). This tier alone supports the great majority of planned cards.
 | **GWAS Catalog** | ~7,000 publications, 15,000+ traits, 625,000+ curated lead associations, 85,000 full summary-stat datasets, harmonised | EMBL-EBI terms; post-2021 sumstats CC0 |
 | **PGS Catalog** | 5,022 scores across 656 traits; harmonised to GRCh37 **and** GRCh38 | EBI default, **per-score varies — parse the header** |
 | **ClinVar** | Full variant + classification set | US public domain |
-| **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies | Free; open access |
+| **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | Free; open access |
 | **Pan-UK Biobank** | GWAS across thousands of traits, multi-ancestry | **CC BY 4.0**, explicitly unrestricted |
-| **PharmGKB + CPIC** | Clinical annotations, dosing guidelines | Creative Commons; CPIC free |
+| **PharmGKB + CPIC** | Clinical annotations, dosing guidelines. PharmGKB now serves under **ClinPGx** — `pharmgkb.org/downloads` redirects to `clinpgx.org/downloads` and the historic `api.pharmgkb.org` host no longer resolves (checked 2026-08-15) | PharmGKB CC BY-SA 4.0 (share-alike — opt-in in the fetcher); CPIC free |
 | **1000 Genomes / HGDP / SGDP** | Reference panels, GRCh37 available | Open (Fort Lauderdale) |
 | **AADR (Allen Ancient DNA)** | >10,000 ancient individuals at ~1.2M SNPs | Freely available, CC BY 4.0 |
 | **PhyloTree 17 / Haplogrep 3 trees** | mtDNA phylogeny, 6,380 haplogroups | Public GitHub repos |
@@ -471,13 +478,30 @@ vendored). This tier alone supports the great majority of planned cards.
 **gnomAD is load-bearing**, not optional: the frequency-based confidence inversion in
 §4.1 cannot be computed without it.
 
+**gnomAD build note (measured at M2.3, 2026-08-15).** The v4 figures above describe a
+**GRCh38-only** release. This pipeline is GRCh37 end to end (§2), so the usable release is
+**v2.1.1**, and the manifest pins that. The sizes are larger than "multi-GB" implies and
+were measured, not estimated: the v2.1.1 **exomes** sites VCF is a single 63 GB file, and
+the **genomes** are 495 GB across 23 files. The exomes cover the coding regions where
+essentially all ClinVar pathogenic assertions live, so they are what the §4.1 gate
+actually needs and they are the required half; the genomes buy non-coding frequencies for
+trait and PRS cards and are optional. Every gnomAD file is checksum-pinned from the base64
+md5 that Google Cloud Storage returns in `x-goog-hash`, so pinning the whole 558 GB cost
+no download at all.
+
 ### 5.2 Tier B — free but gated behind a one-time human step
 
 The fetcher cannot fully automate these. Design them as optional modules that degrade
 gracefully when absent, and prompt the user once.
 
-- **FinnGen** — R12 covers 500,348 individuals, 2,502 endpoints, 21M variants, free, but
-  requires submitting a web form to receive download instructions by email.
+- ~~**FinnGen** — requires submitting a web form to receive download instructions by
+  email.~~ **Corrected at M2.3 (2026-08-15): this is no longer true of the summary
+  statistics, which are tier A.** R12 covers 500,348 individuals, 2,502 endpoints and 21M
+  variants, and the release manifest plus every per-endpoint file it lists is served
+  straight off public Google Cloud Storage with no account, no form and no credential —
+  verified by fetching both the manifest and a 755 MB endpoint file. Individual-level data
+  remains restricted, which is presumably what the form covers. The manifest lists FinnGen
+  as tier A accordingly.
 - **OMIM** — requires a registered API key. Its terms forbid building a derivative
   database or redistributing data without a Johns Hopkins license, and require weekly
   refresh. Therefore: **user-supplied key only, never vendored, never cached long-term.**

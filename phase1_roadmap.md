@@ -317,34 +317,88 @@ permanent in git history.*
 
 ## M2 — Reference fetcher
 
-- [ ] **M2.1** `manifest.yaml` schema: per source — id, URL, version, checksum, license
-      SPDX/text, size estimate, tier (A/B/C per [AGENTS.md §5](AGENTS.md)), required-vs-
-      optional, post-download processing step.
-- [ ] **M2.2** Fetcher with resumable downloads, checksum verification, progress
-      reporting, and a written `manifest.lock` recording resolved licenses.
-      - **Refuse or loudly flag non-permissive sources.** SNPedia and any non-commercial
-        PGS score must be opt-in and labelled.
-- [ ] **M2.3** Tier A sources, in dependency order:
-      - [ ] gnomAD allele frequencies — **load-bearing**, the frequency gate in
-            [AGENTS.md §4.1](AGENTS.md) cannot be computed without it. Subset to array
-            positions + card positions to keep it manageable.
-      - [ ] ClinVar (VCF + variant summary)
-      - [ ] dbSNP: the **rsID merge table** M1.7 loads, and verified GRCh37/GRCh38
-            coordinates for the build anchors M1.5 left empty. Both are mechanisms
-            already built and tested against injected data, waiting only on real
-            positions — see `qc/build_anchors.py` for why they were not written from
-            memory.
-      - [ ] 1000 Genomes phase 3 GRCh37 (PCA subset **and** full panel for imputation —
-            do not subset the imputation panel, [AGENTS.md §5.5](AGENTS.md))
-      - [ ] HGDP + SGDP
-      - [ ] GWAS Catalog associations
-      - [ ] PGS Catalog scoring files — **parse the per-score license header**
-      - [ ] PharmGKB + CPIC
-      - [ ] AADR
-      - [ ] PhyloTree 17 (mtDNA)
-      - [ ] Pan-UKBB (selected traits)
-- [ ] **M2.4** Tier B optional sources with one-time human step: FinnGen (web form),
-      OMIM (user-supplied API key, never cached long-term, never vendored).
+- [x] **M2.1** `manifest.yaml` schema (`refs/manifest.py`, `refs/licenses.py`,
+      `refs/postprocess.py`). Per source: id, URL, version, checksum, licence, size, tier,
+      required-vs-optional, post-download step. Four decisions are load-bearing:
+      - **A source names its licence; it does not describe one.** `license: CC-BY-SA-4.0`
+        resolves through `refs/licenses.py`, so no manifest edit can widen what a licence
+        permits — the alternative puts the gate under the control of the one person
+        motivated to get past it. An unknown id **refuses to load** rather than defaulting
+        to permissive: the same fail-closed lesson as M0 and M1, applied to licensing.
+      - **A file is pinned, or it says why not.** `unpinned_reason` is mandatory when no
+        digest exists, so "genuinely unpinnable rolling URL" stays distinguishable from
+        "nobody bothered". The lock then pins it on first fetch.
+      - **No URL templating.** 1000G names chromosome X `...v1c...` where the autosomes are
+        `...v5b...`, and every file has its own size — a template invites adding a
+        chromosome nobody checked exists. In a file whose whole job is pinning, verbosity
+        is the feature.
+      - `imputation_panel` names a **role**, not a ban on subsetting. The blunter rule was
+        written first and was wrong: 1000G is simultaneously the imputation panel and the
+        source of the PCA subset (M5.3), so "may not be subsetted" would forbid something
+        the roadmap requires. What is forbidden is *replacing* the panel.
+- [x] **M2.2** Fetcher (`refs/fetcher.py`) + lock (`refs/lock.py`): resumable downloads,
+      checksum verification, progress callback, disk preflight, and `manifest.lock`
+      recording each source's resolved licence and derived obligations.
+      - **Refused, not merely flagged:** PharmGKB (share-alike), OMIM (no-derivatives) and
+        SNPedia (NC+SA) need an explicit per-source opt-in. PGS Catalog is deliberately
+        *flagged and not blocked* — refusing 6,970 scores because 31 are CC BY-NC-ND would
+        train people to pass a blanket opt-in, and then the gate protects nothing.
+      - `Transport` reports **`resumed_from`: the offset the server actually used**, not
+        the one requested. A server may answer a Range request with `200` and the whole
+        file; appending that to a partial download duplicates the prefix, and on an
+        unpinned file nothing would ever notice. Reporting reality makes the bug
+        unrepresentable rather than merely tested for. Also handled: `Content-Length` on a
+        `206` is the *remaining* bytes, so the total comes from `Content-Range`.
+      - The lock is **byte-identical across re-runs** — `first_seen` survives an unchanged
+        digest. A lock that churned every run would produce a diff nobody reads, which
+        would cost exactly the review step that catches a reference changing under a
+        saved run.
+      - *Verified live, not just against the fake transport:* fetched five real sources,
+        confirmed the authored sha256 values matched, then seeded a truncated `.part` and
+        confirmed a genuine HTTP Range resume reassembled a file matching its pin.
+- [x] **M2.3** Tier A sources. **Every URL, size and digest verified against the live
+      server on 2026-08-15; nothing written from memory.** 604 GB declared across 17
+      sources, 92 GB of it required.
+      - [x] gnomAD — **two entries, and the roadmap's assumption needed correcting.** v4 is
+            GRCh38-only, so the GRCh37 release is v2.1.1: exomes are one 63 GB file
+            (required — they cover the coding regions where ClinVar's pathogenic
+            assertions live, which is what the §4.1 gate needs), genomes are **495 GB**
+            across 23 files (optional, for non-coding frequencies). Subsetting keeps the
+            *storage* manageable but not the download, which the roadmap conflated. All 24
+            files are md5-pinned from the base64 digest GCS returns in `x-goog-hash` — the
+            whole 558 GB pinned without downloading a byte.
+      - [x] ClinVar — the **dated archive** release, not the weekly rolling file, so it can
+            carry the publisher's md5. `variant_summary.txt.gz` has no dated equivalent
+            and is the one unpinned file there.
+      - [x] dbSNP b157 — from the **build-pinned archive path**, not `latest_release/`
+            which silently becomes b158. Wires up `extract_rsid_merge_table` and
+            `extract_build_anchors`, the two mechanisms M1 shipped deliberately empty.
+      - [x] 1000 Genomes phase 3 GRCh37 — 16.75 GB, `imputation_panel: true`, declaring
+            both `build_pca_marker_subset` and `convert_to_bref3`. EBI publishes no
+            checksums, so these are lock-pinned on first fetch.
+      - [~] HGDP + SGDP — **demoted to tier B with instructions.** The HGDP collection on
+            the 1000G FTP is GRCh38 high-coverage sequence, not the GRCh37 genotype panel
+            M5 needs, and SGDP publishes several differently-processed releases (one named
+            `knownbugs.not_recommended`) whose selection is an M5.3 decision. Writing a
+            plausible URL would be the same failure as inventing a coordinate.
+      - [x] GWAS Catalog — real filenames differ from the obvious guess
+            (`...-full.zip`, `gwas-catalog-studies.tsv`); only a rolling `latest/` exists.
+      - [x] PGS Catalog metadata — see the §4.8 refinement below.
+      - [x] PharmGKB + CPIC — **PharmGKB now serves under ClinPGx**; `api.pharmgkb.org` no
+            longer resolves. Pinned to the redirect targets on `s3.pgkb.org` so a fetch
+            does not depend on a redirect persisting. CPIC pinned at v1.60.0 by sha256.
+      - [~] AADR — tier B. Harvard Dataverse answered every API request with a bare 202.
+      - [x] PhyloTree 17 (mtDNA) — 421 KB, sha256-pinned, frozen since 2016-02-18.
+      - [x] Pan-UKBB — the phenotype manifest only; per-trait files are fetched in M9 from
+            its `path_https` column rather than from hard-coded URLs.
+- [x] **M2.4** Tier B sources with a one-time human step, modelled as **data rather than
+      prose** so `refs status` can act on them: instructions, URL, expected files, an
+      optional credential env var, and a retention policy.
+      - OMIM: user-supplied `OMIM_API_KEY`, never written to the lock, never logged, with
+        an explicit seven-day retention note (its terms forbid a derivative database).
+      - **FinnGen turned out not to need a human step at all** — see the AGENTS.md §5.2
+        correction. It is tier A.
+      - SNPedia added as tier C so its absence is documented rather than mysterious.
 - [ ] **M2.5** Tool acquisition: PLINK 2 (pinned build), Beagle jar, optional R+HIBAG
       detection. Verify checksums. Install under a user-data dir, not the repo.
 - [ ] **M2.6** `genetics refs fetch|status|verify|licenses` CLI.
@@ -651,6 +705,8 @@ default-on.*
 | Confidence used as a filter, hiding results | M3, M15.5 | Explicit test that no code path drops on confidence | [§0.1A](AGENTS.md) |
 | Fabricated citations | M3.5, M15.6 | Card lint in CI; card without citation cannot ship | [§6](AGENTS.md) |
 | Non-permissive source vendored | M2.2 | Fetcher refuses/flags; licence lock; M15.4 | [§4.8](AGENTS.md) |
+| A rolling "latest" URL changes under a saved run, silently altering results | M2.2 | Lock records the digest on first fetch; later drift fails verification instead of producing new answers | [§5.5](AGENTS.md) |
+| gnomAD's real size (63 GB exomes / 495 GB genomes) stalls a first setup | M2.3 | Exomes required and genomes optional; sizes declared exactly so the preflight can warn before the download, not after | [§4.1](AGENTS.md) |
 | PGS per-score licences ignored | M9.1 | Parse header per score, not per catalogue | [§4.8](AGENTS.md) |
 | Imputation run un-resumable, blocking progress | M8.1 | Resumability is an acceptance criterion | [§0.1C](AGENTS.md) |
 | CLI/UI parity rots | M13.5 | Parity test in CI | [§3](AGENTS.md) |
@@ -667,6 +723,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-15 | M2.1–M2.4 | Manifest schema, licence gate, fetcher, lock, and 17 sources. 380 tests; ruff, `ruff format` and `mypy --strict` clean. **The governing decision was to verify every URL, size and digest against the live server rather than write any of it from memory** — the same rule `qc/build_anchors.py` and the `spike_ins` hook were left empty for, applied to a file whose entire purpose is pinning. That produced five findings that memory would have gotten wrong. (1) **gnomAD v4 is GRCh38-only**, and this pipeline is GRCh37 end to end, so the usable release is v2.1.1 — AGENTS.md §5.1 cited v4's variant counts for a build we cannot use. (2) Its real size is **63 GB for exomes and 495 GB for genomes**, so M2.3's "subset to array positions to keep it manageable" was addressing storage, not the download; split into a required exomes entry (which is what the §4.1 gate actually needs, since ClinVar's pathogenic assertions are overwhelmingly coding) and an optional genomes entry. (3) **PharmGKB now serves under ClinPGx** and `api.pharmgkb.org` no longer resolves. (4) **FinnGen R12 summary statistics need no web form** — manifest and a 755 MB endpoint file both fetched anonymously off public GCS, so AGENTS.md §5.2 was wrong and is corrected. (5) **§4.8 trap 1 is real but mislocated**: the authoritative per-score licence is the `License/Terms of Use` column of `pgs_all_metadata_scores.csv`, not the scoring file header (PGS000001's has none), and it holds ten distinct values — mostly the EBI default, but CC BY-NC-**ND** for a few dozen, where NoDerivatives bites harder than NonCommercial because computing a score from the weights is plausibly a derivative. Two pieces of luck worth writing down: NCBI ships `.md5` sidecars and **GCS returns a base64 md5 in `x-goog-hash`**, so all 558 GB of gnomAD is checksum-pinned without a byte downloaded. **The design lesson carried from M0/M1 was fail-closed, and it landed on licensing**: a manifest that could declare its own `permissive: true` would put the gate under the control of the person motivated to get past it, so a source names a licence id and the properties are looked up — an unknown id refuses to load rather than defaulting to permissive. The inverse error was also avoided: refusing the PGS Catalog because 31 of 6,970 scores are non-commercial would train people to pass a blanket opt-in, and a gate that is always bypassed protects nothing, so per-record licences warn and only genuinely restrictive ones block. **The most instructive implementation finding was in resume**: a server may answer `Range` with `200` and the whole body, and appending that to a partial file duplicates the prefix — silently, for any file without a published checksum. Fixed structurally rather than defensively, by having the transport report the offset the server *actually* used instead of the one requested; the same code path also had to take the total from `Content-Range`, since `Content-Length` on a `206` is only the remaining bytes. Both are covered by tests, and both were then confirmed against a real server. A third case in the same family was found while reviewing that code and is the sharpest of the three: a server that resumes *past* the requested offset would have had the partial file truncated up to meet it, zero-extending it and appending beyond a run of NULs. Reproduced before fixing, and the striking part is that **the corrupted file came out at exactly the right byte count** — a length check passes it, only the digest catches it, and an unpinned file has no digest. No compliant server does this, which is precisely why it was worth handling: the failure would be rare, silent and permanent. One calibration fix on review: the licence-review warning originally fired once per source, which would have put ten near-identical lines in front of someone watching a download — M0.3's "a check that cries wolf gets bypassed" applies to warnings too, so it aggregates into one line. Three sources are **honestly demoted to tier B** rather than given invented URLs: HGDP (the 1000G collection is GRCh38 sequence, not the GRCh37 genotype panel), SGDP (several releases, one named `knownbugs.not_recommended` — choosing is an M5.3 decision), and AADR (Harvard Dataverse returns a bare 202 to every API request). `manifest.lock` is deliberately **not committed** until the owner runs a real fetch: it records what a machine received, and committing one from an authoring session would assert facts about a download that never happened here. |
 | 2026-08-15 | M1 review | Diff-driven review (`/code-review high`) plus a self-pass, same as M0. 11 findings, all fixed, all reproduced before fixing; 301 tests. The self-pass and the agent independently found the same two, which is the useful signal here — both were **fail-open guards**, the identical class as M0's. (1) `_first_bad` filled the rsID column with a placeholder *before* evaluating a predicate that tests `rsid.is_null()`, so the empty-field check could never see a missing identifier and a row with no rsID reached the normalized table. Fill after the filter, not before. (2) `_load_builtin_adapters` set its "loaded" flag before importing, so a broken adapter failed once with a real ImportError and then reported "does not match any known vendor layout" forever after — sending the reader after a missing adapter instead of the import that failed. **The single most instructive finding was in `doctor`:** the HIBAG probe `if (!requireNamespace("HIBAG")) quit(status=1)` prints *nothing* on success, and `_run_version` treats empty output as an error — so the success path was unreachable and every machine on earth reported "R is installed but HIBAG is not", including machines with HIBAG. A check that can only ever return one answer is not a check. It now prints on success. Also: `lookup_loci` consumed its `Iterable` argument twice, so any generator silently produced an empty column and a `ShapeError` naming nothing relevant; `_render` bypassed the genotype guard the module docstring claimed covered the command, leaving the *more* likely edit site ("just show me a few rows") unguarded — both output paths are scanned now; the 23andMe bad-genotype error raised `MalformedHeaderError` for a data row and printed a 0-based body index as a "line"; Beagle jar selection sorted by filename, but Beagle names jars by date (`05May22` sorts before `28jun21`), so the *older* of two installs won. Two design cleanups worth recording: `IngestResult.qc` was typed `object` to dodge an import cycle, which pushed an `assert isinstance` onto every caller — `TYPE_CHECKING` gives the real type for free. And the "no markers at all on X" warning fired on every 23andMe run for PAR, which that layout simply does not label; adapters now declare `representable_chroms` on `SourceInfo`, so QC can tell *structurally absent* from *actually missing* without importing a vendor module. That is the same distinction `infer_sex` already made for a layout with no Y markers, and it should have been made in both places at once. |
 | 2026-08-15 | M0.6, M1 | Ingest and QC complete. 288 tests; ruff, `ruff format` and `mypy --strict` clean. **M1.2's local acceptance passed on the real export** — 677,436 / 550 / 8,830 — and reconciling it against AGENTS.md §2 resolved an apparent 3-marker discrepancy on the Y: §2's "1,658 calls" counts *homozygous* calls, and 1,661 called − 3 het = 1,658. X matches exactly the same way (25,231 − 4 = 25,227). Two genuine findings in that file worth carrying to M3: **656 rows repeat a (chrom, position)** already present, and 7 heterozygous calls sit at loci inferred single-copy. Both are reported, neither is deduplicated or dropped — choosing between duplicate probes is a matching decision (M3.2), not an ingest one. **The M0 lesson recurred twice, in a new form each time.** (1) Writing the first genotype-bearing dataframe exposed a hole in the privacy scanner: `polars` renders a row with `U+2506` between cells, so `repr(frame)` printed rsIDs and genotypes in plain sight and matched none of the whitespace-separated patterns — it would have passed `assert_no_genotype` *and* the pre-commit content scan. Fixed by adding a vertical-rule separator form, which also closes the likelier route: a genotype row in a **markdown table** was equally invisible. Four negative controls guard against the scanner now flagging ordinary tables. (2) Null is Polars' fail-open value: `null.is_in([...])` is null, not False, and a null predicate matches nothing. That silently dropped **every no-call** from the indel-policy matchable set — the indel policy was quietly deciding what happens to missing genotypes, which is the card engine's call. Same trap found and closed in `_is_snp` and in row validation, where a blank field would have skipped the allele check unreported. The pattern to carry forward: in Polars, three-valued logic turns a guard into a no-op exactly on the rows that are already anomalous. Also worth noting: the build-anchor table and the dbSNP merge table both ship as tested mechanisms with empty data, following M0.2's `spike_ins` precedent — inventing GRCh37 coordinates to make a check look complete would be the exact failure the check exists to catch. |
 | 2026-08-15 | M0 review | Diff-driven review of the session (`/code-review high`) plus a self-pass. 15 findings, 8 reproduced empirically; all fixed. 116 tests. **The pattern across them: the guards failed *open*.** Several were cases where a privacy check silently passed on input it was written to catch — worse than no check, because it manufactures confidence. Worth remembering: (1) the fixture allowlist was an fnmatch glob, and fnmatch's `*` crosses `/`, so `synthetic/<any>/<real export>` was exempt from the name rule *and* the content scan *and* `.gitignore`'s `**` negation *and* the sealing test's non-recursive `iterdir()` — four layers with one blind spot, because all four were written from the same mental model. (2) The scanner matched only *real* tab separators, so a row inside a Python string literal or any `repr()`/traceback — the module docstring's own stated threats — sailed through; the redaction test passed vacuously for the same reason and would have passed with the redaction deleted. (3) `NoGenotypeRepr` was silently voided by `@dataclass`, which generates `__repr__` on the subclass; fixed by claiming the slot in `__init_subclass__`, since `dataclasses` never overwrites a name already in `cls.__dict__`. (4) The hook was committed mode 100644, so git skipped it on Linux/macOS while `install-hooks` reported success. (5) `verify_all` compared via `read_text()`, whose universal-newline mode folds CRLF, so the check `.gitattributes` exists to protect could never fail. (6) `staged_files` lacked `-z`, so a non-ASCII path was quoted, `git show` failed, the error was swallowed, and the file was skipped unscanned. Also fixed my own `GENETICS_DATA_DIR` hole: pointing it inside the checkout relocated run bundles into the repo, where gitignore covers them only unevenly. Lesson for M1: a guard that has not been *demonstrated* failing on real input is not evidence of anything. |
