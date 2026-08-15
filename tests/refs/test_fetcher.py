@@ -309,12 +309,13 @@ def test_a_filename_escaping_its_directory_is_refused_at_write_time(tmp_path: Pa
     Constructed by bypassing the manifest parser on purpose -- the point is that this
     check still holds if the earlier one is relaxed or bypassed.
     """
-    escaping = manifest.RemoteFile(url=URL, filename="../../escape.txt", sha256=PAYLOAD_SHA)
     source = make_source()
-    with pytest.raises(fetcher.FetchError, match="outside"):
-        fetcher.fetch_file(
-            source, escaping, root=tmp_path, transport=FakeTransport(), previous=lockfile.Lock()
-        )
+    for filename in ("../../escape.txt", "."):
+        escaping = manifest.RemoteFile(url=URL, filename=filename, sha256=PAYLOAD_SHA)
+        with pytest.raises(fetcher.FetchError, match="not inside"):
+            fetcher.fetch_file(
+                source, escaping, root=tmp_path, transport=FakeTransport(), previous=lockfile.Lock()
+            )
 
 
 # ---------------------------------------------------------------------------
@@ -509,6 +510,151 @@ def test_verify_writes_nothing_at_all(tmp_path: Path) -> None:
     assert not report.ok, "nothing is on disk, so verification should fail"
     assert not lock_path.exists(), "verify must not write the lock"
     assert not root.exists(), "verify must not even create the references directory"
+
+
+def test_a_detected_corruption_does_not_launder_itself_into_the_lock(tmp_path: Path) -> None:
+    """The lock's one guarantee, and it used to fail open after a single failure.
+
+    Recording only this run's successes *replaced* the file map, so the digest of the file
+    that failed was dropped. With nothing left to compare against, the next run reported
+    the corrupt file already-present and wrote its digest in as truth -- one detected
+    corruption was enough to bless itself.
+    """
+    payload_b = b"file B contents, quite distinct"
+    url_a, url_b = "https://example.org/a", "https://example.org/b"
+    source = manifest.Source(
+        id="two",
+        name="Two",
+        tier=manifest.Tier.A,
+        version="1",
+        homepage="https://example.org/",
+        license_id="CC0-1.0",
+        required=True,
+        files=(
+            manifest.RemoteFile(url=url_a, filename="a.txt", unpinned_reason="rolling"),
+            manifest.RemoteFile(url=url_b, filename="b.txt", unpinned_reason="rolling"),
+        ),
+    )
+    parsed = manifest.Manifest(schema_version=1, sources=(source,))
+    transport = FakeTransport({url_a: PAYLOAD, url_b: payload_b})
+    root, lock_path = tmp_path / "refs", tmp_path / "manifest.lock"
+
+    fetcher.fetch(parsed, root=root, transport=transport, lock_path=lock_path, today="2026-01-01")
+    assert set(lockfile.read(lock_path).sources["two"].files) == {"a.txt", "b.txt"}
+
+    (root / "two" / "b.txt").write_bytes(b"CORRUPTED")
+    fetcher.fetch(parsed, root=root, transport=transport, lock_path=lock_path, today="2026-01-02")
+
+    recorded = lockfile.read(lock_path)
+    assert "b.txt" in recorded.sources["two"].files, "the failed file's digest must survive"
+    assert recorded.file_digest("two", "b.txt") == hashlib.sha256(payload_b).hexdigest()
+
+    # And the corruption stays caught on every later run, rather than becoming the record.
+    third = fetcher.fetch(
+        parsed, root=root, transport=transport, lock_path=lock_path, today="2026-01-03"
+    )
+    assert not third.ok
+    assert (
+        lockfile.read(lock_path).file_digest("two", "b.txt")
+        != hashlib.sha256(b"CORRUPTED").hexdigest()
+    )
+
+
+def test_a_satisfied_manual_source_still_records_its_licence(tmp_path: Path) -> None:
+    """OMIM and SNPedia are the most encumbered entries in the manifest and have no files.
+
+    The lock previously skipped a source that completed with no files, so their obligations
+    vanished from the record at exactly the moment their data was present -- and
+    manifest.lock is what M15.4 reads to confirm nothing non-permissive was vendored.
+    """
+    source = manifest.Source(
+        id="gated",
+        name="Gated",
+        tier=manifest.Tier.B,
+        version="1",
+        homepage="https://example.org/",
+        license_id="CC0-1.0",
+        manual=manifest.ManualStep(
+            instructions="Fetch it by hand.",
+            url="https://example.org/form",
+            expected_files=("thing.txt",),
+        ),
+    )
+    parsed = manifest.Manifest(schema_version=1, sources=(source,))
+    root, lock_path = tmp_path / "refs", tmp_path / "manifest.lock"
+    (root / "gated").mkdir(parents=True)
+    (root / "gated" / "thing.txt").write_text("done")
+
+    report = fetcher.fetch(
+        parsed,
+        root=root,
+        transport=FakeTransport(),
+        lock_path=lock_path,
+        include_optional=True,
+        today="2026-01-01",
+    )
+    assert report.ok
+    assert "gated" in lockfile.read(lock_path).sources
+
+
+def test_verify_is_not_gated_on_the_licence(tmp_path: Path) -> None:
+    """The gate governs acquiring data, not inspecting what is already on disk.
+
+    Applying it to verification made the integrity check unreachable for exactly the
+    sources whose licence had already been accepted, and meant a full verify could never
+    exit 0.
+    """
+    source = make_source(license_id="CC-BY-NC-SA-3.0-US")
+    target = tmp_path / "example" / "ref.txt"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(PAYLOAD)
+
+    result = fetcher.fetch_source(
+        source,
+        root=tmp_path,
+        transport=FakeTransport(),
+        previous=lockfile.Lock(),
+        verify_only=True,
+    )
+    assert result.status is SourceStatus.COMPLETE
+    assert result.files[0].status is FileStatus.VERIFIED
+
+
+def test_a_complete_part_is_promoted_instead_of_re_requested(tmp_path: Path) -> None:
+    """The transfer finished but the process died before hashing and renaming.
+
+    That window is minutes wide on a 63 GB file. Asking for `Range: bytes=<size>-` gets a
+    416 from a correct server, which surfaced as "could not open" forever -- while the
+    neighbouring message advised rerunning to resume.
+    """
+    source = make_source()
+    part = tmp_path / "example" / "ref.txt.part"
+    part.parent.mkdir(parents=True)
+    part.write_bytes(PAYLOAD)
+
+    class Refuses416:
+        def open(self, url: str, *, offset: int = 0) -> Chunked:
+            raise OSError("HTTP Error 416: Requested Range Not Satisfiable")
+
+    result = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=Refuses416(), previous=lockfile.Lock()
+    )
+    assert result.status is FileStatus.DOWNLOADED
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+    assert not part.exists()
+
+
+def test_a_206_without_a_readable_content_range_is_an_error_not_a_restart() -> None:
+    """Treating it as a fresh 200 truncated the head of the file.
+
+    The caller would open the part "wb" and write a body that actually begins at `offset`
+    starting at byte 0. For an unpinned file on a first fetch nothing would catch it, and
+    the short content would be recorded in the lock as authoritative.
+    """
+    assert fetcher._parse_content_range(None) is None
+    assert fetcher._parse_content_range("garbage") is None
+    assert fetcher._parse_content_range("bytes 100-199/200") == (100, 200)
+    assert fetcher._parse_content_range("bytes 100-199/*") == (100, None)
 
 
 def test_only_required_sources_are_fetched_by_default(tmp_path: Path) -> None:

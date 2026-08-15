@@ -8,6 +8,7 @@ turns fatal exactly when the environment is misconfigured rather than merely bar
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from pathlib import Path
@@ -237,3 +238,52 @@ def test_doctor_exit_code_tracks_has_problem(monkeypatch: pytest.MonkeyPatch) ->
 
     monkeypatch.setenv("GENETICS_DATA_DIR", str(repo_root() / "inside"))
     assert runner.invoke(app, ["doctor"]).exit_code == 1
+
+
+# ---------------------------------------------------------------------------
+# The seam between doctor (M0.6) and the tools installer (M2.5)
+# ---------------------------------------------------------------------------
+
+
+def test_doctor_finds_a_tool_where_the_installer_actually_put_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """doctor used to guess the layout, and M2.5 then chose a different one.
+
+    ``_which`` scanned the tools directory one level deep; the installer writes to
+    ``<tools_root>/<id>/<version>/``, two levels down. So ``genetics doctor`` reported
+    PLINK 2 missing immediately after ``genetics tools install`` reported success -- the
+    command whose whole job is saying what you have, contradicting the one that had just
+    put it there. Reading the installer's own record removes the guess.
+    """
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    tools_root = tmp_path / "tools"
+    nested = tools_root / "plink2" / "v2.0.0-a.7.3"
+    nested.mkdir(parents=True)
+    binary = nested / ("plink2.exe" if os.name == "nt" else "plink2")
+    binary.write_text("#!/bin/sh\necho stub\n")
+
+    (tools_root / "installed.json").write_text(
+        json.dumps({"schema_version": 1, "tools": {"plink2": {"path": str(binary)}}}),
+        encoding="utf-8",
+    )
+
+    assert doctor._which("plink2", tool_id="plink2") == str(binary)
+
+
+def test_doctor_ignores_a_recorded_path_that_no_longer_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A stale record must not be reported as an installed tool."""
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    tools_root = tmp_path / "tools"
+    tools_root.mkdir(parents=True)
+    (tools_root / "installed.json").write_text(
+        json.dumps(
+            {"schema_version": 1, "tools": {"plink2": {"path": str(tmp_path / "gone.exe")}}}
+        ),
+        encoding="utf-8",
+    )
+
+    # Falls through to the directory scan and PATH, which will not find it either here.
+    assert doctor._which("definitely-not-a-real-binary", tool_id="plink2") is None

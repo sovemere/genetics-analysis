@@ -126,23 +126,43 @@ def _run_version(cmd: Sequence[str]) -> tuple[Status, str | None, str | None]:
     return "ok", first, None
 
 
-def _which(name: str) -> str | None:
+def _which(name: str, tool_id: str | None = None) -> str | None:
     """Locate an executable, searching the app's own tools dir before PATH.
 
     M2.5 installs pinned builds under the user-data directory rather than expecting a
     system install, so a PATH-only lookup would miss the copy this project put there.
+
+    **The installer's own record is consulted first.** This function originally guessed at
+    the layout -- scanning the tools directory one level deep -- and M2.5 then installed to
+    ``<tools_root>/<id>/<version>/``, two levels down. The result was that ``doctor``
+    reported PLINK 2 missing immediately after ``genetics tools install`` succeeded: the
+    command whose entire job is saying what you have, contradicting the command that had
+    just put it there. Two modules written from the same mental model and never actually
+    connected. Reading what the installer wrote removes the guess; the directory scan stays
+    as a fallback for a tool placed there by hand.
     """
     try:
         local = tools_dir()
     except UnsafeDataDirError:
-        local = None
+        return shutil.which(name)
 
-    if local is not None and local.is_dir():
+    if tool_id is not None:
+        try:
+            from genetics.refs.tools import recorded_path
+
+            recorded = recorded_path(local, tool_id)
+        except Exception:
+            recorded = None
+        if recorded is not None:
+            return str(recorded)
+
+    if local.is_dir():
         found = shutil.which(name, path=str(local))
         if found:
             return found
-        # M2.5 unpacks each tool into its own subdirectory.
-        for child in sorted(p for p in local.iterdir() if p.is_dir()):
+        # Fallback for a hand-placed binary: scan the tools tree rather than assuming a
+        # fixed depth, since that assumption is precisely what failed before.
+        for child in sorted(p for p in local.rglob("*") if p.is_dir()):
             found = shutil.which(name, path=str(child))
             if found:
                 return found
@@ -151,13 +171,13 @@ def _which(name: str) -> str | None:
 
 
 def _check_plink2() -> ToolReport:
-    path = _which("plink2")
+    path = _which("plink2", tool_id="plink2")
     if path is None:
         return ToolReport(
             name="plink2",
             required_from="M5",
             status="missing",
-            detail="not on PATH or in the tools dir; `genetics refs fetch` installs it (M2.5)",
+            detail="not on PATH or in the tools dir; `genetics tools install` fetches it",
         )
     status, version, detail = _run_version([path, "--version"])
     return ToolReport("plink2", "M5", status, path, version, detail)
@@ -201,7 +221,7 @@ def _check_beagle() -> ToolReport:
             name="beagle",
             required_from="M8",
             status="missing",
-            detail="no beagle*.jar in the tools dir; fetched in M2.5",
+            detail="no beagle*.jar in the tools dir; `genetics tools install` fetches it",
         )
 
     # Newest by mtime, not first by name. Beagle jars are named by release *date* --

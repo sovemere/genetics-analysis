@@ -93,6 +93,10 @@ def _check_relative_filename(name: str, where: str) -> None:
         raise ManifestError(f"{where}: filename {name!r} must be relative")
     if ".." in pure.parts:
         raise ManifestError(f"{where}: filename {name!r} escapes its directory")
+    # "." has no parts at all, so neither check above sees it, and it names the source's
+    # own directory rather than a file inside it.
+    if not pure.parts or pure.parts[-1] in {".", ""}:
+        raise ManifestError(f"{where}: filename {name!r} does not name a file")
     # A Windows drive-relative name such as "C:data" is not absolute by PurePosixPath's
     # reckoning but is by the platform's, so PurePosixPath alone would pass it through.
     if re.match(r"^[A-Za-z]:", name):

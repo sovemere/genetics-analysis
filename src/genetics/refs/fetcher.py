@@ -99,10 +99,23 @@ class UrllibTransport:
         status = getattr(response, "status", None) or response.getcode()
 
         if status == 206:
-            resumed_from, total = _parse_content_range(response.headers.get("Content-Range"))
+            parsed = _parse_content_range(response.headers.get("Content-Range"))
+            if parsed is None:
+                # A 206 whose Content-Range we cannot read tells us the body is partial
+                # but not where it starts. Defaulting to zero was the original behaviour
+                # and it silently truncated the head of the file: the caller would open
+                # the part "wb" and write a body beginning at `offset` starting at byte 0.
+                # For an unpinned file on a first fetch nothing would ever catch that, and
+                # the short content would be recorded in the lock as authoritative.
+                response.close()
+                raise OSError(
+                    "server answered 206 without a parseable Content-Range; refusing to "
+                    "guess where the partial body starts"
+                )
+            resumed_from, total = parsed
             if total is None:
                 length = response.headers.get("Content-Length")
-                total = (offset + int(length)) if length is not None else None
+                total = (resumed_from + int(length)) if length is not None else None
             return Chunked(stream=response, total_size=total, resumed_from=resumed_from)
 
         # 200 means the server disregarded the Range header and is sending the whole
@@ -116,10 +129,14 @@ class UrllibTransport:
         )
 
 
-def _parse_content_range(header: str | None) -> tuple[int, int | None]:
-    """Parse ``bytes <start>-<end>/<total>``. Returns ``(start, total)``."""
+def _parse_content_range(header: str | None) -> tuple[int, int | None] | None:
+    """Parse ``bytes <start>-<end>/<total>``. Returns ``(start, total)``, or None.
+
+    None means "could not tell", and the caller must treat that as an error rather than
+    as a start offset of zero -- see :meth:`UrllibTransport.open`.
+    """
     if not header:
-        return 0, None
+        return None
     try:
         spec = header.split(" ", 1)[1]
         span, _, total_text = spec.partition("/")
@@ -127,7 +144,7 @@ def _parse_content_range(header: str | None) -> tuple[int, int | None]:
         total = None if total_text in {"", "*"} else int(total_text)
         return int(start_text), total
     except (IndexError, ValueError):
-        return 0, None
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -298,9 +315,12 @@ def _destination(root: Path, source: Source, item: RemoteFile) -> Path:
     """
     source_dir = (root / source.id).resolve()
     target = (source_dir / item.filename).resolve()
-    if target != source_dir and source_dir not in target.parents:
+    # Must be strictly *inside*. Allowing equality let a filename of "." resolve to the
+    # source directory itself, which passes the manifest's string check (no "..", not
+    # absolute) and then has the payload written over a directory path.
+    if source_dir not in target.parents:
         raise FetchError(
-            f"{source.id}: {item.filename!r} resolves to {target}, outside {source_dir}"
+            f"{source.id}: {item.filename!r} resolves to {target}, which is not inside {source_dir}"
         )
     return target
 
@@ -325,13 +345,23 @@ def _expected_sha256(item: RemoteFile, source_id: str, previous: lockfile.Lock) 
     return previous.file_digest(source_id, item.filename)
 
 
-def _mismatch(path: Path, label: str, expected: str, observed: str) -> str:
-    return (
-        f"{path.name}: {label} mismatch (expected {expected}, got {observed}). "
-        "The partial file has been discarded rather than kept, because resuming onto "
-        "bytes already known to be wrong would produce a file that fails forever for a "
-        "reason nobody can see."
+def _mismatch(path: Path, label: str, expected: str, observed: str, *, discarded: bool) -> str:
+    """Explain a digest mismatch, and say truthfully what happened to the file.
+
+    ``discarded`` is a parameter rather than an assumption because the two call sites do
+    different things: a freshly downloaded ``.part`` is deleted (resuming onto bytes known
+    to be wrong would fail forever for an invisible reason), while an already-present file
+    that fails verification is left alone. Claiming a discard that did not happen would
+    tell the reader a rerun fixes it, and a rerun would fail identically.
+    """
+    tail = (
+        "The partial file has been discarded, because resuming onto bytes already known "
+        "to be wrong would produce a file that fails forever for a reason nobody can see."
+        if discarded
+        else "The file on disk has been left in place; delete it, or rerun with the "
+        "source's files removed, to fetch a fresh copy."
     )
+    return f"{path.name}: {label} mismatch (expected {expected}, got {observed}). {tail}"
 
 
 def download(
@@ -364,17 +394,37 @@ def download(
                 FileStatus.FAILED,
                 size,
                 sha,
-                _mismatch(target, "sha256", expected_sha256, sha),
+                _mismatch(target, "sha256", expected_sha256, sha, discarded=False),
             )
         if expected_md5 and md5 != expected_md5:
             return FileResult(
-                name, FileStatus.FAILED, size, sha, _mismatch(target, "md5", expected_md5, md5)
+                name,
+                FileStatus.FAILED,
+                size,
+                sha,
+                _mismatch(target, "md5", expected_md5, md5, discarded=False),
             )
         return FileResult(name, FileStatus.ALREADY_PRESENT, size, sha)
 
     offset = part.stat().st_size if part.is_file() else 0
     if expected_size is not None and offset > expected_size:
         # A part longer than the whole file cannot be a prefix of it.
+        part.unlink()
+        offset = 0
+    elif expected_size is not None and offset == expected_size and offset > 0:
+        # The part is already the full length: the transfer finished but the process died
+        # before the digest and rename completed. That window is not narrow -- hashing a
+        # 63 GB file takes minutes, and an interrupt during it lands exactly here.
+        #
+        # Asking for `Range: bytes=<size>-` gets a 416 from a correct server, which
+        # arrives as a URLError and reports "could not open" *forever*, while the
+        # neighbouring message advises rerunning to resume. Verify and promote instead.
+        sha, md5, size = _digests(part)
+        sha_ok = not expected_sha256 or sha == expected_sha256
+        md5_ok = not expected_md5 or md5 == expected_md5
+        if sha_ok and md5_ok:
+            os.replace(part, target)
+            return FileResult(name, FileStatus.DOWNLOADED, size, sha)
         part.unlink()
         offset = 0
 
@@ -423,11 +473,11 @@ def download(
 
     sha, md5, size = _digests(part)
     if expected_sha256 and sha != expected_sha256:
-        detail = _mismatch(part, "sha256", expected_sha256, sha)
+        detail = _mismatch(part, "sha256", expected_sha256, sha, discarded=True)
         part.unlink(missing_ok=True)
         return FileResult(name, FileStatus.FAILED, size, sha, detail)
     if expected_md5 and md5 != expected_md5:
-        detail = _mismatch(part, "md5", expected_md5, md5)
+        detail = _mismatch(part, "md5", expected_md5, md5, discarded=True)
         part.unlink(missing_ok=True)
         return FileResult(name, FileStatus.FAILED, size, sha, detail)
 
@@ -493,7 +543,7 @@ def verify_file(
             FileStatus.FAILED,
             size,
             sha,
-            _mismatch(target, "sha256", expected_sha, sha),
+            _mismatch(target, "sha256", expected_sha, sha, discarded=False),
         )
     if item.md5 and md5 != item.md5:
         return FileResult(
@@ -501,9 +551,15 @@ def verify_file(
             FileStatus.FAILED,
             size,
             sha,
-            _mismatch(target, "md5", item.md5, md5),
+            _mismatch(target, "md5", item.md5, md5, discarded=False),
         )
-    detail = "" if expected_sha else "no digest to check against; recorded on next fetch"
+    # Keyed on both digests, not just sha256. All 24 gnomAD files are pinned by the
+    # publisher's md5 and carry no sha256, so reporting "no digest to check against" for
+    # them understated a check that had in fact just passed -- and an audit that
+    # under-reports its own coverage is one nobody can act on.
+    detail = (
+        "" if (expected_sha or item.md5) else "no digest to check against; recorded on next fetch"
+    )
     return FileResult(item.filename, FileStatus.VERIFIED, size, sha, detail)
 
 
@@ -549,9 +605,16 @@ def fetch_source(
     verify_only: bool = False,
 ) -> SourceResult:
     """Fetch (or verify) every file in one source, after clearing the gates."""
-    refusal = licence_refusal(source, opt_in)
-    if refusal is not None:
-        return SourceResult(source.id, SourceStatus.BLOCKED_BY_LICENCE, detail=refusal)
+    # The licence gate governs *acquiring* data, not inspecting what is already on disk.
+    # Applying it to verification made the integrity check unreachable for exactly the
+    # sources whose licence someone had already accepted: after
+    # `refs fetch --only pharmgkb --opt-in pharmgkb`, a plain `refs verify` answered
+    # "blocked-by-licence" and never looked at the files. It also meant a full verify could
+    # never exit 0, which makes the exit code useless as a health signal.
+    if not verify_only:
+        refusal = licence_refusal(source, opt_in)
+        if refusal is not None:
+            return SourceResult(source.id, SourceStatus.BLOCKED_BY_LICENCE, detail=refusal)
 
     if source.manual is not None and not manual_step_satisfied(source, root):
         return SourceResult(
@@ -690,17 +753,27 @@ def fetch(
                 size_bytes=file_result.size_bytes,
                 today=stamp,
             )
-        if files or result.status is not SourceStatus.COMPLETE:
-            # A source that failed this run keeps the digests it had. Losing them because
-            # one host was flaky would mean the next fetch had nothing to verify against.
-            carried = previous.sources.get(source.id)
-            locked[source.id] = lockfile.LockedSource(
-                version=source.version,
-                license_id=source.license_id,
-                files=files or (dict(carried.files) if carried else {}),
-                opt_in_granted=source.id in set(opt_in),
-                manual_step_pending=result.status is SourceStatus.AWAITING_MANUAL_STEP,
-            )
+        # Merge over what was already recorded, rather than replacing it. Replacing lost
+        # the digest of precisely the files that failed this run, and that failed *open*:
+        # with no recorded digest, the next run had nothing to compare the file against,
+        # reported it already-present, and wrote the corrupt content into the lock as
+        # truth. One detected corruption was enough to launder itself into the record.
+        carried = previous.sources.get(source.id)
+        merged = dict(carried.files) if carried else {}
+        merged.update(files)
+
+        # Written unconditionally. The previous condition skipped a source that completed
+        # with no files -- which is exactly a satisfied tier B source, so OMIM and SNPedia
+        # dropped out of the lock at the moment their data was actually present. Those are
+        # the two most licence-encumbered entries in the manifest, and manifest.lock is
+        # what the M15.4 audit reads to confirm nothing non-permissive was vendored.
+        locked[source.id] = lockfile.LockedSource(
+            version=source.version,
+            license_id=source.license_id,
+            files=merged,
+            opt_in_granted=source.id in set(opt_in),
+            manual_step_pending=result.status is SourceStatus.AWAITING_MANUAL_STEP,
+        )
 
     if not verify_only:
         lockfile.write(lock_target, lockfile.Lock(sources=locked))
