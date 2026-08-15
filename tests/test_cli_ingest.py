@@ -213,6 +213,23 @@ def test_the_json_guard_actually_fires() -> None:
 
 
 @pytest.mark.privacy
+def test_the_human_render_path_is_guarded_too() -> None:
+    """The guard has to cover the branch someone is *more* likely to edit.
+
+    Only ``_emit_json`` scanned its output at first, which left the human path -- the one
+    you are staring at when you think "just show me a few rows so I can check the parse"
+    -- writing straight to the terminal with nothing to fail.
+    """
+    from genetics.cli.ingest_cmd import _echo, _secho
+    from genetics.privacy import GenotypeLeakError
+
+    row = "\t".join(["rs900000001", "1", "100001", "A", "G"])
+    for emit in (_echo, _secho):
+        with pytest.raises(GenotypeLeakError):
+            emit(f"  sample: {row}")
+
+
+@pytest.mark.privacy
 def test_the_leak_error_does_not_echo_what_it_caught() -> None:
     from genetics.cli.ingest_cmd import _emit_json
     from genetics.privacy import GenotypeLeakError, looks_like_genotype

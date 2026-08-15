@@ -217,6 +217,12 @@ permanent in git history.*
         would call a working JVM broken. Every probe survives a timeout, a non-executable
         file, and a non-zero exit — `doctor` runs precisely when the environment is
         suspect.
+      - Two review findings, both the same shape — *a check that can only return one
+        answer*: the HIBAG probe printed nothing on success while empty output is treated
+        as failure, so the "HIBAG present" branch was unreachable on every machine; and
+        Beagle jar selection sorted filenames, but Beagle names jars by date
+        (`05May22` sorts before `28jun21`), so the **older** of two installs won. Both now
+        have tests covering the branch that could not previously be reached.
 
 ---
 
@@ -258,6 +264,9 @@ permanent in git history.*
       - Two documented gaps in the stub, both deliberate: `i`-prefixed probes resolve
         against no reference, and the layout has no PAR, so QC's PAR exclusion cannot
         apply. Noted rather than silently corrected.
+      - Adapters declare `SourceInfo.representable_chroms`, so QC can distinguish a
+        chromosome the *format* never labels from one genuinely missing from the file —
+        without importing a vendor module, which the structural test forbids.
 - [x] **M1.4** Strict validation (`ingest/errors.py`). Build 37 asserted from the header,
       column header matched by name, allele tokens, positions, and coordinate bounds all
       checked with a **file line number** in the message.
@@ -297,10 +306,12 @@ permanent in git history.*
       dbSNP merge chains transitively with a cycle guard, resolves **both sides** of a
       lookup, and adds `rsid_current` beside the original rather than overwriting it.
 - [x] **M1.8** CLI `genetics ingest --input <file> [--json] [--expect-counts ...]`, plus
-      `genetics adapters`. The JSON payload is run through `assert_no_genotype` on the way
-      out — this command's input is a whole genome, and "just show me a few rows to check
-      the parse" would land exactly there. A test feeds the guard a crafted payload and
-      requires the emit to fail.
+      `genetics adapters`. **Both** output paths run through `assert_no_genotype` — this
+      command's input is a whole genome, and "just show me a few rows to check the parse"
+      would land exactly there. The first cut guarded only the JSON branch, which is the
+      one a person is *less* likely to edit; review caught that the human render was
+      unprotected while the docstring claimed otherwise. Tests feed both a crafted payload
+      and require the emit to fail.
 
 ---
 
@@ -656,6 +667,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-15 | M1 review | Diff-driven review (`/code-review high`) plus a self-pass, same as M0. 11 findings, all fixed, all reproduced before fixing; 301 tests. The self-pass and the agent independently found the same two, which is the useful signal here — both were **fail-open guards**, the identical class as M0's. (1) `_first_bad` filled the rsID column with a placeholder *before* evaluating a predicate that tests `rsid.is_null()`, so the empty-field check could never see a missing identifier and a row with no rsID reached the normalized table. Fill after the filter, not before. (2) `_load_builtin_adapters` set its "loaded" flag before importing, so a broken adapter failed once with a real ImportError and then reported "does not match any known vendor layout" forever after — sending the reader after a missing adapter instead of the import that failed. **The single most instructive finding was in `doctor`:** the HIBAG probe `if (!requireNamespace("HIBAG")) quit(status=1)` prints *nothing* on success, and `_run_version` treats empty output as an error — so the success path was unreachable and every machine on earth reported "R is installed but HIBAG is not", including machines with HIBAG. A check that can only ever return one answer is not a check. It now prints on success. Also: `lookup_loci` consumed its `Iterable` argument twice, so any generator silently produced an empty column and a `ShapeError` naming nothing relevant; `_render` bypassed the genotype guard the module docstring claimed covered the command, leaving the *more* likely edit site ("just show me a few rows") unguarded — both output paths are scanned now; the 23andMe bad-genotype error raised `MalformedHeaderError` for a data row and printed a 0-based body index as a "line"; Beagle jar selection sorted by filename, but Beagle names jars by date (`05May22` sorts before `28jun21`), so the *older* of two installs won. Two design cleanups worth recording: `IngestResult.qc` was typed `object` to dodge an import cycle, which pushed an `assert isinstance` onto every caller — `TYPE_CHECKING` gives the real type for free. And the "no markers at all on X" warning fired on every 23andMe run for PAR, which that layout simply does not label; adapters now declare `representable_chroms` on `SourceInfo`, so QC can tell *structurally absent* from *actually missing* without importing a vendor module. That is the same distinction `infer_sex` already made for a layout with no Y markers, and it should have been made in both places at once. |
 | 2026-08-15 | M0.6, M1 | Ingest and QC complete. 288 tests; ruff, `ruff format` and `mypy --strict` clean. **M1.2's local acceptance passed on the real export** — 677,436 / 550 / 8,830 — and reconciling it against AGENTS.md §2 resolved an apparent 3-marker discrepancy on the Y: §2's "1,658 calls" counts *homozygous* calls, and 1,661 called − 3 het = 1,658. X matches exactly the same way (25,231 − 4 = 25,227). Two genuine findings in that file worth carrying to M3: **656 rows repeat a (chrom, position)** already present, and 7 heterozygous calls sit at loci inferred single-copy. Both are reported, neither is deduplicated or dropped — choosing between duplicate probes is a matching decision (M3.2), not an ingest one. **The M0 lesson recurred twice, in a new form each time.** (1) Writing the first genotype-bearing dataframe exposed a hole in the privacy scanner: `polars` renders a row with `U+2506` between cells, so `repr(frame)` printed rsIDs and genotypes in plain sight and matched none of the whitespace-separated patterns — it would have passed `assert_no_genotype` *and* the pre-commit content scan. Fixed by adding a vertical-rule separator form, which also closes the likelier route: a genotype row in a **markdown table** was equally invisible. Four negative controls guard against the scanner now flagging ordinary tables. (2) Null is Polars' fail-open value: `null.is_in([...])` is null, not False, and a null predicate matches nothing. That silently dropped **every no-call** from the indel-policy matchable set — the indel policy was quietly deciding what happens to missing genotypes, which is the card engine's call. Same trap found and closed in `_is_snp` and in row validation, where a blank field would have skipped the allele check unreported. The pattern to carry forward: in Polars, three-valued logic turns a guard into a no-op exactly on the rows that are already anomalous. Also worth noting: the build-anchor table and the dbSNP merge table both ship as tested mechanisms with empty data, following M0.2's `spike_ins` precedent — inventing GRCh37 coordinates to make a check look complete would be the exact failure the check exists to catch. |
 | 2026-08-15 | M0 review | Diff-driven review of the session (`/code-review high`) plus a self-pass. 15 findings, 8 reproduced empirically; all fixed. 116 tests. **The pattern across them: the guards failed *open*.** Several were cases where a privacy check silently passed on input it was written to catch — worse than no check, because it manufactures confidence. Worth remembering: (1) the fixture allowlist was an fnmatch glob, and fnmatch's `*` crosses `/`, so `synthetic/<any>/<real export>` was exempt from the name rule *and* the content scan *and* `.gitignore`'s `**` negation *and* the sealing test's non-recursive `iterdir()` — four layers with one blind spot, because all four were written from the same mental model. (2) The scanner matched only *real* tab separators, so a row inside a Python string literal or any `repr()`/traceback — the module docstring's own stated threats — sailed through; the redaction test passed vacuously for the same reason and would have passed with the redaction deleted. (3) `NoGenotypeRepr` was silently voided by `@dataclass`, which generates `__repr__` on the subclass; fixed by claiming the slot in `__init_subclass__`, since `dataclasses` never overwrites a name already in `cls.__dict__`. (4) The hook was committed mode 100644, so git skipped it on Linux/macOS while `install-hooks` reported success. (5) `verify_all` compared via `read_text()`, whose universal-newline mode folds CRLF, so the check `.gitattributes` exists to protect could never fail. (6) `staged_files` lacked `-z`, so a non-ASCII path was quoted, `git show` failed, the error was swallowed, and the file was skipped unscanned. Also fixed my own `GENETICS_DATA_DIR` hole: pointing it inside the checkout relocated run bundles into the repo, where gitignore covers them only unevenly. Lesson for M1: a guard that has not been *demonstrated* failing on real input is not evidence of anything. |
 | 2026-08-15 | — | Roadmap created. AGENTS.md and .gitignore in place; no code yet. |

@@ -55,6 +55,14 @@ MIN_SEX_LOCI = 100
 array carries ~25k X markers, so this only trips on a truncated file or a vendor layout
 that barely covers the X."""
 
+MIN_CHROM_LOCI_FOR_WARNING = 100
+"""Below this, a per-chromosome call rate is not worth warning about -- PAR carries 36
+markers on the V2 array, so one no-call there is a 3% "failure".
+
+Deliberately its own constant despite sharing a value with :data:`MIN_SEX_LOCI`. They
+answer different questions, and someone retuning the sex-inference threshold should not
+silently change which chromosomes get flagged for call rate."""
+
 LOW_CALL_RATE = 0.98
 """Consumer arrays run well above this. Below it, the sample is worth a second look
 before its results are believed."""
@@ -238,6 +246,11 @@ def _hemizygous_mask(sex: InferredSex) -> pl.Expr:
         # A female Y call is unexpected rather than hemizygous; it is counted as a warning
         # in run_qc instead of being given a ploidy it has not earned.
         return mt_only
+
+    # AMBIGUOUS. Same expression as the female branch, different reason, so the two are
+    # kept apart: this one is a refusal to resolve rather than a resolution. Merging them
+    # would lose that, and the next reader would have to rediscover which case they were
+    # looking at.
     return mt_only
 
 
@@ -350,6 +363,7 @@ def _warnings(
     duplicates: DuplicateSummary,
     het_haploid: int,
     table: GenotypeTable,
+    representable_chroms: tuple[str, ...] = (),
 ) -> tuple[str, ...]:
     """Assemble warnings, most consequential first.
 
@@ -378,7 +392,11 @@ def _warnings(
             f"{rates.no_call} of {rates.total_markers} markers are uncalled."
         )
 
-    worst = [c for c in rates.by_chrom if c.call_rate < LOW_CALL_RATE and c.total >= MIN_SEX_LOCI]
+    worst = [
+        c
+        for c in rates.by_chrom
+        if c.call_rate < LOW_CALL_RATE and c.total >= MIN_CHROM_LOCI_FOR_WARNING
+    ]
     # A female Y is legitimately all no-call and is not a defect, so it is excluded here
     # rather than reported as a per-chromosome failure on every female sample.
     worst = [
@@ -416,11 +434,19 @@ def _warnings(
             "not an ingest one."
         )
 
-    unbounded = set(GRCH37_LENGTHS) - {
-        Chrom(c) for c in table.frame.get_column("chrom").cast(pl.String).unique().to_list()
-    }
-    if unbounded:
-        out.append("no markers at all on: " + ", ".join(sorted(c.value for c in unbounded)) + ".")
+    # Only chromosomes the *layout can name* count as missing. A vendor that does not
+    # distinguish PAR has not lost it; the format never had it, and reporting that as a
+    # gap sends the reader hunting for a region the file was never going to label. This
+    # is the same structurally-absent-versus-uncalled distinction `infer_sex` makes for a
+    # layout with no Y markers. An adapter that declares nothing falls back to the full
+    # set, so the check still fires rather than silently going quiet.
+    expected = (
+        {Chrom(c) for c in representable_chroms} if representable_chroms else set(GRCH37_LENGTHS)
+    )
+    present = {Chrom(c) for c in table.frame.get_column("chrom").cast(pl.String).unique().to_list()}
+    absent = expected - present
+    if absent:
+        out.append("no markers at all on: " + ", ".join(sorted(c.value for c in absent)) + ".")
 
     return tuple(out)
 
@@ -445,5 +471,14 @@ def run_qc(table: GenotypeTable, *, source: SourceInfo) -> QCReport:
         indels=indels,
         duplicates=duplicates,
         het_haploid_calls=het_haploid,
-        warnings=_warnings(rates, het, sex, build, duplicates, het_haploid, table),
+        warnings=_warnings(
+            rates,
+            het,
+            sex,
+            build,
+            duplicates,
+            het_haploid,
+            table,
+            source.representable_chroms,
+        ),
     )

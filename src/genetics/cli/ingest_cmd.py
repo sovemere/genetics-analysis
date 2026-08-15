@@ -4,9 +4,10 @@ Parse an export, run QC, print what was found. The CLI is the agent interface
 (AGENTS.md section 3), so everything here is reachable as JSON.
 
 **Nothing this command prints is a genotype**, and that is enforced rather than intended:
-the JSON payload goes through :func:`~genetics.privacy.assert_no_genotype` on the way out.
-The command handles the one file in the project that must never be echoed, so the guard
-belongs at the boundary where the content would actually escape.
+*both* output paths -- the JSON payload and every line of the human-readable render --
+go through :func:`~genetics.privacy.assert_no_genotype` on the way out. The command
+handles the one file in the project that must never be echoed, so the guard belongs at
+the boundary where the content would actually escape, and that boundary is both branches.
 
 ``--expect-counts`` is the local half of the M1.2 acceptance criterion. The owner's real
 export must parse to 677,436 markers with 550 no-calls and 8,830 indel markers, and that
@@ -86,6 +87,25 @@ def _emit_json(payload: dict[str, object]) -> None:
     typer.echo(text)
 
 
+def _echo(text: str = "", **kwargs: object) -> None:
+    """Guarded ``typer.echo`` for the human-readable path.
+
+    Originally only ``_emit_json`` scanned its output, which left the guard covering the
+    path a person is *less* likely to change: "just show me a few rows so I can check the
+    parse" is a thing you do while staring at the terminal, and that edit lands in
+    :func:`_render`, where nothing would have failed. Both output paths are covered now,
+    so the module docstring's claim is true of the command rather than of one branch.
+    """
+    assert_no_genotype(text, context="genetics ingest output")
+    typer.echo(text, **kwargs)  # type: ignore[arg-type]
+
+
+def _secho(text: str = "", **kwargs: object) -> None:
+    """Guarded ``typer.secho``. See :func:`_echo`."""
+    assert_no_genotype(text, context="genetics ingest output")
+    typer.secho(text, **kwargs)  # type: ignore[arg-type]
+
+
 def run(
     input_path: Annotated[
         Path,
@@ -128,7 +148,6 @@ def run(
         raise typer.Exit(code=2) from None
 
     qc = result.qc
-    assert isinstance(qc, QCReport)
     actual = actual_counts(qc)
 
     mismatches = (
@@ -168,71 +187,69 @@ def _render(
     expectations: dict[str, int] | None,
     mismatches: dict[str, int],
 ) -> None:
-    typer.secho(f"{adapter.display_name}", bold=True, nl=False)
-    typer.echo(f"  ({result.source.path})")
+    _secho(f"{adapter.display_name}", bold=True, nl=False)
+    _echo(f"  ({result.source.path})")
 
     if not adapter.verified_against_real_export:
-        typer.secho(
+        _secho(
             "  note: this adapter has only ever been run against a synthetic fixture. "
             "It is not verified against a real export from this vendor.",
             fg=typer.colors.YELLOW,
         )
 
     array = result.source.array_version or "unspecified"
-    typer.echo(f"  build {result.source.build}, array {array}")
-    typer.echo("")
+    _echo(f"  build {result.source.build}, array {array}")
+    _echo("")
 
     rates = qc.call_rates
-    typer.echo(f"  markers      {rates.total_markers:,}")
-    typer.echo(f"  called       {rates.called:,}  ({rates.call_rate:.4%})")
-    typer.echo(f"  no-calls     {rates.no_call:,}")
-    typer.echo(f"  indels       {qc.indels.indel_markers:,}  (excluded from matching by default)")
-    typer.echo("")
+    _echo(f"  markers      {rates.total_markers:,}")
+    _echo(f"  called       {rates.called:,}  ({rates.call_rate:.4%})")
+    _echo(f"  no-calls     {rates.no_call:,}")
+    _echo(f"  indels       {qc.indels.indel_markers:,}  (excluded from matching by default)")
+    _echo("")
 
     het = qc.heterozygosity
-    typer.echo(
+    _echo(
         f"  autosomal heterozygosity  {het.autosomal_het_rate:.4f} "
         f"over {het.autosomal_loci:,} SNP loci"
     )
 
     sex_colour = typer.colors.YELLOW if qc.sex.inferred is InferredSex.AMBIGUOUS else None
-    typer.secho(f"  inferred sex              {qc.sex.inferred.value}", fg=sex_colour)
-    typer.echo(
+    _secho(f"  inferred sex              {qc.sex.inferred.value}", fg=sex_colour)
+    _echo(
         f"    X heterozygosity (non-PAR)  {qc.sex.x_het_rate:.4f} "
         f"over {qc.sex.x_nonpar_loci:,} loci"
     )
-    typer.echo(
-        f"    Y call rate                 {qc.sex.y_call_rate:.4f} over {qc.sex.y_loci:,} loci"
-    )
+    _echo(f"    Y call rate                 {qc.sex.y_call_rate:.4f} over {qc.sex.y_loci:,} loci")
     for note in qc.sex.notes:
-        typer.echo(f"    - {note}")
+        _echo(f"    - {note}")
 
-    typer.echo("")
-    typer.echo(f"  build check  declared {qc.build.declared}, verdict {qc.build.verdict}")
+    _echo("")
+    _echo(f"  build check  declared {qc.build.declared}, verdict {qc.build.verdict}")
     if qc.build.anchors_available == 0:
-        typer.echo(
+        _echo(
             "    no verified coordinate anchors yet -- M2 supplies them from dbSNP. "
             "The header assertion and the coordinate-bounds check both passed."
         )
 
     if qc.warnings:
-        typer.echo("")
-        typer.secho("  warnings", bold=True)
+        _echo("")
+        _secho("  warnings", bold=True)
         for warning in qc.warnings:
-            typer.secho(f"    ! {warning}", fg=typer.colors.YELLOW)
+            _secho(f"    ! {warning}", fg=typer.colors.YELLOW)
 
     if expectations is not None:
-        typer.echo("")
-        typer.secho("  expected counts", bold=True)
+        _echo("")
+        _secho("  expected counts", bold=True)
         for key, expected in expectations.items():
             ok = actual[key] == expected
-            typer.secho(
+            _secho(
                 f"    {'ok  ' if ok else 'FAIL'} {key:<10} "
                 f"expected {expected:,}, got {actual[key]:,}",
                 fg=typer.colors.GREEN if ok else typer.colors.RED,
             )
         if mismatches:
-            typer.secho(
+            _secho(
                 "  Counts do not match. Either the adapter is wrong or this is not the "
                 "file those counts describe. Do not proceed on the assumption that it "
                 "parsed correctly.",

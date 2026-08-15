@@ -209,6 +209,47 @@ def test_stub_adapter_doubles_a_single_character_genotype(tmp_path: Path) -> Non
     assert haploid.filter(pl.col("genotype").str.len_chars() == 2).height == 2
 
 
+def test_stub_adapter_reports_a_bad_genotype_as_a_row_error_with_a_file_line(
+    tmp_path: Path,
+) -> None:
+    """A malformed *data row* must not raise MalformedHeaderError, and "line N" must mean
+    a line of the file.
+
+    Reporting the raw 0-based body index as a line sends someone to the wrong place --
+    off by the header block, and off by one.
+    """
+    from genetics.ingest.errors import MalformedRowError
+
+    body = "\n".join(
+        [
+            "# SYNTHETIC - assembled in a test.",
+            "# build 37",
+            "# rsid\tchromosome\tposition\tgenotype",
+            "\t".join(["rs900000001", "1", "100001", "AG"]),
+            "\t".join(["rs900000002", "1", "100002", "AGT"]),
+        ]
+    )
+    path = tmp_path / "stub_layout.txt"
+    path.write_text(body + "\n", encoding="utf-8", newline="\n")
+
+    with pytest.raises(MalformedRowError, match=r"First at line 5\."):
+        read_export(path)
+
+
+def test_adapters_declare_which_chromosomes_they_can_label() -> None:
+    """QC needs the difference between "no PAR markers" and "no PAR in this format".
+
+    It travels on SourceInfo rather than being read off the adapter, because no analysis
+    module may import a vendor module.
+    """
+    ancestry = read_export(fixture("ancestry_v2_male.txt")).source
+    other = read_export(fixture("other_vendor_layout.txt")).source
+
+    assert "PAR" in ancestry.representable_chroms
+    assert "PAR" not in other.representable_chroms
+    assert {"X", "Y", "MT"} <= set(other.representable_chroms)
+
+
 def test_stub_adapter_is_flagged_as_unverified() -> None:
     """ "It parsed" is not "it was validated", and the CLI says so out loud."""
     assert get("23andme_like").verified_against_real_export is False

@@ -159,10 +159,16 @@ def lookup_loci(
     A join rather than a Python loop: at 677k rows against a knowledge pack of any size,
     per-key filtering is quadratic in the worst case and a join is not.
     """
+    # Materialised once. The two column comprehensions below each consume ``keys``, so a
+    # generator -- which the ``Iterable`` annotation invites -- was exhausted by the first
+    # and left the second empty, surfacing as a ShapeError about mismatched column heights
+    # rather than as anything resembling the actual mistake.
+    materialised = list(keys)
+
     wanted = pl.DataFrame(
         {
-            "chrom": [k.chrom.value for k in keys],
-            "pos_grch37": [k.pos_grch37 for k in keys],
+            "chrom": [k.chrom.value for k in materialised],
+            "pos_grch37": [k.pos_grch37 for k in materialised],
         },
         schema={"chrom": pl.String, "pos_grch37": pl.UInt32},
     )
