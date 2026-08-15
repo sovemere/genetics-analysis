@@ -1,0 +1,293 @@
+# =====================================================================
+# GENETIC PRIVACY — READ BEFORE EDITING
+# =====================================================================
+# This repository is PUBLIC. It must never contain genotype data, nor any
+# artifact from which genotype data could be reconstructed or an individual
+# re-identified.
+#
+# Why the rules below are this broad: 30-80 independent SNPs are enough to
+# uniquely identify a person, and Homer et al. (2008) showed that even
+# aggregate allele-frequency summaries can reveal whether a specific
+# individual is present in a dataset. "It's only summary output" is not a
+# safe assumption. Treat every pipeline output as raw DNA until proven
+# otherwise.
+#
+# Rule of thumb: if a file was produced by touching a real person's
+# genotypes, it does not go in git. Ever.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1. RAW / INPUT GENOTYPE DATA
+# ---------------------------------------------------------------------
+# Vendor raw-data exports (AncestryDNA, 23andMe, MyHeritage, FTDNA, ...)
+AncestryDNA*.txt
+AncestryDNA*.csv
+AncestryDNA*.zip
+genome_*.txt
+genome_*.zip
+*_23andMe*.txt
+*23andMe*.txt
+*MyHeritage*.csv
+*FTDNA*.csv
+*ftdna*.csv
+dna_data*.txt
+
+# Any dedicated input locations
+/data/raw/
+/data/input/
+/dna/
+/genomes/
+/samples/
+input/
+incoming/
+
+# ---------------------------------------------------------------------
+# 2. GENOMIC FILE FORMATS (inputs AND derived — both leak)
+# ---------------------------------------------------------------------
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+*.bcf
+*.bcf.csi
+*.gvcf
+*.gvcf.gz
+
+# PLINK 1.x / 2.x — .bed/.bim/.fam and .pgen/.pvar/.psam are genotypes
+*.bed
+*.bim
+*.fam
+*.pgen
+*.pvar
+*.psam
+*.ped
+*.map
+*.tped
+*.tfam
+*.lgen
+*.gen
+*.bgen
+*.bgen.bgi
+*.sample
+*.haps
+*.hap.gz
+*.legend.gz
+*.dose
+*.dosage
+*.dosage.gz
+*.info
+*.m3vcf
+*.m3vcf.gz
+*.bref3
+*.phased
+*.imputed
+*.hmp
+*.hmp.txt
+
+# Alignments / sequence
+*.bam
+*.bai
+*.cram
+*.crai
+*.sam
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+
+# ---------------------------------------------------------------------
+# 3. DERIVED ARTIFACTS — genotypes are recoverable from ALL of these
+# ---------------------------------------------------------------------
+# Normalized / parsed genotype tables
+/data/normalized/
+/data/processed/
+/data/interim/
+*.genotypes.parquet
+*.genotypes.feather
+*.genotypes.arrow
+*.genotypes.json
+*.genotypes.csv
+*.normalized.*
+
+# Analysis runs: the saved-analysis / save-load feature writes here.
+# A run bundle contains per-card genotype evidence and IS raw DNA.
+/runs/
+/data/runs/
+/analyses/
+/results/
+/output/
+/out/
+/reports/
+*.run.json
+*.run.json.gz
+*.analysis.json
+*.analysis.sqlite
+*.analysis.db
+run_*.json
+analysis_*.json
+
+# Ancestry outputs — PCA coordinates and admixture proportions are a
+# high-resolution genetic fingerprint, not an anonymous summary.
+*.eigenvec
+*.eigenval
+*.eigenvec.allele
+*.Q
+*.P
+*.pca.json
+*.ancestry.json
+*.admixture.*
+
+# Polygenic scores, per-variant score contributions, haplogroup calls
+*.sscore
+*.sscore.vars
+*.profile
+*.prs.json
+*.prs.csv
+*.scores.json
+*.haplogroup.json
+*.pgs.*
+
+# Relatedness / IBD — leaks genotypes of the subject AND their relatives
+*.genome
+*.king
+*.kin0
+*.ibd
+*.segments
+*.grm
+*.grm.bin
+*.grm.id
+*.grm.N.bin
+
+# QC and intermediate stats keyed to a real sample
+*.frq
+*.hwe
+*.het
+*.imiss
+*.lmiss
+*.sexcheck
+*.qc.json
+
+# ---------------------------------------------------------------------
+# 4. CACHES, LOGS, TEMP — these routinely capture genotypes verbatim
+# ---------------------------------------------------------------------
+/cache/
+/.cache/
+/tmp/
+/temp/
+/scratch/
+*.log
+*.tmp
+*.bak
+*.swp
+plink.*
+*.nosex
+*.hh
+core.*
+
+# Notebooks: outputs embed data. Commit stripped notebooks only.
+*.ipynb_checkpoints/
+.ipynb_checkpoints/
+
+# ---------------------------------------------------------------------
+# 5. DOWNLOADED REFERENCE DATA (size + license, not privacy)
+# ---------------------------------------------------------------------
+# References are fetched at build time by the reference fetcher, never
+# vendored. They are large, and their licenses differ (some are
+# non-commercial and cannot be redistributed from a public repo).
+# The pinned manifest + checksums ARE committed.
+#
+# NOTE: written as `dir/**` + a directory re-include, NOT as `dir/`. Git
+# will not re-include a file whose parent directory is excluded, so
+# `/data/references/` followed by `!/data/references/manifest.yaml`
+# silently fails to track the manifest. Keep this shape.
+/data/references/**
+!/data/references/**/
+!/data/references/manifest.yaml
+!/data/references/manifest.lock
+!/data/references/**/*.license.txt
+!/data/references/**/CHECKSUMS
+!/data/references/README.md
+
+/data/reference/
+/refs/
+/reference/
+/panels/
+/vendor/tools/
+
+# Third-party binaries pulled in by the fetcher (plink2, beagle, bcftools)
+*.exe
+*.dll
+*.so
+*.dylib
+*.jar
+
+# ---------------------------------------------------------------------
+# 6. EXPLICIT ALLOWLIST — safe, DNA-free files that must stay tracked
+# ---------------------------------------------------------------------
+# Curated knowledge pack: card definitions and citations that ship with
+# the app. Authored content about variants in general — never about any
+# individual's genotypes. Allowlisted by extension, so that dropping a
+# genomic file in here does not silently make it committable.
+!/knowledge/
+!/knowledge/**/
+!/knowledge/**/*.yaml
+!/knowledge/**/*.yml
+!/knowledge/**/*.json
+!/knowledge/**/*.toml
+!/knowledge/**/*.md
+!/knowledge/**/*.csv
+!/knowledge/**/*.tsv
+
+# Synthetic test fixtures ONLY. See AGENTS.md: fixtures must be generated,
+# never produced by subsetting a real person's file.
+!/tests/fixtures/synthetic/
+!/tests/fixtures/synthetic/**
+
+# ---------------------------------------------------------------------
+# 7. SECRETS
+# ---------------------------------------------------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets.json
+credentials.json
+
+# ---------------------------------------------------------------------
+# 8. LANGUAGE / TOOLING
+# ---------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+dist/
+build/
+*.egg-info/
+.tox/
+
+node_modules/
+.next/
+.nuxt/
+.svelte-kit/
+.vite/
+.turbo/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+!.vscode/extensions.json
