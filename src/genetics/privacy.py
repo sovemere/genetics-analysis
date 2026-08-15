@@ -23,6 +23,12 @@ only recognised the first:
   Python string literal and in anything that has been through ``repr()``. Tracebacks,
   log lines and debug prints all arrive in this form. Matching only literal tabs meant
   the module was blind to the exact threats its own docstring names.
+* **Ruled** -- a vertical bar between cells: the ASCII ``|`` of a markdown table, and the
+  box-drawing characters a rendered dataframe uses. Added in M1, when the first
+  genotype-bearing ``polars.DataFrame`` appeared: its ``__repr__`` lays a row out with
+  ``U+2506`` separators, so it printed rsIDs and genotypes in plain sight while matching
+  none of the whitespace-separated patterns. Pasting a query result into a doc, an
+  issue, or a notebook cell is a leak route, and a markdown table is the same shape.
 * **Keyed** -- ``rsid=..., a1=..., a2=...``, the shape a dataclass ``repr`` produces.
 """
 
@@ -31,12 +37,18 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Final
+from typing import ClassVar, Final
 
 _ALLELE = r"[ACGTID0]"
 
-# A separator may be real whitespace, or the escaped form that survives repr().
-_SEP = r"(?:[ \t]+|(?:\\t)+|(?:\\s)+)"
+_RULE = "|│┆║┊"
+"""Vertical rules that separate cells in a rendered table: the ASCII pipe of markdown,
+and the box-drawing characters Polars, Rich and friends emit."""
+
+# A separator may be real whitespace, the escaped form that survives repr(), or a table
+# rule. The rule alternative comes first so it consumes the padding spaces around it --
+# ordered the other way, `[ \t]+` would match the space and leave the bar unconsumed.
+_SEP = rf"(?:[ \t]*[{re.escape(_RULE)}][ \t]*|[ \t]+|(?:\\t)+|(?:\\s)+)"
 
 _CHROM = r"(?:\d{1,2}|[XYM]|MT|PAR)"
 
@@ -166,7 +178,11 @@ class NoGenotypeRepr:
     Claiming the slot works precisely because it happens first.
     """
 
-    _repr_fields: tuple[str, ...] = ()
+    _repr_fields: ClassVar[tuple[str, ...]] = ()
+    """Declared ``ClassVar`` so subclasses can be dataclasses: without it, a subclass
+    restating ``_repr_fields`` as a ClassVar is a type error, and restating it *without*
+    ClassVar makes it a dataclass field -- one that would then need passing to every
+    constructor. It is class-level configuration in either case."""
 
     def __init_subclass__(cls, **kwargs: object) -> None:
         super().__init_subclass__(**kwargs)

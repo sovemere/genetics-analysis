@@ -130,6 +130,52 @@ def test_detects_23andme_style_i_identifiers() -> None:
     assert looks_like_genotype(ancestry_row(rsid="i5000940"))
 
 
+def ruled_row(rule: str, rsid: str = "rs900000001") -> str:
+    """A row laid out with a vertical rule between cells, as a table renders it."""
+    cells = [rsid, "1", "100001", "G", "G"]
+    return f"{rule} " + f" {rule} ".join(cells) + f" {rule}"
+
+
+@pytest.mark.parametrize("rule", ["|", "│", "┆", "║", "┊"])
+def test_detects_a_row_laid_out_as_a_table(rule: str) -> None:
+    """Vertical rules, ASCII and box-drawing alike.
+
+    Found in M1, when the first genotype-bearing dataframe appeared: Polars renders a row
+    with U+2506 between cells, so ``repr(frame)`` printed rsIDs and genotypes in plain
+    sight and matched none of the whitespace-separated patterns. It would have passed
+    ``assert_no_genotype`` and the pre-commit content scan alike.
+
+    The ASCII pipe is the same shape and a likelier route: a markdown table is how a row
+    reaches a README, an issue comment or a design doc.
+    """
+    assert looks_like_genotype(ruled_row(rule))
+
+
+def test_detects_a_rendered_dataframe_repr() -> None:
+    """The concrete artifact, not just its shape.
+
+    Constructed here rather than asserted about in the abstract, because the previous
+    version of this scanner passed every shape test and still could not see this string.
+    """
+    import polars as pl
+
+    from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus
+
+    frame = pl.DataFrame(
+        {
+            "rsid": ["rs900000001"],
+            "chrom": ["1"],
+            "pos_grch37": [100001],
+            "a1": ["A"],
+            "a2": ["G"],
+            "genotype": ["AG"],
+            "call_status": [CallStatus.CALLED.value],
+        },
+        schema=NORMALIZED_SCHEMA,
+    )
+    assert looks_like_genotype(repr(frame))
+
+
 # ---------------------------------------------------------------------------
 # Precision: a scanner that cries wolf gets bypassed
 # ---------------------------------------------------------------------------
@@ -147,6 +193,13 @@ def test_detects_23andme_style_i_identifiers() -> None:
         "def parse(rsid: str, chrom: str) -> None: ...",
         "coverage was 0.9986 across 677436 markers",
         "rs1234567 has a minor allele frequency of 0.31",
+        # Ordinary tables must not trip the rule-separated patterns added in M1. A
+        # scanner that flags every markdown table gets bypassed, and a bypassed scanner
+        # protects nothing.
+        "| Source | Tier | Licence |",
+        "| chrom | pos | ref | alt |",
+        "| rs17822931 | ABCC11 | earwax |",
+        "the columns are 1 | 2 | 3",
     ],
 )
 def test_does_not_flag_ordinary_text(text: str) -> None:
