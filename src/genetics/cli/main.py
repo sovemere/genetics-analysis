@@ -86,6 +86,121 @@ def fixtures(
     typer.secho(f"{len(written)} fixtures written to {target}", fg=typer.colors.GREEN)
 
 
+@app.command()
+def ingest(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Raw vendor export.",
+        ),
+    ],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+    expect_counts: Annotated[
+        str | None,
+        typer.Option(
+            "--expect-counts",
+            help=(
+                "Assert marker counts without emitting any genotype, e.g. "
+                "'markers=677436,no_calls=550,indels=8830' (M1.2)."
+            ),
+        ),
+    ] = None,
+) -> None:
+    """Parse a raw DNA export into the normalized table and report QC (M1.8).
+
+    Prints counts, rates and inferred sex. Never prints a genotype.
+    """
+    # Imported here, not at module scope: this pulls in Polars and the whole ingest
+    # stack, and `genetics --help` should not pay for it.
+    from genetics.cli.ingest_cmd import run
+
+    run(input_path=input_path, as_json=as_json, expect_counts=expect_counts)
+
+
+@app.command()
+def adapters(
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """List the registered vendor adapters (M1.3).
+
+    Shows which have been verified against a real export of their vendor's and which have
+    only ever seen a synthetic fixture -- "it parsed" is not "it was validated".
+    """
+    from genetics.ingest import adapters as registered
+
+    rows = [
+        {
+            "vendor_id": adapter.vendor_id,
+            "display_name": adapter.display_name,
+            "verified_against_real_export": adapter.verified_against_real_export,
+        }
+        for adapter in registered()
+    ]
+
+    if as_json:
+        typer.echo(json.dumps(rows, indent=2))
+        return
+
+    for row in rows:
+        mark = "verified" if row["verified_against_real_export"] else "stub    "
+        typer.echo(f"  {mark}  {row['vendor_id']:<18} {row['display_name']}")
+
+
+@app.command()
+def doctor(
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Report what this machine can run (M0.6).
+
+    Missing optional tools are reported, not treated as failures -- on a fresh checkout
+    nothing is installed yet, and that is the expected state rather than a fault.
+    """
+    from genetics.doctor import collect, to_dict
+
+    report = collect()
+
+    if as_json:
+        typer.echo(json.dumps(to_dict(report), indent=2))
+        raise typer.Exit(code=1 if report.has_problem else 0)
+
+    typer.secho(f"genetics {report.engine_version}", bold=True)
+    typer.echo(f"  python      {report.python_version}  ({report.python_executable})")
+    typer.echo(f"  platform    {report.platform_name} {report.platform_release} ({report.machine})")
+
+    if report.data_dir_error:
+        typer.secho(f"  data dir    {report.data_dir_error}", fg=typer.colors.RED)
+    else:
+        disk = f"{report.free_disk_gb} GB free" if report.free_disk_gb is not None else "unknown"
+        typer.echo(f"  data dir    {report.data_dir}  [{disk}]")
+
+    refs = "present" if report.references_present else "not fetched"
+    manifest = "manifest ok" if report.manifest_present else "no manifest (M2)"
+    lock = "lock ok" if report.lock_present else "no lock"
+    typer.echo(f"  references  {refs}, {manifest}, {lock}, {report.reference_files} file(s)")
+
+    typer.echo("")
+    typer.secho("external tools", bold=True)
+    colours: dict[str, str] = {
+        "ok": typer.colors.GREEN,
+        "missing": typer.colors.YELLOW,
+        "error": typer.colors.RED,
+    }
+    for tool in report.tools:
+        typer.secho(f"  {tool.status:<8}", fg=colours[tool.status], nl=False)
+        typer.echo(f"{tool.name:<12} needed from {tool.required_from}")
+        if tool.version:
+            typer.echo(f"           {tool.version}")
+        if tool.detail:
+            typer.echo(f"           {tool.detail}")
+
+    raise typer.Exit(code=1 if report.has_problem else 0)
+
+
 @app.command("check-staged")
 def check_staged_cmd() -> None:
     """Block genotype content in the staged index (M0.3). Used by the pre-commit hook.

@@ -15,6 +15,9 @@ license = { text = "MIT" }
 # (htslib does not run on Windows -- AGENTS.md 4.9).
 dependencies = [
     "typer>=0.12",
+    # M1: the normalized table. Chosen in the roadmap for speed on 677k rows and for
+    # having a working Windows story -- see AGENTS.md 4.9 for why that is not incidental.
+    "polars>=1.2",
 ]
 
 [project.optional-dependencies]

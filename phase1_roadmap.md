@@ -204,44 +204,103 @@ permanent in git history.*
       - The matrix is not ceremony: the htslib constraint (§4.9) means a dependency can
         pass on Linux and fail on Windows, and M0.3 already caught one such bug
         (see progress log).
-- [ ] **M0.6** `genetics doctor` command: reports Python version, OS, presence and
-      versions of PLINK2 / Java / Beagle / R+HIBAG, reference manifest state, and free
-      disk. This is the first thing to run when an agent picks up the project.
+- [x] **M0.6** `genetics doctor` (`src/genetics/doctor.py`): Python, OS, PLINK2 / Java /
+      Beagle / R+HIBAG, reference manifest state, free disk. JSON-capable.
+      - **Reports; never installs, fetches, or fails on absence.** A missing PLINK 2 on a
+        fresh checkout is the expected state, and an exit code meaning "you have not done
+        M2 yet" would greet every newcomer in red and teach them to ignore it. Non-zero is
+        reserved for things that are *wrong*: an unsafe `GENETICS_DATA_DIR`, or a tool
+        present but unable to report a version.
+      - Searches the app's own tools dir before PATH, since M2.5 installs pinned builds
+        there rather than expecting a system install.
+      - Java version goes to **stderr**, PLINK 2 and R use stdout; reading only stdout
+        would call a working JVM broken. Every probe survives a timeout, a non-executable
+        file, and a non-zero exit — `doctor` runs precisely when the environment is
+        suspect.
 
 ---
 
 ## M1 — Ingest & QC
 
-- [ ] **M1.1** Normalized table schema (Polars), exactly as
-      [AGENTS.md §2](AGENTS.md): `rsid, chrom, pos_grch37, a1, a2, genotype, call_status`.
-      `chrom` is an enum `1..22, X, Y, PAR, MT` — **never** the numeric vendor codes.
-- [ ] **M1.2** AncestryDNA V2 adapter. Handle every measured fact: 17-line `#` header,
-      chrom codes `23→X 24→Y 25→PAR 26→MT`, `0 0` no-calls, `I`/`D` indels, unordered
-      allele pairs (sort them), doubled hemizygous calls.
-      - *Acceptance (CI):* parses all six synthetic fixtures; rejects the malformed-header
-        and wrong-build ones with actionable errors.
-      - *Acceptance (local only):* parses the owner's real export to exactly 677,436 rows
-        with 550 no-calls and 8,830 indel markers. **This check cannot live in CI** — the
-        file can never be committed. Implement it as `genetics ingest --expect-counts`,
-        run manually, asserting counts without emitting any genotype.
-- [ ] **M1.3** Vendor sniffing + adapter registry. Adding a vendor must not touch any
-      analysis module. Ship a stub 23andMe adapter to prove the seam.
-- [ ] **M1.4** Strict validation: assert build 37, assert column count, assert header
-      shape, reject with an actionable error on mismatch. **Fail loudly**
-      ([AGENTS.md §6](AGENTS.md)) — a mis-parse becomes a confident wrong health claim.
-- [ ] **M1.5** QC module:
-      - call rate (overall and per chromosome)
-      - autosomal heterozygosity rate
-      - **sex inference** from X het rate + Y call rate → drives hemizygous handling
-      - build sanity check against known reference positions
-      - QC report object, surfaced in the UI and CLI
-- [ ] **M1.6** Indel policy: exclude `I`/`D` from allele matching by default
-      ([AGENTS.md §4.2](AGENTS.md)); support an explicit whitelist with verified rsID→
-      representation mapping.
-- [ ] **M1.7** Variant keying: primary key `(chrom, pos_grch37, alleles)`, rsID secondary,
-      plus a dbSNP merge table so retired rsIDs still resolve
-      ([AGENTS.md §2](AGENTS.md)).
-- [ ] **M1.8** CLI `genetics ingest --input <file> [--json]`.
+- [x] **M1.1** Normalized table schema (`ingest/schema.py`), exactly as
+      [AGENTS.md §2](AGENTS.md). Four decisions are load-bearing, each a place where the
+      plausible alternative fails silently rather than loudly:
+      - `chrom` is a Polars **`Enum` with no `23`–`26` members at all**, so a leaked
+        vendor code raises at construction instead of making every `chrom <= 22` filter
+        quietly include the sex chromosomes. `PAR` stays distinct from `X` — folding them
+        would give every male a nonzero X het rate and blunt the sex-inference signal.
+      - **No-calls are null, not `"0"`.** As `"0"` a no-call joins cleanly against a
+        reference table and compares equal to every other no-call; as null it propagates.
+      - Alleles sorted once, here, so no consumer has to remember.
+      - `call_status` carries ploidy, because the genotype string cannot — and it is
+        filled in only *after* sex inference, since until then it is not known.
+      - `GenotypeTable` wraps the frame and inherits `NoGenotypeRepr`: a bare Polars frame
+        prints rows.
+- [x] **M1.2** AncestryDNA V2 adapter (`ingest/ancestry.py`), with the allele-level
+      handling shared in `ingest/normalize.py` — the AGENTS.md §2 encoding facts are
+      vendor-independent enough that re-implementing them per adapter would mean
+      re-making the same mistake per adapter.
+      - *Acceptance (CI):* all six fixtures parse or are rejected as specified.
+      - *Acceptance (local):* **passed 2026-08-15** — 677,436 markers / 550 no-calls /
+        8,830 indels via `genetics ingest --expect-counts`. The sex-chromosome counts in
+        AGENTS.md §2 reconcile exactly once you notice its Y figure counts *homozygous*
+        calls: X 25,231 called − 4 het = 25,227 hom; Y 1,661 called − 3 het = 1,658;
+        MT 263; PAR 36. `Adapter.verified_against_real_export` records that this ran, and
+        the CLI prints a warning for any adapter where it has not.
+- [x] **M1.3** Vendor sniffing + registry (`ingest/registry.py`) with a 23andMe stub
+      (`ingest/vendor_23andme.py`) that really parses the other-vendor fixture: merged
+      genotype column, letter chromosomes, `--` no-calls, single-character haploid calls.
+      - Detection is **exclusive** — two adapters claiming one file is a conflict to fail
+        on, not something to resolve by registration order.
+      - The coupling claim is checked structurally: a test parses the imports of every
+        analysis module and asserts none reaches a vendor adapter. Intention alone would
+        pass every other test in the suite and only surface at the third vendor.
+      - Two documented gaps in the stub, both deliberate: `i`-prefixed probes resolve
+        against no reference, and the layout has no PAR, so QC's PAR exclusion cannot
+        apply. Noted rather than silently corrected.
+- [x] **M1.4** Strict validation (`ingest/errors.py`). Build 37 asserted from the header,
+      column header matched by name, allele tokens, positions, and coordinate bounds all
+      checked with a **file line number** in the message.
+      - Every error message is scanned by `assert_no_genotype` **in the base class
+        constructor**, so an error type added later cannot reintroduce the leak.
+      - This caught a live one: the truncated fixture's first uncommented line *is* a
+        genotype row, and the obvious `f"expected {EXPECTED}, got {observed}"` would have
+        put it in an exception message — where the scanner would *not* have caught it,
+        because a Python list renders comma-separated. Hence `errors.describe_columns`.
+- [x] **M1.5** QC module (`genetics/qc/`). Call rates overall and per chromosome,
+      autosomal and non-PAR-X heterozygosity on SNP loci, sex inference, build check,
+      indel and duplicate summaries, warnings — and `resolve_ploidy`, which is what makes
+      a doubled `A A` on the male X readable.
+      - **Sex inference requires two signals to agree** (X het ≤ 0.05 with Y call ≥ 0.30,
+        or X het ≥ 0.15 with Y call ≤ 0.15). Disagreement yields `AMBIGUOUS` and leaves
+        ploidy unresolved rather than guessing: that disagreement is what a sex-chromosome
+        aneuploidy looks like (M6.4), and an unresolved locus is visibly unresolved while
+        a wrongly resolved one is not.
+      - `HET_HAPLOID` is its own status, so a heterozygous call at a single-copy locus
+        stays countable instead of being dropped or read as a diploid genotype.
+      - Build check has three layers: header assertion, coordinate bounds against GRCh37
+        chromosome lengths (needs no reference data), and rsID anchors. **The anchor table
+        ships empty** — writing coordinates from memory would be invented data
+        ([AGENTS.md §6](AGENTS.md)); M2 populates it from dbSNP. Only anchors carrying a
+        `source` may fail a run, so a wrong coordinate can lose information but never
+        raise a false alarm. Same precedent as the empty `spike_ins` hook in M0.2.
+      - QC **labels, never filters** ([AGENTS.md §0.1A](AGENTS.md)): nothing here drops a
+        marker or rejects a sample.
+- [x] **M1.6** Indel policy (`ingest/indels.py`). Default excludes all `I`/`D` from allele
+      matching; `IndelRepresentation` **refuses to construct without a `source`**, because
+      an unsourced mapping is precisely the guess the whitelist exists to prevent — `D`
+      means "the deletion allele", not "the reference", and a wrong guess reports the
+      opposite genotype rather than failing. **M3.2 must call `matchable_mask`.**
+- [x] **M1.7** Variant keying (`ingest/keys.py`): `LocusKey` is what a *sample* can offer
+      (a homozygote reveals only one allele, so no complete allele key exists on that
+      side); `VariantKey` is what a card or reference row offers. `MergeTable` chases
+      dbSNP merge chains transitively with a cycle guard, resolves **both sides** of a
+      lookup, and adds `rsid_current` beside the original rather than overwriting it.
+- [x] **M1.8** CLI `genetics ingest --input <file> [--json] [--expect-counts ...]`, plus
+      `genetics adapters`. The JSON payload is run through `assert_no_genotype` on the way
+      out — this command's input is a whole genome, and "just show me a few rows to check
+      the parse" would land exactly there. A test feeds the guard a crafted payload and
+      requires the emit to fail.
 
 ---
 
@@ -259,6 +318,11 @@ permanent in git history.*
             [AGENTS.md §4.1](AGENTS.md) cannot be computed without it. Subset to array
             positions + card positions to keep it manageable.
       - [ ] ClinVar (VCF + variant summary)
+      - [ ] dbSNP: the **rsID merge table** M1.7 loads, and verified GRCh37/GRCh38
+            coordinates for the build anchors M1.5 left empty. Both are mechanisms
+            already built and tested against injected data, waiting only on real
+            positions — see `qc/build_anchors.py` for why they were not written from
+            memory.
       - [ ] 1000 Genomes phase 3 GRCh37 (PCA subset **and** full panel for imputation —
             do not subset the imputation panel, [AGENTS.md §5.5](AGENTS.md))
       - [ ] HGDP + SGDP
@@ -592,6 +656,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-15 | M0.6, M1 | Ingest and QC complete. 288 tests; ruff, `ruff format` and `mypy --strict` clean. **M1.2's local acceptance passed on the real export** — 677,436 / 550 / 8,830 — and reconciling it against AGENTS.md §2 resolved an apparent 3-marker discrepancy on the Y: §2's "1,658 calls" counts *homozygous* calls, and 1,661 called − 3 het = 1,658. X matches exactly the same way (25,231 − 4 = 25,227). Two genuine findings in that file worth carrying to M3: **656 rows repeat a (chrom, position)** already present, and 7 heterozygous calls sit at loci inferred single-copy. Both are reported, neither is deduplicated or dropped — choosing between duplicate probes is a matching decision (M3.2), not an ingest one. **The M0 lesson recurred twice, in a new form each time.** (1) Writing the first genotype-bearing dataframe exposed a hole in the privacy scanner: `polars` renders a row with `U+2506` between cells, so `repr(frame)` printed rsIDs and genotypes in plain sight and matched none of the whitespace-separated patterns — it would have passed `assert_no_genotype` *and* the pre-commit content scan. Fixed by adding a vertical-rule separator form, which also closes the likelier route: a genotype row in a **markdown table** was equally invisible. Four negative controls guard against the scanner now flagging ordinary tables. (2) Null is Polars' fail-open value: `null.is_in([...])` is null, not False, and a null predicate matches nothing. That silently dropped **every no-call** from the indel-policy matchable set — the indel policy was quietly deciding what happens to missing genotypes, which is the card engine's call. Same trap found and closed in `_is_snp` and in row validation, where a blank field would have skipped the allele check unreported. The pattern to carry forward: in Polars, three-valued logic turns a guard into a no-op exactly on the rows that are already anomalous. Also worth noting: the build-anchor table and the dbSNP merge table both ship as tested mechanisms with empty data, following M0.2's `spike_ins` precedent — inventing GRCh37 coordinates to make a check look complete would be the exact failure the check exists to catch. |
 | 2026-08-15 | M0 review | Diff-driven review of the session (`/code-review high`) plus a self-pass. 15 findings, 8 reproduced empirically; all fixed. 116 tests. **The pattern across them: the guards failed *open*.** Several were cases where a privacy check silently passed on input it was written to catch — worse than no check, because it manufactures confidence. Worth remembering: (1) the fixture allowlist was an fnmatch glob, and fnmatch's `*` crosses `/`, so `synthetic/<any>/<real export>` was exempt from the name rule *and* the content scan *and* `.gitignore`'s `**` negation *and* the sealing test's non-recursive `iterdir()` — four layers with one blind spot, because all four were written from the same mental model. (2) The scanner matched only *real* tab separators, so a row inside a Python string literal or any `repr()`/traceback — the module docstring's own stated threats — sailed through; the redaction test passed vacuously for the same reason and would have passed with the redaction deleted. (3) `NoGenotypeRepr` was silently voided by `@dataclass`, which generates `__repr__` on the subclass; fixed by claiming the slot in `__init_subclass__`, since `dataclasses` never overwrites a name already in `cls.__dict__`. (4) The hook was committed mode 100644, so git skipped it on Linux/macOS while `install-hooks` reported success. (5) `verify_all` compared via `read_text()`, whose universal-newline mode folds CRLF, so the check `.gitattributes` exists to protect could never fail. (6) `staged_files` lacked `-z`, so a non-ASCII path was quoted, `git show` failed, the error was swallowed, and the file was skipped unscanned. Also fixed my own `GENETICS_DATA_DIR` hole: pointing it inside the checkout relocated run bundles into the repo, where gitignore covers them only unevenly. Lesson for M1: a guard that has not been *demonstrated* failing on real input is not evidence of anything. |
 | 2026-08-15 | — | Roadmap created. AGENTS.md and .gitignore in place; no code yet. |
 | 2026-08-15 | M0.3–M0.5 | Privacy suite, pre-commit hook, CI. 90 tests total. **The suite caught a real cross-platform bug on its first run:** the fixture named `other_vendor_23andme.txt` matched the forbidden pattern `*23andMe*.txt`, and because `fnmatch` normcases via the OS, that check folded case on Windows but not on Linux — it would have passed CI on ubuntu and blocked on windows. Fixed three ways: matching is now explicitly case-insensitive everywhere, the fixture was renamed to `other_vendor_layout.txt` (a fixture that trips the guard teaches people to ignore the guard), and allowlisted paths are exempt from name rules. That exemption made `tests/fixtures/synthetic/` a trust hole, so it is now sealed by `test_synthetic_dir_holds_only_known_fixtures`. Also: writing genotype rows as literals in test files would fail our own content scan, so tests assemble rows at runtime from parts — and the AGENTS.md format block now spells out `<TAB>` instead of using real tabs, which is better documentation anyway. |
