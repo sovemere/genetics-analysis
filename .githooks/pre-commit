@@ -1,0 +1,44 @@
+#!/bin/sh
+#
+# Pre-commit guard for a public repository that processes real genomes.
+#
+# Enable once per clone:  genetics install-hooks
+#            (or)         git config core.hooksPath .githooks
+#
+# --no-verify is NOT an acceptable way past this hook. If it fires, something is
+# genuinely wrong with what you are about to publish. A genotype committed to a public
+# repo cannot be recalled -- rewriting history does not remove it from forks, clones, or
+# anything that already mirrored the push. Fix the content instead.
+#
+# Order matters: cheapest and most consequential check first, so the common case is fast
+# and the important case never gets skipped for slowness.
+
+set -e
+
+printf '\n[pre-commit] scanning staged changes for genotype content...\n'
+
+# Prefer the venv interpreter; fall back to whatever python is on PATH.
+if [ -x ".venv/Scripts/python.exe" ]; then
+    PY=".venv/Scripts/python.exe"
+elif [ -x ".venv/bin/python" ]; then
+    PY=".venv/bin/python"
+else
+    PY="python"
+fi
+
+if ! "$PY" -c "import genetics" 2>/dev/null; then
+    printf '[pre-commit] genetics package not importable; run: uv pip install -e ".[dev]"\n'
+    printf '[pre-commit] REFUSING to commit unverified -- the privacy checks did not run.\n'
+    exit 1
+fi
+
+"$PY" -m genetics.cli.main check-staged
+
+printf '[pre-commit] running privacy suite...\n'
+"$PY" -m pytest tests/privacy -q --no-header
+
+printf '[pre-commit] lint...\n'
+"$PY" -m ruff check .
+"$PY" -m ruff format --check .
+
+printf '[pre-commit] ok\n\n'

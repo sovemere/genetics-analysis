@@ -1,0 +1,105 @@
+"""Where the app writes (roadmap M0.3).
+
+AGENTS.md 1.5 requires analysis output to land outside the repository by default, so that
+a careless ``git add -A`` cannot reach a run bundle. Gitignore rules are the second line
+of defence, not the first -- both are asserted here.
+"""
+
+from __future__ import annotations
+
+import shutil
+import subprocess
+
+import pytest
+
+from genetics.paths import (
+    APP_WRITE_PATHS,
+    cache_dir,
+    is_inside_repo,
+    reference_lock,
+    reference_manifest,
+    references_dir,
+    repo_root,
+    runs_dir,
+    user_data_dir,
+)
+
+pytestmark = pytest.mark.privacy
+
+requires_git = pytest.mark.skipif(shutil.which("git") is None, reason="git not on PATH")
+
+
+def test_genotype_derived_output_defaults_outside_the_repo() -> None:
+    """Runs and caches hold genotype data; they must not default into the checkout."""
+    for path in (user_data_dir(), runs_dir(), cache_dir()):
+        assert not is_inside_repo(path), f"{path} defaults inside the repo"
+
+
+def test_reference_data_lives_in_the_repo_tree_but_ignored() -> None:
+    """References are bulky and licence-encumbered, not personal.
+
+    Keeping them beside the committed manifest is deliberate; the concern is size and
+    redistribution, not privacy (AGENTS.md 5.5).
+    """
+    assert is_inside_repo(references_dir())
+
+
+def test_data_dir_override_is_respected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Large panels often need another drive; the override must not break the guarantee."""
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(repo_root().parent / "elsewhere"))
+    assert not is_inside_repo(user_data_dir())
+    assert not is_inside_repo(runs_dir())
+
+
+@requires_git
+def test_gitignore_covers_every_writable_path() -> None:
+    """Each declared output path is ignored, or explicitly meant to be tracked."""
+    root = repo_root()
+    failures: list[str] = []
+
+    for label, path, must_ignore in APP_WRITE_PATHS:
+        if not is_inside_repo(path):
+            continue  # outside the repo entirely; git cannot see it
+
+        rel = str(path.relative_to(root)).replace("\\", "/")
+        probe = f"{rel}/probe.tmp" if must_ignore else rel
+
+        ignored = (
+            subprocess.run(
+                ["git", "check-ignore", "-q", probe],
+                cwd=root,
+                check=False,
+            ).returncode
+            == 0
+        )
+
+        if must_ignore and not ignored:
+            failures.append(f"{label}: {probe} is NOT ignored but must be")
+        if not must_ignore and ignored:
+            failures.append(f"{label}: {probe} IS ignored but must stay tracked")
+
+    assert not failures, "\n".join(failures)
+
+
+@requires_git
+def test_manifest_and_lock_stay_trackable() -> None:
+    """Reproducible builds depend on these being committed alongside ignored payloads."""
+    root = repo_root()
+    for path in (reference_manifest(), reference_lock()):
+        rel = str(path.relative_to(root)).replace("\\", "/")
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", rel],
+            cwd=root,
+            check=False,
+        )
+        assert result.returncode != 0, f"{rel} must remain trackable"
+
+
+def test_every_writable_path_is_declared() -> None:
+    """APP_WRITE_PATHS is what the gitignore check iterates.
+
+    A new output location that skips this registry is a location nothing verifies.
+    """
+    declared = {path for _, path, _ in APP_WRITE_PATHS}
+    for path in (user_data_dir(), runs_dir(), cache_dir(), references_dir()):
+        assert path in declared, f"{path} is missing from APP_WRITE_PATHS"

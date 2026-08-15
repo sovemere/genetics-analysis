@@ -169,7 +169,10 @@ FIXTURES: tuple[FixtureSpec, ...] = (
         malformed_header=True,
     ),
     FixtureSpec(
-        name="other_vendor_23andme.txt",
+        # Deliberately not named after the vendor it imitates: "*23andMe*.txt" is a
+        # forbidden filename pattern for real exports, and a fixture that trips the
+        # guard teaches everyone to ignore the guard.
+        name="other_vendor_layout.txt",
         description=(
             "Different vendor layout: 4 columns with a merged genotype, letter chromosome "
             "codes. Proves the adapter seam without touching any analysis module."
