@@ -140,15 +140,36 @@ raw export ──► ingest ──► normalized table ──► QC report
 *Nothing else starts until the privacy harness exists. A leak committed in week one is
 permanent in git history.*
 
-- [ ] **M0.1** Scaffold `pyproject.toml`, `src/genetics/` package, Typer entry point
+- [x] **M0.1** Scaffold `pyproject.toml`, `src/genetics/` package, Typer entry point
       `genetics`, ruff + mypy config, pytest config.
-- [ ] **M0.2** **Synthetic fixture generator** (`scripts/make_fixtures.py`). Emits
-      AncestryDNA-format files from reference allele frequencies with a fixed seed.
-      Must be able to emit: a male sample, a female sample, a high-no-call sample, a
-      file with a malformed header, a file with an unexpected build, and a non-Ancestry
-      vendor layout. **No real genotypes, ever.** Output to `tests/fixtures/synthetic/`.
-      - *Acceptance:* regenerating with the same seed is byte-identical; every downstream
-        test uses these and only these.
+      - Python 3.13.5 / uv. Deps deliberately minimal (`typer` only); each milestone adds
+        its own. Banned-dependency note recorded in `pyproject.toml` itself, where an
+        agent reaching for `pysam` will actually see it.
+      - `ruff` (E/F/W/I/UP/B/SIM/RUF, line-length 100) and `mypy --strict` both clean.
+      - Also added `.gitattributes` (`eol=lf`) — required, not cosmetic: fixture
+        byte-identity breaks if git rewrites line endings on Windows checkout.
+- [x] **M0.2** **Synthetic fixture generator.** Logic in
+      `src/genetics/testing/fixtures.py` (so ruff + strict mypy cover it and tests can
+      import it); `scripts/make_fixtures.py` and `genetics fixtures` are thin wrappers.
+      Six fixtures generated: male, female, high-no-call, wrong-build, malformed-header,
+      other-vendor — plus `MANIFEST.json` with per-file sha256.
+      - *Acceptance met:* `genetics fixtures --check` re-derives and byte-compares;
+        24 tests pass.
+      - Per-fixture RNG derived from `(seed, name)`, so adding a fixture cannot perturb
+        the bytes of existing ones.
+      - Chip-shape constants (per-chromosome marker density, 1.3% indel rate, 0.08%
+        no-call rate) describe the **array design**, identical for everyone tested on it,
+        so they carry no individual information. Genotypes are drawn under Hardy-Weinberg
+        from invented allele frequencies; rsIDs are synthetic, counting from `rs900000001`.
+      - Heterozygote column order is **randomised on purpose** — the format guarantees no
+        ordering, so a parser that compares positionally instead of sorting fails here
+        rather than in production.
+      - `spike_ins` hook exists but is empty: the card engine (M3) will need known markers
+        with chosen genotypes, but populating it now would mean inventing GRCh37
+        coordinates. Fill it once M2 lands real reference data.
+      - Two privacy tests guard the module: fixtures must self-label as `SYNTHETIC`, and
+        the generator source must contain no file-reading call at all, so it cannot
+        acquire a "path to a real export" argument later.
 - [ ] **M0.3** Privacy test suite (`tests/privacy/`):
       - assert no tracked file matches genotype-derived patterns
       - assert `.gitignore` covers every path the app writes
@@ -172,8 +193,12 @@ permanent in git history.*
 - [ ] **M1.2** AncestryDNA V2 adapter. Handle every measured fact: 17-line `#` header,
       chrom codes `23→X 24→Y 25→PAR 26→MT`, `0 0` no-calls, `I`/`D` indels, unordered
       allele pairs (sort them), doubled hemizygous calls.
-      - *Acceptance:* parses the real file to exactly 677,436 rows with 550 no-calls and
-        8,830 indel markers; parses all synthetic fixtures.
+      - *Acceptance (CI):* parses all six synthetic fixtures; rejects the malformed-header
+        and wrong-build ones with actionable errors.
+      - *Acceptance (local only):* parses the owner's real export to exactly 677,436 rows
+        with 550 no-calls and 8,830 indel markers. **This check cannot live in CI** — the
+        file can never be committed. Implement it as `genetics ingest --expect-counts`,
+        run manually, asserting counts without emitting any genotype.
 - [ ] **M1.3** Vendor sniffing + adapter registry. Adding a vendor must not touch any
       analysis module. Ship a stub 23andMe adapter to prove the seam.
 - [ ] **M1.4** Strict validation: assert build 37, assert column count, assert header
@@ -543,3 +568,4 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 | Date | Milestone | Notes |
 |---|---|---|
 | 2026-08-15 | — | Roadmap created. AGENTS.md and .gitignore in place; no code yet. |
+| 2026-08-15 | M0.1, M0.2 | Scaffold + fixture generator done. 24 tests, ruff and `mypy --strict` clean. Six fixtures at ~330KB each (12k markers). Two findings worth carrying forward: (1) `.gitattributes` with `eol=lf` turned out to be a correctness requirement, not tidiness — without it git rewrites fixtures to CRLF on Windows checkout and byte-identity fails; (2) M1.2's "parses the real file" criterion cannot be a CI test, so it is now split into a CI half (fixtures) and a manual local half. |

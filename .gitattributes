@@ -1,0 +1,11 @@
+# Normalise line endings so the repo is stable across the Windows/Linux CI split.
+* text=auto eol=lf
+
+# Test fixtures are byte-compared against a fresh generation (see
+# genetics.testing.fixtures.verify_all). Any line-ending rewrite on checkout would
+# make that check fail on Windows, so pin them to LF explicitly.
+tests/fixtures/synthetic/** text eol=lf
+
+# Reference manifests and knowledge-pack cards are compared and diffed; keep them LF.
+data/references/manifest.yaml text eol=lf
+knowledge/** text eol=lf
