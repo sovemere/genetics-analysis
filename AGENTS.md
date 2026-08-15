@@ -4,6 +4,19 @@ Operating guide for AI agents and humans working in this repository.
 
 **This repo is public. It processes real personal genomes. Read §1 before writing code.**
 
+## Git workflow
+
+**In the CLI: commit and push directly to `main`.** Do not create a feature branch, do
+not open a pull request, and do not ask whether to branch — unless the request explicitly
+says to. This is a solo repository and the branch-then-PR ceremony is friction here.
+
+**Feature branches and pull requests are for the web client only.**
+
+This changes *where* commits go. It changes nothing about *what* may be committed: the
+privacy rules in §1 and the pre-commit checklist in §7 apply in full to every push,
+and pushing straight to `main` on a public repo makes them matter more, not less. Verify
+before you push, because there is no review step to catch it.
+
 ---
 
 ## 0. What this project is
