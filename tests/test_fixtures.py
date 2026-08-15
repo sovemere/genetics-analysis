@@ -202,7 +202,7 @@ def test_wrong_build_fixture_declares_38() -> None:
 
 
 def test_other_vendor_layout_differs_structurally() -> None:
-    spec = next(s for s in FIXTURES if s.name == "other_vendor_23andme.txt")
+    spec = next(s for s in FIXTURES if s.name == "other_vendor_layout.txt")
     rows = _data_rows(render_fixture(spec))
     assert all(len(r.split("\t")) == 4 for r in rows[:200]), "merged genotype column"
     chroms = {r.split("\t")[1] for r in rows}

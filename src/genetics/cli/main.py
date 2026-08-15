@@ -74,5 +74,76 @@ def fixtures(
     typer.secho(f"{len(written)} fixtures written to {target}", fg=typer.colors.GREEN)
 
 
+@app.command("check-staged")
+def check_staged_cmd() -> None:
+    """Block genotype content in the staged index (M0.3). Used by the pre-commit hook.
+
+    Catches the case .gitignore cannot: a legitimately-tracked file that has acquired a
+    genotype inside it.
+    """
+    from genetics.guard import check_staged
+
+    findings = check_staged()
+    if not findings:
+        typer.secho("No genotype content staged.", fg=typer.colors.GREEN)
+        return
+
+    typer.secho("Refusing to commit -- genotype-derived content is staged:", fg=typer.colors.RED)
+    for finding in findings:
+        typer.echo(finding.render())
+    typer.echo("")
+    typer.secho(
+        "This repository is public. See AGENTS.md section 1.",
+        fg=typer.colors.YELLOW,
+    )
+    raise typer.Exit(code=1)
+
+
+@app.command("install-hooks")
+def install_hooks() -> None:
+    """Point git at the tracked hooks in .githooks/ (M0.4)."""
+    import subprocess
+
+    from genetics.paths import repo_root
+
+    root = repo_root()
+    subprocess.run(
+        ["git", "config", "core.hooksPath", ".githooks"],
+        cwd=root,
+        check=True,
+    )
+    typer.secho("core.hooksPath set to .githooks", fg=typer.colors.GREEN)
+    typer.echo("Pre-commit will now run ruff and the privacy suite.")
+
+
+@app.command()
+def paths(
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Show where the app reads and writes.
+
+    Analysis output defaults outside the repository on purpose (AGENTS.md 1.5).
+    """
+    from genetics.paths import APP_WRITE_PATHS, is_inside_repo
+
+    rows = [
+        {
+            "label": label,
+            "path": str(path),
+            "must_be_gitignored": ignored,
+            "inside_repo": is_inside_repo(path),
+        }
+        for label, path, ignored in APP_WRITE_PATHS
+    ]
+
+    if as_json:
+        typer.echo(json.dumps(rows, indent=2))
+        return
+
+    for row in rows:
+        marker = "repo" if row["inside_repo"] else "user"
+        typer.echo(f"{row['label']:<20} [{marker}] {row['path']}")
+
+
 if __name__ == "__main__":
     app()

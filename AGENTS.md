@@ -124,14 +124,15 @@ All parsing targets this exact format. Verified against a real AncestryDNA V2.0 
 ```
 #AncestryDNA raw data download
 #... 17 more comment lines, including array version and build ...
-rsid	chromosome	position	allele1	allele2
-rs1000001	1	100001	G	G      <- homozygote
-rs1000002	1	100042	A	G      <- heterozygote, alleles unordered
+rsid<TAB>chromosome<TAB>position<TAB>allele1<TAB>allele2
+rs1000001<TAB>1<TAB>100001<TAB>G<TAB>G     <- homozygote
+rs1000002<TAB>1<TAB>100042<TAB>A<TAB>G     <- heterozygote, alleles unordered
 ```
 
-*(Illustrative values — invented, not copied from any real export. Per §1.1, never paste
-real genotype rows into a tracked file, however few. Two markers cannot identify anyone,
-but the rule is easier to keep when it has no exceptions.)*
+*(Illustrative values — invented, not copied from any real export. `<TAB>` is written out
+rather than using real tabs for two reasons: invisible whitespace makes bad documentation
+for a delimited format, and a literal genotype row here would be flagged by our own
+pre-commit scanner — correctly, since §1.1 admits no exceptions for "only two markers".)*
 
 - Tab-delimited, `#`-prefixed header block of ~17 lines, then a column header row.
 - **Build GRCh37** (stated as "37.1"). Alleles reported on the **forward (+) strand**

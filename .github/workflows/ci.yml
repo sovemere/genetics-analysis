@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# CI never touches real data and never downloads reference databases.
+# It runs on synthetic fixtures only. Two reasons: reference payloads are tens of
+# gigabytes, and a CI runner is the last place a genome should be.
+env:
+  GENETICS_CI: "1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / py${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Windows is the primary development platform (AGENTS.md 4.9) and Linux is
+        # where anything containerised will run. Both must stay green: the htslib
+        # constraint means a dependency can pass on one and fail on the other.
+        os: [windows-latest, ubuntu-latest]
+        python: ["3.11", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python }}
+        run: uv python install ${{ matrix.python }}
+
+      - name: Install project
+        run: uv sync --extra dev --python ${{ matrix.python }}
+
+      - name: Lint
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check
+        run: uv run mypy
+
+      - name: Privacy suite
+        run: uv run pytest tests/privacy -v
+
+      - name: Tests
+        run: uv run pytest -q
+
+      - name: Fixtures reproduce byte-identically
+        run: uv run genetics fixtures --check
+
+  no-data-in-ci:
+    name: no real data present
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Assert no raw exports or reference payloads in the checkout
+        shell: bash
+        run: |
+          set -euo pipefail
+          fail=0
+
+          # Raw vendor exports.
+          if compgen -G "AncestryDNA*.txt" > /dev/null || compgen -G "genome_*.txt" > /dev/null; then
+            echo "::error::a raw DNA export is present in the checkout"
+            fail=1
+          fi
+
+          # Genotype-derived artifacts anywhere in the tree.
+          hits=$(find . -path ./.git -prune -o \
+            \( -name '*.vcf' -o -name '*.vcf.gz' -o -name '*.bed' -o -name '*.bim' \
+               -o -name '*.fam' -o -name '*.pgen' -o -name '*.eigenvec' \
+               -o -name '*.sscore' -o -name '*.run.json' \) -print)
+          if [ -n "$hits" ]; then
+            echo "::error::genotype-derived artifacts present:"
+            echo "$hits"
+            fail=1
+          fi
+
+          # Reference payloads must never be committed, only the manifest.
+          if [ -d data/references ]; then
+            payloads=$(find data/references -type f \
+              ! -name 'manifest.yaml' ! -name 'manifest.lock' \
+              ! -name '*.license.txt' ! -name 'CHECKSUMS' ! -name 'README.md')
+            if [ -n "$payloads" ]; then
+              echo "::error::reference payloads are committed; they must be fetched:"
+              echo "$payloads"
+              fail=1
+            fi
+          fi
+
+          exit $fail

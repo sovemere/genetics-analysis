@@ -50,13 +50,13 @@
       "sha256": "c2011ef1eeeda326b7ebec52b57606ed2ae25243392bc77a0a3b6753138f775e"
     },
     {
-      "name": "other_vendor_23andme.txt",
+      "name": "other_vendor_layout.txt",
       "description": "Different vendor layout: 4 columns with a merged genotype, letter chromosome codes. Proves the adapter seam without touching any analysis module.",
       "sex": "male",
       "vendor": "23andme",
       "build": "37",
       "rows": 12008,
-      "sha256": "2eb7190c1a65551f7a9a46ecf390fffd96e744170edbfff479d14e097eb461d4"
+      "sha256": "778453215005fe1e4fbe22833d25342d5ee8816464e981a6f4b236a84774d055"
     }
   ]
 }

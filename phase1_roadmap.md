@@ -170,15 +170,40 @@ permanent in git history.*
       - Two privacy tests guard the module: fixtures must self-label as `SYNTHETIC`, and
         the generator source must contain no file-reading call at all, so it cannot
         acquire a "path to a real export" argument later.
-- [ ] **M0.3** Privacy test suite (`tests/privacy/`):
-      - assert no tracked file matches genotype-derived patterns
-      - assert `.gitignore` covers every path the app writes
-      - assert no log line, exception message, or `__repr__` emits a genotype
-      - assert default output paths resolve outside the repo
-- [ ] **M0.4** Pre-commit hook running the privacy suite + ruff. Document the bypass as
-      forbidden.
-- [ ] **M0.5** CI workflow (Windows + Linux runners) running lint, types, tests. CI must
-      never download references or touch real data.
+- [x] **M0.3** Privacy test suite (`tests/privacy/`, 46 tests). Two enabling modules:
+      `genetics.privacy` (leak detection, redaction, `NoGenotypeRepr`) and
+      `genetics.paths` (canonical write locations + `APP_WRITE_PATHS` registry).
+      - [x] no tracked file matches genotype-derived name patterns
+      - [x] **no tracked file *contains* genotype content** — the check that matters most.
+            `.gitignore` only catches files whose name gives them away; this catches a
+            row pasted into a doc, a debug print, or a fixture trimmed from a real export.
+            It is the check that would have caught the two real rows in AGENTS.md.
+      - [x] `.gitignore` covers every path in `APP_WRITE_PATHS`; manifest/lock stay tracked
+      - [x] `__repr__` cannot emit a genotype — `NoGenotypeRepr` shows declared fields
+            only, omits (never summarises) the rest, and redacts a declared field that
+            turns out dirty. Genotype-bearing classes in M1 must inherit it.
+      - [x] `GenotypeLeakError` messages never echo the offending text
+      - [x] runs/ and cache/ resolve outside the repo; `GENETICS_DATA_DIR` override
+            preserves that guarantee
+      - Precision is deliberately favoured over recall — 9 negative cases assert ordinary
+        prose, bare rsIDs and code don't trip it. A scanner that cries wolf gets bypassed.
+- [x] **M0.4** Pre-commit hook (`.githooks/pre-commit`, tracked; `genetics install-hooks`
+      sets `core.hooksPath`). Runs `check-staged` → privacy suite → ruff, cheapest and
+      most consequential first. Refuses to run at all if the package is not importable,
+      rather than passing silently unverified.
+      - **Verified adversarially, not assumed:** staged a markdown file containing a
+        genotype row and confirmed the commit was blocked and HEAD unchanged.
+      - Hook documents that `--no-verify` is not acceptable, and why: a genotype pushed
+        to a public repo cannot be recalled — history rewriting does not reach forks,
+        clones, or mirrors.
+- [x] **M0.5** CI (`.github/workflows/ci.yml`): 2 OS × 2 Python matrix
+      (windows/ubuntu × 3.11/3.13) running ruff, `mypy --strict`, the privacy suite,
+      the full suite, and a fixture-reproducibility check.
+      - Second job `no-data-in-ci` asserts the checkout holds no raw export, no
+        genotype-derived artifact, and no reference payload beside the manifest.
+      - The matrix is not ceremony: the htslib constraint (§4.9) means a dependency can
+        pass on Linux and fail on Windows, and M0.3 already caught one such bug
+        (see progress log).
 - [ ] **M0.6** `genetics doctor` command: reports Python version, OS, presence and
       versions of PLINK2 / Java / Beagle / R+HIBAG, reference manifest state, and free
       disk. This is the first thing to run when an agent picks up the project.
@@ -568,4 +593,5 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 | Date | Milestone | Notes |
 |---|---|---|
 | 2026-08-15 | — | Roadmap created. AGENTS.md and .gitignore in place; no code yet. |
+| 2026-08-15 | M0.3–M0.5 | Privacy suite, pre-commit hook, CI. 90 tests total. **The suite caught a real cross-platform bug on its first run:** the fixture named `other_vendor_23andme.txt` matched the forbidden pattern `*23andMe*.txt`, and because `fnmatch` normcases via the OS, that check folded case on Windows but not on Linux — it would have passed CI on ubuntu and blocked on windows. Fixed three ways: matching is now explicitly case-insensitive everywhere, the fixture was renamed to `other_vendor_layout.txt` (a fixture that trips the guard teaches people to ignore the guard), and allowlisted paths are exempt from name rules. That exemption made `tests/fixtures/synthetic/` a trust hole, so it is now sealed by `test_synthetic_dir_holds_only_known_fixtures`. Also: writing genotype rows as literals in test files would fail our own content scan, so tests assemble rows at runtime from parts — and the AGENTS.md format block now spells out `<TAB>` instead of using real tabs, which is better documentation anyway. |
 | 2026-08-15 | M0.1, M0.2 | Scaffold + fixture generator done. 24 tests, ruff and `mypy --strict` clean. Six fixtures at ~330KB each (12k markers). Two findings worth carrying forward: (1) `.gitattributes` with `eol=lf` turned out to be a correctness requirement, not tidiness — without it git rewrites fixtures to CRLF on Windows checkout and byte-identity fails; (2) M1.2's "parses the real file" criterion cannot be a CI test, so it is now split into a CI half (fixtures) and a manual local half. |
