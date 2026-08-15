@@ -43,9 +43,11 @@ moved -- because the archive would verify perfectly.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
+import shutil
 import stat
 import subprocess
 import tarfile
@@ -378,7 +380,9 @@ def _safe_member_path(destination: Path, name: str) -> Path:
         raise ToolError(f"archive member {name!r} is an absolute path")
     target = (destination / name).resolve()
     root = destination.resolve()
-    if target != root and root not in target.parents:
+    # Strictly inside: a member named "." or "" resolves to the destination itself, which
+    # is not a file we can write and not something to wave through.
+    if root not in target.parents:
         raise ToolError(f"archive member {name!r} escapes the destination directory")
     return target
 
@@ -399,8 +403,10 @@ def extract_member(archive_path: Path, kind: str, member: str, destination: Path
                 _safe_member_path(destination, name)
             out = _safe_member_path(destination, member)
             out.parent.mkdir(parents=True, exist_ok=True)
+            # Streamed rather than read whole: plink2.exe is 38 MB uncompressed, and
+            # holding a decompressed binary in memory buys nothing.
             with bundle.open(member) as src, open(out, "wb") as dst:
-                dst.write(src.read())
+                shutil.copyfileobj(src, dst)
         return out
 
     if kind == "tar.gz":
@@ -420,7 +426,7 @@ def extract_member(archive_path: Path, kind: str, member: str, destination: Path
             if extracted is None:
                 raise ToolError(f"{member!r} is not a regular file")
             with extracted as src, open(out, "wb") as dst:
-                dst.write(src.read())
+                shutil.copyfileobj(src, dst)
         return out
 
     raise ToolError(f"unsupported archive kind {kind!r}")
@@ -466,11 +472,53 @@ def tool_home(tools_root: Path, tool: Tool) -> Path:
 
 
 def installed_path(tools_root: Path, tool: Tool, build: ToolBuild) -> Path:
-    """The artifact we ultimately want to invoke."""
+    """The artifact we ultimately want to invoke.
+
+    Resolves the member's **full relative path**, matching what :func:`extract_member`
+    actually writes. Taking only the basename happened to agree with it for every build in
+    today's manifest, because all of them name a bare file -- but the schema permits a
+    member with a directory prefix, which several PLINK releases have used
+    (``plink2_linux_x86_64/plink2``). With such a build the installer would write to
+    ``home/plink2_linux_x86_64/plink2`` while every lookup checked ``home/plink2``, so the
+    tool would install successfully and then report missing forever, re-downloading on
+    every invocation.
+    """
     home = tool_home(tools_root, tool)
     if build.member:
-        return home / PurePosixPath(build.member).name
+        return home / PurePosixPath(build.member)
     return home / build.filename
+
+
+def verify_installed(build: ToolBuild, target: Path) -> str:
+    """Re-check an already-present artifact against its pin. Returns a problem, or ``""``.
+
+    Only meaningful for a **non-archive** build, where the installed file *is* the thing
+    that was downloaded and ``build.sha256`` therefore describes it. For an archive build
+    the installed file is an extracted member whose digest is not the archive's, and the
+    archive is deleted after unpacking -- there identity rests on the mandatory
+    ``version_check``, which is why the schema will not accept an executable without one.
+
+    This exists because the two halves of the pin cover different tools. Beagle has no
+    version flag, so ``data/tools.yaml`` says of it that "the sha256 is what establishes
+    identity here" -- and that was true only at download time until this was added: a jar
+    truncated or replaced after installation read as present forever, and rerunning the
+    installer would not repair it.
+    """
+    if build.archive:
+        return ""
+    digest = hashlib.sha256()
+    try:
+        with target.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                digest.update(chunk)
+    except OSError as exc:
+        return f"could not read the installed file: {exc}"
+    if digest.hexdigest() != build.sha256:
+        return (
+            f"{target.name} does not match its pinned sha256. Reinstall with --force; the "
+            "file on disk has been truncated, replaced, or corrupted since it was fetched."
+        )
+    return ""
 
 
 def run_version_check(tool: Tool, target: Path) -> tuple[bool, str | None, str]:
@@ -532,12 +580,21 @@ def install(
     target = installed_path(tools_root, tool, build)
 
     if target.is_file() and not force:
-        ok, reported, detail = run_version_check(tool, target)
-        if ok:
+        problem = verify_installed(build, target)
+        if problem:
+            # Fall through and refetch rather than reporting a failure: a corrupted
+            # artifact is a repairable condition, and the whole point of holding a pin is
+            # being able to restore the file it describes.
+            target.unlink(missing_ok=True)
+        else:
+            ok, reported, detail = run_version_check(tool, target)
+            if ok:
+                return InstallResult(
+                    tool.id, InstallStatus.ALREADY_INSTALLED, str(target), reported or tool.version
+                )
             return InstallResult(
-                tool.id, InstallStatus.ALREADY_INSTALLED, str(target), reported or tool.version
+                tool.id, InstallStatus.VERSION_MISMATCH, str(target), reported, detail
             )
-        return InstallResult(tool.id, InstallStatus.VERSION_MISMATCH, str(target), reported, detail)
 
     archive_target = home / build.filename
     outcome = download(
@@ -592,6 +649,10 @@ def status(tool: Tool, *, tools_root: Path, platform_key: str | None = None) -> 
             InstallStatus.MISSING,
             detail=f"not installed; needed from {tool.required_from or 'an unassigned milestone'}",
         )
+    problem = verify_installed(build, target)
+    if problem:
+        return InstallResult(tool.id, InstallStatus.FAILED, str(target), detail=problem)
+
     ok, reported, detail = run_version_check(tool, target)
     if not ok:
         return InstallResult(tool.id, InstallStatus.VERSION_MISMATCH, str(target), reported, detail)
@@ -612,6 +673,26 @@ class InstalledState:
     def render(self) -> str:
         payload = {"schema_version": TOOLS_SCHEMA_VERSION, "tools": self.tools}
         return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def recorded_path(tools_root: Path, tool_id: str) -> Path | None:
+    """Where the installer last put ``tool_id``, if it is still there.
+
+    The authoritative answer, and the reason it exists: ``genetics doctor`` used to look
+    for tools by scanning the tools directory one level deep, while this module installs
+    to ``<tools_root>/<id>/<version>/`` -- two levels. So a freshly installed PLINK 2 was
+    reported missing by the very command whose job is telling you what you have. Guessing
+    at a layout from another module is what broke it; reading what the installer recorded
+    is what fixes it.
+    """
+    entry = read_state(tools_root).tools.get(tool_id)
+    if not isinstance(entry, Mapping):
+        return None
+    raw = entry.get("path")
+    if not raw:
+        return None
+    path = Path(str(raw))
+    return path if path.is_file() else None
 
 
 def read_state(tools_root: Path) -> InstalledState:

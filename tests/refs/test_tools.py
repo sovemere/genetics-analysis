@@ -315,6 +315,53 @@ def test_a_jar_installs_and_is_then_already_installed(tmp_path: Path) -> None:
     assert again.status is InstallStatus.ALREADY_INSTALLED
 
 
+def test_an_installed_jar_is_rechecked_against_its_pin(tmp_path: Path) -> None:
+    """Beagle has no version flag, so its sha256 is the *only* thing establishing its
+    identity -- and that was true only at download time until this check existed.
+
+    Without it, a jar truncated or replaced after installation reads as present forever
+    and rerunning the installer will not repair it, because presence alone satisfied the
+    already-installed branch. For an archive build the equivalent guarantee comes from the
+    mandatory version_check instead, since the installed file is an extracted member whose
+    digest is not the archive's.
+    """
+    import hashlib
+
+    payload = b"pretend jar bytes"
+    tool = tools.Tool(
+        id="jarred",
+        name="Jarred",
+        version="1",
+        homepage="https://example.org/",
+        license_id="GPL-3.0-or-later",
+        kind=Kind.JAR,
+        required_from="M8",
+        builds=(
+            tools.ToolBuild(
+                platform="any",
+                url="https://example.org/b.jar",
+                filename="b.jar",
+                sha256=hashlib.sha256(payload).hexdigest(),
+                size_bytes=len(payload),
+            ),
+        ),
+    )
+    installed = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(payload))
+    assert installed.status is InstallStatus.INSTALLED
+
+    target = Path(installed.path or "")
+    target.write_bytes(b"TRUNCATED")
+
+    checked = tools.status(tool, tools_root=tmp_path)
+    assert checked.status is InstallStatus.FAILED
+    assert "does not match its pinned sha256" in checked.detail
+
+    # A corrupted artifact is repairable, not fatal: holding a pin is what makes it so.
+    repaired = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(payload))
+    assert repaired.status is InstallStatus.INSTALLED
+    assert target.read_bytes() == payload
+
+
 def test_a_corrupted_download_does_not_install(tmp_path: Path) -> None:
     tool = tools.loads(MINIMAL.format(sha=SHA)).get("widget")
     result = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(b"wrong bytes"))

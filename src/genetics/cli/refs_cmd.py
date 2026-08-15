@@ -18,6 +18,8 @@ from __future__ import annotations
 import json
 import sys
 import time
+from collections.abc import Iterator
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -83,6 +85,22 @@ def _emit(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, default=str))
 
 
+@contextmanager
+def _clean_errors() -> Iterator[None]:
+    """Turn a bad id or a malformed manifest into a message, not a traceback.
+
+    Both errors already say exactly what is wrong and list the valid ids, and a rendered
+    traceback buries that under a stack frame -- which is the same reasoning that made
+    ``genetics paths`` catch ``UnsafeDataDirError``: these are the commands someone runs
+    *because* something is wrong, so the explanation has to be the thing they see.
+    """
+    try:
+        yield
+    except (manifest_mod.ManifestError, tools_mod.ToolError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+
+
 # ---------------------------------------------------------------------------
 # refs status
 # ---------------------------------------------------------------------------
@@ -93,7 +111,8 @@ def refs_status(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
 ) -> None:
     """Show which sources are present, and what is unavailable while they are not."""
-    parsed = manifest_mod.load()
+    with _clean_errors():
+        parsed = manifest_mod.load()
     root = references_dir()
     lock = lockfile.read(_lock_path())
 
@@ -190,9 +209,10 @@ def refs_fetch(
     Defaults to the required sources only. Interrupting is safe: partial files are kept
     and the next run continues from where the transfer stopped.
     """
-    parsed = manifest_mod.load()
+    with _clean_errors():
+        parsed = manifest_mod.load()
+        selected = fetcher.select_sources(parsed, only, include_optional)
     root = references_dir()
-    selected = fetcher.select_sources(parsed, only, include_optional)
 
     if dry_run:
         total = sum(s.total_size_bytes or 0 for s in selected)
@@ -253,7 +273,9 @@ def refs_verify(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
 ) -> None:
     """Check on-disk files against the manifest and the lock. Makes no network request."""
-    parsed = manifest_mod.load()
+    with _clean_errors():
+        parsed = manifest_mod.load()
+        fetcher.select_sources(parsed, only, include_optional=True)
     report = fetcher.fetch(
         parsed,
         root=references_dir(),
@@ -298,7 +320,8 @@ def refs_licenses(
     This is the input to the M15.4 release audit. It reads the manifest rather than the
     lock, so it answers "what would we be agreeing to?" before anything is downloaded.
     """
-    parsed = manifest_mod.load()
+    with _clean_errors():
+        parsed = manifest_mod.load()
     rows: list[dict[str, Any]] = []
     for source in parsed.sources:
         terms = source.license
@@ -352,7 +375,8 @@ def tools_status(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
 ) -> None:
     """Report which external tools are installed for this platform."""
-    parsed = tools_mod.load()
+    with _clean_errors():
+        parsed = tools_mod.load()
     root = tools_dir()
     key = tools_mod.current_platform()
     results = [tools_mod.status(tool, tools_root=root) for tool in parsed.tools]
@@ -402,9 +426,10 @@ def tools_install(
     designed to degrade gracefully when R is absent (AGENTS.md 4.9). Run
     ``genetics doctor`` to see them.
     """
-    parsed = tools_mod.load()
+    with _clean_errors():
+        parsed = tools_mod.load()
+        wanted = [parsed.get(t) for t in only] if only else list(parsed.tools)
     root = tools_dir()
-    wanted = [parsed.get(t) for t in only] if only else list(parsed.tools)
 
     printer = _ProgressPrinter()
     results: list[tools_mod.InstallResult] = []

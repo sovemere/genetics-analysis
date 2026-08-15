@@ -15,6 +15,16 @@ are the point:
   yet -- M8 owns bref3 conversion -- and pretending otherwise would either block the
   manifest or produce a crash at the worst possible moment.
 
+**Nothing here runs yet, and every step is marked accordingly.** There is no executor:
+``Source.post_process`` is read by manifest validation and by the fetcher's pending-work
+report, and by nothing else. Three of these were briefly marked ``implemented=True`` on
+the grounds that unzipping is easy -- which made them the only steps the fetcher would
+*not* list as outstanding, so ``refs fetch --only phylotree_17`` downloaded a zip, never
+unpacked it, and reported the source complete with no work left. A claim of
+implementation that no code backs is worse than an honest gap, because the gap at least
+shows up in the report. The runner arrives with the first milestone that needs one; until
+then ``implemented`` stays False everywhere and every declared step is reported pending.
+
 Where the output lands, and why it is not one directory
 -------------------------------------------------------
 :attr:`Step.output_is_genotype_derived` marks the steps whose output is keyed to *this
@@ -61,21 +71,18 @@ _STEPS: tuple[Step, ...] = (
             "addition to the sha256 pinned in the manifest."
         ),
         required_params=("md5_url",),
-        implemented=True,
         milestone="M2.2",
     ),
     Step(
         name="extract_zip",
         summary="Unpack a zip archive into the source's directory.",
         optional_params=("members",),
-        implemented=True,
         milestone="M2.2",
     ),
     Step(
         name="extract_tar",
         summary="Unpack a tar/tar.gz archive into the source's directory.",
         optional_params=("members",),
-        implemented=True,
         milestone="M2.2",
     ),
     Step(

@@ -148,6 +148,23 @@ def test_every_refs_and_tools_command_supports_json() -> None:
         json.loads(result.stdout)
 
 
+def test_an_unknown_id_reports_the_valid_ones_without_a_traceback() -> None:
+    """A typo is the commonest way to reach these commands wrongly, and the error already
+    lists every valid id -- a rendered traceback buries exactly that line.
+
+    Same reasoning that made ``genetics paths`` catch UnsafeDataDirError.
+    """
+    for args, expected in (
+        (["refs", "fetch", "--dry-run", "--only", "bogus"], "no source 'bogus'"),
+        (["refs", "verify", "--only", "bogus"], "no source 'bogus'"),
+        (["tools", "install", "--only", "bogus"], "no tool 'bogus'"),
+    ):
+        result = runner.invoke(app, args)
+        assert result.exit_code == 1, args
+        assert expected in result.output, args
+        assert "Traceback" not in result.output, args
+
+
 def test_the_command_groups_are_registered() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
