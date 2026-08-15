@@ -204,7 +204,13 @@ def _check_beagle() -> ToolReport:
             detail="no beagle*.jar in the tools dir; fetched in M2.5",
         )
 
-    jar = candidates[0]
+    # Newest by mtime, not first by name. Beagle jars are named by release *date* --
+    # `beagle.28jun21.220.jar`, `beagle.05May22.33a.jar` -- which does not sort
+    # chronologically as text: ascending, `05May22` precedes `28jun21`, so picking
+    # `sorted(...)[0]` handed M8 the older of two installed versions.
+    # An explicit GENETICS_BEAGLE_JAR still wins; it was prepended above.
+    jar = candidates[0] if env_jar else max(candidates, key=lambda p: p.stat().st_mtime)
+
     # Deliberately not launched: Beagle has no cheap --version and starting a JVM to ask
     # would make `doctor` slow for no gain. The filename carries the version.
     return ToolReport("beagle", "M8", "ok", str(jar), jar.stem, None)
@@ -223,8 +229,17 @@ def _check_r() -> ToolReport:
     if status != "ok":
         return ToolReport("R (HIBAG)", "M11 (optional)", status, path, version, detail)
 
+    # The probe must *print* on success. `_run_version` treats empty output as an error,
+    # and the obvious silent form -- `if (!requireNamespace(...)) quit(status=1)` -- prints
+    # nothing when the package is present, so it reported "R is installed but HIBAG is
+    # not" on every machine including ones where HIBAG was installed. The success path was
+    # unreachable.
     hibag_status, _, _ = _run_version(
-        [path, "-e", 'if (!requireNamespace("HIBAG", quietly=TRUE)) quit(status=1)']
+        [
+            path,
+            "-e",
+            'if (!requireNamespace("HIBAG", quietly=TRUE)) quit(status=1); cat("HIBAG ok\\n")',
+        ]
     )
     if hibag_status != "ok":
         return ToolReport(

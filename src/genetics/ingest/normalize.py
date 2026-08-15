@@ -72,8 +72,14 @@ def _first_bad(frame: pl.DataFrame, predicate: pl.Expr) -> tuple[int, int, str] 
 
     Pulls only the row index and the rsID out of the frame. Neither is genotype data, and
     taking the whole row would put alleles one ``f"{row}"`` away from an error message.
+
+    The rsID placeholder is applied **after** filtering, not before. Filling it first --
+    which is where this started -- makes the frame's rsID column non-null, so a predicate
+    testing ``rsid.is_null()`` evaluates against the already-filled column and reports
+    nothing. A row whose identifier was missing then sailed through the empty-field check
+    and reached the normalized table with a null rsid.
     """
-    bad = frame.filter(predicate).select("_row", "rsid")
+    bad = frame.filter(predicate).select("_row", pl.col("rsid").fill_null("<no rsid>"))
     if bad.height == 0:
         return None
     return bad.height, int(bad.item(0, "_row")), str(bad.item(0, "rsid"))
@@ -136,7 +142,7 @@ def normalize_rows(
         pl.col("_a1").is_null(),
         pl.col("_a2").is_null(),
     )
-    hit = _first_bad(frame.with_columns(rsid=pl.col("rsid").fill_null("<missing>")), empty)
+    hit = _first_bad(frame, empty)
     if hit is not None:
         count, row, rsid = hit
         raise MalformedRowError(

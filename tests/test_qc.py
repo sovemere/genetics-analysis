@@ -23,7 +23,6 @@ from genetics.ingest.schema import (
 )
 from genetics.qc import (
     InferredSex,
-    QCReport,
     call_rates,
     check_build,
     duplicate_summary,
@@ -112,21 +111,18 @@ def sex_chrom_table(
 )
 def test_infers_sex_on_every_fixture(name: str, expected: InferredSex) -> None:
     result = ingest(fixture(name))
-    assert isinstance(result.qc, QCReport)
     assert result.qc.sex.inferred is expected
 
 
 def test_male_x_heterozygosity_is_near_zero() -> None:
     """The hemizygous X is written doubled, so it looks homozygous throughout."""
     result = ingest(fixture("ancestry_v2_male.txt"))
-    assert isinstance(result.qc, QCReport)
     assert result.qc.sex.x_het_rate < 0.01
     assert result.qc.sex.y_call_rate > 0.9
 
 
 def test_female_y_is_entirely_uncalled() -> None:
     result = ingest(fixture("ancestry_v2_female.txt"))
-    assert isinstance(result.qc, QCReport)
     assert result.qc.sex.y_call_rate == 0.0
     assert result.qc.sex.x_het_rate > 0.2
 
@@ -289,7 +285,6 @@ def test_call_rate_counts_add_up() -> None:
 def test_low_call_rate_is_warned_about_not_rejected() -> None:
     """QC labels; it never filters (AGENTS.md 0.1A)."""
     result = ingest(fixture("ancestry_v2_high_nocall.txt"))
-    assert isinstance(result.qc, QCReport)
 
     assert any("call rate" in w for w in result.qc.warnings)
     assert result.table.n_markers == result.qc.call_rates.total_markers
@@ -346,6 +341,57 @@ def test_duplicates_are_reported_not_deduplicated() -> None:
     table = synthetic_table(rows)
     assert duplicate_summary(table).duplicate_rsids == 1
     assert table.n_markers == 2
+
+
+def test_a_chromosome_the_layout_cannot_label_is_not_reported_missing() -> None:
+    """ "No PAR markers" and "no PAR in this format" are different facts.
+
+    The 23andMe layout does not distinguish PAR from X, so it emitted "no markers at all
+    on: PAR" on every single run -- sending the reader to hunt for a region the file was
+    never going to label. Same structurally-absent-versus-uncalled distinction that
+    `infer_sex` already makes for a layout with no Y markers.
+    """
+    result = ingest(fixture("other_vendor_layout.txt"))
+    assert not any("PAR" in w for w in result.qc.warnings)
+
+
+def test_a_chromosome_the_layout_can_label_is_still_reported_missing() -> None:
+    """The other half: the check must not have gone quiet, only got more precise."""
+    from genetics.ingest.registry import SourceInfo
+
+    rows = [_row(f"rs{700000000 + i}", Chrom.CHR1, 1000 + i, "A", "G") for i in range(200)]
+    source = SourceInfo(
+        vendor="test",
+        display_name="test",
+        path="test.txt",
+        build="37",
+        array_version=None,
+        header_lines=1,
+        data_rows=len(rows),
+        representable_chroms=(Chrom.CHR1.value, Chrom.X.value),
+    )
+    report = run_qc(synthetic_table(rows), source=source)
+
+    assert any("no markers at all on: X" in w for w in report.warnings)
+
+
+def test_an_adapter_declaring_nothing_still_gets_the_check() -> None:
+    """The fallback must fire rather than silently going quiet on an older adapter."""
+    from genetics.ingest.registry import SourceInfo
+
+    rows = [_row(f"rs{700000000 + i}", Chrom.CHR1, 1000 + i, "A", "G") for i in range(200)]
+    source = SourceInfo(
+        vendor="test",
+        display_name="test",
+        path="test.txt",
+        build="37",
+        array_version=None,
+        header_lines=1,
+        data_rows=len(rows),
+    )
+    report = run_qc(synthetic_table(rows), source=source)
+
+    assert any("no markers at all on:" in w for w in report.warnings)
 
 
 def test_build_anchor_table_ships_empty_pending_m2() -> None:
@@ -438,7 +484,6 @@ def test_report_serialises_to_json_safe_primitives() -> None:
     import json
 
     result = ingest(fixture("ancestry_v2_male.txt"))
-    assert isinstance(result.qc, QCReport)
 
     payload = json.loads(json.dumps(result.qc.to_dict()))
     assert payload["sex"]["inferred"] == "male"
@@ -454,7 +499,6 @@ def test_the_qc_report_contains_no_genotype() -> None:
     from genetics.privacy import looks_like_genotype
 
     result = ingest(fixture("ancestry_v2_male.txt"))
-    assert isinstance(result.qc, QCReport)
 
     assert not looks_like_genotype(json.dumps(result.qc.to_dict()))
 

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import time
 from pathlib import Path
 
 import pytest
@@ -135,6 +136,60 @@ def test_version_probe_survives_an_unexecutable_file(monkeypatch: pytest.MonkeyP
 
     assert status == "error"
     assert detail is not None and "OSError" in detail
+
+
+def test_hibag_present_is_reportable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The success path must be reachable at all -- it was not.
+
+    ``_run_version`` treats empty output as an error, and the obvious silent probe
+    (``if (!requireNamespace(...)) quit(status=1)``) prints nothing when the package *is*
+    installed. So every machine reported "R is installed but HIBAG is not", including
+    machines with HIBAG. The probe now prints on success.
+    """
+
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "R version 4.4.1\n", "")
+        return subprocess.CompletedProcess(cmd, 0, "HIBAG ok\n", "")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(doctor, "_which", lambda name: "Rscript")
+
+    report = doctor._check_r()
+    assert report.status == "ok"
+    assert report.version is not None and "HIBAG" in report.version
+
+
+def test_hibag_absent_is_still_detected(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
+        if "--version" in cmd:
+            return subprocess.CompletedProcess(cmd, 0, "R version 4.4.1\n", "")
+        return subprocess.CompletedProcess(cmd, 1, "", "Error: package not found\n")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+    monkeypatch.setattr(doctor, "_which", lambda name: "Rscript")
+
+    report = doctor._check_r()
+    assert report.status == "missing"
+    assert report.detail is not None and "HIBAG package is not" in report.detail
+
+
+def test_newest_beagle_jar_wins_not_the_alphabetically_first(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Beagle jars are named by release date, which does not sort as text.
+
+    Ascending, `05May22` precedes `28jun21`, so taking `sorted(...)[0]` handed M8 the
+    older of two installed versions.
+    """
+    older = tmp_path / "beagle.28jun21.220.jar"
+    older.write_bytes(b"x")
+    time.sleep(0.02)
+    newer = tmp_path / "beagle.05May22.33a.jar"
+    newer.write_bytes(b"x")
+
+    monkeypatch.setattr(doctor, "tools_dir", lambda: tmp_path)
+    assert doctor._check_beagle().path == str(newer)
 
 
 def test_beagle_env_override_pointing_nowhere_is_an_error(

@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from collections.abc import Sequence
 
-from genetics.privacy import assert_no_genotype, redact
+from genetics.privacy import assert_no_genotype
 
 _IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_ ]{0,29}$", re.IGNORECASE)
 """What a column *name* looks like. A data field does not: a genotype row always carries
@@ -53,15 +53,6 @@ def describe_columns(columns: Sequence[str]) -> str:
         "appears to be a data row, so the column header row is missing or the file is "
         "truncated"
     )
-
-
-def safe_detail(text: str) -> str:
-    """Last-resort redaction for a message assembled from file content.
-
-    Prefer not putting file content in a message at all. Where that is unavoidable, this
-    at least keeps the known row shapes out. It is a net, not a guarantee.
-    """
-    return redact(text)
 
 
 class IngestError(Exception):
@@ -96,7 +87,12 @@ class UnsupportedBuildError(IngestError):
 
 
 class ColumnCountError(IngestError):
-    """A data row has the wrong number of fields."""
+    """A data row has the wrong number of fields.
+
+    Distinct from :class:`MalformedHeaderError` because the header is fine: this is a
+    ragged body, which usually means a truncated download or an editor that reflowed the
+    file. Conflating the two sends the reader to inspect a header that is not the problem.
+    """
 
 
 class MalformedRowError(IngestError):

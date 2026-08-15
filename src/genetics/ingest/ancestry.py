@@ -27,6 +27,7 @@ from pathlib import Path
 import polars as pl
 
 from genetics.ingest.errors import (
+    ColumnCountError,
     MalformedHeaderError,
     UnsupportedBuildError,
     describe_columns,
@@ -172,6 +173,7 @@ def parse(path: Path) -> ParseResult:
             array_version=array_version,
             header_lines=header_lines,
             data_rows=table.height,
+            representable_chroms=tuple(sorted({c.value for c in CHROM_MAP.values()})),
         ),
     )
 
@@ -195,7 +197,8 @@ def _read_data(path: Path, source_name: str) -> pl.DataFrame:
             encoding="utf8-lossy",
         )
     except pl.exceptions.PolarsError as exc:
-        raise MalformedHeaderError(
+        # The header already validated, so this is a body problem, not a header one.
+        raise ColumnCountError(
             f"{source_name}: the tab-separated body would not parse "
             f"({exc.__class__.__name__}). Ragged rows are the usual cause -- every data "
             f"row must have exactly {len(EXPECTED_COLUMNS)} tab-separated fields."

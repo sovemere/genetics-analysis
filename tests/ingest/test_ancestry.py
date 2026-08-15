@@ -264,6 +264,20 @@ def test_the_half_call_error_withholds_the_alleles(tmp_path: Path) -> None:
     assert "'A'" not in message
 
 
+def test_rejects_an_empty_rsid(tmp_path: Path) -> None:
+    """The identifier column is checked by the same rule as the rest -- and was not.
+
+    The empty-field predicate tests ``rsid.is_null()``, but the frame it ran against had
+    already had its rsID column filled with a placeholder so the *error message* would
+    have something to print. The predicate therefore evaluated against the filled column
+    and matched nothing, and a row with no identifier reached the normalized table with a
+    null rsid. Filling after the filter rather than before is the fix.
+    """
+    body = _export([_row("", "1", "100001", "A", "G")])
+    with pytest.raises(MalformedRowError, match="empty field"):
+        read_export(_write(tmp_path, body))
+
+
 def test_rejects_an_empty_field(tmp_path: Path) -> None:
     """Null is the value that makes every later check fail *open*.
 
@@ -299,6 +313,38 @@ def test_rejects_a_position_past_the_end_of_its_chromosome(tmp_path: Path) -> No
     body = _export([_row("rs900000001", "21", "999999999", "A", "G")])
     with pytest.raises(MalformedRowError, match="beyond the end of their chromosome"):
         read_export(_write(tmp_path, body))
+
+
+def test_rejects_a_row_with_too_many_fields(tmp_path: Path) -> None:
+    """A ragged body is a ColumnCountError, not a MalformedHeaderError.
+
+    The header is fine here; conflating the two sends the reader to inspect a header that
+    is not the problem.
+    """
+    from genetics.ingest.errors import ColumnCountError
+
+    rows = [
+        _row("rs900000001", "1", "100001", "A", "G"),
+        "\t".join(["rs900000002", "1", "100002", "A", "G", "extra"]),
+    ]
+    with pytest.raises(ColumnCountError, match="exactly 5 tab-separated fields"):
+        read_export(_write(tmp_path, _export(rows)))
+
+
+def test_rejects_a_row_with_too_few_fields(tmp_path: Path) -> None:
+    """The two raggedness directions take different paths, and both are covered.
+
+    Polars errors on a row with *extra* fields but pads a *short* one with nulls, so a
+    truncated line arrives as an empty field rather than as a parse failure. Worth an
+    explicit test: the padding is silent, and without the empty-field check a short row
+    would have become a record with a null allele.
+    """
+    rows = [
+        _row("rs900000001", "1", "100001", "A", "G"),
+        "\t".join(["rs900000002", "1", "100002", "A"]),
+    ]
+    with pytest.raises(MalformedRowError, match="empty field"):
+        read_export(_write(tmp_path, _export(rows)))
 
 
 def test_rejects_a_file_with_no_markers(tmp_path: Path) -> None:

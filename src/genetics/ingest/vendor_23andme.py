@@ -33,7 +33,12 @@ from pathlib import Path
 
 import polars as pl
 
-from genetics.ingest.errors import MalformedHeaderError, UnsupportedBuildError
+from genetics.ingest.errors import (
+    ColumnCountError,
+    MalformedHeaderError,
+    MalformedRowError,
+    UnsupportedBuildError,
+)
 from genetics.ingest.normalize import normalize_rows
 from genetics.ingest.registry import Adapter, ParseResult, SourceInfo, register
 from genetics.ingest.schema import Chrom, GenotypeTable
@@ -114,13 +119,13 @@ def parse(path: Path) -> ParseResult:
             encoding="utf8-lossy",
         )
     except pl.exceptions.PolarsError as exc:
-        raise MalformedHeaderError(
+        raise ColumnCountError(
             f"{source_name}: the tab-separated body would not parse "
             f"({exc.__class__.__name__}). Every data row must have exactly "
             f"{len(EXPECTED_COLUMNS)} fields."
         ) from None
 
-    raw = _split_genotype(frame, source_name)
+    raw = _split_genotype(frame, source_name, header_lines=header_lines)
 
     table = normalize_rows(
         raw,
@@ -139,11 +144,14 @@ def parse(path: Path) -> ParseResult:
             array_version=None,
             header_lines=header_lines,
             data_rows=table.height,
+            # No PAR: this layout does not distinguish it, which is a property of the
+            # format rather than of the sample. See the module docstring.
+            representable_chroms=tuple(sorted({c.value for c in CHROM_MAP.values()})),
         ),
     )
 
 
-def _split_genotype(frame: pl.DataFrame, source_name: str) -> pl.DataFrame:
+def _split_genotype(frame: pl.DataFrame, source_name: str, *, header_lines: int) -> pl.DataFrame:
     """Turn the merged ``genotype`` field into the two allele columns normalize expects.
 
     Three cases, and getting the third wrong is the interesting risk:
@@ -163,10 +171,17 @@ def _split_genotype(frame: pl.DataFrame, source_name: str) -> pl.DataFrame:
         (genotype != NO_CALL_FIELD) & ~length.is_between(1, 2)
     )
     if bad.height:
-        raise MalformedHeaderError(
+        # MalformedRowError, not MalformedHeaderError: the header parsed, this is a data
+        # row. A caller catching the class whose docstring says "a data row is
+        # structurally invalid" would otherwise miss it.
+        #
+        # And the row index is converted to a *file* line the same way every other ingest
+        # diagnostic does it. Reporting the raw 0-based body index as a "line" sends
+        # someone to the wrong place in the file -- off by the header, and off by one.
+        raise MalformedRowError(
             f"{source_name}: {bad.height} row(s) have a genotype field that is neither "
             f"'{NO_CALL_FIELD}' nor one or two allele characters. First at line "
-            f"{int(bad.item(0, '_row'))} of the body."
+            f"{header_lines + int(bad.item(0, '_row')) + 1}."
         )
 
     return frame.select(

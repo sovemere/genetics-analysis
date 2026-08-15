@@ -148,6 +148,21 @@ def test_lookup_loci_returns_the_requested_positions() -> None:
     assert set(found.get_column("rsid").to_list()) == {str(r["rsid"]) for r in rows}
 
 
+def test_lookup_loci_accepts_a_one_shot_iterable() -> None:
+    """The signature says Iterable, so a generator must work.
+
+    Two column comprehensions each consumed the argument; a generator was exhausted by
+    the first, leaving the second empty. It surfaced as a ShapeError about mismatched
+    column heights -- nothing resembling the actual mistake.
+    """
+    table = read_export(fixture()).table
+    rows = table.frame.head(3).to_dicts()
+    keys = [LocusKey(Chrom(str(r["chrom"])), int(r["pos_grch37"])) for r in rows]
+
+    assert lookup_loci(table, iter(keys)).height == 3
+    assert lookup_loci(table, (k for k in keys)).height == 3
+
+
 def test_lookup_loci_on_an_absent_position_returns_nothing() -> None:
     table = read_export(fixture()).table
     assert lookup_loci(table, [LocusKey(Chrom.CHR1, 999_999_99)]).height == 0

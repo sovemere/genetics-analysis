@@ -48,6 +48,15 @@ class SourceInfo:
     array_version: str | None
     header_lines: int
     data_rows: int
+    representable_chroms: tuple[str, ...] = ()
+    """Chromosomes this layout is *able* to label, from the adapter's chromosome map.
+
+    Carries the difference between "this vendor does not distinguish PAR" and "this file
+    has no PAR markers". Only the second is a defect, and QC warned about both until this
+    existed -- sending the reader to hunt for a missing region the vendor simply does not
+    name. It lives on ``SourceInfo`` rather than being looked up from the adapter because
+    no analysis module may import a vendor module (AGENTS.md section 2), and QC is what
+    needs to know."""
 
 
 @dataclass(frozen=True)
@@ -156,6 +165,7 @@ def detect(path: Path) -> Adapter:
 
 
 _builtins_loaded = False
+_loading = False
 
 
 def _load_builtin_adapters() -> None:
@@ -164,10 +174,25 @@ def _load_builtin_adapters() -> None:
     Lazy, and via import side effect, so that adding a vendor means adding a module and
     one line here -- not editing anything that analyses data. The flag keeps repeated
     calls cheap and stops the duplicate-registration guard from firing on re-import.
-    """
-    global _builtins_loaded
-    if _builtins_loaded:
-        return
-    _builtins_loaded = True
 
-    from genetics.ingest import ancestry, vendor_23andme  # noqa: F401
+    ``_builtins_loaded`` is set **after** the import succeeds. Set before, a broken
+    adapter module fails the first call with its real ImportError and then makes every
+    later call return quietly with an empty registry -- so the second attempt reports
+    "does not match any known vendor layout", sending the reader to look for a missing
+    adapter instead of at the import that actually failed.
+
+    ``_loading`` is the separate re-entrancy guard that setting the flag early was doing
+    by accident. No shipped adapter calls back into this module at import time, but one
+    that did would otherwise recurse forever.
+    """
+    global _builtins_loaded, _loading
+    if _builtins_loaded or _loading:
+        return
+
+    _loading = True
+    try:
+        from genetics.ingest import ancestry, vendor_23andme  # noqa: F401
+    finally:
+        _loading = False
+
+    _builtins_loaded = True

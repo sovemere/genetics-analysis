@@ -14,7 +14,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
 from genetics.ingest.errors import (
     ColumnCountError,
@@ -28,6 +28,14 @@ from genetics.ingest.errors import (
 from genetics.ingest.registry import Adapter, ParseResult, SourceInfo, adapters, detect
 from genetics.ingest.schema import CallStatus, Chrom, GenotypeTable
 from genetics.privacy import NoGenotypeRepr
+
+if TYPE_CHECKING:
+    # Import-time cycle, type-check-time not: `genetics.qc` imports this package, so a
+    # runtime import here would be circular. Under `from __future__ import annotations`
+    # the annotation is a string, so the type is real for mypy and costs nothing at
+    # import. Typing the field as `object` instead -- the first attempt -- pushed an
+    # `assert isinstance(...)` onto every caller to get the type back.
+    from genetics.qc.report import QCReport
 
 __all__ = [
     "Adapter",
@@ -74,9 +82,7 @@ class IngestResult(NoGenotypeRepr):
 
     table: GenotypeTable
     source: SourceInfo
-    qc: object
-    """A :class:`~genetics.qc.report.QCReport`. Typed loosely to keep the import one-way:
-    QC imports ingest, so ingest must not import QC at module level."""
+    qc: QCReport
 
     @property
     def vendor(self) -> str:
