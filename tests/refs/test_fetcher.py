@@ -486,6 +486,31 @@ def test_rerunning_a_fetch_produces_a_byte_identical_lock(tmp_path: Path) -> Non
     assert lock_path.read_text(encoding="utf-8") == first
 
 
+def test_verify_writes_nothing_at_all(tmp_path: Path) -> None:
+    """A check that rewrites its own reference answers "does this still match?" with
+    "yes" by construction.
+
+    Found the hard way: the first version rewrote the lock on verify, so merely running
+    the CLI tests created a committed-path manifest.lock describing sources with no files
+    -- a lock asserting facts about downloads that never happened.
+    """
+    parsed = manifest.Manifest(schema_version=1, sources=(make_source(),))
+    lock_path = tmp_path / "manifest.lock"
+    root = tmp_path / "refs"
+
+    report = fetcher.fetch(
+        parsed,
+        root=root,
+        transport=FakeTransport(),
+        lock_path=lock_path,
+        include_optional=True,
+        verify_only=True,
+    )
+    assert not report.ok, "nothing is on disk, so verification should fail"
+    assert not lock_path.exists(), "verify must not write the lock"
+    assert not root.exists(), "verify must not even create the references directory"
+
+
 def test_only_required_sources_are_fetched_by_default(tmp_path: Path) -> None:
     required = make_source(source_id="needed", required=True)
     optional = make_source(source_id="extra")

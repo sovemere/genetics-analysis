@@ -436,8 +436,14 @@ This is not a blocker, but it is a binding architectural constraint:
 - **Push work into PLINK 2**, which has native Windows builds and reads/writes VCF
   directly. It covers format conversion, LD pruning, PCA projection, `--score` for both
   PCA and PRS, `--homozyg` for ROH, allele frequencies, and sex checks. Most of the
-  pipeline is one native binary. Note PLINK 2 is still alpha (2.00a5.x) — pin the exact
-  build in the manifest.
+  pipeline is one native binary. PLINK 2 is still alpha — **pin the exact build in the
+  manifest.** *Updated at M2.5 (2026-08-15): the "2.00a5.x" originally written here is
+  stale, and following it literally would now pin an undocumented build — the download
+  page no longer links alpha5 at all, and the version string format has since changed
+  (the binary reports `PLINK v2.0.0-a.7.3 64-bit`, not `v2.00a7`). `data/tools.yaml` pins
+  the alpha7 build dated 2026-08-08, by sha256 **and** by a version probe that runs the
+  installed binary — a checksum only proves the download was intact, not that the build
+  is the one whose behaviour was tested against.*
 - **Use `scikit-allel` for VCF reading in Python** — Cython, no htslib, installs on
   Windows. This is the documented Windows path.
 - BGZF is gzip-compatible for sequential reads, so Python's stdlib `gzip` handles
