@@ -10,7 +10,7 @@
       "sex": "male",
       "vendor": "ancestry",
       "build": "37",
-      "rows": 12021,
+      "markers": 12003,
       "sha256": "3a0310ffb25a0fc518df542ddeeaecbd0ff147897ac62df8cb652274c230ca8e"
     },
     {
@@ -19,7 +19,7 @@
       "sex": "female",
       "vendor": "ancestry",
       "build": "37",
-      "rows": 12021,
+      "markers": 12003,
       "sha256": "77182a9b7bb5e9f51867f6a0609dc8e39969b91e3295c6f406cc60d0f92f022f"
     },
     {
@@ -28,7 +28,7 @@
       "sex": "female",
       "vendor": "ancestry",
       "build": "37",
-      "rows": 12021,
+      "markers": 12003,
       "sha256": "b46b781199e686d49142767bd4094c20a4c68247b53a8854ec48d253ed88c9da"
     },
     {
@@ -37,7 +37,7 @@
       "sex": "male",
       "vendor": "ancestry",
       "build": "38",
-      "rows": 12021,
+      "markers": 12003,
       "sha256": "b4c0a9d256d3a7753f4663ed3b9b5e76f42f678b73e4c558baf720314bb981e8"
     },
     {
@@ -46,7 +46,7 @@
       "sex": "male",
       "vendor": "ancestry",
       "build": "37",
-      "rows": 12007,
+      "markers": 12003,
       "sha256": "c2011ef1eeeda326b7ebec52b57606ed2ae25243392bc77a0a3b6753138f775e"
     },
     {
@@ -55,7 +55,7 @@
       "sex": "male",
       "vendor": "23andme",
       "build": "37",
-      "rows": 12008,
+      "markers": 12003,
       "sha256": "778453215005fe1e4fbe22833d25342d5ee8816464e981a6f4b236a84774d055"
     }
   ]

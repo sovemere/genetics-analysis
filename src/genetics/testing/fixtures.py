@@ -343,24 +343,14 @@ def _write(path: Path, content: str) -> None:
     path.write_text(content, encoding="utf-8", newline="\n")
 
 
-def generate_all(
-    out_dir: Path | None = None,
-    *,
-    seed: int = DEFAULT_SEED,
-    markers: int = DEFAULT_MARKERS,
-) -> list[Path]:
-    """Generate every fixture plus a MANIFEST.json, and return the paths written."""
-    target = out_dir or DEFAULT_FIXTURE_DIR
-    target.mkdir(parents=True, exist_ok=True)
+MANIFEST_NAME = "MANIFEST.json"
 
-    written: list[Path] = []
+
+def render_manifest(*, seed: int, markers: int) -> str:
+    """Build the provenance record. Pure, so the verifier can re-derive and compare it."""
     entries: list[dict[str, object]] = []
-
     for spec in FIXTURES:
         content = render_fixture(spec, seed=seed, markers=markers)
-        path = target / spec.name
-        _write(path, content)
-        written.append(path)
         entries.append(
             {
                 "name": spec.name,
@@ -368,7 +358,11 @@ def generate_all(
                 "sex": spec.sex,
                 "vendor": spec.vendor,
                 "build": spec.build,
-                "rows": content.count("\n"),
+                "markers": sum(
+                    1
+                    for line in content.splitlines()
+                    if line and not line.startswith("#") and not line.startswith("rsid\t")
+                ),
                 "sha256": hashlib.sha256(content.encode("utf-8")).hexdigest(),
             }
         )
@@ -383,8 +377,27 @@ def generate_all(
         ),
         "fixtures": entries,
     }
-    manifest_path = target / "MANIFEST.json"
-    _write(manifest_path, json.dumps(manifest, indent=2) + "\n")
+    return json.dumps(manifest, indent=2) + "\n"
+
+
+def generate_all(
+    out_dir: Path | None = None,
+    *,
+    seed: int = DEFAULT_SEED,
+    markers: int = DEFAULT_MARKERS,
+) -> list[Path]:
+    """Generate every fixture plus a MANIFEST.json, and return the paths written."""
+    target = out_dir or DEFAULT_FIXTURE_DIR
+    target.mkdir(parents=True, exist_ok=True)
+
+    written: list[Path] = []
+    for spec in FIXTURES:
+        path = target / spec.name
+        _write(path, render_fixture(spec, seed=seed, markers=markers))
+        written.append(path)
+
+    manifest_path = target / MANIFEST_NAME
+    _write(manifest_path, render_manifest(seed=seed, markers=markers))
     written.append(manifest_path)
 
     return written
@@ -396,17 +409,31 @@ def verify_all(
     seed: int = DEFAULT_SEED,
     markers: int = DEFAULT_MARKERS,
 ) -> list[str]:
-    """Return the names of fixtures whose on-disk bytes differ from a fresh generation.
+    """Return the names of files whose on-disk **bytes** differ from a fresh generation.
 
     Empty list means the committed fixtures are reproducible.
+
+    Compares bytes, not text. ``read_text()`` opens in universal-newline mode and
+    silently folds CRLF to LF, so a fixture whose bytes had been rewritten reported no
+    drift -- defeating the very guarantee ``.gitattributes`` exists to protect, and
+    leaving a removed ``eol=lf`` rule with no signal anywhere.
+
+    The manifest is verified too. It is the provenance record for the only directory
+    allowed to hold genotype-shaped rows; a manifest that contradicts the files it
+    describes is worth catching.
     """
     target = out_dir or DEFAULT_FIXTURE_DIR
     drifted: list[str] = []
 
     for spec in FIXTURES:
         path = target / spec.name
-        expected = render_fixture(spec, seed=seed, markers=markers)
-        if not path.exists() or path.read_text(encoding="utf-8") != expected:
+        expected = render_fixture(spec, seed=seed, markers=markers).encode("utf-8")
+        if not path.exists() or path.read_bytes() != expected:
             drifted.append(spec.name)
+
+    manifest_path = target / MANIFEST_NAME
+    expected_manifest = render_manifest(seed=seed, markers=markers).encode("utf-8")
+    if not manifest_path.exists() or manifest_path.read_bytes() != expected_manifest:
+        drifted.append(MANIFEST_NAME)
 
     return drifted

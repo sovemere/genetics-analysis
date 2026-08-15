@@ -18,9 +18,17 @@ from pathlib import Path
 
 from genetics.privacy import find_genotypes
 
-#: Paths permitted to contain genotype-shaped rows. Deliberately just one entry:
-#: synthetic fixtures are generated, never derived from a real export (AGENTS.md 1.2).
-CONTENT_ALLOWLIST: tuple[str, ...] = ("tests/fixtures/synthetic/*",)
+#: Directories permitted to contain genotype-shaped rows, matched **one level deep
+#: only**. Deliberately just one entry: synthetic fixtures are generated, never derived
+#: from a real export (AGENTS.md 1.2).
+#:
+#: Depth matters. Expressed as an fnmatch glob this read ``tests/fixtures/synthetic/*``,
+#: and fnmatch's ``*`` crosses ``/`` -- so an arbitrarily nested
+#: ``tests/fixtures/synthetic/backup/<real export>`` was exempt from both the filename
+#: rule and the content scan. Every layer failed together, because .gitignore's
+#: ``!/tests/fixtures/synthetic/**`` un-ignored the whole subtree and the sealing test
+#: used a non-recursive ``iterdir()``. Matching a single path segment closes it.
+ALLOWLIST_DIRS: tuple[str, ...] = ("tests/fixtures/synthetic",)
 
 #: Filenames that should never be tracked regardless of content. A subset of
 #: ``.gitignore`` re-checked here, because a hand-written ``git add -f`` bypasses it.
@@ -60,7 +68,7 @@ FORBIDDEN_NAMES: tuple[str, ...] = (
     "*.fastq.gz",
 )
 
-_BINARY_SUFFIXES = frozenset(
+BINARY_SUFFIXES = frozenset(
     {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz", ".exe", ".dll", ".so", ".jar"}
 )
 
@@ -77,39 +85,56 @@ class Finding:
         return f"  {self.path}\n      {self.kind}: {self.detail}"
 
 
-def _git(*args: str, cwd: Path | None = None) -> str:
+def _git_bytes(*args: str, cwd: Path | None = None) -> bytes:
     result = subprocess.run(
         ["git", *args],
         capture_output=True,
-        text=True,
         check=False,
         cwd=cwd,
     )
     if result.returncode != 0:
-        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.strip()}")
+        raise RuntimeError(f"git {' '.join(args)} failed: {result.stderr.decode(errors='replace')}")
     return result.stdout
 
 
 def staged_files(cwd: Path | None = None) -> list[str]:
-    """Paths staged for commit (added, copied, modified, renamed)."""
-    out = _git("diff", "--cached", "--name-only", "--diff-filter=ACMR", cwd=cwd)
-    return [line.strip() for line in out.splitlines() if line.strip()]
+    """Paths staged for commit (added, copied, modified, renamed).
+
+    Uses ``-z`` and splits on NUL. Without it git quotes and octal-escapes any path
+    containing non-ASCII characters, the subsequent ``git show`` fails on the mangled
+    name, and the file is skipped without a word -- fail-open behaviour in a guard whose
+    entire job is to fail closed.
+    """
+    raw = _git_bytes("diff", "--cached", "--name-only", "-z", "--diff-filter=ACMR", cwd=cwd)
+    return [chunk.decode("utf-8", errors="surrogateescape") for chunk in raw.split(b"\0") if chunk]
 
 
 def staged_content(path: str, cwd: Path | None = None) -> str | None:
-    """Contents of ``path`` as staged. None if it is binary or unreadable as text."""
-    if Path(path).suffix.lower() in _BINARY_SUFFIXES:
+    """Contents of ``path`` as staged. None only when the file is deliberately skipped."""
+    if Path(path).suffix.lower() in BINARY_SUFFIXES:
         return None
+    raw = _git_bytes("show", f":{path}", cwd=cwd)
     try:
-        return _git("show", f":{path}", cwd=cwd)
-    except (RuntimeError, UnicodeDecodeError):
+        return raw.decode("utf-8")
+    except UnicodeDecodeError:
+        # Undecodable bytes: treat as binary rather than as clean.
         return None
 
 
 def is_allowlisted(path: str) -> bool:
-    """True if ``path`` may legitimately contain genotype-shaped content."""
-    normalised = path.replace("\\", "/").lower()
-    return any(fnmatch.fnmatchcase(normalised, pattern.lower()) for pattern in CONTENT_ALLOWLIST)
+    """True if ``path`` may legitimately contain genotype-shaped content.
+
+    Matches files sitting **directly** in an allowlisted directory. Nested paths are not
+    exempt: a subdirectory is exactly where a real export would be tucked away.
+    """
+    normalised = path.replace("\\", "/").lower().lstrip("./")
+    for directory in ALLOWLIST_DIRS:
+        prefix = directory.lower() + "/"
+        if normalised.startswith(prefix):
+            remainder = normalised[len(prefix) :]
+            if remainder and "/" not in remainder:
+                return True
+    return False
 
 
 def has_forbidden_name(path: str) -> str | None:
@@ -155,13 +180,26 @@ def check_staged(cwd: Path | None = None) -> list[Finding]:
         if is_allowlisted(path):
             continue
 
-        content = staged_content(path, cwd)
+        try:
+            content = staged_content(path, cwd)
+        except RuntimeError as exc:
+            # Could not read what is about to be committed. Refuse rather than assume
+            # it is clean -- an unreadable file is the one we know least about.
+            findings.append(
+                Finding(
+                    path=path,
+                    kind="unreadable staged file",
+                    detail=f"could not read the staged blob to scan it ({exc.__class__.__name__})",
+                )
+            )
+            continue
+
         if content is None:
             continue
 
         hits = find_genotypes(content)
         if hits:
-            names = sorted({name for name, _ in hits})
+            names = sorted({hit.pattern for hit in hits})
             findings.append(
                 Finding(
                     path=path,

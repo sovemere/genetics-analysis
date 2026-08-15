@@ -34,6 +34,13 @@ fi
 
 "$PY" -m genetics.cli.main check-staged
 
+# Fixtures are the one place genotype-shaped rows are allowed, so they are the one place
+# a real export could be smuggled in. Verifying they still reproduce byte-identically
+# catches a hand-edited fixture here, before the push -- CI catches it only afterwards,
+# and by then AGENTS.md's warning applies: a genotype in a public repo cannot be recalled.
+printf '[pre-commit] verifying synthetic fixtures reproduce...\n'
+"$PY" -m genetics.cli.main fixtures --check
+
 printf '[pre-commit] running privacy suite...\n'
 "$PY" -m pytest tests/privacy -q --no-header
 

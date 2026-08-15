@@ -13,7 +13,8 @@ import subprocess
 import pytest
 
 from genetics.paths import (
-    APP_WRITE_PATHS,
+    UnsafeDataDirError,
+    app_write_paths,
     cache_dir,
     is_inside_repo,
     reference_lock,
@@ -51,13 +52,39 @@ def test_data_dir_override_is_respected(monkeypatch: pytest.MonkeyPatch) -> None
     assert not is_inside_repo(runs_dir())
 
 
+@pytest.mark.parametrize(
+    "relative",
+    ["mydata", "data/mine", ".", "tests/scratch", "data/references/../../runs"],
+)
+def test_data_dir_override_inside_the_repo_is_rejected(
+    monkeypatch: pytest.MonkeyPatch, relative: str
+) -> None:
+    """Pointing the data dir at the project is plausible, and would leak.
+
+    ``.gitignore`` only covers the paths we declare. A run bundle under an arbitrary
+    in-repo directory is caught unevenly -- ``x.run.json`` matches a pattern but
+    ``run_001/cards.json`` does not -- so the override must fail loudly rather than
+    quietly relocating genotypes into the checkout.
+    """
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(repo_root() / relative))
+    with pytest.raises(UnsafeDataDirError):
+        user_data_dir()
+
+
+def test_rejection_propagates_to_every_derived_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(repo_root() / "mydata"))
+    for factory in (runs_dir, cache_dir, app_write_paths):
+        with pytest.raises(UnsafeDataDirError):
+            factory()
+
+
 @requires_git
 def test_gitignore_covers_every_writable_path() -> None:
     """Each declared output path is ignored, or explicitly meant to be tracked."""
     root = repo_root()
     failures: list[str] = []
 
-    for label, path, must_ignore in APP_WRITE_PATHS:
+    for label, path, must_ignore in app_write_paths():
         if not is_inside_repo(path):
             continue  # outside the repo entirely; git cannot see it
 
@@ -96,10 +123,10 @@ def test_manifest_and_lock_stay_trackable() -> None:
 
 
 def test_every_writable_path_is_declared() -> None:
-    """APP_WRITE_PATHS is what the gitignore check iterates.
+    """app_write_paths() is what the gitignore check iterates.
 
     A new output location that skips this registry is a location nothing verifies.
     """
-    declared = {path for _, path, _ in APP_WRITE_PATHS}
+    declared = {path for _, path, _ in app_write_paths()}
     for path in (user_data_dir(), runs_dir(), cache_dir(), references_dir()):
-        assert path in declared, f"{path} is missing from APP_WRITE_PATHS"
+        assert path in declared, f"{path} is missing from app_write_paths()"

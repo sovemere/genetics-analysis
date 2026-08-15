@@ -9,9 +9,6 @@ on:
 # CI never touches real data and never downloads reference databases.
 # It runs on synthetic fixtures only. Two reasons: reference payloads are tens of
 # gigabytes, and a CI runner is the last place a genome should be.
-env:
-  GENETICS_CI: "1"
-
 permissions:
   contents: read
 
@@ -43,8 +40,12 @@ jobs:
       - name: Set up Python ${{ matrix.python }}
         run: uv python install ${{ matrix.python }}
 
+      # venv + editable install rather than `uv sync`: this mirrors the local
+      # development flow exactly, and there is no committed lockfile for sync to use.
       - name: Install project
-        run: uv sync --extra dev --python ${{ matrix.python }}
+        run: |
+          uv venv --python ${{ matrix.python }}
+          uv pip install -e ".[dev]"
 
       - name: Lint
         run: |
