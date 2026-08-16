@@ -197,3 +197,20 @@ def test_nested_blocks_do_not_clear_the_flag_early() -> None:
         assert socket.getaddrinfo is not _REAL_GETADDRINFO
     assert not guard_is_active()
     assert socket.getaddrinfo is _REAL_GETADDRINFO
+
+
+@pytest.fixture(scope="module")
+def module_scoped_probe() -> bool:
+    """Records whether the guard was installed while a higher-scoped fixture was built."""
+    return guard_is_active()
+
+
+def test_the_guard_covers_higher_scoped_fixture_setup(module_scoped_probe: bool) -> None:
+    """Found by review, and verified failing before the fix.
+
+    pytest builds session- and module-scoped fixtures *before* function-scoped ones, so a
+    per-test guard left them entirely uncovered -- and a module-scoped "fetch the reference
+    once" fixture is the most natural home a stray network call could ever find. It would
+    have sailed past M2.7's guarantee with this whole file still passing.
+    """
+    assert module_scoped_probe, "the guard must already be installed at module-fixture time"
