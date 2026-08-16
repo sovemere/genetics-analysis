@@ -170,7 +170,9 @@ permanent in git history.*
       - Two privacy tests guard the module: fixtures must self-label as `SYNTHETIC`, and
         the generator source must contain no file-reading call at all, so it cannot
         acquire a "path to a real export" argument later.
-- [x] **M0.3** Privacy test suite (`tests/privacy/`, 46 tests). Two enabling modules:
+- [x] **M0.3** Privacy test suite — **selected by the `privacy` marker, not by directory**
+      (see M0.4; 150 marked tests, of which 128 live in `tests/privacy/` and the rest beside
+      the code they guard). Two enabling modules:
       `genetics.privacy` (leak detection, redaction, `NoGenotypeRepr`) and
       `genetics.paths` (canonical write locations + `APP_WRITE_PATHS` registry).
       - [x] no tracked file matches genotype-derived name patterns
@@ -205,8 +207,11 @@ permanent in git history.*
         to a public repo cannot be recalled — history rewriting does not reach forks,
         clones, or mirrors.
 - [x] **M0.5** CI (`.github/workflows/ci.yml`): 2 OS × 2 Python matrix
-      (windows/ubuntu × 3.11/3.13) running ruff, `mypy --strict`, the privacy suite,
-      the full suite, and a fixture-reproducibility check.
+      (windows/ubuntu × 3.11/3.13) running ruff, `mypy --strict`, `genetics cards lint
+      --schema-only` (added in M3.5), the privacy suite **by marker** (corrected in
+      M3.3–M3.6: the workflow still selected by directory long after M3.1 fixed the hook,
+      so CI had been skipping the distributed privacy tests on every push), the full suite,
+      and a fixture-reproducibility check.
       - Second job `no-data-in-ci` asserts the checkout holds no raw export, no
         genotype-derived artifact, and no reference payload beside the manifest.
       - The matrix is not ceremony: the htslib constraint (§4.9) means a dependency can
@@ -661,9 +666,20 @@ permanent in git history.*
       ([AGENTS.md §0.1A](AGENTS.md)).
       - Assembly is cardinality-preserving: every matcher result becomes one evidence
         record, including absent, no-call, ambiguous, excluded, and likely-artifact
-        results. It requires complete frequencies for every observed allele, applies the
-        rarest observed frequency, and retains genotype/call-source/reference provenance
-        without embedding a confidence shortcut in authored data.
+        results. It applies the rarest observed frequency and retains
+        genotype/call-source/reference provenance without embedding a confidence shortcut
+        in authored data.
+      - **An incomplete frequency set degrades one card, not the pack** (review fix). It
+        first *raised* when the reference had no frequency for an observed allele — which
+        loses all 31 findings because one gnomAD row was thin, and that is the
+        low-confidence filtering [§0.1A](AGENTS.md) forbids, arriving as an exception
+        rather than as a policy. gnomAD does not price every allele of every variant, and a
+        strand-ambiguous site legitimately adds a complemented allele the reference never
+        reported. The card now renders with no frequency, a caveat naming the missing
+        allele, and M3.3's `moderate` ceiling for unknown frequency — so the gap is visible
+        and nothing is scored common on the strength of a missing number. A frequency for
+        an allele the card does not declare is still refused: that is another variant's
+        calibration, not thin coverage.
 - [x] **M3.5** Card linting: `genetics cards lint` verifies schema, citation presence,
       resolvable variant keys, and template rendering. Wire into CI.
       - `genetics cards lint` has explicit schema-only and full-reference modes; the full
@@ -959,8 +975,8 @@ default-on.*
 | Confidence used as a filter, hiding results | M3, M15.5 | Explicit test that no code path drops on confidence | [§0.1A](AGENTS.md) |
 | Fabricated citations | M3.5, M15.6 | Card lint in CI; card without citation cannot ship | [§6](AGENTS.md) |
 | Non-permissive source vendored | M2.2 | Fetcher refuses/flags; licence lock; M15.4 | [§4.8](AGENTS.md) |
-| A rolling "latest" URL changes under a saved run, silently altering results | M2.2 | Lock records the digest on first fetch; later drift fails verification instead of producing new answers. **The lock merges rather than replaces** — replacing let one detected corruption erase its own evidence and be re-recorded as truth | [§5.5](AGENTS.md) |
-| A declared post-processing step is never executed but reports as done | M2.1, M3.5 | The registry may mark a step implemented only when the executor dispatch names it; a structural test proves the sets are identical, fetch runs it, and verify requires the derived output. Unimplemented steps remain visibly pending | — |
+| A rolling "latest" URL changes under a saved run, silently altering results | M2.2 | Lock records the digest on first fetch. **Drift is reported and re-recorded on a fresh download, and fails on bytes already on disk** — enforcing it on the download made a file the manifest declares unpinnable unfetchable for every clone, since the committed lock hands one machine's digest to all of them; enforcing it on disk is what catches corruption, because a fetch re-records drift in the same run, so a later disagreement is something nothing fetched. Re-recording stamps today's date, so the change is a line in the committed lock's diff. **The lock merges rather than replaces** — replacing let one detected corruption erase its own evidence and be re-recorded as truth | [§5.5](AGENTS.md) |
+| A declared post-processing step is never executed but reports as done | M2.1, M3.5 | The registry may mark a step implemented only when the executor dispatch names it; a structural test proves the sets are identical, fetch runs it, and verify reports the derived output's state — `pending` when it has not been built (which `refs status` calls "processing-required"), `failed` only when a present artifact does not validate. Unimplemented steps remain visibly pending | — |
 | gnomAD's real size (63 GB exomes / 495 GB genomes) stalls a first setup | M2.3 | Exomes required and genomes optional; sizes declared exactly so the preflight can warn before the download, not after | [§4.1](AGENTS.md) |
 | PGS per-score licences ignored | M9.1 | Parse header per score, not per catalogue | [§4.8](AGENTS.md) |
 | Imputation run un-resumable, blocking progress | M8.1 | Resumability is an acceptance criterion | [§0.1C](AGENTS.md) |
