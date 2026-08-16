@@ -324,6 +324,40 @@ def _mapping(raw: Any, where: str) -> Mapping[str, Any]:
     return raw
 
 
+def _outcome_name(raw: Any, where: str) -> str:
+    """An outcome name, refusing anything YAML did not hand back as a string.
+
+    ``yes`` and ``no`` are the most natural names in the world for a binary trait, and
+    unquoted they are **booleans** under YAML 1.1 -- as are ``on``, ``off``, ``true`` and
+    ``false``; ``null`` and ``~`` become None, and a bare number becomes an int. Coercing
+    with ``str()`` would "work": ``genotypes: {GG: no}`` and ``outcomes: {no: ...}`` both
+    become ``"False"`` and match each other, so the card renders with an outcome named
+    ``False`` and nobody finds out. Quote one side and not the other and they stop
+    matching, with an error blaming an outcome the author can see is right there.
+
+    So the coercion is refused rather than performed, and the message says what to type.
+    """
+    if isinstance(raw, str):
+        name = raw.strip()
+        if not name:
+            raise CardError(f"{where}: outcome name is empty")
+        return name
+
+    if raw is True:
+        literal = " -- yes/true/on are YAML 1.1 booleans"
+    elif raw is False:
+        literal = " -- no/false/off are YAML 1.1 booleans"
+    elif raw is None:
+        literal = " -- null and ~ are YAML nulls"
+    else:
+        literal = ""
+
+    raise CardError(
+        f"{where}: outcome names must be quoted strings; YAML read this one as "
+        f"{type(raw).__name__} {raw!r}{literal}. Put it in quotes."
+    )
+
+
 def _string_list(raw: Any, where: str) -> tuple[str, ...]:
     if not isinstance(raw, Sequence) or isinstance(raw, str):
         raise CardError(f"{where}: expected a list of strings")
@@ -635,10 +669,7 @@ class Match:
                     f"{where}.genotypes: {genotype!r} is mapped twice. Genotypes are sorted "
                     "before comparison, so 'AG' and 'GA' are the same key."
                 )
-            name = str(outcome).strip()
-            if not name:
-                raise CardError(f"{where}.genotypes.{genotype}: outcome name is empty")
-            seen[genotype] = name
+            seen[genotype] = _outcome_name(outcome, f"{where}.genotypes.{genotype}")
 
         missing = sorted(expected - set(seen))
         if missing:
@@ -890,10 +921,20 @@ class Card:
         evidence = Evidence.parse(_require(data, "evidence", where), f"{where}.evidence")
 
         raw_outcomes = _mapping(_require(data, "outcomes", where), f"{where}.outcomes")
-        outcomes = {
-            str(name): Outcome.parse(body, f"{where}.outcomes.{name}")
-            for name, body in raw_outcomes.items()
-        }
+        outcomes: dict[str, Outcome] = {}
+        for raw_name, body in raw_outcomes.items():
+            name = _outcome_name(raw_name, f"{where}.outcomes")
+            if name in outcomes:
+                # Names are stripped so they line up with the genotype map, which means two
+                # distinct YAML keys can collapse into one here. A dict comprehension kept
+                # the last quietly, so one of the two outcomes -- with its own summary and
+                # detail -- would simply never render.
+                raise CardError(
+                    f"{where}.outcomes: {name!r} is defined twice (names are trimmed, so "
+                    f"{raw_name!r} collides with an earlier key). One of the two would be "
+                    "silently discarded."
+                )
+            outcomes[name] = Outcome.parse(body, f"{where}.outcomes.{raw_name}")
 
         referenced = set(match.genotypes.values())
         unknown = sorted(referenced - set(outcomes))

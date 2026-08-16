@@ -48,7 +48,11 @@ _REAL_GETADDRINFO = socket.getaddrinfo
 _UNSET = object()
 _PATCHED_METHODS = ("connect", "connect_ex")
 
-_active = False
+_depth = 0
+"""Nesting depth, not a boolean. A bool would be cleared by the *inner* exit of a nested
+``block_network()`` while the outer block is still installed, so ``guard_is_active()``
+would report False with the patches still in place -- and that function exists precisely so
+a test can trust the answer."""
 
 
 def guard_is_active() -> bool:
@@ -58,7 +62,7 @@ def guard_is_active() -> bool:
     socket to prove it -- a test that verified the hatch by making a real connection would
     put actual traffic in a suite whose whole point is that there is none.
     """
-    return _active
+    return _depth > 0
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +192,7 @@ def block_network() -> Iterator[None]:
     defined on ``socket.socket``, so restoring means *removing* the override, not writing
     the inherited function back onto the subclass -- hence the ``__dict__`` check.
     """
-    global _active
+    global _depth
 
     saved = {name: socket.socket.__dict__.get(name, _UNSET) for name in _PATCHED_METHODS}
     saved_getaddrinfo = socket.getaddrinfo
@@ -196,11 +200,11 @@ def block_network() -> Iterator[None]:
     socket.socket.connect = _blocked_connect  # type: ignore[assignment]
     socket.socket.connect_ex = _blocked_connect_ex  # type: ignore[assignment]
     socket.getaddrinfo = _blocked_getaddrinfo
-    _active = True
+    _depth += 1
     try:
         yield
     finally:
-        _active = False
+        _depth -= 1
         socket.getaddrinfo = saved_getaddrinfo
         for name, value in saved.items():
             if value is _UNSET:
