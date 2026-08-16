@@ -102,10 +102,10 @@ def ingest(path: Path) -> IngestResult:
     doubled X call before the sex is known is exactly the error AGENTS.md section 2 warns
     about.
     """
-    from genetics.qc import resolve_ploidy, run_qc
+    from genetics.qc import default_anchors, resolve_ploidy, run_qc
 
     parsed = read_export(path)
-    qc = run_qc(parsed.table, source=parsed.source)
+    qc = run_qc(parsed.table, source=parsed.source, anchors=default_anchors())
     resolved = resolve_ploidy(parsed.table, sex=qc.sex.inferred)
 
     return IngestResult(table=resolved, source=parsed.source, qc=qc)

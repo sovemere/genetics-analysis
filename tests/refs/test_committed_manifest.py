@@ -38,11 +38,17 @@ def test_gnomad_is_present_and_required(committed: Manifest) -> None:
 
 
 def test_dbsnp_fills_the_mechanisms_m1_left_empty(committed: Manifest) -> None:
-    """qc/build_anchors.py and the M1.7 merge table ship as tested code with no data."""
+    """Merges and variant resolution come from artifacts the pinned b157 inputs support."""
     dbsnp = committed.get("dbsnp_b157_grch37")
     steps = {step.step for step in dbsnp.post_process}
     assert "extract_rsid_merge_table" in steps
-    assert "extract_build_anchors" in steps
+    assert "extract_dbsnp_variant_index" in steps
+    assert any(item.filename == "refsnp-merged.json.bz2" for item in dbsnp.files)
+
+    # A GRCh37-only VCF cannot prove a GRCh38 coordinate. ClinVar's summary publishes
+    # both assemblies and is the truthful, much smaller source for the QC anchors.
+    clinvar = committed.get("clinvar_grch37")
+    assert any(step.step == "extract_build_anchors" for step in clinvar.post_process)
 
 
 def test_every_url_is_https(committed: Manifest) -> None:

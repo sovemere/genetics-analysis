@@ -177,6 +177,185 @@ def test_post_processing_params_are_checked_against_the_step_definition() -> Non
         manifest.loads(unexpected)
 
 
+@pytest.mark.parametrize(
+    ("path_param", "value"),
+    [
+        ("input", "../source.txt"),
+        ("output", "/absolute.parquet"),
+        ("unresolvable_output", "nested/../../escape.parquet"),
+    ],
+)
+def test_every_post_processing_filesystem_param_rejects_traversal(
+    path_param: str, value: str
+) -> None:
+    params = {
+        "input": "source.json.bz2",
+        "output": "resolved.parquet",
+        "unresolvable_output": "unresolved.parquet",
+    }
+    params[path_param] = value
+    rendered = "\n".join(f"          {key}: {item}" for key, item in params.items())
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_rsid_merge_table\n"
+        "        params:\n"
+        f"{rendered}\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match=path_param):
+        manifest.loads(text)
+
+
+def test_post_processing_filesystem_params_must_be_strings() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: data.vcf.gz\n"
+        "          output: 123\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match="filesystem path must be a string"):
+        manifest.loads(text)
+
+
+def test_post_processing_input_must_exist_before_its_step() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: made_by_a_later_step.parquet\n"
+        "          output: index.parquet\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match="downloaded file or an output of an earlier"):
+        manifest.loads(text)
+
+
+def test_post_processing_cannot_overwrite_a_downloaded_file() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: data.txt\n"
+        "          output: data.txt\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match="would overwrite a downloaded file"):
+        manifest.loads(text)
+
+
+def test_post_processing_outputs_are_distinct_within_and_across_steps() -> None:
+    within = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_rsid_merge_table\n"
+        "        params:\n"
+        "          input: data.txt\n"
+        "          output: same.parquet\n"
+        "          unresolvable_output: same.parquet\n"
+        "    files:",
+    )
+    with pytest.raises(ManifestError, match="two output parameters name the same path"):
+        manifest.loads(within)
+
+    across = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: data.txt\n"
+        "          output: same.parquet\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: same.parquet\n"
+        "          output: same.parquet\n"
+        "    files:",
+    )
+    with pytest.raises(ManifestError, match="duplicate post-processing output"):
+        manifest.loads(across)
+
+
+@pytest.mark.parametrize(
+    "download_name",
+    [
+        "result.parquet.provenance.json",
+        ".result.parquet.provenance.json.part",
+        ".result.parquet.part",
+        ".result.parquet.chunks",
+        ".result.parquet.classified.parquet",
+        ".result.parquet.classified.parquet.provenance.json",
+        "..result.parquet.classified.parquet.provenance.json.part",
+        "..result.parquet.classified.parquet.part",
+        "..result.parquet.classified.parquet.chunks",
+    ],
+)
+def test_post_processing_reserves_implementation_owned_siblings(
+    download_name: str,
+) -> None:
+    text = MINIMAL.format(sha=SHA).replace("filename: data.txt", f"filename: {download_name}")
+    text = text.replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_rsid_merge_table\n"
+        "        params:\n"
+        f"          input: {download_name}\n"
+        "          output: result.parquet\n"
+        "          unresolvable_output: unresolved.parquet\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match="implementation-owned"):
+        manifest.loads(text)
+
+
+def test_an_output_cannot_claim_an_earlier_outputs_merge_staging_path() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_rsid_merge_table\n"
+        "        params:\n"
+        "          input: data.txt\n"
+        "          output: result.parquet\n"
+        "          unresolvable_output: unresolved.parquet\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: result.parquet\n"
+        "          output: .result.parquet.classified.parquet\n"
+        "    files:",
+    )
+
+    with pytest.raises(ManifestError, match="implementation-owned"):
+        manifest.loads(text)
+
+
+def test_a_transform_may_consume_an_earlier_distinct_output() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "    files:",
+        "    post_process:\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: data.txt\n"
+        "          output: intermediate.parquet\n"
+        "      - step: extract_dbsnp_variant_index\n"
+        "        params:\n"
+        "          input: intermediate.parquet\n"
+        "          output: final.parquet\n"
+        "    files:",
+    )
+
+    parsed = manifest.loads(text)
+    assert len(parsed.get("example").post_process) == 2
+
+
 def test_an_imputation_panel_may_not_be_subsetted_in_place() -> None:
     """AGENTS.md 5.5, enforced rather than remembered."""
     text = MINIMAL.format(sha=SHA).replace(

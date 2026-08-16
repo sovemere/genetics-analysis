@@ -31,7 +31,7 @@ from genetics.engine.matcher import (
     summarise,
 )
 from genetics.ingest.indels import IndelPolicy, IndelRepresentation
-from genetics.ingest.keys import MergeTable
+from genetics.ingest.keys import MergeTable, RsidResolutionStatus
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, Chrom, GenotypeTable
 
 POS = 12345678
@@ -486,6 +486,21 @@ def test_a_merged_rsid_does_not_raise_a_caveat() -> None:
     result = _match(_card(), [_row("rs900000555", Chrom.CHR7, POS, "A", "G")], merges=merges)
     assert result.status is MatchStatus.MATCHED
     assert not any("rs900000555" in c for c in result.caveats)
+
+
+def test_an_ambiguous_merged_rsid_is_caveated_instead_of_guessed() -> None:
+    merges = MergeTable(
+        unresolved={
+            "rs900000555": (
+                RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS,
+                ("rs8", "rs9"),
+            )
+        }
+    )
+    result = _match(_card(), [_row("rs900000555", Chrom.CHR7, POS, "A", "G")], merges=merges)
+    assert result.status is MatchStatus.MATCHED
+    assert any("multiple-current-targets" in caveat for caveat in result.caveats)
+    assert any("rather than guessed" in caveat for caveat in result.caveats)
 
 
 # ---------------------------------------------------------------------------

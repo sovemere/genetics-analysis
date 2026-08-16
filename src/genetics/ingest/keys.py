@@ -27,6 +27,9 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from enum import StrEnum
+from pathlib import Path
+from typing import Any
 
 import polars as pl
 
@@ -73,6 +76,29 @@ class VariantKey:
         return f"{self.chrom.value}:{self.pos_grch37}:{'/'.join(self.alleles)}"
 
 
+class RsidResolutionStatus(StrEnum):
+    CURRENT = "current"
+    NO_CURRENT_TARGET = "no-current-target"
+    MULTIPLE_CURRENT_TARGETS = "multiple-current-targets"
+    CYCLE = "cycle"
+
+
+@dataclass(frozen=True)
+class RsidResolution:
+    queried_rsid: str
+    status: RsidResolutionStatus
+    current_rsid: str | None
+    targets: tuple[str, ...] = ()
+
+
+class UnresolvableRsidError(ValueError):
+    """dbSNP explicitly says an rsID has no unique current target."""
+
+    def __init__(self, resolution: RsidResolution) -> None:
+        self.resolution = resolution
+        super().__init__(f"{resolution.queried_rsid}: rsID resolution is {resolution.status.value}")
+
+
 class MergeTable:
     """Retired rsID to current rsID, from dbSNP's merge records.
 
@@ -86,11 +112,16 @@ class MergeTable:
     dbSNP: unknown rsIDs resolve to themselves rather than to nothing.
     """
 
-    def __init__(self, merges: Mapping[str, str] | None = None) -> None:
+    def __init__(
+        self,
+        merges: Mapping[str, str] | None = None,
+        unresolved: Mapping[str, tuple[RsidResolutionStatus, tuple[str, ...]]] | None = None,
+    ) -> None:
         self._merges = dict(merges or {})
+        self._unresolved = dict(unresolved or {})
 
     def __len__(self) -> int:
-        return len(self._merges)
+        return len(self._merges) + len(self._unresolved)
 
     @classmethod
     def empty(cls) -> MergeTable:
@@ -101,23 +132,203 @@ class MergeTable:
         """Build from ``(retired_rsid, current_rsid)`` pairs."""
         return cls({retired: current for retired, current in pairs})
 
+    @classmethod
+    def from_parquet(
+        cls,
+        path: Path,
+        *,
+        rsids: Iterable[str],
+        unresolved_path: Path | None = None,
+        require_provenance: bool = True,
+        provenance_contracts: tuple[Mapping[str, Any], Mapping[str, Any]] | None = None,
+    ) -> MergeTable:
+        """Load the artifact written by ``extract_rsid_merge_table``.
+
+        Loading is query-scoped: each scan selects only requested retired IDs, then scans
+        again for the next link in any chain. This keeps a tens-of-millions-row artifact
+        out of Python memory. Duplicate rows are refused, and zero/multiple-target records
+        are loaded from the companion artifact as explicit unresolved states.
+        """
+        expected = {"retired_rsid": pl.String, "current_rsid": pl.String}
+        if dict(pl.read_parquet_schema(path)) != expected:
+            raise ValueError(
+                f"{path.name}: merge table schema is {dict(pl.read_parquet_schema(path))}, "
+                f"expected {expected}"
+            )
+        unresolved_path = unresolved_path or path.with_name("rsid_unresolvable.parquet")
+        unresolved_schema = {
+            "retired_rsid": pl.String,
+            "status": pl.String,
+            "targets": pl.List(pl.String),
+        }
+        if dict(pl.read_parquet_schema(unresolved_path)) != unresolved_schema:
+            raise ValueError(f"{unresolved_path.name}: incompatible unresolvable table schema")
+        if provenance_contracts is not None and not require_provenance:
+            raise ValueError("provenance_contracts require provenance validation")
+        if require_provenance:
+            from genetics.refs.postprocess import ProcessError, get, validate_provenance
+
+            try:
+                expected_merge = provenance_contracts[0] if provenance_contracts else None
+                expected_unresolved = provenance_contracts[1] if provenance_contracts else None
+                merge_provenance = validate_provenance(
+                    path,
+                    expected=expected_merge,
+                    expected_step="extract_rsid_merge_table",
+                    expected_transform_version=get("extract_rsid_merge_table").transform_version,
+                )
+                unresolved_provenance = validate_provenance(
+                    unresolved_path,
+                    expected=expected_unresolved,
+                    expected_step="extract_rsid_merge_table",
+                    expected_transform_version=get("extract_rsid_merge_table").transform_version,
+                )
+            except ProcessError as exc:
+                raise ValueError(str(exc)) from exc
+            shared_keys = ("schema_version", "step", "transform_version", "input", "params")
+            if any(merge_provenance[key] != unresolved_provenance[key] for key in shared_keys):
+                raise ValueError(
+                    f"{path.name} and {unresolved_path.name} were not derived by the same transform"
+                )
+
+        merges: dict[str, str] = {}
+        unresolved: dict[str, tuple[RsidResolutionStatus, tuple[str, ...]]] = {}
+        frontier = set(rsids)
+        visited: set[str] = set()
+        while frontier:
+            query = sorted(frontier - visited)
+            if not query:
+                break
+            visited.update(query)
+            frame = pl.scan_parquet(path).filter(pl.col("retired_rsid").is_in(query)).collect()
+            ambiguous = (
+                pl.scan_parquet(unresolved_path)
+                .filter(pl.col("retired_rsid").is_in(query))
+                .collect()
+            )
+            if frame.get_column("retired_rsid").n_unique() != frame.height:
+                raise ValueError(f"{path.name}: queried retired rsID has multiple rows")
+            if ambiguous.get_column("retired_rsid").n_unique() != ambiguous.height:
+                raise ValueError(f"{unresolved_path.name}: queried retired rsID has multiple rows")
+            overlap = set(frame.get_column("retired_rsid")) & set(
+                ambiguous.get_column("retired_rsid")
+            )
+            if overlap:
+                raise ValueError(f"rsID(s) occur in both merge artifacts: {sorted(overlap)}")
+            next_frontier: set[str] = set()
+            for retired, current in frame.iter_rows():
+                if (
+                    not isinstance(retired, str)
+                    or not isinstance(current, str)
+                    or not retired.startswith("rs")
+                    or not retired[2:].isdigit()
+                    or not current.startswith("rs")
+                    or not current[2:].isdigit()
+                    or retired == current
+                ):
+                    raise ValueError(f"{path.name}: malformed or self-merge row")
+                merges[retired] = current
+                next_frontier.add(current)
+            for retired, status_text, targets in ambiguous.iter_rows():
+                try:
+                    status = RsidResolutionStatus(status_text)
+                except ValueError as exc:
+                    raise ValueError(
+                        f"{unresolved_path.name}: invalid status {status_text!r}"
+                    ) from exc
+                if status not in {
+                    RsidResolutionStatus.NO_CURRENT_TARGET,
+                    RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS,
+                }:
+                    raise ValueError(
+                        f"{unresolved_path.name}: invalid unresolved status {status.value!r}"
+                    )
+                if (
+                    not isinstance(retired, str)
+                    or not retired.startswith("rs")
+                    or not retired[2:].isdigit()
+                    or not isinstance(targets, list)
+                    or any(
+                        not isinstance(target, str)
+                        or not target.startswith("rs")
+                        or not target[2:].isdigit()
+                        for target in targets
+                    )
+                    or (status is RsidResolutionStatus.NO_CURRENT_TARGET and targets)
+                    or (
+                        status is RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS and len(targets) < 2
+                    )
+                ):
+                    raise ValueError(
+                        f"{unresolved_path.name}: malformed unresolved row for {retired!r}"
+                    )
+                unresolved[retired] = (status, tuple(targets))
+            frontier = next_frontier
+        return cls(merges, unresolved)
+
+    @classmethod
+    def default(cls, rsids: Iterable[str]) -> MergeTable:
+        """Load fetched dbSNP merges when available; identity before reference setup."""
+        from genetics.paths import references_dir
+        from genetics.refs.postprocess import ProcessError, declared_artifact_provenance
+
+        path = references_dir() / "dbsnp_b157_grch37" / "rsid_merges.parquet"
+        unresolved = path.with_name("rsid_unresolvable.parquet")
+        if not path.is_file():
+            return cls.empty()
+        if not unresolved.is_file():
+            raise ValueError(f"{unresolved.name} is missing; refetch dbSNP before resolving rsIDs")
+        try:
+            contracts = (
+                declared_artifact_provenance(
+                    "dbsnp_b157_grch37",
+                    "extract_rsid_merge_table",
+                    output_name=path.name,
+                ),
+                declared_artifact_provenance(
+                    "dbsnp_b157_grch37",
+                    "extract_rsid_merge_table",
+                    output_param="unresolvable_output",
+                    output_name=unresolved.name,
+                ),
+            )
+        except ProcessError as exc:
+            raise ValueError(str(exc)) from exc
+        return cls.from_parquet(
+            path,
+            rsids=rsids,
+            unresolved_path=unresolved,
+            provenance_contracts=contracts,
+        )
+
+    def resolve_result(self, rsid: str) -> RsidResolution:
+        """Resolve without erasing explicit ambiguity or corrupt merge cycles."""
+        seen = {rsid}
+        current = rsid
+        while True:
+            ambiguous = self._unresolved.get(current)
+            if ambiguous is not None:
+                status, targets = ambiguous
+                return RsidResolution(rsid, status, None, targets)
+            nxt = self._merges.get(current)
+            if nxt is None:
+                return RsidResolution(rsid, RsidResolutionStatus.CURRENT, current)
+            if nxt in seen:
+                return RsidResolution(rsid, RsidResolutionStatus.CYCLE, None)
+            seen.add(nxt)
+            current = nxt
+
     def resolve(self, rsid: str) -> str:
         """Follow the merge chain to the current rsID.
 
-        Returns ``rsid`` unchanged when it is not merged -- including when the table is
-        empty. An unknown identifier is not an error here: an export legitimately contains
-        rsIDs that a given dbSNP subset does not mention.
+        Returns ``rsid`` unchanged when dbSNP has no merge record for it. Explicit
+        zero/multiple-target records and cycles raise :class:`UnresolvableRsidError`;
+        returning the original ID for either would falsely turn ambiguity into identity.
         """
-        seen = {rsid}
-        current = rsid
-        while (nxt := self._merges.get(current)) is not None:
-            if nxt in seen:
-                # A cycle. Stop where we entered it rather than picking arbitrarily; the
-                # caller gets a stable answer and the merge file gets flagged in M2.
-                return rsid
-            seen.add(nxt)
-            current = nxt
-        return current
+        resolution = self.resolve_result(rsid)
+        if resolution.current_rsid is None:
+            raise UnresolvableRsidError(resolution)
+        return resolution.current_rsid
 
     def resolve_all(self, rsids: Iterable[str]) -> dict[str, str]:
         return {rsid: self.resolve(rsid) for rsid in rsids}

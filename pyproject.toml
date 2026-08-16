@@ -39,6 +39,12 @@ genetics = "genetics.cli.main:app"
 [tool.hatch.build.targets.wheel]
 packages = ["src/genetics"]
 
+[tool.hatch.build.targets.wheel.force-include]
+# Cards remain top-level and reviewable in a checkout, but an installed CLI needs the
+# same corpus inside its package.  default_knowledge_dir() prefers the checkout and falls
+# back to this wheel path.
+"knowledge" = "genetics/knowledge"
+
 # --------------------------------------------------------------------------
 # Lint
 # --------------------------------------------------------------------------

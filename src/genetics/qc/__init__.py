@@ -9,7 +9,13 @@ here.
 
 from __future__ import annotations
 
-from genetics.qc.build_anchors import ANCHORS, BuildAnchor
+from genetics.qc.build_anchors import (
+    ANCHORS,
+    AnchorError,
+    BuildAnchor,
+    default_anchors,
+    load_anchors,
+)
 from genetics.qc.metrics import (
     call_rates,
     check_build,
@@ -34,6 +40,7 @@ from genetics.qc.report import (
 
 __all__ = [
     "ANCHORS",
+    "AnchorError",
     "BuildAnchor",
     "BuildCheck",
     "CallRates",
@@ -46,10 +53,12 @@ __all__ = [
     "SexInference",
     "call_rates",
     "check_build",
+    "default_anchors",
     "duplicate_summary",
     "heterozygosity",
     "indel_summary",
     "infer_sex",
+    "load_anchors",
     "resolve_ploidy",
     "run_qc",
 ]

@@ -10,6 +10,8 @@ from genetics.ingest import read_export
 from genetics.ingest.keys import (
     LocusKey,
     MergeTable,
+    RsidResolutionStatus,
+    UnresolvableRsidError,
     VariantKey,
     add_current_rsid,
     locus_keys,
@@ -93,8 +95,27 @@ def test_a_cycle_does_not_hang() -> None:
     """ "Should not exist in the input" is a poor reason for an infinite loop in a parser,
     and this table is loaded from a fetched file nobody here controls."""
     table = MergeTable.from_pairs([("rs111", "rs222"), ("rs222", "rs111")])
-    assert table.resolve("rs111") == "rs111"
-    assert table.resolve("rs222") == "rs222"
+    with pytest.raises(UnresolvableRsidError) as first:
+        table.resolve("rs111")
+    with pytest.raises(UnresolvableRsidError) as second:
+        table.resolve("rs222")
+    assert first.value.resolution.status is RsidResolutionStatus.CYCLE
+    assert second.value.resolution.status is RsidResolutionStatus.CYCLE
+
+
+def test_an_ambiguous_chain_is_not_mistaken_for_an_identity() -> None:
+    table = MergeTable(
+        {"rs111": "rs222"},
+        {
+            "rs222": (
+                RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS,
+                ("rs333", "rs444"),
+            )
+        },
+    )
+    with pytest.raises(UnresolvableRsidError) as error:
+        table.resolve("rs111")
+    assert error.value.resolution.targets == ("rs333", "rs444")
 
 
 def test_unknown_rsid_is_not_an_error() -> None:

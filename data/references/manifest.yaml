@@ -12,7 +12,8 @@
 # under an unfamiliar licence means reading the terms and writing an entry there, which
 # is a diff a reviewer will actually see.
 #
-# Every URL, size and digest below was verified against the live server on 2026-08-15.
+# Every URL, size and digest below was verified against the live server on 2026-08-15 or
+# 2026-08-16.
 # Nothing here was written from memory. Where a publisher provides a checksum -- NCBI's
 # .md5 sidecars, the base64 md5 Google Cloud Storage returns in `x-goog-hash` -- it is
 # recorded as `md5:`. Where a file is small enough to have been downloaded and hashed
@@ -43,11 +44,18 @@ sources:
       - ClinVar variant lookup (M7.1)
       - ACMG secondary-finding surfacing (M7.4)
       - array coverage honesty card (M7.6)
+      - GRCh37/GRCh38 build anchors (M1.5)
     notes: >-
       The dated archive release is pinned rather than the weekly clinvar.vcf.gz, because
       a rolling filename cannot be checksummed and a saved run has to stay interpretable
       after the archive moves on (AGENTS.md 5.5). variant_summary.txt.gz has no dated
       equivalent, so it is the one unpinned file here.
+    post_process:
+      - step: extract_build_anchors
+        params:
+          input: variant_summary.txt.gz
+          output: build_anchors.json
+          count: 200
     files:
       - url: https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/archive_2.0/2026/clinvar_20260804.vcf.gz
         filename: clinvar_20260804.vcf.gz
@@ -59,11 +67,9 @@ sources:
         unpinned_reason: "variant_summary.txt.gz is regenerated weekly under a fixed name; the dated VCF above is the pinned artifact"
 
   # --------------------------------------------------------------------------
-  # dbSNP fills two mechanisms M1 shipped deliberately empty: the rsID merge table
-  # (M1.7) and the build anchors (M1.5). Both were built and tested against injected
-  # data and left without real coordinates, because writing GRCh37 positions from memory
-  # is exactly the invented data AGENTS.md 6 forbids. This is where the real ones come
-  # from -- see qc/build_anchors.py.
+  # dbSNP fills M1.7's rsID merge table and supplies M3.5's authoritative GRCh37 variant
+  # index. M1.5's dual-build anchors come from ClinVar variant_summary above: a
+  # single-assembly VCF cannot establish coordinates on a second assembly.
   # --------------------------------------------------------------------------
   - id: dbsnp_b157_grch37
     name: dbSNP build 157, GRCh37.p13 VCF
@@ -74,7 +80,7 @@ sources:
     license: LicenseRef-US-Government-Public-Domain
     enables:
       - rsID merge-chain resolution (M1.7)
-      - GRCh37/GRCh38 build anchors (M1.5)
+      - authoritative rsID/GRCh37 coordinate/allele validation (M3.5)
     notes: >-
       Fetched from the build-pinned archive path rather than latest_release/, which
       silently becomes b158. The publisher's md5 sidecar is identical at both paths, which
@@ -82,16 +88,22 @@ sources:
     post_process:
       - step: extract_rsid_merge_table
         params:
+          input: refsnp-merged.json.bz2
           output: rsid_merges.parquet
-      - step: extract_build_anchors
+          unresolvable_output: rsid_unresolvable.parquet
+      - step: extract_dbsnp_variant_index
         params:
-          output: build_anchors.json
-          count: 200
+          input: GCF_000001405.25.gz
+          output: dbsnp_variants.parquet
     files:
       - url: https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.25.gz
         filename: GCF_000001405.25.gz
         size_bytes: 28194800139
         md5: 35db22bcd166f904e4775dbbc29f5965
+      - url: https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-merged.json.bz2
+        filename: refsnp-merged.json.bz2
+        size_bytes: 813797312
+        md5: 5d9c56c9b8c3412eb0195a63f12e1ebf
 
   # --------------------------------------------------------------------------
   # gnomAD is load-bearing (AGENTS.md 4.1, 5.1): the frequency-based confidence

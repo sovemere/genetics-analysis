@@ -1,0 +1,332 @@
+schema_version: 1
+cards:
+  - id: wnt10a_hair_curl
+    section: traits
+    kind: interpretation
+    title: WNT10A hair-curl association
+    gene: WNT10A
+    match:
+      variants:
+        - rsid: rs7349332
+          chrom: "2"
+          pos_grch37: 219756383
+          alleles: [C, T]
+      genotypes:
+        CC: no_curl_score_allele
+        CT: one_curl_score_allele
+        TT: two_curl_score_alleles
+    outcomes:
+      no_curl_score_allele:
+        summary: "Your {genotype} has no T allele from this WNT10A hair-curl association."
+        detail: >-
+          In 5,385 participants of northern-European ancestry, each T allele was associated
+          with a {effect_value}-point increase on a self-reported 0-to-5 hair-curl scale.
+          Having no T allele at this marker does not determine straight hair because hair
+          shape is polygenic and strongly ancestry-dependent.
+      one_curl_score_allele:
+        summary: "Your {genotype} has one T allele associated with a slightly curlier hair-shape score."
+        detail: >-
+          The cited additive analysis estimated a {effect_value}-point increase on its
+          0-to-5 curl scale per T allele. This is a small population-average shift, not a
+          prediction that an individual will have curly hair.
+      two_curl_score_alleles:
+        summary: "Your {genotype} has two T alleles associated with a slightly curlier hair-shape score."
+        detail: >-
+          Two copies carry the study's curlier-score allele. The {effect_value}-point
+          per-allele coefficient came from an additive population model and should not be
+          read as a deterministic two-copy hair-shape prediction.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 5385
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.193
+        units: points per T-allele copy on a self-reported 0-to-5 hair-curl scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+      - type: doi
+        id: 10.1093/hmg/ddx416
+        title: Meta-analysis of genome-wide association studies identifies 8 novel loci involved in shape variation of human head hair
+        note: Independent European meta-analysis confirming the previously reported WNT10A hair-shape locus.
+    caveats:
+      - "Hair shape is polygenic and varies strongly among populations; this one marker cannot classify hair as straight, wavy, or curly."
+      - "The numerical effect comes from self-reported hair categories in a northern-European cohort and may not transfer to other ancestries or grooming practices."
+      - "The associated intronic marker does not by itself establish that altered WNT10A activity causes the phenotype."
+      - "This card declares the forward-strand C/T study pair; other rare dbSNP alleles are outside this interpretation."
+
+  - id: lce3e_region_hair_curl
+    section: traits
+    kind: interpretation
+    title: LCE3E-region hair-curl association
+    gene: LCE3E
+    match:
+      variants:
+        - rsid: rs499697
+          chrom: "1"
+          pos_grch37: 152493154
+          alleles: [A, G]
+      genotypes:
+        AA: no_curl_score_allele
+        AG: one_curl_score_allele
+        GG: two_curl_score_alleles
+    outcomes:
+      no_curl_score_allele:
+        summary: "Your {genotype} has no G allele from this LCE3E-region hair-curl association."
+        detail: >-
+          In 5,385 northern-European participants, each G allele was associated with a
+          {effect_value}-point increase on a self-reported 0-to-5 hair-curl scale. No G
+          allele here is not a prediction of straight hair.
+      one_curl_score_allele:
+        summary: "Your {genotype} has one G allele associated with a slightly curlier hair-shape score."
+        detail: >-
+          The study estimated a {effect_value}-point per-G shift on its 0-to-5 scale.
+          A later European meta-analysis supported an association at this marker after
+          conditioning on the nearby TCHH signal, but the individual effect remains small.
+      two_curl_score_alleles:
+        summary: "Your {genotype} has two G alleles associated with a slightly curlier hair-shape score."
+        detail: >-
+          Two copies carry the curlier-score allele from the additive study. The
+          {effect_value}-point coefficient is a population average and should not be
+          doubled into a categorical prediction for one person's hair.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 5385
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.126
+        units: points per G-allele copy on a self-reported 0-to-5 hair-curl scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+      - type: doi
+        id: 10.1093/hmg/ddx416
+        title: Meta-analysis of genome-wide association studies identifies 8 novel loci involved in shape variation of human head hair
+    caveats:
+      - "Hair shape is polygenic; the marker's small additive association cannot determine an individual's curl pattern."
+      - "The source phenotype was self-reported and the quantitative coefficient comes from a northern-European cohort."
+      - "rs499697 lies in the broader epidermal-differentiation region; association does not prove LCE3E is the causal gene."
+      - "This card declares the forward-strand A/G study pair; other rare dbSNP alleles are outside this interpretation."
+
+  - id: ofcc1_region_hair_curl
+    section: traits
+    kind: interpretation
+    title: OFCC1-region hair-curl association
+    gene: OFCC1
+    match:
+      variants:
+        - rsid: rs1556547
+          chrom: "6"
+          pos_grch37: 10270377
+          alleles: [A, G]
+      genotypes:
+        AA: no_straighter_score_allele
+        AG: one_straighter_score_allele
+        GG: two_straighter_score_alleles
+    outcomes:
+      no_straighter_score_allele:
+        summary: "Your {genotype} has no G allele from this OFCC1-region straighter-hair association."
+        detail: >-
+          In 5,385 northern-European participants, each G allele was associated with a
+          {effect_value}-point change on a self-reported 0-to-5 hair-curl scale; the
+          negative sign points toward straighter hair. No G allele does not predict curls.
+      one_straighter_score_allele:
+        summary: "Your {genotype} has one G allele associated with a slightly straighter hair-shape score."
+        detail: >-
+          The study estimated a {effect_value}-point per-G change on its curl scale.
+          Independent European data later supported the marker, but the effect is small
+          and does not classify an individual's hair.
+      two_straighter_score_alleles:
+        summary: "Your {genotype} has two G alleles associated with a slightly straighter hair-shape score."
+        detail: >-
+          Two copies carry the study's straighter-score allele. The {effect_value}-point
+          additive coefficient is a group average and should not be converted into a
+          deterministic two-copy claim.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 5385
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: -0.101
+        units: points per G-allele copy on a self-reported 0-to-5 hair-curl scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+      - type: doi
+        id: 10.1093/hmg/ddx416
+        title: Meta-analysis of genome-wide association studies identifies 8 novel loci involved in shape variation of human head hair
+    caveats:
+      - "The original signal was weaker than the principal TCHH and WNT10A associations, although it was supported in later European data."
+      - "Hair shape is polygenic, and the small coefficient from self-reported northern-European data cannot determine an individual's curl pattern."
+      - "The marker is near OFCC1; the association does not establish that OFCC1 is the causal gene or mechanism."
+      - "This card declares the forward-strand A/G study pair; another rare dbSNP allele is outside this interpretation."
+
+  - id: chr20p11_male_pattern_baldness
+    section: traits
+    kind: interpretation
+    title: 20p11.22 male-pattern-baldness association
+    match:
+      variants:
+        - rsid: rs1160312
+          chrom: "20"
+          pos_grch37: 22050503
+          alleles: [A, G]
+      genotypes:
+        AA: two_risk_associated_alleles
+        AG: one_risk_associated_allele
+        GG: no_risk_associated_allele
+    outcomes:
+      no_risk_associated_allele:
+        summary: "Your {genotype} has no A allele from this male-pattern-baldness association."
+        detail: >-
+          Across 2,775 European men, each A allele was associated with {effect_value}-fold
+          odds of male-pattern baldness relative to the G allele. Having no A allele at
+          this locus does not rule out baldness because age and many other loci contribute.
+      one_risk_associated_allele:
+        summary: "Your {genotype} has one A allele associated with higher odds of male-pattern baldness."
+        detail: >-
+          The combined per-A estimate was an odds ratio of {effect_value} in 1,437 cases
+          and 1,338 controls. Odds are not absolute risk, and this result cannot say
+          whether or when one person will develop patterned hair loss.
+      two_risk_associated_alleles:
+        summary: "Your {genotype} has two A alleles associated with higher odds of male-pattern baldness."
+        detail: >-
+          Two copies carry the study's risk-associated allele. The {effect_value} odds
+          ratio was estimated per allele; it should not be squared into a personal-risk
+          estimate without a validated model, age-specific base rate, and other loci.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 2775
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 1.6
+        ci_low: 1.42
+        ci_high: 1.8
+    citations:
+      - type: doi
+        id: 10.1038/ng.255
+        title: Male-pattern baldness susceptibility locus at 20p11
+    caveats:
+      - "The combined estimate came from European men selected and phenotyped differently across four cohorts; it is not established as the same effect in women or other ancestry groups."
+      - "The marker is more than 350 kb from the nearest annotated genes and probably tags a causal variant rather than being causal itself."
+      - "An odds ratio is not an absolute probability; age-specific prevalence and the rest of the polygenic background are required for personal risk."
+      - "This card declares the forward-strand A/G study pair; other rare dbSNP alleles are outside this interpretation."
+
+  - id: ar_rs6152_androgenetic_alopecia
+    section: traits
+    kind: interpretation
+    title: AR rs6152 androgenetic-alopecia association
+    gene: AR
+    match:
+      variants:
+        - rsid: rs6152
+          chrom: "X"
+          pos_grch37: 66765627
+          alleles: [A, G]
+      genotypes:
+        AA: no_g_associated_state
+        AG: mixed_x_state
+        GG: g_associated_state
+    outcomes:
+      no_g_associated_state:
+        summary: "Your {genotype} has the A rather than G state at this AR marker."
+        detail: >-
+          A meta-analysis of eight candidate-gene studies associated the G allele with
+          {effect_value}-fold odds of androgenetic alopecia. The A state is the comparison
+          state in that result, not protection from hair loss.
+      mixed_x_state:
+        summary: "Your {genotype} contains both states at this X-chromosome AR marker."
+        detail: >-
+          The cited meta-analysis associated G with {effect_value}-fold odds overall, but
+          it did not provide a validated personal-risk estimate for an A/G X-chromosome
+          genotype. Its pooled result should not be treated as a dosage calculation.
+      g_associated_state:
+        summary: "Your {genotype} carries the G state associated with androgenetic alopecia in a meta-analysis."
+        detail: >-
+          Across 2,074 cases and 1,115 controls, the pooled G-allele odds ratio was
+          {effect_value}. On an XY sample, a doubled G/G array call represents one
+          hemizygous X allele, not two independent copies.
+    evidence:
+      tier: candidate_gene
+      replication: meta_analysis
+      sample_size: 3189
+      ancestry: [MULTI]
+      effect:
+        measure: odds_ratio
+        value: 2.68
+        ci_low: 1.71
+        ci_high: 4.19
+    citations:
+      - type: doi
+        id: 10.1111/j.1365-2230.2011.04186.x
+        title: "Androgen receptor gene polymorphisms and risk for androgenetic alopecia: a meta-analysis"
+    caveats:
+      - "This was a meta-analysis of heterogeneous candidate-gene studies, an evidence design more vulnerable to publication bias and residual population structure than modern large GWAS."
+      - "The association was strongest in White populations; the pooled estimate should not be assumed to transfer unchanged across ancestries."
+      - "The studies do not support a deterministic or age-specific personal prediction, and evidence for female-pattern hair loss is not established by this pooled number."
+      - "X-chromosome calls are doubled in XY consumer exports; G/G there is hemizygous, while A/G is possible in XX samples."
+      - "This card follows the forward-strand G/A study pair; a third rare dbSNP allele is outside this interpretation."
+
+  - id: or5a1_beta_ionone_sensitivity
+    section: traits
+    kind: interpretation
+    title: OR5A1 beta-ionone odor sensitivity
+    gene: OR5A1
+    match:
+      variants:
+        - rsid: rs6591536
+          chrom: "11"
+          pos_grch37: 59211188
+          alleles: [A, G]
+      genotypes:
+        AA: reduced_sensitivity
+        AG: higher_sensitivity
+        GG: higher_sensitivity
+    outcomes:
+      reduced_sensitivity:
+        summary: "Your {genotype} was associated with markedly reduced sensitivity to beta-ionone odor."
+        detail: >-
+          In a 206-person Malagasy threshold experiment, 95% of A/A participants met the
+          study's definition of beta-ionone hyposmia. The A/A-versus-G-carrier odds ratio
+          was {effect_value}, with a very wide interval because some genotype-by-phenotype
+          cells were small.
+      higher_sensitivity:
+        summary: "Your {genotype} includes the G allele associated with higher beta-ionone odor sensitivity."
+        detail: >-
+          In the cited Malagasy study, 98.9% of A/G and 92.9% of G/G participants were
+          classified as normosmic at the tested threshold. The G allele behaved
+          dominantly there and earlier experimental work found roughly 100-fold threshold
+          differences between sensitivity groups.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 206
+      ancestry: [MULTI]
+      effect:
+        measure: odds_ratio
+        value: 704
+        ci_low: 150
+        ci_high: 6793
+    citations:
+      - type: doi
+        id: 10.3390/brainsci11111405
+        title: African Gene Flow Reduces Beta-Ionone Anosmia/Hyposmia Prevalence in Admixed Malagasy Populations
+      - type: doi
+        id: 10.1016/j.cub.2013.07.030
+        title: A Mendelian Trait for Olfactory Sensitivity Affects Odor Experience and Food Selection
+    caveats:
+      - "The odds ratio compares A/A with all G carriers under the study's threshold definition; it is not a per-allele effect and its confidence interval is extremely wide."
+      - "The quantitative replication sample was an admixed Malagasy student population, so genotype frequencies and the exact estimate may not transfer to other groups."
+      - "Beta-ionone sensitivity is odor-specific: this result says nothing about general sense of smell, and scent descriptions or preferences still vary among people."
+      - "This card declares the forward-strand A/G study pair; other rare dbSNP alleles are outside this interpretation."
