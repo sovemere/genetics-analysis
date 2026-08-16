@@ -19,6 +19,8 @@ from genetics.privacy import (
     scan_paths,
 )
 
+pytestmark = pytest.mark.privacy
+
 TAB = "\t"
 
 

@@ -41,8 +41,12 @@ fi
 printf '[pre-commit] verifying synthetic fixtures reproduce...\n'
 "$PY" -m genetics.cli.main fixtures --check
 
+# Selected by MARKER, not by directory. Privacy checks belong beside the thing they
+# guard -- fixture purity lives with the fixture tests, the card-file scan with the card
+# tests -- and a directory path would silently skip every one of those at the moment they
+# matter most. tests/privacy/test_suite_selection.py holds both ends of this honest.
 printf '[pre-commit] running privacy suite...\n'
-"$PY" -m pytest tests/privacy -q --no-header
+"$PY" -m pytest -m privacy -q --no-header
 
 printf '[pre-commit] lint...\n'
 "$PY" -m ruff check .
