@@ -170,9 +170,21 @@ def _effect_score(effect: Effect) -> float:
 
     Betas and mean differences have arbitrary units, so their raw magnitudes cannot be
     compared.  When an interval exists, the unit-free distance from the null relative to
-    its half-width is used.  Without an interval, a non-zero estimate receives a neutral
-    0.5 rather than allowing centimetres, kilograms and standard deviations to masquerade
-    as one scale.
+    the interval's **full width** is used: for a 95% interval that is ``z / 3.92``, so a
+    nominally significant effect (``z = 1.96``) scores 0.5 and saturation needs roughly
+    double that.  Without an interval, a non-zero estimate receives a neutral 0.5 rather
+    than allowing centimetres, kilograms and standard deviations to masquerade as one
+    scale.
+
+    Full width rather than half-width, and the distinction is a calibration rather than a
+    detail: against the half-width every nominally significant effect would saturate the
+    component, which makes the score unable to separate "just reached p < 0.05" from
+    "unmistakable".  It also sets the crossover where it belongs -- an authored interval
+    beats the interval-free default exactly when the effect is nominally significant, so
+    reporting uncertainty is rewarded where it is informative and not before.
+    :func:`test_effect_score_calibration_points` pins both ends, because the previous
+    version of this docstring described the half-width while the code used the full width
+    and nothing else in the module said which was intended.
     """
 
     value = effect.value

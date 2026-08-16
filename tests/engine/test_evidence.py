@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from genetics.engine.cards import CardKind, KnowledgePack, Outcome
+from genetics.engine.cards import Card, CardKind, KnowledgePack, Outcome
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import (
     EvidenceAssemblyError,
@@ -140,15 +140,22 @@ def test_frequency_is_derived_from_observed_alleles_not_caller_selection() -> No
     assert card is not None
     match = replace(_matched(card.id), genotype="AA", observed_genotype="AA")
 
-    with pytest.raises(EvidenceAssemblyError, match="every observed allele"):
-        assemble_card(
-            card,
-            match,
-            ObservationEvidence(
-                call_source=CallSource.DIRECT,
-                frequencies=(PopulationFrequency("G", 0.000001, "EUR", "synthetic-reference-v1"),),
-            ),
-        )
+    # Only the unobserved allele is priced. The rare G must not be applied to an AA call,
+    # and the gap must not be silent -- but it also must not cost the reader every other
+    # card in the pack, so it degrades with a caveat instead of raising.
+    unpriced = assemble_card(
+        card,
+        match,
+        ObservationEvidence(
+            call_source=CallSource.DIRECT,
+            frequencies=(PopulationFrequency("G", 0.000001, "EUR", "synthetic-reference-v1"),),
+        ),
+    )
+    assert unpriced.confidence_frequency is None
+    assert unpriced.confidence is not None
+    assert unpriced.confidence.tier is not ConfidenceTier.LIKELY_ARTIFACT
+    assert unpriced.confidence.inputs.population_allele_frequency is None
+    assert any("No population frequency" in caveat for caveat in unpriced.computed_caveats)
 
     result = assemble_card(
         card,
@@ -323,6 +330,65 @@ def test_pack_assembly_preserves_cardinality_and_order() -> None:
 
     assert len(results) == len(pack.cards)
     assert [result.card_id for result in results] == [card.id for card in pack.cards]
+
+
+def test_one_incomplete_reference_row_does_not_cost_the_whole_pack() -> None:
+    """The cardinality guarantee has to survive the reference being imperfect.
+
+    gnomAD does not list every allele of every variant, and a strand-ambiguous site adds a
+    complemented allele the reference may never have reported. Raising there loses every
+    other card in the pack -- 30 good findings discarded because one row was thin, which
+    is the low-confidence filtering AGENTS.md 0.1A forbids, arriving as an exception.
+    """
+    pack = _pack()
+    interpretations = [card for card in pack.cards if card.kind is CardKind.INTERPRETATION]
+    assert len(interpretations) >= 2, "the fixture must be able to show the pack surviving"
+    thin = interpretations[0].id
+
+    def homozygous(card: Card) -> str:
+        assert card.match is not None
+        return card.match.variant.key.alleles[0] * 2
+
+    matches = tuple(
+        (
+            MatchResult(card.id, MatchStatus.NOT_DETERMINABLE, card.impossibility_reason or "")
+            if card.kind is CardKind.IMPOSSIBILITY
+            else replace(
+                _matched(card.id),
+                genotype=homozygous(card),
+                observed_genotype=homozygous(card),
+            )
+        )
+        for card in pack.cards
+    )
+
+    def priced(card: Card) -> tuple[PopulationFrequency, ...]:
+        assert card.match is not None
+        alleles = card.match.variant.key.alleles
+        # The thin card is priced only for the allele it did not observe.
+        wanted = alleles[1:] if card.id == thin else alleles
+        return tuple(
+            PopulationFrequency(allele, 0.30, "EUR", "synthetic-reference-v1") for allele in wanted
+        )
+
+    observations = {
+        card.id: ObservationEvidence(call_source=CallSource.DIRECT, frequencies=priced(card))
+        for card in pack.cards
+        if card.kind is CardKind.INTERPRETATION
+    }
+
+    results = assemble_pack(pack, matches, observations)
+
+    assert len(results) == len(pack.cards)
+    degraded = next(result for result in results if result.card_id == thin)
+    assert degraded.confidence_frequency is None
+    assert any("No population frequency" in caveat for caveat in degraded.computed_caveats)
+    intact = [
+        result
+        for result in results
+        if result.card_id != thin and result.kind is CardKind.INTERPRETATION
+    ]
+    assert intact and all(result.confidence_frequency is not None for result in intact)
 
 
 def test_pack_refuses_partial_or_misordered_matches() -> None:

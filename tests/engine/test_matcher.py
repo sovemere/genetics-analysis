@@ -31,7 +31,7 @@ from genetics.engine.matcher import (
     summarise,
 )
 from genetics.ingest.indels import IndelPolicy, IndelRepresentation
-from genetics.ingest.keys import MergeTable, RsidResolutionStatus
+from genetics.ingest.keys import MergeTable, ReferenceDataError, RsidResolutionStatus
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, Chrom, GenotypeTable
 
 POS = 12345678
@@ -776,3 +776,23 @@ def test_the_conflict_reason_counts_probes_that_actually_called() -> None:
     assert result.status is MatchStatus.DUPLICATE_CONFLICT
     assert "2 probes" in result.reason
     assert "3 probes" not in result.reason
+
+
+def test_a_broken_reference_setup_is_a_named_error_not_a_bare_value_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`for_pack` reads the filesystem when merges are not supplied, so it can fail there.
+
+    A caller cannot tell "this sample did not match" from "the dbSNP artifacts on this
+    machine are half-fetched" if both arrive as a bare ValueError about parquet schemas.
+    The reference-setup failure gets its own type, so a CLI can report the thing the user
+    can actually act on.
+    """
+    merges = tmp_path / "dbsnp_b157_grch37" / "rsid_merges.parquet"
+    merges.parent.mkdir(parents=True)
+    pl.DataFrame({"retired_rsid": ["rs1"], "current_rsid": ["rs2"]}).write_parquet(merges)
+    # The companion artifact that records what dbSNP could not resolve is absent.
+    monkeypatch.setattr("genetics.paths.references_dir", lambda: tmp_path)
+
+    with pytest.raises(ReferenceDataError, match=r"rsid_unresolvable\.parquet"):
+        MergeTable.default(["rs1"])

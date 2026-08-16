@@ -148,6 +148,30 @@ def test_add_current_rsid_preserves_the_original() -> None:
     assert frame.get_column("rsid_current").to_list()[1] == original[1]
 
 
+def test_an_unresolvable_rsid_in_the_export_is_null_not_an_abort_and_not_an_identity() -> None:
+    """The third answer.
+
+    b157 carries ~23k retired IDs with zero or several current targets. Raising over one
+    of them would refuse to read a 677k-row export the user did not author; writing the
+    original back would assert the retired ID is current, which is the false identity
+    ``resolve()`` raises to prevent. Null is neither, and it propagates.
+    """
+    table = read_export(fixture()).table
+    original = table.frame.get_column("rsid").to_list()[:3]
+    merges = MergeTable(
+        {original[1]: "rs999999999"},
+        {original[0]: (RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS, ("rs1", "rs2"))},
+    )
+
+    frame = add_current_rsid(table, merges)
+
+    current = frame.get_column("rsid_current").to_list()
+    assert current[0] is None
+    assert current[1] == "rs999999999"
+    assert current[2] == original[2]
+    assert frame.get_column("rsid").to_list()[:3] == original
+
+
 def test_add_current_rsid_does_not_change_the_normalized_schema() -> None:
     """The normalized table stays the single contract; keying returns a plain frame."""
     from genetics.ingest.schema import COLUMNS

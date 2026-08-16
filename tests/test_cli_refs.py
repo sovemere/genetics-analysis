@@ -50,7 +50,6 @@ def test_refs_status_lists_every_source_with_its_state() -> None:
             "manual-step",
             "blocked-by-licence",
             "empty",
-            "processing",
             "processing-required",
         }
         assert row["post_process_outputs_present"] <= row["post_process_outputs_total"]
@@ -80,6 +79,36 @@ def test_refs_status_reports_an_active_part_file_as_partial(
 
     assert result.exit_code == 0
     assert dbsnp["state"] == "partial"
+
+
+def test_a_stale_transform_orphan_is_reported_as_needing_a_rerun(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A killed transform leaves exactly what a running one leaves.
+
+    `_run_merges` keeps its multi-GB intermediate on failure on purpose, so a rerun can
+    resume instead of re-reading 28 GB. Nothing on disk distinguishes that from a live
+    transform, so reporting "processing" left the orphan looking like work in progress
+    forever -- cyan, reassuring, and with no line saying a rerun was needed or that
+    gigabytes were sitting there. The state now says what the user must do, and the
+    partials are reported as the detail they are.
+    """
+    source_dir = tmp_path / "dbsnp_b157_grch37"
+    source_dir.mkdir()
+    for name in ("GCF_000001405.25.gz", "refsnp-merged.json.bz2"):
+        (source_dir / name).touch()
+    # What a killed `extract_rsid_merge_table` leaves behind.
+    (source_dir / ".rsid_merges.parquet.classified.parquet").write_bytes(b"partial")
+
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+    payload = run_json("refs", "status")
+    dbsnp = next(row for row in payload["sources"] if row["id"] == "dbsnp_b157_grch37")
+
+    assert dbsnp["state"] == "processing-required"
+    assert dbsnp["post_process_resumable"] is True
+
+    human = runner.invoke(app, ["refs", "status"])
+    assert "rerun" in human.stdout and "resume" in human.stdout
 
 
 def test_refs_status_requires_provenance_for_every_post_process_output(

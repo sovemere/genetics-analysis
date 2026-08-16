@@ -14,6 +14,7 @@ import pytest
 
 from genetics.ingest.keys import MergeTable, UnresolvableRsidError
 from genetics.paths import reference_lock
+from genetics.qc import build_anchors
 from genetics.qc.build_anchors import AnchorError, load_anchors
 from genetics.refs import lock as lockfile
 from genetics.refs import manifest, postprocess
@@ -47,6 +48,71 @@ def remote(filename: str) -> str:
 
 def test_registry_never_claims_an_executor_that_does_not_exist() -> None:
     postprocess.assert_registry_is_honest()
+
+
+def test_validation_does_not_rehash_an_unchanged_artifact(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The provenance check must not cost a full read of a tens-of-GB index per lookup.
+
+    Every resolver lookup and every ``MergeTable.default()`` validates, so an unmemoised
+    hash made ``genetics cards lint`` stream the whole dbSNP index to read thirty-one
+    rows -- and a matcher run did it twice more for the merge artifacts. The check is not
+    weakened: the first hash in a process is real, and a rewrite changes size or mtime and
+    so misses the memo. The next test proves that half.
+    """
+    parsed = source(
+        remote("variant_summary.txt.gz")
+        + """
+    post_process:
+      - step: extract_build_anchors
+        params:
+          input: variant_summary.txt.gz
+          output: build_anchors.json
+          count: 1
+"""
+    )
+    source_dir = tmp_path / parsed.id
+    source_dir.mkdir()
+    header = (
+        "#AlleleID\tType\tGeneSymbol\tRS# (dbSNP)\tAssembly\tChromosome\t"
+        "Start\tStop\tReferenceAllele\tAlternateAllele\t"
+        "ReferenceAlleleVCF\tAlternateAlleleVCF\n"
+    )
+    with gzip.open(source_dir / "variant_summary.txt.gz", "wt", encoding="utf-8") as handle:
+        handle.write(header)
+        handle.write(_clinvar_row(1, 10, "GRCh37", "1", 101, "GENE1"))
+        handle.write(_clinvar_row(1, 10, "GRCh38", "1", 111, "GENE1"))
+    postprocess.run(parsed, root=tmp_path)
+    output = source_dir / "build_anchors.json"
+
+    hashed: list[Path] = []
+    real = postprocess._sha256
+
+    def counting(path: Path) -> str:
+        hashed.append(path)
+        return real(path)
+
+    monkeypatch.setattr(postprocess, "_sha256", counting)
+    postprocess._DIGEST_CACHE.clear()
+
+    for _ in range(3):
+        postprocess.validate_provenance(output)
+
+    assert hashed == [output], "the artifact was re-read for every validation"
+
+
+def test_a_changed_artifact_is_still_caught_after_it_has_been_hashed_once(
+    tmp_path: Path,
+) -> None:
+    """The memo must not turn the digest check into a formality."""
+    output = tmp_path / "anchors.json"
+    output.write_text('{"schema_version": 1, "anchors": []}', encoding="utf-8")
+    first = postprocess._cached_sha256(output)
+
+    output.write_text('{"schema_version": 1, "anchors": [1]}', encoding="utf-8")
+
+    assert postprocess._cached_sha256(output) != first
 
 
 def test_declared_artifact_provenance_uses_manifest_params_and_locked_input_sha() -> None:
@@ -408,6 +474,100 @@ def test_anchor_loader_rejects_a_sidecar_from_another_locked_input(tmp_path: Pat
         load_anchors(anchor_path, expected_count=1, expected_provenance=expected)
 
 
+def test_an_output_in_a_subdirectory_validates_after_it_is_written(tmp_path: Path) -> None:
+    """The sidecar records the artifact's name, not the manifest's spelling of its path.
+
+    ``_check_relative_filename`` permits ``sub/out.json`` and ``implementation_paths``
+    goes out of its way to handle the directory component, so this shape is reachable by
+    manifest edit alone. Recording the relative path while checking the basename made such
+    a step write its artifact successfully and then report FAILED on every later run --
+    with every runtime consumer refusing the file it had just produced.
+    """
+    parsed = source(
+        remote("variant_summary.txt.gz")
+        + """
+    post_process:
+      - step: extract_build_anchors
+        params:
+          input: variant_summary.txt.gz
+          output: derived/build_anchors.json
+          count: 1
+"""
+    )
+    source_dir = tmp_path / parsed.id
+    source_dir.mkdir()
+    header = (
+        "#AlleleID\tType\tGeneSymbol\tRS# (dbSNP)\tAssembly\tChromosome\t"
+        "Start\tStop\tReferenceAllele\tAlternateAllele\t"
+        "ReferenceAlleleVCF\tAlternateAlleleVCF\n"
+    )
+    with gzip.open(source_dir / "variant_summary.txt.gz", "wt", encoding="utf-8") as handle:
+        handle.write(header)
+        handle.write(_clinvar_row(1, 10, "GRCh37", "1", 101, "GENE1"))
+        handle.write(_clinvar_row(1, 10, "GRCh38", "1", 111, "GENE1"))
+    (source_dir / "derived").mkdir()
+
+    first = postprocess.run(parsed, root=tmp_path)
+    assert [result.status for result in first] == [ProcessStatus.CREATED], first[0].detail
+
+    # The second run is the one that broke: it reads back what the first run wrote.
+    second = postprocess.run(parsed, root=tmp_path, verify_only=True)
+    assert [result.status for result in second] == [ProcessStatus.VERIFIED], second[0].detail
+
+
+def test_default_anchors_takes_its_count_from_the_manifest_not_a_literal(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A reference-config edit must not become a refusal to read the user's own file.
+
+    The manifest declares how many anchors the step extracts. A second copy of that number
+    in the loader means changing the manifest produces a valid artifact that every
+    subsequent ``genetics ingest`` rejects -- aborting on the genotype file for a reason
+    that has nothing to do with it.
+    """
+    parsed = source(
+        remote("variant_summary.txt.gz")
+        + """
+    post_process:
+      - step: extract_build_anchors
+        params:
+          input: variant_summary.txt.gz
+          output: build_anchors.json
+          count: 2
+"""
+    )
+    source_dir = tmp_path / parsed.id
+    source_dir.mkdir()
+    header = (
+        "#AlleleID\tType\tGeneSymbol\tRS# (dbSNP)\tAssembly\tChromosome\t"
+        "Start\tStop\tReferenceAllele\tAlternateAllele\t"
+        "ReferenceAlleleVCF\tAlternateAlleleVCF\n"
+    )
+    with gzip.open(source_dir / "variant_summary.txt.gz", "wt", encoding="utf-8") as handle:
+        handle.write(header)
+        for number, (gene, chrom) in enumerate([("GENE1", "1"), ("GENE2", "2")], start=1):
+            handle.write(_clinvar_row(number, 10 * number, "GRCh37", chrom, 100 + number, gene))
+            handle.write(_clinvar_row(number, 10 * number, "GRCh38", chrom, 200 + number, gene))
+    postprocess.run(parsed, root=tmp_path)
+    # default_anchors() reads the real source id; the transform above is id-agnostic.
+    source_dir.rename(tmp_path / "clinvar_grch37")
+
+    anchor_path = tmp_path / "clinvar_grch37" / "build_anchors.json"
+    declared = json.loads(postprocess.provenance_path(anchor_path).read_text(encoding="utf-8"))
+    expected = {
+        key: value for key, value in declared.items() if key not in {"rows", "output_sha256"}
+    }
+    monkeypatch.setattr("genetics.paths.references_dir", lambda: tmp_path)
+    monkeypatch.setattr(
+        "genetics.refs.postprocess.declared_artifact_provenance",
+        lambda *args, **kwargs: expected,
+    )
+
+    anchors = build_anchors.default_anchors()
+
+    assert len(anchors) == 2, "the loader demanded a count the manifest never declared"
+
+
 def test_clinvar_pairs_skip_ambiguous_placements_but_allow_exact_duplicates(
     tmp_path: Path,
 ) -> None:
@@ -660,9 +820,15 @@ def test_verify_requires_and_validates_post_process_outputs(tmp_path: Path) -> N
     source_dir.mkdir()
     (source_dir / "dbsnp.vcf.gz").write_bytes(b"payload")
 
+    # Absent is work still to do, not damage: `refs status` calls this state
+    # "processing-required" and stays green, and verify reporting FAILED for it made the
+    # two commands disagree about whether a tree of checksum-verified downloads was broken.
     missing = postprocess.run(parsed, root=tmp_path, verify_only=True)
-    assert missing[0].status is ProcessStatus.FAILED
+    assert missing[0].status is ProcessStatus.PENDING
+    assert missing[0].ok
+    assert "not built yet" in missing[0].detail
 
+    # Present but unvalidatable is a different fact, and still a failure.
     pl.DataFrame(schema=postprocess.VARIANT_INDEX_SCHEMA).write_parquet(
         source_dir / "dbsnp_variants.parquet"
     )

@@ -26,6 +26,7 @@ from typing import Any, Protocol
 import polars as pl
 
 from genetics.engine.cards import (
+    TEMPLATE_VARS,
     Card,
     CardError,
     CardKind,
@@ -422,6 +423,48 @@ def _resolve_variant(
     )
 
 
+def synthetic_context(card: Card) -> dict[str, object]:
+    """Non-personal values for exactly the placeholders production supplies.
+
+    Synthetic values exist for every registry placeholder, including the ones a later
+    milestone will supply, so flipping one to available needs no new value invented here.
+    They are then **filtered to the available set**, because lint supplying a placeholder
+    the production renderer does not is worse than a missing check: the pack reports PASS,
+    the release gate is satisfied, and every matched card then dies inside a renderer whose
+    own error message says to treat the failure as an engine bug.
+    ``test_lint_context_matches_production_context`` holds the two sides equal.
+    """
+
+    assert card.match is not None and card.evidence is not None
+    variant = card.match.variant
+    effect = card.evidence.effect
+    synthetic: dict[str, object] = {
+        "genotype": "".join(variant.key.alleles),
+        "rsid": variant.rsid,
+        "rsid_current": variant.rsid,
+        "gene": card.gene or "GENE",
+        "chrom": variant.key.chrom.value,
+        "pos": variant.key.pos_grch37,
+        "effect_value": effect.value,
+        "effect_units": effect.units or "",
+        "sample_size": card.evidence.sample_size,
+        "confidence": "well-established",
+        "frequency": 0.5,
+        "ppv": 1.0,
+        "ancestry": "EUR",
+        "imputation_quality": 1.0,
+        "percentile": 50,
+    }
+    missing = sorted(
+        name for name, var in TEMPLATE_VARS.items() if var.available and name not in synthetic
+    )
+    if missing:  # pragma: no cover - guarded by the context-parity test
+        raise VariantResolverError(
+            "card lint has no synthetic value for available placeholder(s) " + ", ".join(missing)
+        )
+    return {name: value for name, value in synthetic.items() if TEMPLATE_VARS[name].available}
+
+
 def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
     """Render every outcome with synthetic non-personal values.
 
@@ -450,27 +493,7 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
     if card.match is None or card.evidence is None:
         return [LintIssue("match-missing", "interpretation has no match/evidence", card.id)], 0
 
-    variant = card.match.variant
-    effect = card.evidence.effect
-    base_context: dict[str, object] = {
-        "rsid": variant.rsid,
-        "rsid_current": variant.rsid,
-        "gene": card.gene or "GENE",
-        "chrom": variant.key.chrom.value,
-        "pos": variant.key.pos_grch37,
-        "effect_value": effect.value,
-        "effect_units": effect.units or "",
-        "sample_size": card.evidence.sample_size,
-        # Forward-compatible synthetic values. Card.parse still decides which placeholders
-        # are currently legal; carrying later values here makes a milestone flip exercise
-        # rendering immediately instead of failing because lint forgot the new context key.
-        "confidence": "well-established",
-        "frequency": 0.5,
-        "ppv": 1.0,
-        "ancestry": "EUR",
-        "imputation_quality": 1.0,
-        "percentile": 50,
-    }
+    base_context = synthetic_context(card)
     for genotype, outcome_name in card.match.genotypes.items():
         outcome: Outcome | None = card.outcomes.get(outcome_name)
         if outcome is None:

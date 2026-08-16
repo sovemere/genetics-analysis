@@ -17,7 +17,7 @@ from genetics.engine.card_lint import (
     lint_directory,
     lint_pack,
 )
-from genetics.engine.cards import KnowledgePack, Outcome
+from genetics.engine.cards import CardKind, KnowledgePack, Outcome
 from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import Chrom
 from genetics.refs import postprocess
@@ -304,3 +304,49 @@ def test_reference_keys_use_the_normalized_chromosome_vocabulary() -> None:
     )
     report = lint_pack(_pack(), resolver=InMemoryVariantResolver((record, *_exact_records()[1:])))
     assert report.ok
+
+
+def test_lint_context_matches_production_context() -> None:
+    """Lint must render with exactly what the engine will render with -- no more.
+
+    A placeholder lint supplies and production does not is worse than a missing check:
+    `genetics cards lint` reports PASS, the release gate is satisfied, and every matched
+    card then fails at runtime inside the renderer whose error says to treat it as an
+    engine bug. The registry's `available` flag is the single source of truth, so a
+    milestone flip has to update both sides or land here.
+    """
+    from genetics.engine.card_lint import synthetic_context
+    from genetics.engine.cards import TEMPLATE_VARS
+    from genetics.engine.confidence import CallSource, calculate_confidence
+    from genetics.engine.evidence import _template_values
+    from genetics.engine.matcher import MatchResult, MatchStatus, Strand
+
+    available = {name for name, var in TEMPLATE_VARS.items() if var.available}
+    card = next(card for card in _pack().cards if card.kind is CardKind.INTERPRETATION)
+    assert card.match is not None and card.evidence is not None
+
+    assert set(synthetic_context(card)) == available
+
+    outcome_name = next(iter(card.match.genotypes.values()))
+    match = MatchResult(
+        card_id=card.id,
+        status=MatchStatus.MATCHED,
+        reason="Matched.",
+        genotype="".join(card.match.variant.key.alleles),
+        observed_genotype="".join(card.match.variant.key.alleles),
+        observed_rsid=card.match.variant.rsid,
+        outcome_name=outcome_name,
+        outcome=card.outcomes[outcome_name],
+        strand=Strand.AS_WRITTEN,
+    )
+    confidence = calculate_confidence(
+        card.evidence,
+        population_allele_frequency=0.2,
+        call_source=CallSource.DIRECT,
+        ancestry_match=1.0,
+    )
+
+    assert set(_template_values(card, match, confidence)) == available, (
+        "evidence._template_values and the TEMPLATE_VARS registry have diverged; one of "
+        "them supplies a placeholder the other does not"
+    )
