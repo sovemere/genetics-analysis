@@ -704,7 +704,21 @@ def read_state(tools_root: Path) -> InstalledState:
     except json.JSONDecodeError:
         return InstalledState()
     tools = raw.get("tools") if isinstance(raw, Mapping) else None
-    return InstalledState(tools=dict(tools) if isinstance(tools, Mapping) else {})
+    if not isinstance(tools, Mapping):
+        return InstalledState()
+    # Values are checked, not merely the outer mapping. The annotation promises
+    # ``dict[str, dict[str, Any]]``, and until now only the container was validated -- so a
+    # hand-edited or truncated state file could put a string where a record belongs and
+    # every consumer would take the annotation at its word. Found from the run-bundle side
+    # (M4.1), where the defensive check a caller would naturally write is *unreachable*
+    # according to the very type this function was not enforcing.
+    return InstalledState(
+        tools={
+            str(tool_id): dict(entry)
+            for tool_id, entry in tools.items()
+            if isinstance(entry, Mapping)
+        }
+    )
 
 
 def record_install(tools_root: Path, tool: Tool, build: ToolBuild, result: InstallResult) -> None:

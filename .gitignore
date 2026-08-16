@@ -111,6 +111,9 @@ incoming/
 
 # Analysis runs: the saved-analysis / save-load feature writes here.
 # A run bundle contains per-card genotype evidence and IS raw DNA.
+# The M4.1 bundle payload is named onto the *.run.json rule below (qc.run.json,
+# cards.run.json) so a bundle copied into the checkout by hand is still covered.
+# tests/run/test_bundle.py asserts that coupling; renaming either side breaks it.
 /runs/
 /data/runs/
 /analyses/
