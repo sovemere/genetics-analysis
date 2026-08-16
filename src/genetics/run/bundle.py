@@ -69,10 +69,21 @@ from genetics.refs import tools as refs_tools
 BUNDLE_FORMAT_VERSION: Final[int] = 1
 """Bumped whenever a reader of the previous version would misread the payload.
 
-Adding a payload key counts: :func:`read_bundle` rejects unknown keys, on the same
-reasoning as the card schema -- in a record this full of optional fields, a silently
-ignored key is indistinguishable from one that had no effect. ``test_bundle.py`` pins the
-key sets so the bump cannot be forgotten.
+Adding a payload key counts. Two mechanisms enforce that, and it is worth being exact
+about which does what, because the first claims less than it looks like it does.
+
+:func:`read_bundle` rejects unknown keys **at the top level of the manifest and of each
+card** -- not inside ``provenance``, ``match`` or ``confidence``. That is deliberate
+rather than an omission: a bundle from a newer engine declares a higher format version and
+is refused at the gate before any key is examined, so recursive strictness would buy
+almost nothing on read while requiring the reader to carry a full nested schema -- which
+is the brittleness this format is explicitly designed against (see the module docstring on
+why reading returns strings rather than enums).
+
+What actually forces the bump is ``test_bundle.py``, which pins the payload's whole nested
+key structure. That is the right home for it: the job is to stop *this* project's next
+commit from adding a field silently, and that is a developer-facing check, not a
+data-facing one.
 """
 
 MANIFEST_NAME: Final[str] = "manifest.json"
@@ -433,6 +444,38 @@ def new_run_id(now: datetime | None = None) -> str:
     return f"{stamp}-{secrets.token_hex(4)}"
 
 
+def _check_run_id(identifier: str) -> None:
+    """Refuse any run id that is not a plain directory name.
+
+    Written as a *structural* check rather than a blacklist of separators, because the
+    blacklist it replaces was wrong in a way only Windows shows. ``root / "D:elsewhere"``
+    discards ``root`` entirely and yields a path on another drive -- and that string
+    contains neither ``/`` nor ``\\``, so the character test waved it through. Nothing
+    escaped in practice: the staging directory is built from ``INCOMING_PREFIX +
+    identifier``, and the prefix neutralises the drive-relative form, so the write died on
+    ``mkdir`` with a confusing OS error instead. But ``destination`` and ``staging`` were
+    by then pointing at different places, and ``destination.exists()`` had already been
+    asked about a path outside the runs root.
+
+    So the check is on the *outcome*: a run id must be exactly its own basename, which is
+    the same thing M2.5's archive extractor concluded about member names after enumerating
+    zip-slip forms. ``.`` and ``..`` need naming explicitly -- ``Path("..").name`` is
+    ``".."``, so they pass the basename test while denoting a directory that is not one.
+    """
+    if not identifier or identifier != identifier.strip():
+        raise BundleError(f"invalid run id {identifier!r}: must be a non-blank name")
+    if identifier.startswith(INCOMING_PREFIX):
+        raise BundleError(
+            f"invalid run id {identifier!r}: {INCOMING_PREFIX!r} marks a bundle still "
+            "being written, so a run may not be named one"
+        )
+    if identifier in {".", ".."} or identifier != Path(identifier).name:
+        raise BundleError(
+            f"invalid run id {identifier!r}: a run id is a single directory name, not a "
+            "path. Separators, drive letters and '..' are refused rather than normalised."
+        )
+
+
 def _resolve_root(runs_root: Path | None) -> Path:
     root = (runs_root or runs_dir()).resolve()
     if is_inside_repo(root):
@@ -461,18 +504,26 @@ def write_bundle(
 
     The payload is built under ``.incoming-<run_id>`` in the same directory and promoted
     by a single rename, so an interrupted write leaves something visibly unfinished rather
-    than a run id with a truncated ``cards.json`` under it. The staging directory is a
+    than a run id with a truncated ``cards.run.json`` under it. The staging directory is a
     sibling and not a system temp directory for two reasons: a rename across filesystems
     is a copy that can fail halfway, and the system temp directory is not one of the paths
     :mod:`genetics.paths` registers as genotype-bearing.
     """
     root = _resolve_root(runs_root)
     stamp = (created_at or datetime.now(UTC)).astimezone(UTC)
-    identifier = run_id or new_run_id(stamp)
-    if identifier.startswith(INCOMING_PREFIX) or "/" in identifier or "\\" in identifier:
-        raise BundleError(f"invalid run id {identifier!r}")
+    # `run_id or new_run_id(...)` would treat an explicit "" as "not supplied" and quietly
+    # generate one, so a caller passing a blank --run-id would get a bundle under a name it
+    # did not choose instead of an error. Falsy is not the same as absent.
+    identifier = new_run_id(stamp) if run_id is None else run_id
+    _check_run_id(identifier)
 
     destination = root / identifier
+    if destination.parent != root:
+        # Belt and braces behind _check_run_id, and cheap. The failure this catches is a
+        # join that lands somewhere other than where the caller was told it would: it is
+        # `root` that _resolve_root proved to be outside the checkout, so a destination
+        # that is not directly under it inherits none of that.
+        raise BundleError(f"run id {identifier!r} does not resolve to a directory under {root}")
     if destination.exists():
         raise BundleError(
             f"run {identifier!r} already exists at {destination}. A bundle is immutable: "
@@ -515,7 +566,7 @@ def write_bundle(
         manifest_text = _render(manifest)
 
         # The manifest is the file a person pastes into a bug report, so it is the one
-        # that must never carry a genotype. cards.json deliberately is not scanned: it
+        # that must never carry a genotype. cards.run.json deliberately is not scanned: it
         # holds per-card genotypes by design, and a guard that fails on correct output is
         # a guard someone switches off -- M0.3's lesson, applied to the one boundary here
         # where scanning everything would be the obvious move.
@@ -555,7 +606,9 @@ def _reject_unknown(raw: Mapping[str, Any], allowed: frozenset[str], where: str)
         raise BundleError(
             f"{where}: unexpected key(s) {', '.join(unexpected)}. A bundle written by a "
             "newer engine must declare a higher format_version; silently ignoring a key "
-            "here would read part of a record and call it whole."
+            "here would read part of a record and call it whole. Note this check is "
+            "top-level only -- see BUNDLE_FORMAT_VERSION for which mechanism covers "
+            "nested keys, and why it is not this one."
         )
 
 
