@@ -826,3 +826,85 @@ def test_outcome_names_that_collide_after_trimming_are_refused() -> None:
     with pytest.raises(CardError) as caught:
         Card.parse(raw, "t")
     assert "twice" in str(caught.value)
+
+
+# ---------------------------------------------------------------------------
+# Agent-review fixes
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("bad", ["1.2 (approx)", [1.2], {"v": 1.2}, True])
+def test_a_non_numeric_confidence_interval_raises_a_located_card_error(bad: Any) -> None:
+    """It went straight to ``float()`` while every other numeric field had an isinstance
+    guard. A string raised an unlocated ValueError naming neither file nor key, and a list
+    raised TypeError -- which is not a ValueError, so it escaped every ``except CardError``
+    in the call chain. The loader's contract is that a bad card yields a located CardError.
+    """
+    with pytest.raises(CardError) as caught:
+        Card.parse(
+            _mutate(
+                ["evidence", "effect"],
+                {"measure": "odds_ratio", "value": 1.4, "ci_low": bad, "ci_high": 1.9},
+            ),
+            "somefile.yaml",
+        )
+    assert "ci_low" in str(caught.value)
+
+
+def test_an_impossibility_card_cannot_use_match_placeholders() -> None:
+    """It matches no variant and carries no evidence, so they render blank.
+
+    The milestone gate already refused placeholders no *milestone* can supply; this is the
+    same rule for what no *card* can supply, which review found open.
+    """
+    raw = _impossibility()
+    raw["summary"] = "Your {genotype} at {rsid} means nothing here."
+    with pytest.raises(CardError) as caught:
+        Card.parse(raw, "t")
+    assert "genotype" in str(caught.value)
+
+
+def test_a_card_cannot_use_gene_without_declaring_one() -> None:
+    raw = _interpretation()
+    del raw["gene"]
+    raw["outcomes"]["yes"]["summary"] = "Something about {gene}."
+    with pytest.raises(CardError) as caught:
+        Card.parse(raw, "t")
+    assert "gene" in str(caught.value)
+
+
+def test_declaring_a_gene_makes_the_placeholder_available() -> None:
+    """The inverse, so the check cannot be satisfied by refusing everything."""
+    raw = _interpretation()
+    raw["outcomes"]["yes"]["summary"] = "Something about {gene}."
+    assert Card.parse(raw, "t").gene == "SYNTH1"
+
+
+def test_an_impossibility_card_keeps_its_gene() -> None:
+    """AGENTS.md 3.2's own examples are gene-named -- SMN1 copy number, RHD, CYP2D6
+    hybrids -- so naming one is legitimate. It was parsed and then silently dropped, a key
+    accepted with no effect, which this module's docstring calls out by name.
+    """
+    raw = _impossibility()
+    raw["gene"] = "SMN1"
+    raw["summary"] = "Copy number at {gene} is not determinable."
+    card = Card.parse(raw, "t")
+    assert card.gene == "SMN1"
+
+
+def test_an_uppercase_yaml_extension_is_refused_not_skipped(tmp_path: Path) -> None:
+    """``rglob`` is case-insensitive on Windows and case-sensitive on Linux, so a file
+    committed as ``traits.YAML`` loads on the author's machine and vanishes in CI -- the
+    very failure the stray-file guard was written for, reintroduced by its own glob."""
+    (tmp_path / "a.yaml").write_text(_file([_interpretation()]), encoding="utf-8")
+    (tmp_path / "b.YAML").write_text(_file([_impossibility()]), encoding="utf-8")
+    with pytest.raises(CardError) as caught:
+        KnowledgePack.load(tmp_path)
+    assert "b.YAML" in str(caught.value)
+
+
+def test_unrelated_files_in_the_knowledge_directory_are_still_ignored(tmp_path: Path) -> None:
+    """The guard must not start rejecting the README the directory is documented with."""
+    (tmp_path / "a.yaml").write_text(_file([_interpretation()]), encoding="utf-8")
+    (tmp_path / "README.md").write_text("# notes", encoding="utf-8")
+    assert len(KnowledgePack.load(tmp_path)) == 1

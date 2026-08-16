@@ -686,3 +686,78 @@ def test_neither_genotype_field_is_printed() -> None:
     result = _match(_card(), [_row(RSID, Chrom.CHR7, POS, "C", "T")])
     text = repr(result)
     assert "AG" not in text and "CT" not in text
+
+
+# ---------------------------------------------------------------------------
+# Agent-review fixes
+# ---------------------------------------------------------------------------
+
+
+def test_an_ambiguous_card_reports_a_real_mismatch_as_a_mismatch() -> None:
+    """Found by review. ``_orient`` returned early for A/T and C/G sites without ever
+    checking the observed alleles were declared.
+
+    So a card declaring A/T against a row reading ``C``/``C`` skipped the mismatch branch
+    and landed on the "the schema should have made this impossible" one -- telling the
+    reader to file a bug about their own mis-coordinated card. Around a third of SNPs are
+    A/T or C/G, so this was the *normal* mismatch path for them.
+    """
+    result = _match(_ambiguous_card(), [_row(RSID, Chrom.CHR7, POS, "C", "C")])
+    assert result.status is MatchStatus.ALLELE_MISMATCH
+    assert "bug report" not in result.reason
+    assert "A/T" in result.reason
+
+
+def test_an_ambiguous_match_has_no_oriented_genotype_even_when_it_matches() -> None:
+    """The outcome is the same under either reading, but *which* reading is real stays
+    unknown -- and ``genotype`` is documented as the value on the card's strand.
+
+    Publishing ``TT`` for a call that may equally be ``AA`` would make the field's own
+    invariant false, and a renderer honouring that invariant would print it.
+    """
+    result = _match(_ambiguous_card(same_outcome=True), [_row(RSID, Chrom.CHR7, POS, "T", "T")])
+    assert result.status is MatchStatus.MATCHED
+    assert result.strand is Strand.AMBIGUOUS
+    assert result.genotype is None
+    assert result.observed_genotype == "TT"
+    assert result.outcome_name == "yes"
+
+
+def test_opposite_homozygotes_at_an_ambiguous_site_are_not_declared_to_agree() -> None:
+    """The canonical form collapses ``AA`` and ``TT``, which is right at an A/G site and
+    wrong at an A/T one.
+
+    There the two probes may be one call on two strands or two different calls, and nothing
+    can tell -- so announcing "2 probes agree" was a false statement, and the
+    ``observed_genotype`` shown was whichever row the join happened to return first.
+    """
+    rows = [
+        _row(RSID, Chrom.CHR7, POS, "A", "A"),
+        _row("rs900000777", Chrom.CHR7, POS, "T", "T"),
+    ]
+    result = _match(_ambiguous_card(), rows)
+    assert result.status is MatchStatus.DUPLICATE_CONFLICT
+    assert not any("agree" in c for c in result.caveats)
+
+
+def test_opposite_strand_agreement_still_holds_at_a_non_ambiguous_site() -> None:
+    """The other half: the earlier fix must survive this one."""
+    rows = [
+        _row(RSID, Chrom.CHR7, POS, "A", "G"),
+        _row("rs900000777", Chrom.CHR7, POS, "C", "T"),
+    ]
+    assert _match(_card(), rows).status is MatchStatus.MATCHED
+
+
+def test_the_conflict_reason_counts_probes_that_actually_called() -> None:
+    """A no-call is not a party to the disagreement, so "3 probes produced different
+    genotypes" when one produced none is simply inaccurate on the card face."""
+    rows = [
+        _row(RSID, Chrom.CHR7, POS, None, None),
+        _row("rs900000777", Chrom.CHR7, POS, "A", "A"),
+        _row("rs900000888", Chrom.CHR7, POS, "G", "G"),
+    ]
+    result = _match(_card(), rows)
+    assert result.status is MatchStatus.DUPLICATE_CONFLICT
+    assert "2 probes" in result.reason
+    assert "3 probes" not in result.reason

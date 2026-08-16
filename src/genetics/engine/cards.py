@@ -258,7 +258,41 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
 TEMPLATE_VARS: Final[dict[str, TemplateVar]] = {v.name: v for v in _TEMPLATE_VARS}
 
 
-def _check_template(text: str, where: str) -> None:
+_MATCH_VARS: Final[frozenset[str]] = frozenset(
+    {
+        "genotype",
+        "rsid",
+        "rsid_current",
+        "chrom",
+        "pos",
+        "effect_value",
+        "effect_units",
+        "sample_size",
+    }
+)
+"""Placeholders that need a matched variant and an evidence block behind them. An
+impossibility card has neither by construction, so naming one there renders blank."""
+
+
+def _available_vars(kind: CardKind, *, has_gene: bool) -> frozenset[str]:
+    """What *this* card can actually fill in.
+
+    The global registry answers "does this placeholder exist and is the milestone built".
+    It cannot answer "can this card supply it", and review found the gap open in both
+    directions: an impossibility card accepted ``{genotype}``, which it can never have, and
+    any card could name ``{gene}`` without declaring one. Both render blank, which is
+    exactly what the milestone gate above exists to prevent -- the same rule, left
+    unapplied to the per-card case.
+    """
+    usable = {name for name, var in TEMPLATE_VARS.items() if var.available}
+    if kind is CardKind.IMPOSSIBILITY:
+        usable -= _MATCH_VARS
+    if not has_gene:
+        usable.discard("gene")
+    return frozenset(usable)
+
+
+def _check_template(text: str, where: str, available: frozenset[str] | None = None) -> None:
     """Validate placeholder names, and refuse format specs.
 
     ``str.format`` syntax rather than Jinja deliberately: knowledge files are data, and a
@@ -295,6 +329,17 @@ def _check_template(text: str, where: str) -> None:
             raise CardError(
                 f"{where}: placeholder {{{name}}} is supplied by {var.milestone}, which has "
                 "not been built. A card that names it would render blank."
+            )
+        if available is not None and name not in available:
+            why = (
+                "an impossibility card matches no variant and carries no evidence"
+                if name in _MATCH_VARS
+                else f"this card declares no {name!r}"
+            )
+            raise CardError(
+                f"{where}: placeholder {{{name}}} cannot be filled by this card -- {why}, "
+                "so it would render blank. Available here: "
+                f"{', '.join(sorted(available)) or 'none'}."
             )
 
 
@@ -356,6 +401,21 @@ def _outcome_name(raw: Any, where: str) -> str:
         f"{where}: outcome names must be quoted strings; YAML read this one as "
         f"{type(raw).__name__} {raw!r}{literal}. Put it in quotes."
     )
+
+
+def _number(raw: Any, where: str, field_name: str) -> float:
+    """A YAML scalar that is genuinely a number.
+
+    ``float(raw)`` alone was used for the confidence interval while every other numeric
+    field carried an ``isinstance`` guard, and the two failure modes it let through both
+    escaped the loader's contract: ``"1.2 (approx)"`` raised an unlocated ``ValueError``
+    naming neither the file nor the key, and a list raised ``TypeError`` -- which is not a
+    ``ValueError`` at all, so it slipped past every ``except CardError`` in the call chain.
+    A malformed card must produce a located :class:`CardError`.
+    """
+    if isinstance(raw, bool) or not isinstance(raw, int | float):
+        raise CardError(f"{where}: {field_name} must be a number, got {type(raw).__name__}")
+    return float(raw)
 
 
 def _string_list(raw: Any, where: str) -> tuple[str, ...]:
@@ -428,7 +488,8 @@ class Effect:
         if (low is None) != (high is None):
             raise CardError(f"{where}: give both ci_low and ci_high, or neither")
         if low is not None and high is not None:
-            ci_low, ci_high = float(low), float(high)
+            ci_low = _number(low, where, "ci_low")
+            ci_high = _number(high, where, "ci_high")
             if ci_low > ci_high:
                 raise CardError(f"{where}: ci_low {ci_low} exceeds ci_high {ci_high}")
             if not ci_low <= value <= ci_high:
@@ -713,13 +774,13 @@ class Outcome:
     detail: str
 
     @classmethod
-    def parse(cls, raw: Any, where: str) -> Outcome:
+    def parse(cls, raw: Any, where: str, available: frozenset[str] | None = None) -> Outcome:
         data = _mapping(raw, where)
         _reject_unknown(data, _OUTCOME_KEYS, where)
         summary = str(_require(data, "summary", where))
         detail = str(_require(data, "detail", where))
-        _check_template(summary, f"{where}.summary")
-        _check_template(detail, f"{where}.detail")
+        _check_template(summary, f"{where}.summary", available)
+        _check_template(detail, f"{where}.detail", available)
         return cls(summary=summary, detail=detail)
 
 
@@ -819,7 +880,7 @@ class Card:
 
         if kind is CardKind.IMPOSSIBILITY:
             return cls._parse_impossibility(
-                data, where, card_id, section, title, citations, caveats
+                data, where, card_id, section, title, citations, caveats, gene
             )
         return cls._parse_interpretation(
             data, where, card_id, section, title, citations, caveats, gene
@@ -860,6 +921,7 @@ class Card:
         title: str,
         citations: tuple[Citation, ...],
         caveats: tuple[str, ...],
+        gene: str | None,
     ) -> Card:
         """An impossibility card explains why something cannot be determined.
 
@@ -882,8 +944,13 @@ class Card:
 
         summary = str(_require(data, "summary", where))
         detail = str(_require(data, "detail", where))
-        _check_template(summary, f"{where}.summary")
-        _check_template(detail, f"{where}.detail")
+        # `gene` is carried rather than dropped: AGENTS.md 3.2's own examples are gene-named
+        # (SMN1 copy number, RHD, CYP2D6 hybrids), so naming one is legitimate here. It was
+        # being parsed and then silently discarded -- a key accepted with no effect, which
+        # this module's docstring calls out as indistinguishable from one that was ignored.
+        available = _available_vars(CardKind.IMPOSSIBILITY, has_gene=gene is not None)
+        _check_template(summary, f"{where}.summary", available)
+        _check_template(detail, f"{where}.detail", available)
 
         return cls(
             id=card_id,
@@ -892,6 +959,7 @@ class Card:
             title=title,
             citations=citations,
             caveats=caveats,
+            gene=gene,
             impossibility_reason=reason,
             summary=summary,
             detail=detail,
@@ -920,6 +988,7 @@ class Card:
         match = Match.parse(_require(data, "match", where), f"{where}.match")
         evidence = Evidence.parse(_require(data, "evidence", where), f"{where}.evidence")
 
+        available = _available_vars(CardKind.INTERPRETATION, has_gene=gene is not None)
         raw_outcomes = _mapping(_require(data, "outcomes", where), f"{where}.outcomes")
         outcomes: dict[str, Outcome] = {}
         for raw_name, body in raw_outcomes.items():
@@ -934,7 +1003,7 @@ class Card:
                     f"{raw_name!r} collides with an earlier key). One of the two would be "
                     "silently discarded."
                 )
-            outcomes[name] = Outcome.parse(body, f"{where}.outcomes.{raw_name}")
+            outcomes[name] = Outcome.parse(body, f"{where}.outcomes.{raw_name}", available)
 
         referenced = set(match.genotypes.values())
         unknown = sorted(referenced - set(outcomes))
@@ -1041,11 +1110,21 @@ class KnowledgePack:
         # like "the card did not match", which is the failure mode this whole schema is
         # organised against. Refuse rather than widen the glob: one extension keeps the
         # duplicate-id check and the lint target unambiguous.
-        strays = sorted(p.relative_to(root).as_posix() for p in root.rglob("*.yml"))
+        # Matched case-insensitively on purpose. `rglob("*.yaml")` is case-insensitive on
+        # Windows and case-*sensitive* on Linux, so a file committed as `traits.YAML` loads
+        # on the author's machine and is silently skipped in CI -- no error, no card, which
+        # is the very failure this guard was written for, reintroduced by the guard's own
+        # glob.
+        strays = sorted(
+            p.relative_to(root).as_posix()
+            for p in root.rglob("*")
+            if p.is_file() and p.suffix.lower() in {".yaml", ".yml"} and p.suffix != ".yaml"
+        )
         if strays:
             raise CardError(
-                f"{root}: card files must end in .yaml, found {', '.join(strays)}. "
-                "A .yml file would be skipped silently and its cards would vanish."
+                f"{root}: card files must end in a lowercase .yaml, found "
+                f"{', '.join(strays)}. Anything else is skipped silently on at least one "
+                "platform, and its cards would simply not exist."
             )
 
         cards: list[Card] = []

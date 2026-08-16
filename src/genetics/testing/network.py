@@ -34,7 +34,13 @@ from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
 
-__all__ = ["NetworkAccessError", "block_network", "guard_is_active", "is_local_address"]
+__all__ = [
+    "NetworkAccessError",
+    "allow_network",
+    "block_network",
+    "guard_is_active",
+    "is_local_address",
+]
 
 
 class NetworkAccessError(RuntimeError):
@@ -182,6 +188,41 @@ def _blocked_getaddrinfo(
 # ---------------------------------------------------------------------------
 # Installation
 # ---------------------------------------------------------------------------
+
+
+@contextmanager
+def allow_network() -> Iterator[None]:
+    """Lift the block for the duration, then put back exactly what was there.
+
+    The inverse of :func:`block_network`, and it exists because the guard is installed for
+    the whole *session*: a function-scoped fixture cannot cover a session- or module-scoped
+    one, since pytest builds higher-scoped fixtures first. A module-scoped "fetch the
+    reference once" fixture is the most natural home a stray network call could find, and
+    it would have run before any per-test guard was in place. So the block goes on once at
+    session scope and a ``network``-marked test lifts it here.
+    """
+    global _depth
+
+    saved = {name: socket.socket.__dict__.get(name, _UNSET) for name in _PATCHED_METHODS}
+    saved_getaddrinfo = socket.getaddrinfo
+    saved_depth = _depth
+
+    socket.getaddrinfo = _REAL_GETADDRINFO
+    for name in _PATCHED_METHODS:
+        if name in socket.socket.__dict__:
+            delattr(socket.socket, name)
+    _depth = 0
+    try:
+        yield
+    finally:
+        _depth = saved_depth
+        socket.getaddrinfo = saved_getaddrinfo
+        for name, value in saved.items():
+            if value is _UNSET:
+                if name in socket.socket.__dict__:
+                    delattr(socket.socket, name)
+            else:
+                setattr(socket.socket, name, value)
 
 
 @contextmanager

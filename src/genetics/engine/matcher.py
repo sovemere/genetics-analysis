@@ -341,14 +341,15 @@ class Matcher:
                 ),
             )
 
-        resolved = _resolve_duplicates(rows)
-        if isinstance(resolved, MatchStatus):
+        resolved = _resolve_duplicates(rows, ambiguous_site=is_strand_ambiguous(key.alleles))
+        if isinstance(resolved, _Conflict):
             return MatchResult(
                 card_id=card.id,
-                status=resolved,
+                status=MatchStatus.DUPLICATE_CONFLICT,
                 reason=(
-                    f"{len(rows)} probes at {key.locus} produced different genotypes. "
-                    "Neither is preferred over the other, so no interpretation is offered."
+                    f"{resolved.n_called} probes at {key.locus} produced different "
+                    "genotypes. Neither is preferred over the other, so no interpretation "
+                    "is offered."
                 ),
             )
         row, duplicate_note = resolved
@@ -471,7 +472,12 @@ class Matcher:
             card_id=card.id,
             status=MatchStatus.MATCHED,
             reason="Matched.",
-            genotype=genotype,
+            # None at a self-complementary site even when the match succeeded: the outcome
+            # is the same under either reading, but *which* reading is real stays unknown,
+            # and `genotype` is documented as the value on the card's strand. Publishing
+            # `TT` for a call that may equally be `AA` would make the field's own invariant
+            # false. The answer lives in `outcome`; the letters live in `observed_genotype`.
+            genotype=None if strand is Strand.AMBIGUOUS else genotype,
             observed_genotype=row.genotype,
             call_status=row.call_status,
             observed_rsid=row.rsid,
@@ -482,7 +488,21 @@ class Matcher:
         )
 
 
-def _resolve_duplicates(rows: tuple[_Row, ...]) -> tuple[_Row, str | None] | MatchStatus:
+@dataclass(frozen=True)
+class _Conflict:
+    """Duplicate probes disagreed. Carries the count of probes that actually called.
+
+    Not the total: a no-call among them is not a party to the disagreement, and a reason
+    reading "3 probes produced different genotypes" when one produced none is simply
+    inaccurate on the card face.
+    """
+
+    n_called: int
+
+
+def _resolve_duplicates(
+    rows: tuple[_Row, ...], *, ambiguous_site: bool
+) -> tuple[_Row, str | None] | _Conflict:
     """Pick the row to interpret, or report that the probes disagree.
 
     M1 left this decision here deliberately: 656 positions in the real export carry more
@@ -502,12 +522,18 @@ def _resolve_duplicates(rows: tuple[_Row, ...]) -> tuple[_Row, str | None] | Mat
     # strands -- the vendor claims otherwise, and this module exists because that claim is
     # not trusted -- so `AG` beside `CT` is agreement written twice, not a conflict. Raw
     # string comparison reported it as DUPLICATE_CONFLICT, suppressing an answer the data
-    # actually contains. Note this can never invent an answer at a self-complementary site:
-    # `AA` and `TT` collapse to one canonical form there, and if the card's two readings
-    # disagree the strand check downstream still refuses to pick one.
-    distinct = {strand_canonical(str(r.genotype)) for r in called}
+    # actually contains.
+    #
+    # **Except at a self-complementary site**, where the collapse stops being evidence of
+    # anything: `AA` and `TT` share a canonical form there, so two probes reading opposite
+    # homozygotes would be announced to the reader as agreeing, and the `observed_genotype`
+    # shown would be whichever row the join happened to return first -- polars guarantees
+    # no order. They may be one call on two strands or two different calls, and nothing
+    # here can tell. Compared literally there, so a difference is reported as a difference.
+    key_of = (lambda g: g) if ambiguous_site else strand_canonical
+    distinct = {key_of(str(r.genotype)) for r in called}
     if len(distinct) > 1:
-        return MatchStatus.DUPLICATE_CONFLICT
+        return _Conflict(n_called=len(called))
 
     if len(called) == len(rows):
         note = f"{len(rows)} probes cover this position and they agree."
@@ -545,8 +571,16 @@ def _orient(row: _Row, key: VariantKey) -> tuple[str | None, Strand, str | None]
     assert genotype is not None  # callers check
 
     if is_strand_ambiguous(key.alleles):
-        # The complement of {A,T} is {A,T}, so the sets always agree and tell us nothing.
-        # Whether that matters is decided by the caller, which can see the outcomes.
+        # Membership is still checked here. Returning early without it sent a genuine
+        # disagreement -- a card declaring A/T against a row reading C/C -- past the
+        # mismatch branch and into the "the schema should have made this impossible" one,
+        # so the reader was told to file a bug about their own miscoordinated card. Around
+        # a third of SNPs are A/T or C/G, so that was the *normal* mismatch path for them.
+        # The complement of {A,T} is {A,T}, so if the observed alleles are not declared
+        # under one strand they are not under the other either, and one check covers both.
+        if not observed <= declared:
+            return None, Strand.AS_WRITTEN, None
+        # Whether the ambiguity matters is decided by the caller, which can see the outcomes.
         return genotype, Strand.AMBIGUOUS, None
 
     if observed <= declared:
