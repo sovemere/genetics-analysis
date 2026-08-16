@@ -147,8 +147,12 @@ class UnknownSectionError(ValueError):
 
 
 def get(name: str) -> SectionInfo:
+    # Normalised like every other enum field the card schema reads (kind, evidence tier,
+    # replication, ancestry, effect measure). Leaving this one strict made `section: Traits`
+    # an error while `kind: Interpretation` was fine, which is the kind of inconsistency an
+    # author discovers one field at a time.
     try:
-        section = Section(name)
+        section = Section(name.strip().lower())
     except ValueError:
         known = ", ".join(s.value for s in SECTION_ORDER)
         raise UnknownSectionError(

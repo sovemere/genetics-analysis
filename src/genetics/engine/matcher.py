@@ -144,6 +144,17 @@ class MatchResult(NoGenotypeRepr):
     beats "MARKER_ABSENT"."""
 
     genotype: str | None = None
+    """The genotype **on the card's strand** -- what the card's outcomes are keyed on.
+    ``None`` whenever no strand could be established, which includes every unresolved
+    status: there is no honest oriented value for a call that fits neither strand, or for a
+    self-complementary site where the reading is undecided."""
+
+    observed_genotype: str | None = None
+    """The genotype **as the export wrote it**. Separate from :attr:`genotype` because a
+    complemented match makes the two differ, and a single field whose meaning depended on
+    the status would be read wrongly the first time a card was rendered. Both travel so the
+    provenance stays traceable."""
+
     call_status: CallStatus | None = None
     observed_rsid: str | None = None
     outcome_name: str | None = None
@@ -166,8 +177,35 @@ class MatchResult(NoGenotypeRepr):
 
 
 def complement(genotype: str) -> str:
-    """Complement each base and re-sort, giving the same normal form the table uses."""
-    return "".join(sorted(_COMPLEMENT[base] for base in genotype))
+    """Complement each base and re-sort, giving the same normal form the table uses.
+
+    Refuses anything outside A/C/G/T rather than raising ``KeyError`` from a dict lookup.
+    A whitelisted indel row reaches this module with a genotype of ``II`` or ``DD``, and
+    today nothing calls this on one only because of the order of checks in
+    :meth:`Matcher._evaluate` -- which is a property of the current control flow, not a
+    guarantee. Failing here says what went wrong instead of surfacing as a bare KeyError
+    two frames up.
+    """
+    try:
+        return "".join(sorted(_COMPLEMENT[base] for base in genotype))
+    except KeyError:
+        raise ValueError(
+            f"cannot complement {genotype!r}: only A/C/G/T have complements. Indel codes "
+            "carry no sequence (AGENTS.md 4.2), so there is no strand to flip them onto."
+        ) from None
+
+
+def strand_canonical(genotype: str) -> str:
+    """A form that is identical on either strand, for comparing two probes to each other.
+
+    ``AG`` and ``CT`` are the same call read from opposite strands; comparing the raw
+    strings makes them look like a disagreement. Indel codes have no complement and are
+    compared literally, which is correct: two ``I``/``D`` probes agree only if they read
+    the same.
+    """
+    if not all(base in _COMPLEMENT for base in genotype):
+        return genotype
+    return min(genotype, complement(genotype))
 
 
 def is_strand_ambiguous(alleles: Sequence[str]) -> bool:
@@ -350,7 +388,7 @@ class Matcher:
                 card_id=card.id,
                 status=status,
                 reason=reason,
-                genotype=row.genotype,
+                observed_genotype=row.genotype,
                 call_status=row.call_status,
                 observed_rsid=row.rsid,
                 caveats=tuple(caveats),
@@ -417,7 +455,7 @@ class Matcher:
                         "strand of the call cannot be established from the data -- and here "
                         "the two readings give different answers."
                     ),
-                    genotype=row.genotype,
+                    observed_genotype=row.genotype,
                     call_status=row.call_status,
                     observed_rsid=row.rsid,
                     strand=strand,
@@ -434,6 +472,7 @@ class Matcher:
             status=MatchStatus.MATCHED,
             reason="Matched.",
             genotype=genotype,
+            observed_genotype=row.genotype,
             call_status=row.call_status,
             observed_rsid=row.rsid,
             outcome_name=outcome_name,
@@ -459,7 +498,14 @@ def _resolve_duplicates(rows: tuple[_Row, ...]) -> tuple[_Row, str | None] | Mat
     if not called:
         return rows[0], f"{len(rows)} probes cover this position; none produced a call."
 
-    distinct = {r.genotype for r in called}
+    # Compared on a strand-independent form. Two probes for one variant can sit on opposite
+    # strands -- the vendor claims otherwise, and this module exists because that claim is
+    # not trusted -- so `AG` beside `CT` is agreement written twice, not a conflict. Raw
+    # string comparison reported it as DUPLICATE_CONFLICT, suppressing an answer the data
+    # actually contains. Note this can never invent an answer at a self-complementary site:
+    # `AA` and `TT` collapse to one canonical form there, and if the card's two readings
+    # disagree the strand check downstream still refuses to pick one.
+    distinct = {strand_canonical(str(r.genotype)) for r in called}
     if len(distinct) > 1:
         return MatchStatus.DUPLICATE_CONFLICT
 

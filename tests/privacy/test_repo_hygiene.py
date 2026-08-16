@@ -198,7 +198,11 @@ def test_pre_commit_hook_exists_and_is_wired() -> None:
     assert hook.exists(), "tracked pre-commit hook is missing"
     body = hook.read_text(encoding="utf-8")
     assert "check-staged" in body
-    assert "tests/privacy" in body
+    # Asserts the *command*, not the path. This read `"tests/privacy" in body` until the
+    # hook was changed to select by marker -- at which point the only remaining occurrence
+    # of that path was inside an explanatory comment, so the check passed while verifying
+    # nothing. Deleting the pytest line entirely would not have failed it.
+    assert "-m privacy" in body, "the hook must run the privacy suite by marker"
     assert "fixtures --check" in body, "the hook must verify fixtures before the push"
     assert "--no-verify" in body, "the hook must state that bypassing it is not acceptable"
 

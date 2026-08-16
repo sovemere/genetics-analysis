@@ -731,3 +731,98 @@ def test_card_files_do_not_trip_the_genotype_scanner() -> None:
     """
     for path in sorted(FIXTURES.rglob("*.yaml")):
         assert find_genotypes(path.read_text(encoding="utf-8")) == [], path
+
+
+# ---------------------------------------------------------------------------
+# Review-pass fixes
+# ---------------------------------------------------------------------------
+
+
+def test_unquoted_yes_no_outcome_names_are_refused_not_coerced() -> None:
+    """Found in review, and the trap is as natural as it gets.
+
+    ``yes``/``no`` are the obvious outcome names for a binary trait, and unquoted they are
+    YAML 1.1 *booleans*. ``str()``-coercing both sides "works" -- the card renders with an
+    outcome literally named ``False`` and nobody finds out. Quote one side and not the
+    other and they stop matching, with an error blaming an outcome the author can see is
+    right there in the file.
+    """
+    text = """
+schema_version: 1
+cards:
+  - id: coerced
+    section: traits
+    kind: interpretation
+    title: Coerced outcome names
+    match:
+      variants:
+        - rsid: rs900000001
+          chrom: "7"
+          pos_grch37: 12345678
+          alleles: [A, G]
+      genotypes:
+        AA: yes
+        AG: yes
+        GG: no
+    outcomes:
+      yes:
+        summary: "Carries it."
+        detail: "Long form."
+      no:
+        summary: "Does not."
+        detail: "Long form."
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 1000
+      ancestry: [EUR]
+      effect: {measure: odds_ratio, value: 1.4}
+    citations:
+      - type: doi
+        id: 10.1038/x000000
+        title: A synthetic paper
+"""
+    with pytest.raises(CardError) as caught:
+        parse_file(text, "f.yaml")
+    message = str(caught.value)
+    assert "quoted" in message.lower()
+    assert "YAML 1.1" in message or "YAML" in message
+
+
+def test_quoting_them_works() -> None:
+    """The fix has to be the thing the error message tells you to do."""
+    raw = _interpretation()
+    raw["match"]["genotypes"] = {"AA": "yes", "AG": "yes", "GG": "no"}
+    raw["outcomes"] = {
+        "yes": {"summary": "Carries it.", "detail": "Long form."},
+        "no": {"summary": "Does not.", "detail": "Long form."},
+    }
+    assert Card.parse(raw, "t").outcomes.keys() == {"yes", "no"}
+
+
+@pytest.mark.parametrize("bad", [True, False, None, 2, 1.5])
+def test_no_yaml_scalar_sneaks_through_as_an_outcome_name(bad: object) -> None:
+    with pytest.raises(CardError):
+        Card.parse(_mutate(["match", "genotypes"], {"AA": bad, "AG": "yes", "GG": "no"}), "t")
+
+
+@pytest.mark.parametrize("written", ["traits", "Traits", "TRAITS", "  traits  "])
+def test_section_names_are_normalised_like_every_other_enum_field(written: str) -> None:
+    """``kind: Interpretation`` parsed while ``section: Traits`` did not -- an
+    inconsistency an author discovers one field at a time."""
+    assert Card.parse(_mutate(["section"], written), "t").section is Section.TRAITS
+
+
+def test_outcome_names_that_collide_after_trimming_are_refused() -> None:
+    """Names are stripped so they line up with the genotype map, so two distinct YAML keys
+    can collapse into one. A dict comprehension kept the last quietly, and the other
+    outcome -- with its own summary and detail -- would never render."""
+    raw = _interpretation()
+    raw["outcomes"] = {
+        "yes": {"summary": "Carries it.", "detail": "Long form."},
+        " yes ": {"summary": "Also carries it.", "detail": "Different long form."},
+        "no": {"summary": "Does not.", "detail": "Long form."},
+    }
+    with pytest.raises(CardError) as caught:
+        Card.parse(raw, "t")
+    assert "twice" in str(caught.value)

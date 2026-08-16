@@ -27,6 +27,7 @@ from genetics.engine.matcher import (
     complement,
     is_strand_ambiguous,
     match_pack,
+    strand_canonical,
     summarise,
 )
 from genetics.ingest.indels import IndelPolicy, IndelRepresentation
@@ -374,7 +375,8 @@ def test_a_het_haploid_call_is_reported_rather_than_interpreted() -> None:
     )
     assert result.status is MatchStatus.HET_HAPLOID
     assert result.outcome is None
-    assert result.genotype is not None, "the contradictory call still travels with the result"
+    assert result.observed_genotype is not None, "the contradictory call still travels"
+    assert result.genotype is None, "no strand was established, so there is no oriented value"
 
 
 # ---------------------------------------------------------------------------
@@ -602,3 +604,85 @@ def test_matching_works_against_a_genuinely_ingested_export() -> None:
     assert result.status is MatchStatus.MATCHED
     assert result.genotype == observed
     assert result.outcome is not None
+
+
+# ---------------------------------------------------------------------------
+# Review-pass fixes
+# ---------------------------------------------------------------------------
+
+
+def test_duplicate_probes_on_opposite_strands_are_not_a_conflict() -> None:
+    """Found in review. The two probes agree; only their strands differ.
+
+    Raw string comparison called ``AG`` beside ``CT`` a DUPLICATE_CONFLICT and suppressed
+    an answer the data plainly contains. That this module exists at all is because the
+    vendor's forward-strand claim is not trusted -- so trusting it inside the duplicate
+    check was the same assumption sneaking back in one function lower.
+    """
+    rows = [
+        _row(RSID, Chrom.CHR7, POS, "A", "G"),
+        _row("rs900000777", Chrom.CHR7, POS, "C", "T"),
+    ]
+    result = _match(_card(), rows)
+    assert result.status is MatchStatus.MATCHED
+    assert result.outcome_name == "yes"
+
+
+def test_genuinely_disagreeing_probes_still_conflict_across_strands() -> None:
+    """The other half. ``AA`` and ``CC`` are ``AA`` and ``GG`` on the card's strand -- a
+    real disagreement, and the strand-independent comparison must not paper over it."""
+    rows = [
+        _row(RSID, Chrom.CHR7, POS, "A", "A"),
+        _row("rs900000777", Chrom.CHR7, POS, "C", "C"),
+    ]
+    assert _match(_card(), rows).status is MatchStatus.DUPLICATE_CONFLICT
+
+
+def test_strand_canonical_is_stable_under_complementing() -> None:
+    for genotype in ("AA", "AG", "GG", "AT", "CG", "CT", "CC"):
+        assert strand_canonical(genotype) == strand_canonical(complement(genotype))
+
+
+def test_strand_canonical_leaves_indel_codes_alone() -> None:
+    """They have no complement, so they are compared literally -- which is right: two I/D
+    probes agree only if they read the same."""
+    assert strand_canonical("II") == "II"
+    assert strand_canonical("DD") == "DD"
+
+
+def test_complementing_an_indel_fails_with_an_explanation() -> None:
+    """It was a bare KeyError, reachable only by the current order of checks in _evaluate.
+
+    That is a property of today's control flow rather than a guarantee, and a KeyError two
+    frames up says nothing about indels carrying no sequence.
+    """
+    with pytest.raises(ValueError, match=r"4\.2"):
+        complement("II")
+
+
+def test_a_complemented_match_reports_both_genotypes() -> None:
+    """One field whose meaning depended on the status would be read wrongly the first time
+    a card was rendered -- the observed value and the card-strand value differ here."""
+    result = _match(_card(), [_row(RSID, Chrom.CHR7, POS, "C", "T")])
+    assert result.genotype == "AG", "on the card's strand"
+    assert result.observed_genotype == "CT", "as the export wrote it"
+
+
+def test_an_as_written_match_reports_the_same_value_twice() -> None:
+    result = _match(_card(), [_row(RSID, Chrom.CHR7, POS, "A", "G")])
+    assert result.genotype == result.observed_genotype == "AG"
+
+
+def test_an_ambiguous_site_has_no_oriented_genotype() -> None:
+    """There is no honest oriented value when the reading is exactly what is undecided."""
+    result = _match(_ambiguous_card(), [_row(RSID, Chrom.CHR7, POS, "A", "A")])
+    assert result.status is MatchStatus.STRAND_AMBIGUOUS
+    assert result.genotype is None
+    assert result.observed_genotype == "AA"
+
+
+@pytest.mark.privacy
+def test_neither_genotype_field_is_printed() -> None:
+    result = _match(_card(), [_row(RSID, Chrom.CHR7, POS, "C", "T")])
+    text = repr(result)
+    assert "AG" not in text and "CT" not in text

@@ -1,9 +1,10 @@
 """The suite does not reach the network, and this proves the guard fires (roadmap M2.7).
 
-Filed with the privacy suite rather than beside the fetcher tests for two reasons. The
-failure being guarded is an egress one -- the worst network call this application could
-make is the one carrying genotype data off the machine -- and the pre-commit hook runs
-``tests/privacy``, so the check runs before a commit rather than only in CI.
+Filed with the privacy suite rather than beside the fetcher tests because the failure being
+guarded is an egress one: the worst network call this application could make is the one
+carrying genotype data off the machine. The pre-commit hook runs ``pytest -m privacy``, so
+these run before a commit rather than only in CI -- by marker, not by directory, which is
+its own story in the progress log.
 
 M0's lesson governs the shape of this file: a guard that has not been *demonstrated*
 failing on real input is not evidence of anything. So the central test drives the actual
@@ -179,4 +180,20 @@ def test_teardown_removes_the_override_rather_than_rewriting_it() -> None:
 
     assert "connect" not in socket.socket.__dict__
     assert "connect_ex" not in socket.socket.__dict__
+    assert socket.getaddrinfo is _REAL_GETADDRINFO
+
+
+@pytest.mark.network
+def test_nested_blocks_do_not_clear_the_flag_early() -> None:
+    """A boolean would be cleared by the inner exit while the outer block is still
+    installed, so guard_is_active() would report False with the patches in place -- and
+    that function exists precisely so a test can trust the answer."""
+    assert not guard_is_active()
+    with block_network():
+        assert guard_is_active()
+        with block_network():
+            assert guard_is_active()
+        assert guard_is_active(), "the outer block is still installed"
+        assert socket.getaddrinfo is not _REAL_GETADDRINFO
+    assert not guard_is_active()
     assert socket.getaddrinfo is _REAL_GETADDRINFO
