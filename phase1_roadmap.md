@@ -769,15 +769,35 @@ section, that proves every layer.*
         scanned. Both scans are driven with input they must reject, so neither can pass
         vacuously.
       - **`read_bundle` landed here rather than in M4.2**, because a format with no reader
-        cannot demonstrate any of the above. M4.2's remaining work is list/delete, the CLI
-        surface, and the cross-version story this only starts.
+        cannot demonstrate any of the above. So did the cross-version rule, once review
+        showed the gate was wrong. M4.2's remaining work is list, delete and the CLI
+        surface.
+      - **A bundle is readable by any engine at or above the version that wrote it**, under
+        one rule: payload keys may be added, never removed and never repurposed. The first
+        cut gated on equality, which reads fine while one version exists and orphans every
+        saved run at the first bump — and since adding a key *is* a bump, and M5, M8 and M9
+        all add payload, that bump is scheduled. Corrected in review; a key whose meaning
+        changes gets a new name instead.
       - Run ids are timestamp-plus-random, never a digest of the input: a stable digest is a
         persistent pseudonymous identifier for one genome sitting in every directory
         listing and log line — genotype-derived in the one place a bundle's contents are not.
-      - Payload filenames land on `.gitignore`'s existing `*.run.json` rule, with a test
-        asserting the coupling from both ends. Third line of defence behind writing outside
-        the repo and refusing an in-repo destination outright; it costs a suffix and covers
-        a bundle copied into the checkout by hand.
+        A run id must also be a **plain directory name**, checked on the outcome rather than
+        by blacklisting separators: `root / "D:elsewhere"` discards `root` on Windows and
+        contains neither `/` nor `\`, so the character test the self-pass replaced would
+        have let destination and staging point at different places.
+      - `observation` (call source, imputation quality, ancestry fit) is recorded beside
+        `confidence` rather than inside it, because `confidence` is `None` for every card
+        that did not match. Without it a saved run cannot tell "the marker is not on this
+        array" from "imputation was attempted and failed" — a distinction that starts
+        mattering at M8, by which point adding it would cost a format bump.
+      - Payload filenames carry a `.run.json` suffix so `.gitignore` can key on them. **The
+        pre-existing `*.run.json` rule was not enough**, and the first test of it could not
+        tell: `!/knowledge/**/*.json` appears later in the file and wins, so a bundle
+        dropped under `knowledge/` was committable while a test grepping for the rule's text
+        passed. A re-ignore rule now covers it, the test asks `git check-ignore` across five
+        directories, and a companion test asserts card files stay trackable so the fix
+        cannot be made by breaking the corpus. Third line of defence behind writing outside
+        the repo and refusing an in-repo destination outright.
 - [ ] **M4.2** Save / load / list / delete runs. Bundles must be re-readable months later
       with a different code version, or fail with a clear version error.
       - **Save and load shipped with [M4.1](#m4--run-bundle--first-ui)**, along with
@@ -1073,6 +1093,8 @@ default-on.*
 | Reduced-N sumstats silently weaken psychometrics | M9.8–9.9 | Record release version on the card | [§5.3](AGENTS.md) |
 | Carrier section implies false completeness | M11.6 | Explicit incompleteness card | [§3.2](AGENTS.md) |
 | PLINK 2 alpha build changes behaviour | M2.5 | Pin exact build in manifest | [§4.9](AGENTS.md) |
+| A `.gitignore` negation silently re-admits genotype output | M4.1 | A later un-ignore rule wins over an earlier ignore rule, and `!/knowledge/**/*.json` did exactly that to the run-bundle payload. The mitigation is not another rule but **how it is checked**: tests ask `git check-ignore` rather than searching `.gitignore` for text, since a string search cannot see precedence, negation or ordering — the only things that decide the answer. A companion test asserts the card corpus stays trackable, so a re-ignore rule cannot be widened until it breaks what must be committed | [§1.1](AGENTS.md) |
+| A bundle-format bump orphans every run a user has already saved | M4.1, M4.2 | Bundles are immutable, so no in-place migration is possible even in principle. Guaranteed by contract instead: **payload keys may be added, never removed or repurposed**, so a reader accepts any bundle at or below its own version and an old bundle still carries everything a newer reader requires. A test moves the engine version forward and reads a current bundle through it | — |
 | A network call creeps into analysis code and is only found at the release gate | M2.7, M4.10 | Autouse guard fails the suite in the commit that adds one, naming the test; the OS-level run at M4.10 covers the subprocesses the in-process guard cannot see | [§6](AGENTS.md) |
 
 ---
