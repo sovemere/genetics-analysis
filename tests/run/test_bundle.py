@@ -51,6 +51,10 @@ CARD_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "cards"
 EXPORT = Path(__file__).resolve().parents[1] / "fixtures" / "synthetic" / "ancestry_v2_male.txt"
 
 OBSERVED_GENOTYPE = "AG"
+RARE_GENOTYPE = "CT"
+"""The rare card's call. A different pair from OBSERVED_GENOTYPE on purpose: the two cards
+declare different alleles, and reusing one genotype across both would have been rejected by
+assembly for attaching another variant's calibration -- which it duly was, the first time."""
 
 
 @pytest.fixture(scope="module")
@@ -110,12 +114,47 @@ def _impossible(pack: KnowledgePack, card_id: str) -> AssembledCard:
     )
 
 
+def _rare_matched(pack: KnowledgePack, card_id: str) -> AssembledCard:
+    """A matched card rare enough to carry an empirical PPV.
+
+    Included in the bundle fixture because the PPV block is ``None`` for an ordinary
+    common variant, so nothing else here ever serialises it -- and ``likely-artifact`` is
+    the tier AGENTS.md 4.1 calls the most important thing the interface communicates. A
+    round-trip suite that never writes one is testing the easy half.
+    """
+    card = pack.by_id(card_id)
+    assert card is not None and card.match is not None
+    outcome_name = next(iter(card.match.genotypes.values()))
+    return assemble_card(
+        card,
+        MatchResult(
+            card_id=card.id,
+            status=MatchStatus.MATCHED,
+            reason="Matched.",
+            genotype=RARE_GENOTYPE,
+            observed_genotype=RARE_GENOTYPE,
+            observed_rsid=card.match.variant.rsid,
+            outcome_name=outcome_name,
+            outcome=card.outcomes[outcome_name],
+            strand=Strand.AS_WRITTEN,
+        ),
+        ObservationEvidence(
+            call_source=CallSource.DIRECT,
+            frequencies=(
+                PopulationFrequency("C", 0.999999, "global", "synthetic-reference-v1"),
+                PopulationFrequency("T", 0.000001, "global", "synthetic-reference-v1"),
+            ),
+        ),
+    )
+
+
 @pytest.fixture
 def cards(pack_dir: Path) -> tuple[KnowledgePack, tuple[AssembledCard, ...]]:
     pack = KnowledgePack.load(pack_dir)
     return pack, (
         _matched(pack, "synthetic_dominant_trait"),
         _impossible(pack, "synthetic_impossibility"),
+        _rare_matched(pack, "synthetic_haploid_marker"),
     )
 
 
@@ -137,7 +176,7 @@ def written(
 
 
 def _repack(directory: Path, mutate: Callable[[dict[str, Any]], None]) -> None:
-    """Edit ``cards.json`` *and* refresh its recorded digest.
+    """Edit ``cards.run.json`` *and* refresh its recorded digest.
 
     Without the refresh every payload test would fail on the digest check and prove only
     that the digest check works. Refreshing it is what lets a test reach the schema
@@ -168,7 +207,7 @@ def test_a_bundle_round_trips_the_whole_card_record(written: Path) -> None:
     assert bundle.format_version == BUNDLE_FORMAT_VERSION
     assert bundle.run_id == written.name
     assert bundle.created_at.endswith("Z")
-    assert bundle.card_count == 2
+    assert bundle.card_count == 3
 
     matched = bundle.cards[0]
     assert matched.card_id == "synthetic_dominant_trait"
@@ -477,6 +516,197 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
     assert expected_manifest == MANIFEST_KEYS, f"manifest changed: {bump}"
 
 
+#: Sub-objects whose *keys* are data rather than schema -- card filenames, source ids,
+#: tool ids, payload filenames. Descending into them would pin the fixture's contents
+#: instead of the format's shape.
+_DYNAMIC = frozenset(
+    {
+        "files",
+        "provenance.knowledge.files",
+        "provenance.references.sources",
+        "provenance.tools",
+    }
+)
+
+
+def _shape(node: Any, prefix: str = "") -> set[str]:
+    """Every key path in a JSON document, merged across list elements.
+
+    Lists collapse to one ``[]`` step so two cards with different populated fields
+    contribute a union rather than positional noise -- which is what makes the pinned set
+    a statement about the format rather than about the fixture.
+    """
+    found: set[str] = set()
+    if isinstance(node, dict):
+        for key, value in node.items():
+            path = f"{prefix}.{key}" if prefix else str(key)
+            found.add(path)
+            if path not in _DYNAMIC:
+                found |= _shape(value, path)
+    elif isinstance(node, list):
+        for item in node:
+            found |= _shape(item, f"{prefix}[]")
+    return found
+
+
+def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
+    """The check that actually forces a version bump, and the one the reader does not do.
+
+    ``read_bundle`` rejects unknown keys only at the top level of the manifest and of each
+    card. Verified before writing this: adding ``match.phase_set``, ``confidence.polygenic``
+    and ``provenance.future_field`` to a bundle and refreshing its digest read back with no
+    complaint at all -- while the module docstring and this test's sibling both implied
+    otherwise. Making the *reader* recursively strict would mean carrying a full nested
+    schema, which is the brittleness the format is designed against; a bundle from a newer
+    engine is caught by the version gate long before its keys matter.
+
+    So the enforcement lives here, where the job actually is: stopping this project's next
+    commit from adding a field and forgetting the bump.
+    """
+    manifest = json.loads((written / MANIFEST_NAME).read_text(encoding="utf-8"))
+    cards_payload = json.loads((written / CARDS_NAME).read_text(encoding="utf-8"))
+
+    assert _shape(manifest) == {
+        "format_version",
+        "run_id",
+        "created_at",
+        "counts",
+        "counts.cards",
+        "counts.with_interpretation",
+        "files",
+        "provenance",
+        "provenance.engine_version",
+        "provenance.knowledge",
+        "provenance.knowledge.card_schema_version",
+        "provenance.knowledge.card_count",
+        "provenance.knowledge.digest",
+        "provenance.knowledge.files",
+        "provenance.references",
+        "provenance.references.present",
+        "provenance.references.reason",
+        "provenance.references.sources",
+        "provenance.tools",
+        "provenance.input",
+        "provenance.input.vendor",
+        "provenance.input.source_path",
+        "provenance.input.markers",
+    }, "manifest shape changed: bump BUNDLE_FORMAT_VERSION in the same commit"
+
+    card = "cards[]"
+    confidence = f"{card}.confidence"
+    assert _shape(cards_payload) == {
+        "cards",
+        f"{card}.card_id",
+        f"{card}.section",
+        f"{card}.kind",
+        f"{card}.title",
+        f"{card}.gene",
+        f"{card}.status",
+        f"{card}.summary",
+        f"{card}.detail",
+        f"{card}.impossibility_reason",
+        f"{card}.variant",
+        f"{card}.variant.rsid",
+        f"{card}.variant.chrom",
+        f"{card}.variant.pos_grch37",
+        f"{card}.variant.alleles",
+        f"{card}.match",
+        f"{card}.match.reason",
+        f"{card}.match.genotype",
+        f"{card}.match.observed_genotype",
+        f"{card}.match.observed_rsid",
+        f"{card}.match.call_status",
+        f"{card}.match.strand",
+        f"{card}.match.outcome_name",
+        f"{card}.match.candidate_outcomes",
+        confidence,
+        f"{confidence}.tier",
+        f"{confidence}.score",
+        f"{confidence}.empirical_ppv",
+        f"{confidence}.empirical_ppv.estimate",
+        f"{confidence}.empirical_ppv.population_frequency_ceiling",
+        f"{confidence}.empirical_ppv.applies_to",
+        f"{confidence}.inputs",
+        f"{confidence}.inputs.evidence_tier",
+        f"{confidence}.inputs.evidence_score",
+        f"{confidence}.inputs.effect_measure",
+        f"{confidence}.inputs.effect_value",
+        f"{confidence}.inputs.effect_score",
+        f"{confidence}.inputs.replication",
+        f"{confidence}.inputs.replication_score",
+        f"{confidence}.inputs.population_allele_frequency",
+        f"{confidence}.inputs.frequency_score",
+        f"{confidence}.inputs.call_source",
+        f"{confidence}.inputs.imputation_quality",
+        f"{confidence}.inputs.imputation_score",
+        f"{confidence}.inputs.ancestry_match",
+        f"{confidence}.inputs.ancestry_score",
+        f"{card}.frequencies",
+        f"{card}.frequencies[].allele",
+        f"{card}.frequencies[].frequency",
+        f"{card}.frequencies[].population",
+        f"{card}.frequencies[].source",
+        f"{card}.confidence_frequency",
+        f"{card}.confidence_frequency.allele",
+        f"{card}.confidence_frequency.frequency",
+        f"{card}.confidence_frequency.population",
+        f"{card}.confidence_frequency.source",
+        f"{card}.citations",
+        f"{card}.citations[].type",
+        f"{card}.citations[].id",
+        f"{card}.citations[].title",
+        f"{card}.citations[].database",
+        f"{card}.citations[].note",
+        f"{card}.authored_caveats",
+        f"{card}.computed_caveats",
+    }, "card payload shape changed: bump BUNDLE_FORMAT_VERSION in the same commit"
+
+
+def test_a_likely_artifact_finding_round_trips_with_its_ppv(written: Path) -> None:
+    """The rarity inversion has to survive being saved, or the saved run misleads.
+
+    AGENTS.md 4.1 calls this the most important thing the interface communicates, and the
+    PPV is what stops a reader taking a rare chip call at face value. It travels labelled
+    as a band statistic, exactly as M3.3 computed it.
+    """
+    rare = read_bundle(written).cards[2]
+    assert rare.confidence_tier == "likely-artifact"
+    assert rare.confidence is not None
+    ppv = rare.confidence["empirical_ppv"]
+    assert ppv is not None
+    assert 0.0 < ppv["estimate"] < 1.0
+    assert ppv["applies_to"]
+
+
+def test_a_run_id_must_be_a_plain_directory_name(
+    tmp_path: Path, qc_report: QCReport, cards: tuple[KnowledgePack, tuple[AssembledCard, ...]]
+) -> None:
+    """Found on the self-pass, and the interesting part is why the first check missed it.
+
+    The original test blacklisted ``/`` and ``\\``. On Windows ``root / "D:elsewhere"``
+    discards ``root`` and lands on another drive, and that string contains neither -- so
+    ``destination`` and ``staging`` ended up pointing at different places while the write
+    died on ``mkdir`` with an OS error. Nothing escaped, because ``INCOMING_PREFIX``
+    neutralises the drive-relative form for the staging path, but the containment
+    ``_resolve_root`` establishes was being discarded by a join one line later.
+
+    Checking the outcome rather than enumerating the inputs is the same conclusion M2.5
+    reached about archive member names. ``..`` is named explicitly because
+    ``Path("..").name`` is ``".."``, so it passes a basename test.
+    """
+    pack, assembled = cards
+    for bad in ("D:elsewhere", "..", ".", "", "  ", "a/b", "a\\b", f"{INCOMING_PREFIX}x"):
+        with pytest.raises(BundleError, match="run id"):
+            write_bundle(
+                qc=qc_report,
+                cards=assembled,
+                pack=pack,
+                runs_root=tmp_path / "runs",
+                run_id=bad,
+            )
+    assert not (tmp_path / "runs").exists() or list((tmp_path / "runs").iterdir()) == []
+
+
 def test_run_ids_are_unique_sortable_and_not_derived_from_the_input() -> None:
     """A digest of the export would be stable across runs, which is the problem.
 
@@ -522,7 +752,7 @@ def test_the_manifest_carries_no_genotype_while_the_cards_file_does(written: Pat
     """The split is the point, and both halves are asserted.
 
     The manifest is the file a person pastes into a bug report, so it is scanned.
-    ``cards.json`` holds per-card genotypes by design and is not -- a guard that fails on
+    ``cards.run.json`` holds per-card genotypes by design and is not -- a guard that fails on
     correct output is a guard someone switches off. Asserting the genotype really is in
     the payload is what stops this test passing because the bundle recorded nothing.
     """
@@ -565,7 +795,7 @@ def test_the_manifest_genotype_guard_actually_fires(
 def test_the_qc_genotype_guard_fires_independently_of_the_manifest_one(
     tmp_path: Path, qc_report: QCReport, cards: tuple[KnowledgePack, tuple[AssembledCard, ...]]
 ) -> None:
-    """A warning is the realistic vector, and warnings reach ``qc.json`` and not the manifest.
+    """A warning is the realistic vector, and warnings reach ``qc.run.json`` and not the manifest.
 
     Driving it through a field the manifest never sees is what proves the two scans are
     separate calls rather than one call the other test already covered.
