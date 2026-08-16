@@ -1,0 +1,104 @@
+# SYNTHETIC test fixture -- not knowledge, never copy into knowledge/.
+#
+# Every rsID and coordinate here is invented, counting from rs900000001 the way
+# genetics.testing.fixtures numbers its synthetic markers. The citations are real
+# in *shape* only; nothing here is a claim about biology.
+schema_version: 1
+cards:
+  - id: synthetic_dominant_trait
+    section: traits
+    kind: interpretation
+    title: Synthetic dominant trait
+    gene: SYNTH1
+    match:
+      variants:
+        - rsid: rs900000001
+          chrom: "7"
+          pos_grch37: 12345678
+          alleles: [A, G]
+      genotypes:
+        AA: present
+        AG: present
+        GG: absent
+    outcomes:
+      present:
+        summary: "Your {genotype} at {rsid} carries the synthetic allele."
+        detail: "Long-form text for the modal. Gene {gene}, position {pos} on chromosome {chrom}."
+      absent:
+        summary: "Your {genotype} does not carry the synthetic allele."
+        detail: "Long-form text for the absent case."
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 120000
+      ancestry: [EUR, EAS]
+      effect:
+        measure: odds_ratio
+        value: 1.4
+        ci_low: 1.25
+        ci_high: 1.57
+      within_family_attenuation: 0.55
+    citations:
+      - type: doi
+        id: 10.1038/s41586-000-00000-0
+        title: A synthetic study of a synthetic trait
+      - type: pmid
+        id: "12345678"
+        title: A second synthetic reference
+    caveats:
+      - "Entirely synthetic. Present to exercise the schema, not to inform anyone."
+
+  - id: synthetic_haploid_marker
+    section: genome_structure
+    kind: interpretation
+    title: Synthetic Y-linked marker
+    match:
+      variants:
+        - rsid: rs900000002
+          chrom: "Y"
+          pos_grch37: 2655180
+          alleles: [C, T]
+      genotypes:
+        # Haploid calls are written doubled by the normalized table, so the genotype
+        # vocabulary is the same as on an autosome. CT is included because a heterozygous
+        # call at a single-copy locus is HET_HAPLOID, not impossible.
+        CC: ancestral
+        CT: contradictory
+        TT: derived
+    outcomes:
+      ancestral:
+        summary: "Ancestral state at {rsid}."
+        detail: "Long-form detail for the ancestral state."
+      derived:
+        summary: "Derived state at {rsid}."
+        detail: "Long-form detail for the derived state."
+      contradictory:
+        summary: "A heterozygous call at a single-copy locus."
+        detail: "Usually a genotyping error; occasionally real. Reported, not dropped."
+    evidence:
+      tier: expert_curated
+      replication: none
+      sample_size: 4000
+      ancestry: [UNKNOWN]
+      effect:
+        measure: proportion
+        value: 0.02
+    citations:
+      - type: accession
+        id: rs900000002
+        database: dbSNP
+        title: Synthetic accession record
+
+  - id: synthetic_impossibility
+    section: genome_structure
+    kind: impossibility
+    title: Synthetic unmeasurable property
+    impossibility_reason: >-
+      A genotyping array measures single-nucleotide positions. This property is a
+      measurement of something else entirely, so no genotype can bear on it.
+    summary: "Not determinable from array genotypes."
+    detail: >-
+      The long form, explaining what assay would be needed instead and why the array
+      cannot substitute for it.
+    caveats:
+      - "Listed so its absence is documented rather than mysterious."
