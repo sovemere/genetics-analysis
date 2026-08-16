@@ -69,16 +69,25 @@ from genetics.refs import tools as refs_tools
 BUNDLE_FORMAT_VERSION: Final[int] = 1
 """Bumped whenever a reader of the previous version would misread the payload.
 
-Adding a payload key counts. Two mechanisms enforce that, and it is worth being exact
-about which does what, because the first claims less than it looks like it does.
+**The compatibility contract is additive: a payload key may be added, never removed and
+never repurposed.** That single rule is what lets :func:`read_bundle` accept any bundle at
+or below this version, which matters more than it looks. Adding a key bumps the version;
+M5, M8 and M9 all add payload; and a bundle is immutable, so there is no in-place
+migration even in principle. A gate that demanded equality would therefore have orphaned
+every run a user had already saved, permanently, at the first bump. Under the additive
+rule an old bundle carries everything a newer reader requires, and carries nothing a newer
+reader does not recognise -- so nothing has to be relaxed to read it. A key whose meaning
+changes gets a *new name* rather than a new interpretation.
 
-:func:`read_bundle` rejects unknown keys **at the top level of the manifest and of each
-card** -- not inside ``provenance``, ``match`` or ``confidence``. That is deliberate
-rather than an omission: a bundle from a newer engine declares a higher format version and
-is refused at the gate before any key is examined, so recursive strictness would buy
-almost nothing on read while requiring the reader to carry a full nested schema -- which
-is the brittleness this format is explicitly designed against (see the module docstring on
-why reading returns strings rather than enums).
+Two mechanisms enforce the bump, and it is worth being exact about which does what,
+because the first claims less than it looks like it does.
+
+:func:`read_bundle` rejects unknown keys at the top level of the manifest, of the cards
+file, and of each card -- not inside ``provenance``, ``match`` or ``confidence``. That is
+deliberate: a bundle from a *newer* engine is refused at the version gate before any key is
+examined, so recursive strictness would buy almost nothing on read while requiring the
+reader to carry a full nested schema -- the brittleness this format is explicitly designed
+against (see the module docstring on why reading returns strings rather than enums).
 
 What actually forces the bump is ``test_bundle.py``, which pins the payload's whole nested
 key structure. That is the right home for it: the job is to stop *this* project's next
@@ -251,6 +260,20 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "confidence": None
         if assembled.confidence is None
         else _confidence_payload(assembled.confidence),
+        # Recorded separately from `confidence` because `confidence` is None for every card
+        # that did not match, and these three are facts about the *observation* rather than
+        # about the finding. Without them a saved run cannot say whether an absent result
+        # was a marker the array never carried or an imputation that was attempted and
+        # failed -- a distinction that does not exist yet and becomes load-bearing at M8.
+        # Added now because at format version 1, with no bundle yet saved anywhere, it is
+        # free; after M5 it costs a version bump.
+        "observation": None
+        if assembled.observation is None
+        else {
+            "call_source": assembled.observation.call_source.value,
+            "imputation_quality": assembled.observation.imputation_quality,
+            "ancestry_match": assembled.observation.ancestry_match,
+        },
         "frequencies": [_frequency_payload(f) for f in assembled.frequencies],
         "confidence_frequency": None
         if assembled.confidence_frequency is None
@@ -275,6 +298,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "variant",
         "match",
         "confidence",
+        "observation",
         "frequencies",
         "confidence_frequency",
         "citations",
@@ -305,6 +329,18 @@ def knowledge_provenance(pack: KnowledgePack) -> dict[str, Any]:
         path.relative_to(pack.source_dir).as_posix(): _digest(path)
         for path in sorted(pack.source_dir.rglob("*.yaml"))
     }
+    if pack.cards and not files:
+        # `rglob` on a missing directory returns nothing rather than raising, so this would
+        # otherwise emit a *well-formed* digest of the empty set beside a truthful
+        # card_count -- and two bundles from two different packs would then agree on the
+        # one field whose whole job is answering "was this the same pack I have now?".
+        # Reachable whenever the pack was loaded from a temp directory or a wheel path that
+        # is gone by save time. A digest that can only mean one thing is not a digest.
+        raise BundleError(
+            f"knowledge pack at {pack.source_dir} holds {len(pack.cards)} card(s) in memory "
+            "but no card files on disk, so its provenance digest would describe nothing. "
+            "Save the run from a checkout where the pack is still readable."
+        )
     rolled = hashlib.sha256()
     for name, digest in sorted(files.items()):
         rolled.update(name.encode("utf-8"))
@@ -332,7 +368,12 @@ def _reference_provenance(lock_path: Path) -> dict[str, Any]:
         }
     try:
         lock = refs_lock.read(lock_path)
-    except refs_lock.LockError as exc:
+    except (refs_lock.LockError, OSError, UnicodeDecodeError) as exc:
+        # Catching LockError alone made the graceful degradation this function is built for
+        # conditional on the *kind* of unreadable: a corrupt or binary lock raises
+        # UnicodeDecodeError from read_text and an unreadable one raises OSError, neither of
+        # which is a LockError. Both would have propagated out of write_bundle and thrown
+        # away a completed analysis over a file the run did not depend on.
         return {
             "present": False,
             "reason": f"manifest.lock could not be read: {exc}",
@@ -401,6 +442,10 @@ class StoredCard(NoGenotypeRepr):
     variant: Mapping[str, Any] | None
     match: Mapping[str, Any]
     confidence: Mapping[str, Any] | None
+    observation: Mapping[str, Any] | None
+    """How the call entered the engine. Present even when ``confidence`` is not, which is
+    every card that did not match -- see ``_card_payload`` for why the two are separate."""
+
     frequencies: tuple[Mapping[str, Any], ...]
     confidence_frequency: Mapping[str, Any] | None
     citations: tuple[Mapping[str, Any], ...]
@@ -464,10 +509,16 @@ def _check_run_id(identifier: str) -> None:
     """
     if not identifier or identifier != identifier.strip():
         raise BundleError(f"invalid run id {identifier!r}: must be a non-blank name")
-    if identifier.startswith(INCOMING_PREFIX):
+    if identifier.startswith("."):
+        # Any leading dot, not just INCOMING_PREFIX. The prefix is dot-led precisely so
+        # M4.2 can skip staging directories *by shape*, which means a run legitimately
+        # named ".draft" would be written successfully and then be invisible to listing --
+        # no error at write time, and a bundle nobody can find. Refusing the whole shape
+        # keeps the listing rule and the naming rule from disagreeing.
         raise BundleError(
-            f"invalid run id {identifier!r}: {INCOMING_PREFIX!r} marks a bundle still "
-            "being written, so a run may not be named one"
+            f"invalid run id {identifier!r}: a leading '.' marks a directory that listing "
+            f"skips ({INCOMING_PREFIX!r} marks a bundle still being written), so a run "
+            "named that way would be written and then never found"
         )
     if identifier in {".", ".."} or identifier != Path(identifier).name:
         raise BundleError(
@@ -623,8 +674,13 @@ def _load_json(path: Path) -> Mapping[str, Any]:
         raise BundleError(f"{path.name} is missing from {path.parent}")
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError as exc:
-        raise BundleError(f"{path}: not valid JSON -- {exc}") from None
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as exc:
+        # Mapping only JSONDecodeError left the two most likely corruption routes escaping
+        # as something other than a BundleError: mangled bytes raise UnicodeDecodeError from
+        # read_text, an unreadable file raises OSError. The manifest is read *before* any
+        # digest check, so this is on the common path, and M4.2's CLI will be catching
+        # BundleError -- it would have crashed rather than reported damage.
+        raise BundleError(f"{path}: could not be read as JSON -- {exc}") from None
     return _mapping(raw, path.name)
 
 
@@ -635,6 +691,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     confidence_map = None if confidence is None else _mapping(confidence, f"{where}.confidence")
     tier = confidence_map.get("tier") if confidence_map is not None else None
     variant = data.get("variant")
+    observation = data.get("observation")
     frequency_source = data.get("confidence_frequency")
     return StoredCard(
         card_id=str(_require(data, "card_id", where)),
@@ -652,6 +709,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         variant=None if variant is None else _mapping(variant, f"{where}.variant"),
         match=_mapping(_require(data, "match", where), f"{where}.match"),
         confidence=confidence_map,
+        observation=None if observation is None else _mapping(observation, f"{where}.observation"),
         frequencies=tuple(
             _mapping(item, f"{where}.frequencies[{i}]")
             for i, item in enumerate(data.get("frequencies") or ())
@@ -684,16 +742,22 @@ def read_bundle(path: Path) -> RunBundle:
     declared = _require(manifest, "format_version", MANIFEST_NAME)
     if not isinstance(declared, int) or isinstance(declared, bool):
         raise BundleError(f"{MANIFEST_NAME}: format_version must be an integer")
-    if declared != BUNDLE_FORMAT_VERSION:
+    if declared < 1:
+        raise BundleError(f"{MANIFEST_NAME}: format_version must be 1 or greater, got {declared}")
+    if declared > BUNDLE_FORMAT_VERSION:
         raise BundleVersionError(
             f"bundle at {directory} declares format_version {declared}; this engine "
-            f"implements {BUNDLE_FORMAT_VERSION}. "
-            + (
-                "Use the version of the tool that wrote it."
-                if declared > BUNDLE_FORMAT_VERSION
-                else "The bundle predates this format and cannot be upgraded in place."
-            )
+            f"implements {BUNDLE_FORMAT_VERSION}. Use the version of the tool that wrote it."
         )
+    # An *older* bundle is read, not refused. Equality here was wrong in a way that only
+    # shows up later: adding any payload key bumps the version, M5, M8 and M9 all add
+    # payload, and bundles are immutable -- so the first bump would have orphaned every run
+    # a user had already saved, permanently, with no migration path even possible. What
+    # makes reading an old bundle safe is a contract rather than machinery: **payload keys
+    # may be added, never removed and never repurposed.** A v1 bundle therefore carries
+    # everything a later reader requires, and can carry nothing a later reader does not
+    # know -- which is also why _reject_unknown below stays strict rather than being
+    # relaxed for old bundles. A key whose meaning changes gets a new name instead.
     _reject_unknown(manifest, MANIFEST_KEYS, MANIFEST_NAME)
 
     recorded = _mapping(_require(manifest, "files", MANIFEST_NAME), f"{MANIFEST_NAME}.files")
@@ -713,6 +777,7 @@ def read_bundle(path: Path) -> RunBundle:
             )
 
     cards_raw = _load_json(directory / CARDS_NAME)
+    _reject_unknown(cards_raw, frozenset({"cards"}), CARDS_NAME)
     entries = _require(cards_raw, "cards", CARDS_NAME)
     if not isinstance(entries, Sequence) or isinstance(entries, str):
         raise BundleError(f"{CARDS_NAME}.cards: expected a list")

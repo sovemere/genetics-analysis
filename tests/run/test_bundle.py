@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import shutil
+import subprocess
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -398,18 +399,63 @@ def test_a_staging_directory_is_never_mistaken_for_a_run(written: Path) -> None:
     assert INCOMING_PREFIX.startswith(".")
 
 
-@pytest.mark.privacy
-def test_the_payload_filenames_land_on_an_existing_gitignore_rule() -> None:
-    """Third line of defence, and the one a rename would silently remove.
+def _is_ignored(relative: str) -> bool:
+    """Ask git, not the file.
 
-    A bundle is written outside the repo and an in-repo destination is refused, so this
-    only matters for a bundle copied into the checkout by hand. The coupling is checked
-    here rather than trusted because it is invisible from either end: nothing about
-    ``qc.run.json`` says why it is not ``qc.json``, and nothing in ``.gitignore`` says
-    which files it was written for.
+    The first version of this test grepped ``.gitignore`` for the literal ``*.run.json``
+    and passed -- while the claim it was making was false, because
+    ``!/knowledge/**/*.json`` appears *later* in the file and won. A string search cannot
+    see precedence, negation, or ordering, which are the only things that decide the
+    answer. This is M0.4's finding again: a test written to check a rule that was actually
+    checking text.
     """
-    ignore = (repo_root() / ".gitignore").read_text(encoding="utf-8").splitlines()
-    assert "*.run.json" in ignore
+    completed = subprocess.run(
+        ["git", "check-ignore", "-q", "--no-index", relative],
+        cwd=repo_root(),
+        capture_output=True,
+    )
+    if completed.returncode not in (0, 1):
+        raise AssertionError(f"git check-ignore failed: {completed.stderr!r}")
+    return completed.returncode == 0
+
+
+@pytest.mark.privacy
+@pytest.mark.parametrize(
+    "directory",
+    ["", "knowledge/", "src/genetics/", "tests/fixtures/", "data/references/"],
+)
+def test_a_bundle_payload_is_gitignored_everywhere_in_the_checkout(directory: str) -> None:
+    """Third line of defence, behind writing outside the repo and refusing in-repo writes.
+
+    It matters for the case those two miss: a bundle copied into the checkout by hand --
+    dropping a saved run under ``knowledge/`` to see which cards fired is an entirely
+    reasonable thing to do, and ``git add -A`` would then commit per-card genotypes.
+
+    Parametrised over directories with their own allowlists, because a blanket rule plus a
+    later negation is exactly how the coverage was lost the first time. ``knowledge/`` is
+    in this list because that is where it was actually broken.
+    """
+    for name in (QC_NAME, CARDS_NAME):
+        assert _is_ignored(f"{directory}{name}"), f"{directory}{name} is committable"
+
+
+@pytest.mark.privacy
+def test_the_knowledge_allowlist_still_admits_card_files() -> None:
+    """The other half, and the reason the fix is a rule rather than deleting the allowlist.
+
+    Cards are the reviewable corpus and must stay tracked (AGENTS.md 3). A re-ignore rule
+    broad enough to catch bundle payloads must not catch them, and that is only checkable
+    by asking git about both.
+    """
+    for card in (
+        "knowledge/traits/pigmentation.yaml",
+        "knowledge/impossibilities/assay_limits.yaml",
+    ):
+        assert not _is_ignored(card), f"{card} became untrackable"
+
+
+def test_the_payload_filenames_carry_the_suffix_the_ignore_rule_keys_on() -> None:
+    """The naming half of the coupling above; the ignore rules key on this suffix."""
     for name in (QC_NAME, CARDS_NAME):
         assert name.endswith(".run.json"), name
     assert not MANIFEST_NAME.endswith(".run.json"), "the manifest carries no genotype"
@@ -443,14 +489,43 @@ def test_a_future_format_version_raises_a_version_error_before_anything_else(
     assert "wrote it" in message
 
 
-def test_an_older_format_version_says_so_rather_than_guessing(written: Path) -> None:
+def test_a_nonsense_format_version_is_a_structural_error_not_a_version_one(
+    written: Path,
+) -> None:
+    """Version 0 never existed, so it is damage rather than history."""
     manifest_path = written / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 0
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
 
-    with pytest.raises(BundleVersionError, match="predates this format"):
+    with pytest.raises(BundleError, match="1 or greater"):
         read_bundle(written)
+
+
+def test_an_older_bundle_is_read_rather_than_orphaned(
+    written: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The fix for the review's sharpest finding, tested by pretending to be the future.
+
+    The gate was equality, which reads fine while only one version exists and is a trap the
+    moment a second does: adding any payload key bumps the version, M5, M8 and M9 all add
+    payload, and a bundle is immutable so no in-place migration is even possible. The first
+    bump would have orphaned every run a user had saved.
+
+    There is no version-2 bundle to test with, so the engine is moved forward instead and a
+    version-1 bundle -- the one the fixture just wrote -- is read by it. What makes that
+    safe is the additive contract, not machinery: keys may be added, never removed or
+    repurposed, so an old bundle carries everything a newer reader requires.
+    """
+    from genetics.run import bundle as bundle_module
+
+    monkeypatch.setattr(bundle_module, "BUNDLE_FORMAT_VERSION", BUNDLE_FORMAT_VERSION + 5)
+    older = read_bundle(written)
+
+    assert older.format_version == BUNDLE_FORMAT_VERSION
+    assert older.card_count == 3
+    assert older.cards[0].summary, "an old bundle still renders"
+    assert older.cards[0].citations
 
 
 def test_an_unknown_payload_key_is_refused_rather_than_ignored(written: Path) -> None:
@@ -501,6 +576,7 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
             "variant",
             "match",
             "confidence",
+            "observation",
             "frequencies",
             "confidence_frequency",
             "citations",
@@ -619,6 +695,10 @@ def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
         f"{card}.match.strand",
         f"{card}.match.outcome_name",
         f"{card}.match.candidate_outcomes",
+        f"{card}.observation",
+        f"{card}.observation.call_source",
+        f"{card}.observation.imputation_quality",
+        f"{card}.observation.ancestry_match",
         confidence,
         f"{confidence}.tier",
         f"{confidence}.score",
@@ -695,7 +775,10 @@ def test_a_run_id_must_be_a_plain_directory_name(
     ``Path("..").name`` is ``".."``, so it passes a basename test.
     """
     pack, assembled = cards
-    for bad in ("D:elsewhere", "..", ".", "", "  ", "a/b", "a\\b", f"{INCOMING_PREFIX}x"):
+    # ".draft" is here from the agent review: only the full INCOMING_PREFIX was refused, so
+    # a dot-led id was written successfully and then hidden by M4.2's shape-based listing --
+    # a bundle that exists and cannot be found, with no error at write time.
+    for bad in ("D:elsewhere", "..", ".", "", "  ", "a/b", "a\\b", f"{INCOMING_PREFIX}x", ".draft"):
         with pytest.raises(BundleError, match="run id"):
             write_bundle(
                 qc=qc_report,
@@ -835,6 +918,95 @@ def test_an_impossibility_card_stores_no_observation(written: Path) -> None:
     assert impossible.confidence_frequency is None
     assert impossible.match["genotype"] is None
     assert impossible.variant is None
+
+
+def test_call_provenance_survives_for_a_card_with_no_confidence(written: Path) -> None:
+    """Found by the review, and it only bites after M8 -- which is why it had to be now.
+
+    ``confidence`` is ``None`` for every card that did not match, and ``call_source`` lived
+    only inside it. So a saved run could not distinguish "the marker is not on this array"
+    from "imputation was attempted and failed" once M8 exists. Recovering that later would
+    mean adding a payload key, i.e. a format bump; adding it at version 1, before any
+    bundle exists anywhere, costs nothing.
+    """
+    matched, impossible, _ = read_bundle(written).cards
+
+    assert matched.observation is not None
+    assert matched.observation["call_source"] == CallSource.DIRECT.value
+    assert matched.observation["imputation_quality"] is None
+    # An impossibility genuinely has no observation -- it is not determinable by
+    # construction, and assembly refuses to attach runtime evidence to one.
+    assert impossible.observation is None
+
+
+def test_a_pack_whose_files_have_vanished_refuses_to_claim_a_digest(
+    tmp_path: Path, qc_report: QCReport, cards: tuple[KnowledgePack, tuple[AssembledCard, ...]]
+) -> None:
+    """``rglob`` on a missing directory returns nothing rather than raising.
+
+    That would have written a well-formed sha256 of the empty set beside a truthful
+    ``card_count``, so two bundles from two different packs would agree on the one field
+    whose entire job is answering "was this the same pack I have now?". A digest that can
+    only mean one thing is not a digest -- the same shape as M0.6's HIBAG probe.
+    """
+    pack, assembled = cards
+    shutil.rmtree(pack.source_dir)
+
+    with pytest.raises(BundleError, match="no card files on disk"):
+        write_bundle(qc=qc_report, cards=assembled, pack=pack, runs_root=tmp_path / "runs")
+
+
+def test_an_unreadable_lock_degrades_instead_of_losing_the_run(
+    tmp_path: Path, qc_report: QCReport, cards: tuple[KnowledgePack, tuple[AssembledCard, ...]]
+) -> None:
+    """Reference provenance is written to degrade, and it only degraded for one error type.
+
+    A corrupt lock raises ``UnicodeDecodeError`` from ``read_text`` and an unreadable one
+    raises ``OSError``; neither is a ``LockError``, so both propagated out of
+    ``write_bundle`` and threw away a completed analysis over a file the run never used.
+    """
+    pack, assembled = cards
+    corrupt = tmp_path / "manifest.lock"
+    corrupt.write_bytes(b"\xff\xfe\x00binary garbage\x00\xff")
+
+    path = write_bundle(
+        qc=qc_report,
+        cards=assembled,
+        pack=pack,
+        runs_root=tmp_path / "runs",
+        lock_path=corrupt,
+        tools_root=tmp_path / "tools",
+    )
+    references = read_bundle(path).provenance["references"]
+    assert references["present"] is False
+    assert "could not be read" in references["reason"]
+
+
+def test_a_corrupt_manifest_reports_damage_rather_than_crashing(written: Path) -> None:
+    """M4.2's CLI will be catching ``BundleError``; anything else reaches the user raw.
+
+    The manifest is read before any digest check, so mangled bytes are on the most common
+    corruption path -- and ``read_text`` raises ``UnicodeDecodeError``, which was escaping.
+    """
+    (written / MANIFEST_NAME).write_bytes(b"\xff\xfe\x00not utf-8 at all\x00")
+    with pytest.raises(BundleError, match="could not be read"):
+        read_bundle(written)
+
+
+def test_an_unknown_key_in_the_cards_file_wrapper_is_refused(written: Path) -> None:
+    """The cards file has exactly one expected key, and it was the one level left unchecked.
+
+    ``_reject_unknown`` covered the manifest and each card but not the wrapper between
+    them, so a future writer adding ``sort_order`` here would be read as whole by a reader
+    that ignored it -- the precise failure the strictness exists to prevent.
+    """
+
+    def add_wrapper_key(payload: dict[str, Any]) -> None:
+        payload["sort_order"] = ["synthetic_dominant_trait"]
+
+    _repack(written, add_wrapper_key)
+    with pytest.raises(BundleError, match="sort_order"):
+        read_bundle(written)
 
 
 def test_a_directory_that_is_not_a_bundle_is_refused(tmp_path: Path) -> None:

@@ -666,13 +666,27 @@ def status(tool: Tool, *, tools_root: Path, platform_key: str | None = None) -> 
 # ---------------------------------------------------------------------------
 
 
+def render_state(tools: Mapping[str, Any]) -> str:
+    """Serialise the state file from whatever is being kept, validated or not.
+
+    Takes a ``Mapping[str, Any]`` rather than an :class:`InstalledState` because the writer
+    deliberately preserves entries the reader filters out, and routing those through a
+    dataclass whose field is typed ``dict[str, dict[str, Any]]`` would put the same
+    annotation-that-lies back one layer over -- which is the defect this whole change
+    started from.
+    """
+    payload = {"schema_version": TOOLS_SCHEMA_VERSION, "tools": dict(tools)}
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
 @dataclass(frozen=True)
 class InstalledState:
+    """The validated view. Every value here really is a record; see :func:`read_state`."""
+
     tools: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def render(self) -> str:
-        payload = {"schema_version": TOOLS_SCHEMA_VERSION, "tools": self.tools}
-        return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+        return render_state(self.tools)
 
 
 def recorded_path(tools_root: Path, tool_id: str) -> Path | None:
@@ -695,27 +709,46 @@ def recorded_path(tools_root: Path, tool_id: str) -> Path | None:
     return path if path.is_file() else None
 
 
-def read_state(tools_root: Path) -> InstalledState:
+def _raw_tools(tools_root: Path) -> dict[str, Any]:
+    """Whatever the state file actually holds, unvalidated.
+
+    Exists so :func:`record_install` can merge into what is on disk rather than into the
+    filtered view :func:`read_state` returns. The distinction is not academic: filtering on
+    read *and* writing the filtered result back would make an unrelated install silently
+    erase a malformed record -- including the licence block this module keeps for the M15.4
+    audit. That is the M2 lock bug in a new place ("recording only the current run's
+    successes replaced the file map, so the digest of the file that just failed was
+    dropped"), and the resolution there applies here: a write merges over what was there,
+    so nothing can erase the evidence of a problem as a side effect of unrelated success.
+    """
     path = tools_root / INSTALLED_STATE
     if not path.is_file():
-        return InstalledState()
+        return {}
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        return InstalledState()
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return {}
     tools = raw.get("tools") if isinstance(raw, Mapping) else None
-    if not isinstance(tools, Mapping):
-        return InstalledState()
-    # Values are checked, not merely the outer mapping. The annotation promises
-    # ``dict[str, dict[str, Any]]``, and until now only the container was validated -- so a
-    # hand-edited or truncated state file could put a string where a record belongs and
-    # every consumer would take the annotation at its word. Found from the run-bundle side
-    # (M4.1), where the defensive check a caller would naturally write is *unreachable*
-    # according to the very type this function was not enforcing.
+    return {str(key): value for key, value in tools.items()} if isinstance(tools, Mapping) else {}
+
+
+def read_state(tools_root: Path) -> InstalledState:
+    """The validated view: entries that are actually records.
+
+    Values are checked, not merely the outer mapping. The annotation promises
+    ``dict[str, dict[str, Any]]``, and until M4.1 only the container was validated -- so a
+    hand-edited or truncated state file could put a string where a record belongs and every
+    consumer would take the annotation at its word. Found from the run-bundle side, where
+    the defensive check a caller would naturally write is *unreachable* according to the
+    very type this function was not enforcing.
+
+    Malformed entries are hidden from readers, never deleted from disk; see
+    :func:`_raw_tools`.
+    """
     return InstalledState(
         tools={
-            str(tool_id): dict(entry)
-            for tool_id, entry in tools.items()
+            tool_id: dict(entry)
+            for tool_id, entry in _raw_tools(tools_root).items()
             if isinstance(entry, Mapping)
         }
     )
@@ -723,8 +756,7 @@ def read_state(tools_root: Path) -> InstalledState:
 
 def record_install(tools_root: Path, tool: Tool, build: ToolBuild, result: InstallResult) -> None:
     """Note what landed, including the licence, for the M15.4 audit."""
-    state = read_state(tools_root)
-    tools = dict(state.tools)
+    tools = _raw_tools(tools_root)
     terms = tool.license
     tools[tool.id] = {
         "version": tool.version,
@@ -737,4 +769,4 @@ def record_install(tools_root: Path, tool: Tool, build: ToolBuild, result: Insta
     }
     path = tools_root / INSTALLED_STATE
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(InstalledState(tools=tools).render(), encoding="utf-8")
+    path.write_text(render_state(tools), encoding="utf-8")

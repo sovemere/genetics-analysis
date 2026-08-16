@@ -241,6 +241,16 @@ core.*
 !/knowledge/**/*.csv
 !/knowledge/**/*.tsv
 
+# ...but the extension allowlist above is broad enough to re-admit a run bundle,
+# because a bundle payload is .json and these negations come *after* the
+# *.run.json rule and therefore win. Copying a saved run into knowledge/ to see
+# which cards fired is an entirely reasonable thing to do, and `git add -A`
+# would then commit per-card genotypes. Re-ignored here, last word wins.
+# tests/run/test_bundle.py asks `git check-ignore` rather than grepping this
+# file -- the string-grep version of that test could not see this override, and
+# passed while the claim it made was false.
+/knowledge/**/*.run.json
+
 # Synthetic test fixtures ONLY. See AGENTS.md: fixtures must be generated,
 # never produced by subsetting a real person's file.
 #
