@@ -78,4 +78,7 @@ addopts = "-ra --strict-markers"
 markers = [
     "privacy: leak-prevention checks; these must never be skipped",
     "slow: long-running (imputation, reference builds)",
+    # Lifts the offline guard installed by tests/conftest.py. Nothing carries it today
+    # and it should stay that way -- see genetics/testing/network.py (M2.7).
+    "network: genuinely needs the network",
 ]
