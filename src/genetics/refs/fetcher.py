@@ -399,6 +399,35 @@ def _size_mismatch(
     return f"{path.name}: size mismatch (expected {expected} bytes, got {observed}). {tail}"
 
 
+def _drift(
+    path: Path,
+    expected_size: int | None,
+    size: int,
+    expected_sha256: str | None,
+    sha: str,
+) -> str:
+    """Describe how an unpinnable file differs from what was recorded, or say nothing.
+
+    Advisory drift is a fact worth surfacing, not an error: the publisher regenerated a
+    file the manifest already says it cannot pin. Reported here, re-recorded by
+    :func:`lock.record_file` with today's date, and therefore visible as a line in the
+    committed lock's diff -- which is where an auditor asking "did a reference move under
+    a saved run?" can actually see it.
+    """
+    notes: list[str] = []
+    if expected_size is not None and size != expected_size:
+        notes.append(f"size {size} bytes, manifest declares {expected_size}")
+    if expected_sha256 and sha != expected_sha256:
+        notes.append(f"sha256 {sha}, lock recorded {expected_sha256}")
+    if not notes:
+        return ""
+    return (
+        f"{path.name}: content differs from the recorded copy ({'; '.join(notes)}). "
+        "The manifest declares this file unpinnable, so this is treated as publisher "
+        "drift and re-recorded in the lock rather than failed."
+    )
+
+
 def download(
     url: str,
     target: Path,
@@ -407,6 +436,7 @@ def download(
     expected_sha256: str | None = None,
     expected_md5: str | None = None,
     expected_size: int | None = None,
+    advisory: bool = False,
     progress: ProgressCallback | None = None,
     label: str = "",
 ) -> FileResult:
@@ -416,12 +446,31 @@ def download(
     (M2.5) reuses it rather than growing a second, subtly different implementation of the
     resume logic. Duplicating this is how the three corruption cases handled below get
     fixed in one copy and not the other.
+
+    ``advisory`` is for a file the manifest declares unpinnable (``unpinned_reason``).
+    Its size and its lock-recorded digest describe *what the publisher served last time*,
+    not what it promised to keep serving, so drift is reported and re-recorded rather than
+    failed. Treating them as pins is not merely strict, it is wrong in a way nobody local
+    can see: the first fetch pins the file, the committed lock then hands that digest to
+    every clone, and the next weekly regeneration makes the source permanently unfetchable
+    for everyone *except* the machine that pinned it, which short-circuits on
+    already-present. What advisory never relaxes is *this* transfer's integrity: an
+    advisory file is never resumed onto an unverifiable prefix, and a short read against a
+    declared ``Content-Length`` still fails.
     """
     name = target.name
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
-    authenticated = expected_sha256 is not None or expected_md5 is not None
+    # Only a manifest pin authenticates a *prefix*. A lock digest describes a whole file
+    # this machine once received; under `advisory` a mismatch against it is expected drift
+    # rather than corruption, so it cannot also serve as the proof that resuming is safe.
+    authenticated = not advisory and (expected_sha256 is not None or expected_md5 is not None)
 
+    # Deliberately *not* advisory: nothing was fetched here, so a mismatch is a change to
+    # bytes already on this disk -- local corruption, or a stale copy of an older release.
+    # Publisher drift can only be observed in bytes that just arrived over the wire.
+    # Relaxing this instead would undo the M2 review's laundering fix: the corrupt file
+    # would report as present and its digest would be written into the lock as truth.
     if target.is_file():
         size = target.stat().st_size
         if expected_size is not None and size != expected_size:
@@ -455,7 +504,7 @@ def download(
         # A part longer than the whole file cannot be a prefix of it.
         part.unlink()
         offset = 0
-    elif expected_size is not None and offset == expected_size and offset > 0:
+    elif expected_size is not None and offset == expected_size and offset > 0 and authenticated:
         # The part is already the full length: the transfer finished but the process died
         # before the digest and rename completed. That window is not narrow -- hashing a
         # 63 GB file takes minutes, and an interrupt during it lands exactly here.
@@ -463,6 +512,13 @@ def download(
         # Asking for `Range: bytes=<size>-` gets a 416 from a correct server, which
         # arrives as a URLError and reports "could not open" *forever*, while the
         # neighbouring message advises rerunning to resume. Verify and promote instead.
+        #
+        # Gated on `authenticated` because promotion here is the one path that renames a
+        # part into place without a *manifest* digest behind it. Unauthenticated, the
+        # checks below are vacuously true and a leftover part from an earlier release that
+        # happens to match the declared size would be promoted, hashed, and written into
+        # the lock as this release's authoritative digest -- the same chimera the branch
+        # below discards a shorter part to avoid, arrived at by matching a length.
         sha, md5, size = _digests(part)
         sha_ok = not expected_sha256 or sha == expected_sha256
         md5_ok = not expected_md5 or md5 == expected_md5
@@ -531,7 +587,22 @@ def download(
         )
 
     size = part.stat().st_size
-    if expected_size is not None and size != expected_size:
+    if advisory and chunked.total_size is not None and size != chunked.total_size:
+        # For an advisory file the manifest's size is stale by design, so the only
+        # trustworthy length is the one this response declared. A stream that ends cleanly
+        # short of it is a truncated transfer, and without a pin nothing downstream would
+        # ever notice.
+        part.unlink(missing_ok=True)
+        return FileResult(
+            name,
+            FileStatus.FAILED,
+            size,
+            detail=(
+                f"{part.name}: transfer ended at {size} bytes but the server declared "
+                f"{chunked.total_size}. The partial has been discarded; rerun to restart."
+            ),
+        )
+    if expected_size is not None and size != expected_size and not advisory:
         # A short response may still be a valid prefix: keep it so the next invocation
         # can resume. A response longer than the manifest declaration cannot be a prefix
         # of the declared file and is discarded before it can poison future retries.
@@ -563,18 +634,19 @@ def download(
             detail += " Rerun to resume the short transfer."
         return FileResult(name, FileStatus.FAILED, size, detail=detail)
     sha, md5, size = _digests(part)
-    if expected_sha256 and sha != expected_sha256:
+    if expected_sha256 and sha != expected_sha256 and not advisory:
         detail = _mismatch(part, "sha256", expected_sha256, sha, discarded=True)
         part.unlink(missing_ok=True)
         return FileResult(name, FileStatus.FAILED, size, sha, detail)
-    if expected_md5 and md5 != expected_md5:
+    if expected_md5 and md5 != expected_md5 and not advisory:
         detail = _mismatch(part, "md5", expected_md5, md5, discarded=True)
         part.unlink(missing_ok=True)
         return FileResult(name, FileStatus.FAILED, size, sha, detail)
 
     os.replace(part, target)
     status = FileStatus.RESUMED if resumed else FileStatus.DOWNLOADED
-    return FileResult(name, status, size, sha)
+    drift = _drift(target, expected_size, size, expected_sha256, sha) if advisory else ""
+    return FileResult(name, status, size, sha, drift)
 
 
 def fetch_file(
@@ -599,6 +671,7 @@ def fetch_file(
         expected_sha256=_expected_sha256(item, source.id, previous),
         expected_md5=item.md5,
         expected_size=item.size_bytes,
+        advisory=not item.pinned,
         progress=progress,
         label=source.id,
     )
@@ -652,6 +725,11 @@ def verify_file(
             sha,
             _mismatch(target, "md5", item.md5, md5, discarded=False),
         )
+    # `verify` stays strict even for an unpinnable file, and that is not in tension with
+    # the advisory fetch above: a successful fetch re-records drift in the same run, so
+    # after any fetch the lock agrees with the disk. A disagreement seen here is therefore
+    # a change nothing fetched -- which is the definition of corruption.
+    #
     # Keyed on both digests, not just sha256. All 24 gnomAD files are pinned by the
     # publisher's md5 and carry no sha256, so reporting "no digest to check against" for
     # them understated a check that had in fact just passed -- and an audit that

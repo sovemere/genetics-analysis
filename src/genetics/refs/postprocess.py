@@ -234,6 +234,29 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+_DIGEST_CACHE: dict[tuple[str, int, int], str] = {}
+"""Per-process memo for artifact digests, keyed by path, size and mtime.
+
+Verification hashes the *whole* artifact, and the artifacts here are the largest files the
+project produces -- the dbSNP variant index runs to tens of gigabytes. Every resolver
+lookup and every ``MergeTable.default()`` re-validates, so ``genetics cards lint`` was
+hashing tens of GB to read thirty-one rows, and a matcher run did it twice more. The check
+itself is not weakened: the first read in a process is a real hash, and any rewrite the
+transform performs changes size or mtime and so misses the memo. What is dropped is
+re-hashing bytes this process already read and nothing has touched since.
+"""
+
+
+def _cached_sha256(path: Path) -> str:
+    stat = path.stat()
+    key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    cached = _DIGEST_CACHE.get(key)
+    if cached is None:
+        cached = _sha256(path)
+        _DIGEST_CACHE[key] = cached
+    return cached
+
+
 def provenance_path(output: Path) -> Path:
     """Sidecar binding a derived reference artifact to its exact transform input."""
     return output.with_name(f"{output.name}.provenance.json")
@@ -255,7 +278,13 @@ def _expected_provenance(
         "transform_version": definition.transform_version,
         "input": {"filename": input_path.name, "sha256": input_sha256},
         "params": params,
-        "output": str(declared.params[output_param]),
+        # The basename, matching what :func:`_read_provenance` compares against. The
+        # sidecar sits beside its artifact, so the directory is already established by
+        # where the file is; recording the manifest-relative path here instead meant any
+        # output with a directory component was written successfully and then rejected on
+        # every subsequent read -- an artifact permanently reported FAILED for a mismatch
+        # between two spellings of its own name.
+        "output": Path(str(declared.params[output_param])).name,
     }
 
 
@@ -396,7 +425,7 @@ def validate_provenance(
     """Validate a sidecar against its artifact and optional manifest/input contract."""
     raw = _read_provenance(output)
     try:
-        output_sha256 = _sha256(output)
+        output_sha256 = _cached_sha256(output)
     except OSError as exc:
         raise ProcessError(f"{output.name}: cannot hash artifact ({exc})") from exc
     if raw["output_sha256"] != output_sha256:
@@ -1031,11 +1060,16 @@ def _run_parquet(
             status = ProcessStatus.VERIFIED if verify_only else ProcessStatus.ALREADY_PRESENT
             return ProcessResult(declared.step, status, str(declared.params["output"]), rows)
     if verify_only:
+        # Not built yet is not the same as broken. `refs status` already reports this
+        # state as "processing-required" and stays green; reporting FAILED here made
+        # `refs verify` exit non-zero and call every checksum-verified download of a
+        # 28 GB source broken, so the two commands disagreed about whether the tree was
+        # healthy. A *present* artifact that does not validate still fails, above.
         return ProcessResult(
             declared.step,
-            ProcessStatus.FAILED,
+            ProcessStatus.PENDING,
             str(declared.params["output"]),
-            detail="post-process output is missing",
+            detail="not built yet; run `genetics refs fetch` for this source",
         )
     try:
         recovered_rows = _recover_promoted_output(
@@ -1133,12 +1167,16 @@ def _run_merges(
                 detail=f"{unresolved_rows} unresolvable merge record(s)",
             )
     elif verify_only:
+        # See the note on the single-output verify branches: absent is pending work, not
+        # damage.
         missing = [path.name for path in (output, unresolved_output) if not path.is_file()]
         return ProcessResult(
             declared.step,
-            ProcessStatus.FAILED,
+            ProcessStatus.PENDING,
             str(declared.params["output"]),
-            detail=f"post-process output(s) missing: {', '.join(missing)}",
+            detail=(
+                f"not built yet ({', '.join(missing)}); run `genetics refs fetch` for this source"
+            ),
         )
 
     classified = output.with_name(f".{output.name}.classified.parquet")
@@ -1231,7 +1269,6 @@ def _run_merges(
 
 def _run_anchors(
     declared: PostProcess,
-    source: Source,
     source_dir: Path,
     *,
     verify_only: bool,
@@ -1252,10 +1289,15 @@ def _run_anchors(
         )
     if output.is_file():
         try:
-            anchors = load_anchors(output, expected_count=count)
-            validate_provenance(output, expected=expected_provenance, actual_rows=len(anchors))
-            if len(anchors) != count:
-                raise ProcessError(f"contains {len(anchors)} anchors; expected {count}")
+            # One validation, not two. `load_anchors` already runs `validate_provenance`
+            # and already enforces `expected_count`, so calling both here hashed and
+            # row-counted the artifact twice on every fetch and every verify, and stated
+            # the count rule in two places that could disagree.
+            anchors = load_anchors(
+                output,
+                expected_count=count,
+                expected_provenance=expected_provenance,
+            )
         except (OSError, TypeError, ValueError, ProcessError) as exc:
             if verify_only:
                 return ProcessResult(
@@ -1270,11 +1312,16 @@ def _run_anchors(
                 declared.step, status, str(declared.params["output"]), len(anchors)
             )
     if verify_only:
+        # Not built yet is not the same as broken. `refs status` already reports this
+        # state as "processing-required" and stays green; reporting FAILED here made
+        # `refs verify` exit non-zero and call every checksum-verified download of a
+        # 28 GB source broken, so the two commands disagreed about whether the tree was
+        # healthy. A *present* artifact that does not validate still fails, above.
         return ProcessResult(
             declared.step,
-            ProcessStatus.FAILED,
+            ProcessStatus.PENDING,
             str(declared.params["output"]),
-            detail="post-process output is missing",
+            detail="not built yet; run `genetics refs fetch` for this source",
         )
     try:
         selected = _select_anchors(_clinvar_pairs(input_path), count)
@@ -1372,7 +1419,6 @@ def run(
             elif declared.step == "extract_build_anchors":
                 result = _run_anchors(
                     declared,
-                    source,
                     source_dir,
                     verify_only=verify_only,
                     input_sha256=input_sha256,

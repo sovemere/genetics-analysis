@@ -160,4 +160,13 @@ def default_anchors() -> tuple[BuildAnchor, ...]:
         )
     except ProcessError as exc:
         raise AnchorError(str(exc)) from exc
-    return load_anchors(path, expected_count=200, expected_provenance=expected)
+    # The count comes from the manifest step that produced the file, never from a literal
+    # here. A second copy of that number turns a reference-configuration edit into a
+    # refusal to ingest the user's own genotype file -- the manifest declares 200, the
+    # artifact honestly contains what was declared, and only this module disagrees.
+    declared_count = expected["params"].get("count")
+    return load_anchors(
+        path,
+        expected_count=declared_count if isinstance(declared_count, int) else None,
+        expected_provenance=expected,
+    )

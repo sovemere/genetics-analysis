@@ -91,6 +91,16 @@ class RsidResolution:
     targets: tuple[str, ...] = ()
 
 
+class ReferenceDataError(ValueError):
+    """A fetched dbSNP merge artifact is present but cannot be trusted.
+
+    Distinct from :class:`UnresolvableRsidError`, which is a fact *about an rsID*. This is
+    a fact about the local reference setup -- absent companion artifact, stale provenance,
+    schema drift -- and a caller that catches it can say so instead of reporting a matching
+    failure. A ``ValueError`` subclass so existing handlers keep working.
+    """
+
+
 class UnresolvableRsidError(ValueError):
     """dbSNP explicitly says an rsID has no unique current target."""
 
@@ -151,7 +161,7 @@ class MergeTable:
         """
         expected = {"retired_rsid": pl.String, "current_rsid": pl.String}
         if dict(pl.read_parquet_schema(path)) != expected:
-            raise ValueError(
+            raise ReferenceDataError(
                 f"{path.name}: merge table schema is {dict(pl.read_parquet_schema(path))}, "
                 f"expected {expected}"
             )
@@ -162,9 +172,11 @@ class MergeTable:
             "targets": pl.List(pl.String),
         }
         if dict(pl.read_parquet_schema(unresolved_path)) != unresolved_schema:
-            raise ValueError(f"{unresolved_path.name}: incompatible unresolvable table schema")
+            raise ReferenceDataError(
+                f"{unresolved_path.name}: incompatible unresolvable table schema"
+            )
         if provenance_contracts is not None and not require_provenance:
-            raise ValueError("provenance_contracts require provenance validation")
+            raise ReferenceDataError("provenance_contracts require provenance validation")
         if require_provenance:
             from genetics.refs.postprocess import ProcessError, get, validate_provenance
 
@@ -184,10 +196,10 @@ class MergeTable:
                     expected_transform_version=get("extract_rsid_merge_table").transform_version,
                 )
             except ProcessError as exc:
-                raise ValueError(str(exc)) from exc
+                raise ReferenceDataError(str(exc)) from exc
             shared_keys = ("schema_version", "step", "transform_version", "input", "params")
             if any(merge_provenance[key] != unresolved_provenance[key] for key in shared_keys):
-                raise ValueError(
+                raise ReferenceDataError(
                     f"{path.name} and {unresolved_path.name} were not derived by the same transform"
                 )
 
@@ -207,14 +219,18 @@ class MergeTable:
                 .collect()
             )
             if frame.get_column("retired_rsid").n_unique() != frame.height:
-                raise ValueError(f"{path.name}: queried retired rsID has multiple rows")
+                raise ReferenceDataError(f"{path.name}: queried retired rsID has multiple rows")
             if ambiguous.get_column("retired_rsid").n_unique() != ambiguous.height:
-                raise ValueError(f"{unresolved_path.name}: queried retired rsID has multiple rows")
+                raise ReferenceDataError(
+                    f"{unresolved_path.name}: queried retired rsID has multiple rows"
+                )
             overlap = set(frame.get_column("retired_rsid")) & set(
                 ambiguous.get_column("retired_rsid")
             )
             if overlap:
-                raise ValueError(f"rsID(s) occur in both merge artifacts: {sorted(overlap)}")
+                raise ReferenceDataError(
+                    f"rsID(s) occur in both merge artifacts: {sorted(overlap)}"
+                )
             next_frontier: set[str] = set()
             for retired, current in frame.iter_rows():
                 if (
@@ -226,21 +242,21 @@ class MergeTable:
                     or not current[2:].isdigit()
                     or retired == current
                 ):
-                    raise ValueError(f"{path.name}: malformed or self-merge row")
+                    raise ReferenceDataError(f"{path.name}: malformed or self-merge row")
                 merges[retired] = current
                 next_frontier.add(current)
             for retired, status_text, targets in ambiguous.iter_rows():
                 try:
                     status = RsidResolutionStatus(status_text)
                 except ValueError as exc:
-                    raise ValueError(
+                    raise ReferenceDataError(
                         f"{unresolved_path.name}: invalid status {status_text!r}"
                     ) from exc
                 if status not in {
                     RsidResolutionStatus.NO_CURRENT_TARGET,
                     RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS,
                 }:
-                    raise ValueError(
+                    raise ReferenceDataError(
                         f"{unresolved_path.name}: invalid unresolved status {status.value!r}"
                     )
                 if (
@@ -259,7 +275,7 @@ class MergeTable:
                         status is RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS and len(targets) < 2
                     )
                 ):
-                    raise ValueError(
+                    raise ReferenceDataError(
                         f"{unresolved_path.name}: malformed unresolved row for {retired!r}"
                     )
                 unresolved[retired] = (status, tuple(targets))
@@ -277,7 +293,9 @@ class MergeTable:
         if not path.is_file():
             return cls.empty()
         if not unresolved.is_file():
-            raise ValueError(f"{unresolved.name} is missing; refetch dbSNP before resolving rsIDs")
+            raise ReferenceDataError(
+                f"{unresolved.name} is missing; refetch dbSNP before resolving rsIDs"
+            )
         try:
             contracts = (
                 declared_artifact_provenance(
@@ -293,7 +311,7 @@ class MergeTable:
                 ),
             )
         except ProcessError as exc:
-            raise ValueError(str(exc)) from exc
+            raise ReferenceDataError(str(exc)) from exc
         return cls.from_parquet(
             path,
             rsids=rsids,
@@ -331,7 +349,17 @@ class MergeTable:
         return resolution.current_rsid
 
     def resolve_all(self, rsids: Iterable[str]) -> dict[str, str]:
+        """Resolve each rsID, raising on any dbSNP cannot resolve to a single current ID."""
         return {rsid: self.resolve(rsid) for rsid in rsids}
+
+    def resolve_all_results(self, rsids: Iterable[str]) -> dict[str, RsidResolution]:
+        """Resolve each rsID, reporting rather than raising on the unresolvable ones.
+
+        For a caller processing every row of an export rather than asking about one
+        marker: b157 carries tens of thousands of retired IDs with zero or several current
+        targets, and one of them appearing in a 677k-row file must not abort the run.
+        """
+        return {rsid: self.resolve_result(rsid) for rsid in rsids}
 
 
 def locus_keys(table: GenotypeTable) -> pl.DataFrame:
@@ -349,12 +377,23 @@ def add_current_rsid(table: GenotypeTable, merges: MergeTable) -> pl.DataFrame:
 
     The normalized table's own schema is untouched -- this returns a plain frame, so
     :data:`~genetics.ingest.schema.NORMALIZED_SCHEMA` stays the single contract.
+
+    An rsID dbSNP cannot resolve to a single current identifier gets **null**, not its
+    original value. This runs over every row of the user's export, so raising would let
+    one of b157's ~23k ambiguous retirements abort the whole ingest; but writing the
+    original back would state that the retired ID *is* current, which is the false
+    identity :meth:`MergeTable.resolve` refuses for exactly this reason. Null is the third
+    answer, and it propagates the way M1.1 made no-calls propagate.
     """
     if len(merges) == 0:
         return table.frame.with_columns(pl.col("rsid").alias("rsid_current"))
 
-    mapping = merges.resolve_all(table.frame.get_column("rsid").unique().to_list())
-    changed = {old: new for old, new in mapping.items() if old != new}
+    mapping = merges.resolve_all_results(table.frame.get_column("rsid").unique().to_list())
+    changed: dict[str, str | None] = {
+        rsid: resolution.current_rsid
+        for rsid, resolution in mapping.items()
+        if resolution.current_rsid != rsid
+    }
     if not changed:
         return table.frame.with_columns(pl.col("rsid").alias("rsid_current"))
 
@@ -398,6 +437,12 @@ def lookup_rsids(
     Resolution runs on *both* sides. Resolving only the query would miss an export that
     predates the merge -- which is the common case, since the export is fixed at the date
     it was generated and the reference keeps moving.
+
+    The two sides handle an unresolvable identifier differently, on purpose. A *queried*
+    rsID that dbSNP says has no single current target raises: the caller asked a specific
+    question and the honest answer is that it cannot be answered. A *table* rsID gets null
+    (see :func:`add_current_rsid`): the user did not choose those 677k identifiers, and one
+    ambiguous retirement among them is not a reason to refuse to read their file.
     """
     table_merges = merges or MergeTable.empty()
     frame = add_current_rsid(table, table_merges)

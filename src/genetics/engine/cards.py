@@ -468,12 +468,11 @@ class Effect:
             known = ", ".join(m.value for m in EffectMeasure)
             raise CardError(f"{where}: unknown measure {measure_text!r}. Known: {known}.") from None
 
-        raw_value = _require(data, "value", where)
-        if isinstance(raw_value, bool) or not isinstance(raw_value, int | float):
-            raise CardError(f"{where}: value must be a number")
-        value = float(raw_value)
-        if not math.isfinite(value):
-            raise CardError(f"{where}: value must be finite, got {raw_value!r}")
+        # Through `_number` rather than hand-rolled, so the point estimate and the interval
+        # bounds six lines below cannot drift apart. They already had: the finite check was
+        # written twice with two different messages, and the next numeric rule would have
+        # been applied to one and not the other.
+        value = _number(_require(data, "value", where), where, "value")
 
         units = str(data["units"]).strip() if data.get("units") else None
         if measure.requires_units and not units:

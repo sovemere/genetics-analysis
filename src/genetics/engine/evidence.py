@@ -222,8 +222,18 @@ def _confidence_frequency(
     card: Card,
     match: MatchResult,
     observation: ObservationEvidence,
-) -> PopulationFrequency | None:
-    """Select the rarest called allele from a complete, comparable frequency set."""
+) -> tuple[PopulationFrequency | None, tuple[str, ...]]:
+    """Select the rarest called allele, and report any observed allele with no frequency.
+
+    Returns ``(frequency, missing)``. Incomplete reference coverage is a *fact about the
+    reference*, reported rather than raised: gnomAD does not list every allele of every
+    variant, and a strand-ambiguous site legitimately adds a complemented allele the
+    reference never reported. Raising lost the whole pack -- every other card included --
+    to one absent row, which is the filtering AGENTS.md 0.1A forbids arriving as an
+    exception instead of as a policy. ``None`` frequency is already the conservative path:
+    :func:`calculate_confidence` caps an unknown frequency at ``moderate``, so nothing is
+    scored as common on the strength of a missing number.
+    """
 
     assert card.match is not None
     declared = set(card.match.variant.key.alleles)
@@ -234,7 +244,7 @@ def _confidence_frequency(
                 "using it would attach another variant's calibration"
             )
     if match.status is not MatchStatus.MATCHED or not observation.frequencies:
-        return None
+        return None, ()
 
     genotype = match.genotype or match.observed_genotype
     if genotype is None:
@@ -251,13 +261,13 @@ def _confidence_frequency(
         assert match.observed_genotype is not None
         called.update(complement(match.observed_genotype))
     by_allele = {item.allele: item for item in observation.frequencies}
-    missing = sorted(called - set(by_allele))
+    missing = tuple(sorted(called - set(by_allele)))
     if missing:
-        raise EvidenceAssemblyError(
-            f"card {card.id!r} needs frequency for every observed allele; missing "
-            + ", ".join(missing)
-        )
-    return min((by_allele[allele] for allele in called), key=lambda item: item.frequency)
+        return None, missing
+    return (
+        min((by_allele[allele] for allele in called), key=lambda item: item.frequency),
+        (),
+    )
 
 
 def assemble_card(
@@ -309,7 +319,7 @@ def assemble_card(
             "assuming a direct call could score an imputed observation as perfect"
         )
     observed = observation
-    confidence_frequency = _confidence_frequency(card, match, observed)
+    confidence_frequency, unpriced_alleles = _confidence_frequency(card, match, observed)
 
     if match.status is MatchStatus.NOT_DETERMINABLE:
         raise EvidenceAssemblyError(
@@ -354,6 +364,17 @@ def assemble_card(
         ancestry_match=observed.ancestry_match,
     )
     template_values = _template_values(card, match, confidence)
+    computed_caveats = match.caveats
+    if unpriced_alleles:
+        # Said on the card face rather than swallowed: the rarity inversion is the most
+        # important thing this interface communicates (AGENTS.md 4.1), so a reader is owed
+        # the fact that it could not be applied here and which allele was missing.
+        computed_caveats = (
+            *computed_caveats,
+            "No population frequency was available for "
+            + ", ".join(unpriced_alleles)
+            + ", so the rarity check could not be applied and confidence is capped.",
+        )
     return AssembledCard(
         card_id=card.id,
         section=card.section,
@@ -370,7 +391,7 @@ def assemble_card(
         confidence_frequency=confidence_frequency,
         citations=card.citations,
         authored_caveats=card.caveats,
-        computed_caveats=match.caveats,
+        computed_caveats=computed_caveats,
     )
 
 

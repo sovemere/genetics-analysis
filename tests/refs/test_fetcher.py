@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from genetics.refs import fetcher, manifest
+from genetics.refs import fetcher, manifest, postprocess
 from genetics.refs import lock as lockfile
 from genetics.refs.fetcher import Chunked, FileStatus, SourceStatus
 
@@ -208,7 +208,13 @@ def test_an_interrupted_transfer_keeps_the_part_for_a_later_resume(tmp_path: Pat
 
 
 def test_an_unpinned_short_first_fetch_is_discarded_and_restarts(tmp_path: Path) -> None:
-    """A size cannot prove two ranged responses came from the same rolling entity."""
+    """A truncated transfer is caught by the length the response itself declared.
+
+    The manifest's size cannot do this job for an unpinnable file -- it describes the
+    release the manifest was written against, and the whole point of the advisory rule is
+    that the publisher may have replaced it. ``Content-Length`` describes *this* response,
+    so a stream that ends early is still a failure with nothing else to notice it.
+    """
     source = make_source(sha256=None, unpinned_reason="rolling latest release")
     first_transport = FakeTransport(truncate_at=120)
 
@@ -221,8 +227,8 @@ def test_an_unpinned_short_first_fetch_is_discarded_and_restarts(tmp_path: Path)
     )
 
     assert first.status is FileStatus.FAILED
-    assert "size mismatch" in first.detail
-    assert "no digest" in first.detail
+    assert "transfer ended at 120 bytes" in first.detail
+    assert "server declared" in first.detail
     assert "left in place" not in first.detail
     assert not (tmp_path / "example" / "ref.txt").exists()
     assert not (tmp_path / "example" / "ref.txt.part").exists()
@@ -256,8 +262,36 @@ def test_an_existing_unpinned_short_part_is_discarded_before_open(tmp_path: Path
     assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
 
 
-def test_an_unpinned_oversized_first_fetch_is_discarded(tmp_path: Path) -> None:
+def test_an_unpinned_fetch_larger_than_the_manifest_declares_is_drift_not_failure(
+    tmp_path: Path,
+) -> None:
+    """A complete response that is simply bigger is the publisher's new release.
+
+    The manifest declares this file unpinnable precisely because it is regenerated under
+    a fixed name, and a regenerated file is a different size. Failing here is what makes
+    the source permanently unfetchable for every clone the week after the manifest was
+    written.
+    """
     source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    oversized = PAYLOAD + b"unexpected trailing bytes"
+
+    result = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport({URL: oversized}),
+        previous=lockfile.Lock(),
+    )
+
+    assert result.status is FileStatus.DOWNLOADED
+    assert "content differs from the recorded copy" in result.detail
+    assert f"manifest declares {len(PAYLOAD)}" in result.detail
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == oversized
+
+
+def test_a_pinned_fetch_of_the_wrong_size_still_fails(tmp_path: Path) -> None:
+    """The advisory rule must not leak into a file the manifest actually pinned."""
+    source = make_source()  # pinned by sha256
     oversized = PAYLOAD + b"unexpected trailing bytes"
 
     result = fetcher.fetch_file(
@@ -272,6 +306,77 @@ def test_an_unpinned_oversized_first_fetch_is_discarded(tmp_path: Path) -> None:
     assert "size mismatch" in result.detail
     assert not (tmp_path / "example" / "ref.txt").exists()
     assert not (tmp_path / "example" / "ref.txt.part").exists()
+
+
+def test_a_committed_lock_digest_does_not_wedge_a_clone_on_a_rolling_file(
+    tmp_path: Path,
+) -> None:
+    """The failure a committed lock introduces, which no machine that has the file can see.
+
+    ``manifest.lock`` is committed, so every clone inherits the digest the first fetch
+    recorded. For a file the manifest declares unpinnable that digest describes a release
+    the publisher has since replaced. Treated as a pin it makes the source unfetchable for
+    everyone *except* the machine that wrote it, which short-circuits on already-present
+    and therefore never reproduces the report.
+    """
+    source = make_source(sha256=None, unpinned_reason="regenerated weekly under a fixed name")
+    committed = lockfile.Lock(
+        sources={
+            "example": lockfile.LockedSource(
+                version="1",
+                license_id="CC0-1.0",
+                files={
+                    "ref.txt": lockfile.LockedFile(
+                        url=URL,
+                        sha256=PAYLOAD_SHA,
+                        size_bytes=len(PAYLOAD),
+                        first_seen="2026-08-16",
+                    )
+                },
+            )
+        }
+    )
+    # Same length, different bytes: the size check must not be what saves this test.
+    regenerated = PAYLOAD.replace(b"reference payload", b"reference PAYLOAD")
+    assert len(regenerated) == len(PAYLOAD) and regenerated != PAYLOAD
+
+    result = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport({URL: regenerated}),
+        previous=committed,
+    )
+
+    assert result.status is FileStatus.DOWNLOADED
+    assert result.sha256 == hashlib.sha256(regenerated).hexdigest()
+    assert "lock recorded" in result.detail
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == regenerated
+
+
+def test_a_full_length_part_is_not_promoted_without_a_manifest_digest(tmp_path: Path) -> None:
+    """Matching a declared length is not identity.
+
+    The promotion path exists for a 63 GB pinned file whose hashing was interrupted. With
+    no manifest digest its two checks are vacuously true, so a leftover part from an
+    earlier release that happens to be the declared length would be renamed into place and
+    its digest written to the lock as this release's truth -- the chimera the shorter-part
+    branch discards bytes to avoid, reached by matching a number.
+    """
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    stale = b"S" * len(PAYLOAD)
+    part = tmp_path / "example" / "ref.txt.part"
+    part.parent.mkdir(parents=True)
+    part.write_bytes(stale)
+    transport = FakeTransport()
+
+    result = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+
+    assert result.status is FileStatus.DOWNLOADED
+    assert transport.requests == [(URL, 0)], "the stale part must be discarded, not resumed"
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
 
 
 # ---------------------------------------------------------------------------
@@ -607,6 +712,60 @@ def test_fetch_executes_implemented_post_processing_and_reports_it(tmp_path: Pat
     assert process.rows == 1
     assert (tmp_path / "refs" / "dbsnp_test" / "dbsnp_variants.parquet").is_file()
     assert any(event.unit == "rows" and event.downloaded == 1 for event in events)
+
+
+def test_verify_does_not_call_a_source_broken_for_work_not_yet_done(tmp_path: Path) -> None:
+    """A download interrupted before its transform is pending work, not damage.
+
+    `refs status` reports that tree as "processing-required" and stays green. `refs verify`
+    folded the absent artifact into SourceStatus.FAILED, so the two commands disagreed
+    about whether a fully checksum-verified 28 GB download was broken -- and the exit code
+    stopped being usable as a health signal at exactly the moment someone runs it to
+    decide whether to resume.
+    """
+    vcf = gzip.compress(
+        b"##fileformat=VCFv4.2\n"
+        b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        b"NC_000001.10\t101\trs101\tA\tG\t.\t.\tRS=101\n"
+    )
+    url = "https://example.org/dbsnp.vcf.gz"
+    source = manifest.Source(
+        id="dbsnp_test",
+        name="Synthetic dbSNP",
+        tier=manifest.Tier.A,
+        version="test",
+        homepage="https://example.org/",
+        license_id="CC0-1.0",
+        files=(
+            manifest.RemoteFile(
+                url=url,
+                filename="dbsnp.vcf.gz",
+                sha256=hashlib.sha256(vcf).hexdigest(),
+                size_bytes=len(vcf),
+            ),
+        ),
+        post_process=(
+            manifest.PostProcess(
+                step="extract_dbsnp_variant_index",
+                params={"input": "dbsnp.vcf.gz", "output": "dbsnp_variants.parquet"},
+            ),
+        ),
+    )
+    root = tmp_path / "refs"
+    (root / source.id).mkdir(parents=True)
+    (root / source.id / "dbsnp.vcf.gz").write_bytes(vcf)
+
+    result = fetcher.fetch_source(
+        source,
+        root=root,
+        transport=FakeTransport({url: vcf}),
+        previous=lockfile.Lock(),
+        verify_only=True,
+    )
+
+    assert result.status is not fetcher.SourceStatus.FAILED
+    assert all(file.status is not FileStatus.FAILED for file in result.files)
+    assert result.process_results[0].status is postprocess.ProcessStatus.PENDING
 
 
 def test_rerunning_a_fetch_produces_a_byte_identical_lock(tmp_path: Path) -> None:

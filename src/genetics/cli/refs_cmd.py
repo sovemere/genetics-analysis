@@ -147,7 +147,14 @@ def refs_status(
             if (source_dir / name).is_file()
             and postprocess.provenance_path(source_dir / name).is_file()
         )
-        processing = outputs_present < len(outputs) and any(
+        # Partial artifacts mean a transform started; they do not mean one is running now,
+        # and nothing on disk can tell the difference. A killed transform leaves the same
+        # files as a live one -- `_run_merges` deliberately keeps its multi-GB intermediate
+        # so a rerun resumes from it rather than re-reading 28 GB. Reporting that as
+        # "processing" left a stale orphan looking like work in progress forever, with no
+        # line telling the user a rerun was needed. So the state is the same
+        # "processing-required" either way, and the resumable partials become a detail.
+        resumable = outputs_present < len(outputs) and any(
             _process_work_present(source_dir, name) for name in outputs
         )
         refusal = fetcher.licence_refusal(source)
@@ -156,21 +163,11 @@ def refs_status(
         elif source.manual is not None and not fetcher.manual_step_satisfied(source, root):
             state = "manual-step"
         elif source.manual is not None:
-            if processing:
-                state = "processing"
-            elif outputs_present < len(outputs):
-                state = "processing-required"
-            else:
-                state = "complete"
+            state = "processing-required" if outputs_present < len(outputs) else "complete"
         elif not source.files:
             state = "empty"
         elif present == len(source.files):
-            if processing:
-                state = "processing"
-            elif outputs_present < len(outputs):
-                state = "processing-required"
-            else:
-                state = "complete"
+            state = "processing-required" if outputs_present < len(outputs) else "complete"
         elif present or downloading:
             state = "partial"
         else:
@@ -187,6 +184,7 @@ def refs_status(
                 "files_total": len(source.files),
                 "post_process_outputs_present": outputs_present,
                 "post_process_outputs_total": len(outputs),
+                "post_process_resumable": resumable,
                 "pending_post_process": [
                     step.step for step in source.post_process if not step.definition.implemented
                 ],
@@ -209,7 +207,6 @@ def refs_status(
         "manual-step": typer.colors.CYAN,
         "blocked-by-licence": typer.colors.RED,
         "empty": typer.colors.YELLOW,
-        "processing": typer.colors.CYAN,
         "processing-required": typer.colors.YELLOW,
     }
     for row in rows:
@@ -220,6 +217,14 @@ def refs_status(
             f"{mark} {row['tier']}  {row['id']:<32} "
             f"{row['files_present']}/{row['files_total']:<3} {size:>10}"
         )
+        if row["post_process_resumable"]:
+            # Said out loud, because the alternative is a directory quietly holding
+            # gigabytes of a transform nobody knows stopped.
+            typer.secho(
+                "                      partial post-processing artifacts present; "
+                "rerun `genetics refs fetch` to resume from the last checkpoint",
+                fg=typer.colors.CYAN,
+            )
 
     missing_required = [r for r in rows if r["required"] and r["state"] != "complete"]
     if missing_required:

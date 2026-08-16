@@ -329,6 +329,15 @@ class Matcher:
         policy: IndelPolicy | None = None,
         merges: MergeTable | None = None,
     ) -> Matcher:
+        """Build a matcher for one pack against one sample's table.
+
+        With ``merges`` omitted this **reads the filesystem**: it loads the fetched dbSNP
+        merge artifacts, which means parsing the manifest and lock and validating
+        provenance. That can raise :class:`~genetics.ingest.keys.ReferenceDataError` -- a
+        statement about the local reference setup rather than about matching, which is why
+        it is a named type a caller can report as such. Pass ``merges`` explicitly (for
+        example ``MergeTable.empty()``) to keep the constructor pure.
+        """
         loci = [c.variant_key.locus for c in pack.cards if c.variant_key is not None]
         index = LocusIndex.build(table, loci, policy=policy or IndelPolicy.default())
         if merges is None:

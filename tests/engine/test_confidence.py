@@ -319,6 +319,50 @@ def test_unit_bearing_effect_uses_unit_free_interval_precision() -> None:
     assert result.inputs.effect_score == 1.0
 
 
+def test_effect_score_calibration_points() -> None:
+    """Pin the interval rule to numbers, because prose alone already drifted from it once.
+
+    The docstring described the half-width while the code divided by the full width, and
+    nothing in the module said which was intended. These three points fix the calibration:
+    the null scores zero, a nominally significant effect (z = 1.96, so |value| equal to
+    the half-width) scores 0.5 -- exactly the interval-free default, so an authored
+    interval starts paying off precisely where the effect becomes significant -- and
+    saturation arrives at twice that.
+    """
+    scores = []
+    for value, ci_low, ci_high in [
+        (0.0, -1.0, 1.0),  # null: the interval spans zero symmetrically
+        (1.0, 0.0, 2.0),  # z = 1.96: |value| equals the half-width
+        (2.0, 0.0, 2.0),  # z = 3.92: |value| equals the full width
+    ]:
+        result = calculate_confidence(
+            _evidence(
+                measure=EffectMeasure.BETA,
+                value=value,
+                units="cm",
+                ci_low=ci_low,
+                ci_high=ci_high,
+            ),
+            population_allele_frequency=0.20,
+            call_source=CallSource.DIRECT,
+            ancestry_match=1.0,
+        )
+        scores.append(result.inputs.effect_score)
+
+    assert scores == [0.0, 0.5, 1.0]
+
+    interval_free = calculate_confidence(
+        _evidence(measure=EffectMeasure.BETA, value=1.0, units="cm"),
+        population_allele_frequency=0.20,
+        call_source=CallSource.DIRECT,
+        ancestry_match=1.0,
+    )
+    assert interval_free.inputs.effect_score == scores[1], (
+        "the crossover must sit at nominal significance: an interval-bearing effect that "
+        "just reaches z = 1.96 should score what an effect with no interval at all scores"
+    )
+
+
 def test_conflicting_replication_is_weaker_than_independent_replication() -> None:
     independent = calculate_confidence(
         _evidence(replication=Replication.INDEPENDENT),
