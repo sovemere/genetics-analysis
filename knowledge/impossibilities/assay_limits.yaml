@@ -1,0 +1,97 @@
+schema_version: 1
+cards:
+  - id: methylation_epigenetic_age
+    section: physical_health
+    kind: impossibility
+    title: Methylation age and epigenetic clocks
+    impossibility_reason: >-
+      A genotyping array reads which base sits at a chosen position. Methylation is a
+      chemical modification of cytosine that leaves the base unchanged, so no genotype
+      call in this file carries any information about it.
+    summary: "Not determinable: this array reads sequence, and methylation leaves the sequence unchanged."
+    detail: >-
+      Epigenetic clocks -- Horvath, Hannum, PhenoAge, GrimAge and their successors -- are
+      fitted on methylation microarrays, which measure the fraction of DNA molecules
+      carrying a methyl group at each of several hundred thousand CpG sites. Reading that
+      fraction requires bisulfite or enzymatic conversion of the sample first, which turns
+      unmethylated cytosine into uracil and so converts a chemical difference into a
+      sequence difference an assay can see. No such conversion happens in a genotyping run:
+      the DNA is hybridised directly, and a methylated and an unmethylated cytosine give
+      the same call. The result here is not a poor methylation estimate. There is no signal
+      at all, and no amount of reprocessing this file will produce one. A product that
+      quotes you a biological age ran a different assay on a fresh sample.
+    caveats:
+      - "Several ageing-related traits do have common genetic associations this array can genotype. Those are associations measured across a population, not a measurement of your epigenome, and they answer a different question from an epigenetic clock."
+
+  - id: somatic_and_tumour_variants
+    section: physical_health
+    kind: impossibility
+    title: Somatic and tumour variants
+    impossibility_reason: >-
+      This is germline DNA from saliva, reported as one genotype per position. A somatic
+      variant is present in a subset of cells at a fraction the assay does not measure,
+      in a tissue this sample does not contain.
+    summary: "Not determinable: this is germline saliva DNA, and every position is reported as a single genotype."
+    detail: >-
+      Tumour profiling asks which mutations a tumour has acquired that the rest of the body
+      has not. Answering it needs DNA from the tumour, and usually a matched normal sample
+      to subtract. Two separate things rule it out here. The sample is saliva, so it carries
+      the germline genome the person was born with rather than any tumour's. And the assay
+      reports a discrete call per position -- one of the two homozygotes, or the
+      heterozygote -- rather than the fraction of molecules carrying each allele, which is
+      the quantity a somatic variant is called from. A mutation present in eight per cent of
+      cells is not a faint signal in this file; it has no representation in it. Mosaic
+      events large enough to shift a probe's raw signal can sometimes be recovered from an
+      array, but only from the per-probe intensities, and the exported file contains called
+      genotypes and nothing else. The same reasoning covers clonal haematopoiesis and other
+      mosaic findings.
+    caveats:
+      - "Inherited variants that raise cancer risk are a germline question and are in scope for this tool. That is a different claim from profiling a tumour, and a result of either kind says nothing about the other."
+
+  - id: telomere_length
+    section: physical_health
+    kind: impossibility
+    title: Telomere length
+    impossibility_reason: >-
+      Telomere length is a physical measurement of how long a repeat array is in a
+      particular sample of cells. It is not a property of the genotype at any position,
+      and the array measures neither lengths nor the telomeric repeats themselves.
+    summary: "Not determinable: telomere length is a measurement, and this file contains genotypes."
+    detail: >-
+      Telomeres are tandem TTAGGG repeats at the ends of chromosomes, and their length is
+      measured -- by quantitative PCR against a single-copy reference gene, by Southern blot
+      of terminal restriction fragments, or from sequencing read depth. All three need the
+      physical DNA, and all three give an answer that varies between tissues, between cells
+      in one tissue, and across a person's life. A SNP array carries no probes inside the
+      telomeric repeat, and would have nothing to size if it did, because it reports which
+      base is present rather than how long anything is. Polygenic scores for leukocyte
+      telomere length do exist and are built from ordinary SNPs of the kind this array
+      types. A score of that sort predicts roughly where someone sits in a population
+      distribution; it is not interchangeable with a measurement of their telomeres, and the
+      two should never be compared as though they were the same number.
+    caveats:
+      - "Wherever a telomere-length polygenic score appears in this report it is labelled as a proxy. A proxy is a prediction about a distribution and carries all the limits polygenic scores carry."
+
+  - id: de_novo_mutations
+    section: physical_health
+    kind: impossibility
+    title: De novo mutations
+    impossibility_reason: >-
+      A variant is de novo only in relation to both parents' genomes. One person's file
+      contains nothing to compare against, and this project does not analyse other
+      people's genomes.
+    summary: "Not determinable: calling a variant de novo requires both parents' genomes, which this tool does not use."
+    detail: >-
+      De novo is a statement about inheritance rather than about the variant itself: it
+      means the variant is present in the child and absent in both parents. Establishing it
+      needs all three genomes, each covered well enough that an absence in a parent is a
+      real absence rather than a missed call. A single person's genotype file cannot support
+      that comparison in any form -- every variant in it is simply present, with nothing to
+      distinguish an allele inherited from a parent from one that arose new. Two further
+      limits hold even when trio data exists. This array types a fixed panel of positions
+      chosen because they are common in the population, and a new mutation is by definition
+      not one of them. And the parental genomes the comparison needs are out of scope here
+      on privacy grounds as much as technical ones: this tool is built to analyse one
+      person's data.
+    caveats:
+      - "A rare-looking variant on this array is not evidence of a new mutation. Rare calls from a genotyping array are wrong far more often than they are right, which is why this report treats them the way it does."

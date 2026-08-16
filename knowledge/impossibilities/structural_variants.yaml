@@ -1,0 +1,128 @@
+schema_version: 1
+cards:
+  - id: structural_and_copy_number_variants
+    section: genome_structure
+    kind: impossibility
+    title: Copy-number and structural variants
+    impossibility_reason: >-
+      The export contains genotype calls only. Copy number is inferred from per-probe
+      signal intensity, which the file does not carry, and rearrangement breakpoints fall
+      between probes, where the array has no coverage at all.
+    summary: "Not determinable: counting copies needs probe intensities, and this file holds genotype calls."
+    detail: >-
+      A genotyping array does generate data that speaks to copy number. The log R ratio, the
+      total signal at a probe, together with the B-allele frequency, the ratio between the
+      two alleles, will separate one copy from two from three. Neither quantity survives
+      into a consumer export, which reports a called genotype per marker and nothing else.
+      So a deletion reads as a homozygote, because only one allele was there to detect, and
+      a duplication reads as an ordinary heterozygote. Structural variants that do not
+      change copy number -- inversions, balanced translocations -- are invisible for a
+      different reason: they are defined by where their breakpoints fall, and breakpoints
+      fall between the positions an array types. This one limitation is why several specific
+      findings elsewhere in this report are marked not determinable. It is stated here
+      rather than left implicit, because a section that simply omits what it cannot see
+      looks complete.
+    caveats:
+      - "Runs of homozygosity are computed from genotype calls alone and are a different measurement entirely. A long homozygous stretch reflects shared ancestry between your parental lines; it is not evidence of a deletion."
+
+  - id: smn1_copy_number
+    section: reproductive
+    kind: impossibility
+    title: SMN1 copy number and spinal muscular atrophy carrier status
+    gene: SMN1
+    impossibility_reason: >-
+      Carrier status for spinal muscular atrophy is defined by how many copies of SMN1 a
+      person has, and copy number cannot be counted from genotype calls. The near-identical
+      paralogue SMN2 makes it harder still, because a probe cannot cleanly tell the two
+      genes apart.
+    summary: "Not determinable: {gene} carrier status is a copy count, and this array reports genotypes."
+    detail: >-
+      Roughly nineteen in twenty carriers of spinal muscular atrophy are carriers because
+      they have one copy of {gene} where most people have two, usually through deletion or
+      gene conversion of exon 7. The clinical test therefore counts copies, by MLPA or by
+      quantitative or digital PCR, rather than reading a sequence variant. Two properties of
+      this locus put that beyond a genotyping array. Copy number is absent from the exported
+      data, which carries called genotypes and not the signal intensities a count would be
+      derived from. And {gene} sits beside SMN2, a duplicated paralogue differing at only a
+      handful of positions, so a probe designed against one hybridises to both and the assay
+      cannot attribute what it sees to a particular copy. A person with one {gene} copy and
+      a person with two produce the same genotype call here.
+    caveats:
+      - "Because no result is available, nothing in this report should be read as reassurance about carrier status for spinal muscular atrophy. Screening for it is a specific test, ordered separately."
+
+  - id: alpha_globin_deletions
+    section: reproductive
+    kind: impossibility
+    title: Alpha-thalassaemia carrier status
+    gene: HBA1
+    impossibility_reason: >-
+      Alpha-thalassaemia is usually caused by deletion of one or more of the four
+      alpha-globin genes. A deletion removes the sequence a probe was designed to read
+      rather than altering it, so genotype calls cannot count how many copies remain.
+    summary: "Not determinable: alpha-thalassaemia is usually a missing gene copy, and this array cannot count copies."
+    detail: >-
+      Most people carry four alpha-globin genes, two on each copy of chromosome 16 --
+      {gene} and HBA2. The common alpha-thalassaemia alleles delete one of them, through the
+      3.7 kb and 4.2 kb rearrangements, or both genes on the same chromosome, through the
+      Southeast Asian and Mediterranean deletions. Clinical carrier testing counts what
+      survives, by gap-PCR or MLPA. Deletions are the hardest case for a genotyping array,
+      because the sequence a probe was designed against is simply gone: the probe reports
+      whatever the remaining copy says, and the missing copy leaves no trace in a genotype
+      call. The 3.7 kb deletion in particular arises by recombination between two
+      near-identical repeats, which is also why probes in this region cannot be attributed
+      to one gene copy rather than the other.
+    caveats:
+      - "As with any deletion-based condition, the absence of a finding here is not a negative result. Alpha-thalassaemia carrier testing is a separate and specific assay."
+
+  - id: rhd_zygosity
+    section: physical_health
+    kind: impossibility
+    title: RhD blood group and RHD zygosity
+    gene: RHD
+    impossibility_reason: >-
+      RhD-negative status is most often the whole RHD gene being absent, and an absent
+      gene produces no genotype call to read. Separating one copy from two is a copy
+      count, which this data does not contain.
+    summary: "Not determinable: RhD status usually turns on whether {gene} is present at all, which genotype calls cannot show."
+    detail: >-
+      The RhD antigen is encoded by {gene}, which sits next to the almost identical RHCE. In
+      European populations RhD-negative is usually caused by complete deletion of {gene}. In
+      African populations an inactive pseudogene and {gene}-RHCE hybrid alleles are common
+      instead, and those produce a gene that is present but not expressed. Reading any of
+      this requires the number of {gene} copies and their structure, which are copy-number
+      and rearrangement questions rather than genotype questions. A SNP array has a second
+      problem in this region even where a single base would settle the answer: probes
+      cross-hybridise between {gene} and RHCE, which differ at relatively few positions.
+      Blood group is established by a serological test, and that test is what a transfusion
+      service or an antenatal clinic uses.
+    caveats:
+      - "Rh status in pregnancy is managed on the basis of a serological blood-group test. Nothing derivable from this file substitutes for one."
+
+  - id: cyp2d6_structural_variation
+    section: pharmacogenomics
+    kind: impossibility
+    title: CYP2D6 star alleles
+    gene: CYP2D6
+    impossibility_reason: >-
+      CYP2D6 is dominated by whole-gene deletions, duplications and CYP2D6-CYP2D7 hybrids.
+      Those are copy-number and rearrangement events that a genotype-only file cannot
+      represent, and a diplotype called from SNPs alone comes out confidently wrong rather
+      than merely uncertain.
+    summary: "Not callable: {gene} is dominated by gene deletions, duplications and hybrids that genotype calls cannot see."
+    detail: >-
+      {gene} metabolises a large share of commonly prescribed drugs, which makes it the
+      pharmacogene most worth calling and the one this data calls worst. Its important
+      alleles are structural. The star-5 allele is a deletion of the entire gene,
+      duplications and multiplications raise activity, and several alleles are hybrids of
+      {gene} with the neighbouring pseudogene CYP2D7. A SNP array reports one genotype per
+      position and can represent none of them. The failure mode is the dangerous one: not an
+      uncertain answer, but a wrong one stated confidently. A whole-gene deletion leaves a
+      single surviving copy, so every variant on it reads as homozygous, and a diplotype of
+      star-5 with star-29 is reported as star-29 twice over -- a specific call, with a
+      different predicted metabolism from the truth. PharmCAT, the reference implementation
+      for calling pharmacogenes from a VCF, declines to call {gene} for exactly this reason.
+      Other pharmacogenes are tractable from SNPs and are called normally. {gene} is shown
+      here rather than omitted, because a pharmacogenomics section that quietly skips its
+      most important gene implies a completeness it does not have.
+    caveats:
+      - "Clinical CYP2D6 genotyping pairs sequence variants with a copy-number assay. A laboratory result of that kind is not comparable with anything derivable from this file."

@@ -1,0 +1,67 @@
+schema_version: 1
+cards:
+  - id: y_str_haplotype
+    section: ancestry
+    kind: impossibility
+    title: Y-STR haplotypes
+    impossibility_reason: >-
+      Y-STRs are length polymorphisms -- the number of times a short unit repeats -- and
+      this array types single-base positions. A repeat count requires sizing a fragment,
+      which the assay does not do.
+    summary: "Not determinable: Y-STRs are repeat counts, and this array reads single bases."
+    detail: >-
+      Genealogical Y testing quotes a haplotype as a list of repeat counts at named markers,
+      DYS393 and DYS390 among them, each the number of times a short motif repeats at that
+      locus. Measuring one means sizing a DNA fragment, by capillary electrophoresis or by
+      counting repeats within sequencing reads. A genotyping array asks a different question
+      at every marker it carries: which base is present at this one position. It has no
+      probes inside the repeat arrays, and it would have no way to report a length even if
+      it did. This is a limit of the assay rather than of the sample, so no reprocessing of
+      this file recovers it.
+    caveats:
+      - "Y-SNP haplogroup assignment is a different question and is determinable from this data, using the Y markers the array does carry. Its resolution is capped by how many of them there are, and that count is reported alongside the haplogroup."
+
+  - id: mtdna_heteroplasmy
+    section: ancestry
+    kind: impossibility
+    title: Mitochondrial heteroplasmy
+    impossibility_reason: >-
+      Heteroplasmy is the proportion of mitochondrial genomes carrying a variant. The
+      array returns one call per mitochondrial marker and no proportion at all, so the
+      quantity that matters is never measured.
+    summary: "Not determinable: heteroplasmy is a proportion, and each mitochondrial marker gets a single call."
+    detail: >-
+      A cell carries many copies of the mitochondrial genome, and a variant can be present
+      in some of them and absent from others. That fraction, the heteroplasmy level, is the
+      quantity that matters in mitochondrial disease, where the same variant is harmless
+      below a threshold and severe above it. Measuring it means quantifying how many
+      molecules carry each allele, which is what deep sequencing does. This array types a
+      modest set of mitochondrial positions and returns a single call at each -- in effect
+      the predominant allele, with no proportion attached. A variant at one tenth of
+      molecules and the same variant at nine tenths are not distinguished from each other,
+      and neither is distinguished from one present in every copy.
+    caveats:
+      - "Mitochondrial haplogroup assignment is a different question and is determinable from these same markers, at a resolution set by how many of them the array carries."
+
+  - id: relative_matching_ibd
+    section: ancestry
+    kind: impossibility
+    title: Relative matching and shared DNA segments
+    impossibility_reason: >-
+      Finding relatives means comparing this genome against other people's. That
+      comparison needs their genotypes, which this project neither holds nor fetches --
+      a deliberate privacy boundary, not only a technical limit.
+    summary: "Not determinable: matching relatives requires other people's genomes, which this tool never handles."
+    detail: >-
+      Relative matching works by finding long stretches where two genomes are identical by
+      descent, inherited from a shared ancestor. The method is well established and would
+      work perfectly well on a file like this one. What it needs is the second file -- and
+      then a database of them, because a match list is a search against many people at once.
+      This tool analyses one person's data on one machine and makes no network call while
+      doing it, so there is nothing to search against, and building something to search
+      would mean collecting other people's genotypes. That is why this is out of scope, and
+      it is a choice rather than a missing feature: a matching database is precisely the
+      artefact whose existence creates the privacy risk the rest of this project is built to
+      avoid. Consumer testing services can offer matching because they hold the database.
+    caveats:
+      - "Runs of homozygosity within your own genome are computable and are a different thing. They reflect shared ancestry between your own two parental lines rather than a match against another person."
