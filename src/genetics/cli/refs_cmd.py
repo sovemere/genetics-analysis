@@ -26,7 +26,7 @@ from typing import Annotated, Any
 import typer
 
 from genetics.paths import references_dir, tools_dir
-from genetics.refs import fetcher
+from genetics.refs import fetcher, postprocess
 from genetics.refs import lock as lockfile
 from genetics.refs import manifest as manifest_mod
 from genetics.refs import tools as tools_mod
@@ -67,7 +67,9 @@ class _ProgressPrinter:
         if now - self._last < self._interval:
             return
         self._last = now
-        if event.total:
+        if event.unit == "rows":
+            bar = f"{event.downloaded:,} rows"
+        elif event.total:
             pct = 100.0 * event.downloaded / event.total
             bar = f"{pct:5.1f}%  {_gb(event.downloaded)} / {_gb(event.total)}"
         else:
@@ -83,6 +85,17 @@ class _ProgressPrinter:
 
 def _emit(payload: Any) -> None:
     typer.echo(json.dumps(payload, indent=2, default=str))
+
+
+def _process_work_present(source_dir: Path, output_name: str) -> bool:
+    output = source_dir / output_name
+    classified = output.with_name(f".{output.name}.classified.parquet")
+    return (
+        output.with_name(f".{output.name}.chunks").is_dir()
+        or output.with_name(f".{output.name}.part").exists()
+        or classified.with_name(f".{classified.name}.chunks").is_dir()
+        or classified.exists()
+    )
 
 
 @contextmanager
@@ -118,17 +131,47 @@ def refs_status(
 
     rows: list[dict[str, Any]] = []
     for source in parsed.sources:
-        present = sum(1 for item in source.files if (root / source.id / item.filename).is_file())
+        source_dir = root / source.id
+        present = sum(1 for item in source.files if (source_dir / item.filename).is_file())
+        downloading = any((source_dir / f"{item.filename}.part").is_file() for item in source.files)
+        implemented = [step for step in source.post_process if step.definition.implemented]
+        outputs = [
+            str(value)
+            for step in implemented
+            for key, value in step.params.items()
+            if key == "output" or key.endswith("_output")
+        ]
+        outputs_present = sum(
+            1
+            for name in outputs
+            if (source_dir / name).is_file()
+            and postprocess.provenance_path(source_dir / name).is_file()
+        )
+        processing = outputs_present < len(outputs) and any(
+            _process_work_present(source_dir, name) for name in outputs
+        )
         refusal = fetcher.licence_refusal(source)
         if refusal is not None:
             state = "blocked-by-licence"
+        elif source.manual is not None and not fetcher.manual_step_satisfied(source, root):
+            state = "manual-step"
         elif source.manual is not None:
-            state = "complete" if fetcher.manual_step_satisfied(source, root) else "manual-step"
+            if processing:
+                state = "processing"
+            elif outputs_present < len(outputs):
+                state = "processing-required"
+            else:
+                state = "complete"
         elif not source.files:
             state = "empty"
         elif present == len(source.files):
-            state = "complete"
-        elif present:
+            if processing:
+                state = "processing"
+            elif outputs_present < len(outputs):
+                state = "processing-required"
+            else:
+                state = "complete"
+        elif present or downloading:
             state = "partial"
         else:
             state = "missing"
@@ -142,6 +185,11 @@ def refs_status(
                 "state": state,
                 "files_present": present,
                 "files_total": len(source.files),
+                "post_process_outputs_present": outputs_present,
+                "post_process_outputs_total": len(outputs),
+                "pending_post_process": [
+                    step.step for step in source.post_process if not step.definition.implemented
+                ],
                 "size_bytes": source.total_size_bytes,
                 "licence_standing": str(source.license.standing),
                 "enables": list(source.enables),
@@ -161,6 +209,8 @@ def refs_status(
         "manual-step": typer.colors.CYAN,
         "blocked-by-licence": typer.colors.RED,
         "empty": typer.colors.YELLOW,
+        "processing": typer.colors.CYAN,
+        "processing-required": typer.colors.YELLOW,
     }
     for row in rows:
         mark = "REQ" if row["required"] else "   "
@@ -216,6 +266,9 @@ def refs_fetch(
 
     if dry_run:
         total = sum(s.total_size_bytes or 0 for s in selected)
+        postprocess_workspace = sum(
+            postprocess.estimated_workspace_bytes(source) for source in selected
+        )
         unknown = [s.id for s in selected if s.total_size_bytes is None and s.files]
         blocked = {s.id: fetcher.licence_refusal(s, opt_in or []) for s in selected}
         payload = {
@@ -230,13 +283,19 @@ def refs_fetch(
                 for s in selected
             ],
             "total_bytes": total,
+            "postprocess_workspace_bytes": postprocess_workspace,
+            "estimated_peak_bytes": total + postprocess_workspace,
             "unknown_size": unknown,
             "disk_warning": fetcher.preflight_disk(selected, root),
         }
         if as_json:
             _emit(payload)
             return
-        typer.secho(f"would fetch {len(selected)} source(s), {_gb(total)}", bold=True)
+        typer.secho(
+            f"would fetch {len(selected)} source(s), {_gb(total)} downloads, "
+            f"~{_gb(total + postprocess_workspace)} peak disk",
+            bold=True,
+        )
         for s in selected:
             note = blocked[s.id]
             typer.echo(f"  {s.id:<34} {len(s.files):>3} files  {_gb(s.total_size_bytes or 0):>10}")
@@ -300,6 +359,16 @@ def _render_report(report: fetcher.FetchReport, *, as_json: bool) -> None:
             typer.echo(f"      {result.detail}")
         for step in result.pending_steps:
             typer.secho(f"      pending post-processing: {step}", fg=typer.colors.CYAN)
+        for process in result.process_results:
+            if process.status is postprocess.ProcessStatus.PENDING:
+                continue
+            colour = typer.colors.GREEN if process.ok else typer.colors.RED
+            suffix = f" ({process.rows:,} rows)" if process.rows is not None else ""
+            detail = f" — {process.detail}" if process.detail else ""
+            typer.secho(
+                f"      {process.step}: {process.status}{suffix}{detail}",
+                fg=colour,
+            )
 
     for warning in report.warnings:
         typer.echo("")

@@ -83,6 +83,7 @@ cards:
       effect:
         measure: proportion
         value: 0.02
+        context: synthetic outcome fraction (2 of 100 participants)
     citations:
       - type: accession
         id: rs900000002

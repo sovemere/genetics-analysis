@@ -44,6 +44,7 @@ from pathlib import Path
 from typing import IO, Any, Protocol
 
 from genetics.refs import lock as lockfile
+from genetics.refs import postprocess
 from genetics.refs.manifest import Manifest, RemoteFile, Source
 
 USER_AGENT = "genetics-analysis reference fetcher (+https://github.com/)"
@@ -161,6 +162,7 @@ class ProgressEvent:
     filename: str
     downloaded: int
     total: int | None
+    unit: str = "bytes"
 
 
 ProgressCallback = Callable[[ProgressEvent], None]
@@ -206,6 +208,8 @@ class SourceResult:
     """Post-processing steps that are declared but not implemented yet. Reported rather
     than raised: the download succeeded, and failing the command after 60 GB because M8
     has not happened would be actively unhelpful."""
+    process_results: tuple[postprocess.ProcessResult, ...] = ()
+    """Executed, verified, pending, or failed derived artifacts in manifest order."""
 
     @property
     def ok(self) -> bool:
@@ -231,6 +235,9 @@ class FetchReport:
                     **asdict(result),
                     "status": str(result.status),
                     "files": [{**asdict(f), "status": str(f.status)} for f in result.files],
+                    "process_results": [
+                        {**asdict(p), "status": str(p.status)} for p in result.process_results
+                    ],
                 }
                 for result in self.sources
             ],
@@ -278,7 +285,9 @@ def preflight_disk(sources: Sequence[Source], root: Path) -> str | None:
     known = [s.total_size_bytes for s in sources if s.total_size_bytes is not None]
     if not known:
         return None
-    needed = sum(known)
+    downloads = sum(known)
+    workspace = sum(postprocess.estimated_workspace_bytes(source) for source in sources)
+    needed = downloads + workspace
     unmeasured = [s.id for s in sources if s.total_size_bytes is None and s.files]
 
     probe: Path | None = root
@@ -295,7 +304,9 @@ def preflight_disk(sources: Sequence[Source], root: Path) -> str | None:
         return None
     extra = f" plus {len(unmeasured)} source(s) of unknown size" if unmeasured else ""
     return (
-        f"selected sources declare {needed / 1e9:.1f} GB{extra}, but only "
+        f"selected sources need about {needed / 1e9:.1f} GB at peak "
+        f"({downloads / 1e9:.1f} GB downloads + {workspace / 1e9:.1f} GB "
+        f"post-process workspace){extra}, but only "
         f"{free / 1e9:.1f} GB is free at {probe}"
     )
 
@@ -364,6 +375,30 @@ def _mismatch(path: Path, label: str, expected: str, observed: str, *, discarded
     return f"{path.name}: {label} mismatch (expected {expected}, got {observed}). {tail}"
 
 
+def _size_mismatch(
+    path: Path,
+    expected: int,
+    observed: int,
+    *,
+    discarded: bool,
+    partial: bool = False,
+) -> str:
+    """Explain a manifest-size mismatch without pretending a digest was available."""
+    if discarded:
+        tail = (
+            "The partial file has been discarded because it is longer than the declared "
+            "file and cannot be resumed safely."
+        )
+    elif partial:
+        tail = "The partial file has been left in place."
+    else:
+        tail = (
+            "The file on disk has been left in place; delete it, or rerun with the "
+            "source's files removed, to fetch a fresh copy."
+        )
+    return f"{path.name}: size mismatch (expected {expected} bytes, got {observed}). {tail}"
+
+
 def download(
     url: str,
     target: Path,
@@ -385,8 +420,17 @@ def download(
     name = target.name
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
+    authenticated = expected_sha256 is not None or expected_md5 is not None
 
     if target.is_file():
+        size = target.stat().st_size
+        if expected_size is not None and size != expected_size:
+            return FileResult(
+                name,
+                FileStatus.FAILED,
+                size,
+                detail=_size_mismatch(target, expected_size, size, discarded=False),
+            )
         sha, md5, size = _digests(target)
         if expected_sha256 and sha != expected_sha256:
             return FileResult(
@@ -427,6 +471,15 @@ def download(
             return FileResult(name, FileStatus.DOWNLOADED, size, sha)
         part.unlink()
         offset = 0
+    elif offset > 0 and not authenticated:
+        # A partial response has no content identity of its own.  Without a publisher
+        # digest or a digest from a previous lock, the URL may have changed between
+        # invocations; appending the new suffix to the old prefix can manufacture a
+        # correctly-sized chimera which would then be recorded in the lock as truth.
+        # Restarting costs bandwidth once.  Blessing mixed reference releases can change
+        # every downstream result.
+        part.unlink()
+        offset = 0
 
     try:
         chunked = transport.open(url, offset=offset)
@@ -463,14 +516,52 @@ def download(
                 if progress is not None:
                     progress(ProgressEvent(label or name, name, written, chunked.total_size))
     except (urllib.error.URLError, OSError) as exc:
-        # The part stays on disk: that is the whole point of resumability.
+        # Only an authenticated prefix is safe to resume.  A digest-less partial may be
+        # from a rolling entity which changes before the next invocation.
+        if not authenticated:
+            part.unlink(missing_ok=True)
+            suffix = "; unauthenticated partial discarded, rerun to restart"
+        else:
+            suffix = "; rerun to resume"
         return FileResult(
             name,
             FileStatus.FAILED,
             written,
-            detail=f"transfer interrupted after {written} bytes ({exc}); rerun to resume",
+            detail=f"transfer interrupted after {written} bytes ({exc}){suffix}",
         )
 
+    size = part.stat().st_size
+    if expected_size is not None and size != expected_size:
+        # A short response may still be a valid prefix: keep it so the next invocation
+        # can resume. A response longer than the manifest declaration cannot be a prefix
+        # of the declared file and is discarded before it can poison future retries.
+        oversized = size > expected_size
+        if oversized:
+            part.unlink(missing_ok=True)
+            detail = _size_mismatch(
+                part,
+                expected_size,
+                size,
+                discarded=True,
+                partial=True,
+            )
+        elif not authenticated:
+            part.unlink(missing_ok=True)
+            detail = (
+                f"{part.name}: size mismatch (expected {expected_size} bytes, got {size}). "
+                "The short partial has been discarded because no digest can prove a "
+                "later response is the same entity; rerun to restart."
+            )
+        else:
+            detail = _size_mismatch(
+                part,
+                expected_size,
+                size,
+                discarded=False,
+                partial=True,
+            )
+            detail += " Rerun to resume the short transfer."
+        return FileResult(name, FileStatus.FAILED, size, detail=detail)
     sha, md5, size = _digests(part)
     if expected_sha256 and sha != expected_sha256:
         detail = _mismatch(part, "sha256", expected_sha256, sha, discarded=True)
@@ -535,8 +626,16 @@ def verify_file(
     if not target.is_file():
         return FileResult(item.filename, FileStatus.MISSING, detail="not fetched")
 
-    sha, md5, size = _digests(target)
     expected_sha = _expected_sha256(item, source.id, previous)
+    size = target.stat().st_size
+    if item.size_bytes is not None and size != item.size_bytes:
+        return FileResult(
+            item.filename,
+            FileStatus.FAILED,
+            size,
+            detail=_size_mismatch(target, item.size_bytes, size, discarded=False),
+        )
+    sha, md5, size = _digests(target)
     if expected_sha and sha != expected_sha:
         return FileResult(
             item.filename,
@@ -640,10 +739,51 @@ def fetch_source(
             )
 
     failed = [r for r in results if not r.ok]
-    status = SourceStatus.FAILED if failed else SourceStatus.COMPLETE
-    detail = "; ".join(r.detail for r in failed if r.detail)
+    process_results: tuple[postprocess.ProcessResult, ...] = ()
+    if not failed:
+        process_callback: postprocess.ProcessProgressCallback | None = None
+        if progress is not None:
+
+            def on_process(event: postprocess.ProcessProgressEvent) -> None:
+                progress(
+                    ProgressEvent(
+                        source.id,
+                        event.step,
+                        event.processed_rows,
+                        None,
+                        unit="rows",
+                    )
+                )
+
+            process_callback = on_process
+
+        process_results = postprocess.run(
+            source,
+            root=root,
+            verify_only=verify_only,
+            progress=process_callback,
+            input_digests={
+                result.filename: result.sha256 for result in results if result.sha256 is not None
+            },
+        )
+    process_failed = [r for r in process_results if not r.ok]
+    status = SourceStatus.FAILED if (failed or process_failed) else SourceStatus.COMPLETE
+    detail = "; ".join(
+        [r.detail for r in failed if r.detail]
+        + [f"{r.step}: {r.detail}" for r in process_failed if r.detail]
+    )
+    pending = tuple(
+        f"{result.step} ({result.detail})"
+        for result in process_results
+        if result.status is postprocess.ProcessStatus.PENDING
+    )
     return SourceResult(
-        source.id, status, tuple(results), detail, pending_steps=_pending_steps(source)
+        source.id,
+        status,
+        tuple(results),
+        detail,
+        pending_steps=pending or _pending_steps(source),
+        process_results=process_results,
     )
 
 

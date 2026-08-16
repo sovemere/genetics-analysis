@@ -1,0 +1,646 @@
+schema_version: 1
+cards:
+  - id: abcc11_earwax_type
+    section: traits
+    kind: interpretation
+    title: Earwax type
+    gene: ABCC11
+    match:
+      variants:
+        - rsid: rs17822931
+          chrom: "16"
+          pos_grch37: 48258198
+          alleles: [C, T]
+      genotypes:
+        CC: wet
+        CT: wet
+        TT: dry
+    outcomes:
+      wet:
+        summary: "Your {genotype} genotype at {rsid} is associated with wet earwax."
+        detail: >-
+          At least one forward-strand C allele preserves the common ABCC11 Gly180
+          transporter form, which strongly predicts wet rather than dry earwax. In the
+          medically phenotyped Japanese series, all 38 wet-earwax participants carried
+          the functional coding-strand G allele (forward C).
+      dry:
+        summary: "Your {genotype} genotype at {rsid} is strongly associated with dry earwax."
+        detail: >-
+          Two forward-strand T alleles correspond to the coding-strand 538A/Arg180 form,
+          whose protein is rapidly degraded and has much lower transport activity. In the
+          medically phenotyped Japanese series, 87 of 88 dry-earwax participants had this
+          genotype; the exception carried a separate loss-of-function ABCC11 deletion.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 126
+      ancestry: [EAS]
+      effect:
+        measure: proportion
+        value: 0.992
+        context: phenotype/genotype concordance (125 of 126 participants)
+    citations:
+      - type: doi
+        id: 10.1038/ng1733
+        title: A SNP in the ABCC11 gene is the determinant of human earwax type
+        note: "Medically phenotyped series of 126 people; 125/126 concordant with rs17822931 alone."
+      - type: doi
+        id: 10.1096/fj.09-129098
+        title: "Earwax, osmidrosis, and breast cancer: why does one SNP (538G>A) in the human ABC transporter ABCC11 gene determine earwax type?"
+        note: Independent functional characterization of ABCC11 Gly180Arg.
+      - type: accession
+        id: rs17822931
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs17822931
+        note: GRCh37 forward-strand coordinate and C/T alleles.
+    caveats:
+      - >-
+        This card uses GRCh37 forward-strand C/T alleles. ABCC11 is on the reverse strand,
+        so papers usually call the same change coding-strand 538G>A: forward C is coding G,
+        and forward T is coding A.
+      - >-
+        Rare ABCC11 variants can break the single-marker rule. Yoshiura et al. documented
+        one dry-earwax person with a forward C allele plus a separate 27-base deletion.
+      - Earwax appearance can also vary with age, environment, infection, and ear-care practices.
+
+  - id: abcc11_axillary_odor
+    section: traits
+    kind: interpretation
+    title: Axillary odor precursor secretion
+    gene: ABCC11
+    match:
+      variants:
+        - rsid: rs17822931
+          chrom: "16"
+          pos_grch37: 48258198
+          alleles: [C, T]
+      genotypes:
+        CC: functional
+        CT: functional
+        TT: reduced
+    outcomes:
+      functional:
+        summary: "Your {genotype} genotype is associated with functional ABCC11 and greater axillary odor-precursor secretion."
+        detail: >-
+          A forward-strand C allele corresponds to the functional coding-strand 538G form.
+          Functional ABCC11 transports amino-acid conjugates that skin bacteria can convert
+          into characteristic axillary odorants. In a Japanese case-control series, 78 of
+          79 people seeking treatment for axillary osmidrosis carried this genotype group.
+      reduced:
+        summary: "Your {genotype} genotype is associated with markedly reduced axillary odor-precursor secretion."
+        detail: >-
+          Two forward-strand T alleles correspond to the low-activity coding-strand 538A
+          form. Biochemical work found a nearly complete loss of typical odor components,
+          but this does not mean that no body odor can ever occur.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 240
+      ancestry: [EAS]
+      effect:
+        measure: proportion
+        value: 0.987
+        context: fraction of 79 treatment-seeking osmidrosis cases carrying coding-strand G
+    citations:
+      - type: doi
+        id: 10.1186/1471-2156-10-42
+        title: A strong association of axillary osmidrosis with the wet earwax type determined by genotyping of the ABCC11 gene
+        note: "78/79 osmidrosis cases carried coding-strand G; total case-control sample n=240."
+      - type: doi
+        id: 10.1038/jid.2009.254
+        title: A functional ABCC11 allele is essential in the biochemical formation of human axillary odor
+        note: Independent biochemical measurement of axillary odor precursors and odorants.
+      - type: accession
+        id: rs17822931
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs17822931
+        note: GRCh37 forward-strand coordinate and C/T alleles.
+    caveats:
+      - >-
+        The 98.7% figure is the fraction of treatment-seeking osmidrosis cases who carried
+        the functional allele, not the probability that a carrier has clinically strong odor.
+        The study did not measure odor intensity in every control carrier.
+      - >-
+        Skin microbiota, hygiene, diet, hormones, illness, and other genes affect body odor;
+        TT generally reduces the characteristic ABCC11-dependent odorants rather than making
+        a person universally odorless.
+      - >-
+        This card uses GRCh37 forward-strand C/T alleles; papers generally report the reverse,
+        coding-strand change as 538G>A.
+
+  - id: tas2r38_prop_ptc_bitterness
+    section: traits
+    kind: interpretation
+    title: PROP and PTC bitter-taste sensitivity
+    gene: TAS2R38
+    match:
+      variants:
+        - rsid: rs713598
+          chrom: "7"
+          pos_grch37: 141673345
+          alleles: [C, G]
+      genotypes:
+        CC: lower
+        CG: intermediate
+        GG: higher
+    outcomes:
+      lower:
+        summary: "Your {genotype} genotype carries two forward-strand Ala49 alleles, associated with lower PROP/PTC bitterness."
+        detail: >-
+          Forward-strand C corresponds to Ala49 on the reverse-strand TAS2R38 transcript and
+          is a component of the common AVI lower-sensitivity haplotype. This one marker is a
+          useful proxy, but the complete three-variant haplotype is more informative.
+      intermediate:
+        summary: "Your {genotype} genotype carries one Pro49 allele, associated on average with intermediate-to-higher PROP/PTC bitterness."
+        detail: >-
+          Forward-strand G encodes Pro49, a component of the common PAV bitter-sensitive
+          haplotype. One copy often increases perceived intensity, although the other two
+          common TAS2R38 coding variants and receptor expression also matter.
+      higher:
+        summary: "Your {genotype} genotype carries two forward-strand Pro49 alleles, associated with higher PROP/PTC bitterness."
+        detail: >-
+          Forward-strand G corresponds to Pro49, a component of the common PAV
+          bitter-sensitive haplotype. In a GWAS of measured PROP intensity, rs713598 was the
+          peak association in a TAS2R38 region accounting for 45.9% of trait variance.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 1457
+      ancestry: [EUR]
+      effect:
+        measure: percent_variance_explained
+        value: 45.9
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddq324
+        title: The perception of quinine taste intensity is associated with common genetic variants in a bitter receptor cluster on chromosome 12
+        note: "The paper's PROP analysis identifies rs713598 as the peak TAS2R38 association."
+      - type: doi
+        id: 10.1126/science.1080190
+        title: Positional cloning of the human quantitative trait locus underlying taste sensitivity to phenylthiocarbamide
+        note: Independent identification of the PAV/AVI TAS2R38 haplotypes.
+      - type: accession
+        id: rs713598
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs713598
+        note: GRCh37 forward-strand coordinate and C/G alleles.
+    caveats:
+      - >-
+        Strand naming is unusually easy to reverse here. Papers often describe the
+        reverse/coding-strand G145C change, where coding C makes Pro49. On the GRCh37
+        forward strand used by this pipeline, G is the Pro49 allele and C is Ala49.
+      - >-
+        PAV versus AVI is a three-variant haplotype involving rs713598, rs1726866, and
+        rs10246939. This single-marker card cannot assign a haplotype or a formal
+        taster/non-taster category.
+      - >-
+        The 45.9% estimate belongs to the associated TAS2R38 region in young participants
+        of European ancestry; age, stimulus concentration, and non-genetic factors alter
+        perceived intensity.
+
+  - id: mcm6_lactase_persistence
+    section: traits
+    kind: interpretation
+    title: Adult lactase persistence
+    gene: MCM6
+    match:
+      variants:
+        - rsid: rs4988235
+          chrom: "2"
+          pos_grch37: 136608646
+          alleles: [A, G]
+      genotypes:
+        AA: persistence
+        AG: persistence
+        GG: non_persistence
+    outcomes:
+      persistence:
+        summary: "Your {genotype} genotype carries the European-associated lactase-persistence allele."
+        detail: >-
+          The forward-strand A allele is the enhancer allele traditionally called
+          -13910*T near LCT. One copy is usually sufficient to maintain higher lactase
+          expression into adulthood in populations where this is the predominant
+          persistence allele.
+      non_persistence:
+        summary: "Your {genotype} genotype is associated with adult lactase non-persistence in populations of European ancestry."
+        detail: >-
+          Two forward-strand G alleles correspond to -13910*C and predict the usual
+          post-weaning decline in lactase expression in European-derived populations.
+          This concerns enzyme persistence, not whether consuming dairy causes symptoms.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 236
+      ancestry: [EUR, EAS]
+      effect:
+        measure: proportion
+        value: 1.0
+        context: biochemical phenotype/genotype concordance (236 of 236 participants)
+    citations:
+      - type: doi
+        id: 10.1038/ng826
+        title: Identification of a variant associated with adult-type hypolactasia
+        note: Complete genotype-phenotype association in 236 biochemically phenotyped people (196 Finnish, 9 Italian, 9 German, and 22 South Korean).
+      - type: doi
+        id: 10.1093/hmg/ddg244
+        title: "Lactase persistence DNA variant enhances lactase promoter activity in vitro: functional role as a cis regulatory element"
+        note: Independent functional enhancer assay.
+      - type: accession
+        id: rs4988235
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs4988235
+        note: GRCh37 forward-strand coordinate and G/A alleles.
+    caveats:
+      - >-
+        rs4988235 is an excellent marker for lactase persistence in many European-derived
+        populations, but different causal enhancer variants occur in several African,
+        Middle Eastern, and Central Asian populations. GG therefore does not exclude
+        persistence outside the populations represented by this marker.
+      - >-
+        Lactase non-persistence is not identical to lactose intolerance. Symptoms depend
+        on dose, food matrix, gut microbiota, adaptation, and other gastrointestinal causes.
+      - >-
+        Papers usually name the reverse-strand alleles -13910*C/T; this card uses GRCh37
+        forward A/G, where forward A corresponds to the persistence-associated T allele.
+
+  - id: aldh2_alcohol_flushing
+    section: traits
+    kind: interpretation
+    title: Alcohol flushing tendency
+    gene: ALDH2
+    match:
+      variants:
+        - rsid: rs671
+          chrom: "12"
+          pos_grch37: 112241766
+          alleles: [A, G]
+      genotypes:
+        AA: inactive
+        AG: low_activity
+        GG: common_activity
+    outcomes:
+      inactive:
+        summary: "Your {genotype} genotype is associated with very low ALDH2 activity and a strong tendency to flush after alcohol."
+        detail: >-
+          Two A alleles encode the Lys504 low-activity form. Acetaldehyde can therefore
+          accumulate rapidly after alcohol, making flushing and other unpleasant immediate
+          effects much more likely. This genotype is uncommon even where the A allele occurs.
+      low_activity:
+        summary: "Your {genotype} genotype is associated with low ALDH2 activity and much higher odds of alcohol flushing."
+        detail: >-
+          One A allele encodes the dominant low-activity Lys504 form. In 2,011 Korean
+          adults, each A allele was associated with 16.10-fold higher odds of reported
+          alcohol flushing under an additive model.
+      common_activity:
+        summary: "Your {genotype} genotype carries the common active ALDH2 form and lower odds of ALDH2-related alcohol flushing."
+        detail: >-
+          Two G alleles encode the common Glu504 form. Flushing can still occur for other
+          genetic or non-genetic reasons, but the large rs671-associated reduction in
+          acetaldehyde clearance is not present.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 2011
+      ancestry: [EAS]
+      effect:
+        measure: odds_ratio
+        value: 16.1
+        ci_low: 12.48
+        ci_high: 20.77
+    citations:
+      - type: doi
+        id: 10.1038/s41598-017-18856-z
+        title: Exploring the utility of alcohol flushing as an instrumental variable for alcohol intake in Koreans
+        note: "Additive rs671 A-allele association with flushing: OR 16.10, 95% CI 12.48-20.77."
+      - type: doi
+        id: 10.1172/JCI113875
+        title: Genotypes for aldehyde dehydrogenase deficiency and alcohol sensitivity. The inactive ALDH2(2) allele is dominant
+        note: Primary biochemical and dominance evidence.
+      - type: accession
+        id: rs671
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs671
+        note: GRCh37 forward-strand coordinate and G/A alleles.
+    caveats:
+      - >-
+        The association and effect estimate come from an East Asian cohort; the A allele is
+        commonest in East Asian populations and is rare or absent in many others.
+      - >-
+        Flushing is not an allergy. It reflects acetaldehyde accumulation, and its absence
+        is not evidence that drinking is safe or that acetaldehyde exposure is low.
+      - >-
+        The study used well-imputed rather than directly genotyped rs671 calls and measured
+        flushing by questionnaire, although the reported imputation information was at least 0.9.
+
+  - id: asparagus_odor_detection
+    section: traits
+    kind: interpretation
+    title: Detection of asparagus metabolites in urine
+    gene: OR2M7
+    match:
+      variants:
+        - rsid: rs4481887
+          chrom: "1"
+          pos_grch37: 248496863
+          alleles: [A, G]
+      genotypes:
+        AA: higher
+        AG: higher
+        GG: lower
+    outcomes:
+      higher:
+        summary: "Your {genotype} genotype is associated with a greater chance of detecting the characteristic post-asparagus urine odor."
+        detail: >-
+          In the discovery cohort, 74.0% of AA participants and 70.9% of AG participants
+          reported being able to smell asparagus metabolites, compared with 56.7% of GG
+          participants. The A allele reduced the odds of anosmia in an additive model.
+      lower:
+        summary: "Your {genotype} genotype is associated with a greater chance of asparagus anosmia, although most GG participants still detected the odor."
+        detail: >-
+          In the discovery cohort, 43.3% of GG participants reported anosmia and 56.7%
+          reported detecting the odor. The marker shifts probability; it is not a binary
+          smell switch.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4737
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 0.598
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+        note: "Table 2 additive A-allele OR 0.598 for anosmia; Table 9 genotype counts total 4,737."
+      - type: doi
+        id: 10.1093/chemse/bjq081
+        title: "Excretion and perception of a characteristic odor in urine after asparagus ingestion: a psychophysical and genetic study"
+        note: Independent forced-choice sensory study supporting the A-allele direction.
+      - type: accession
+        id: rs4481887
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs4481887
+        note: GRCh37 forward-strand coordinate and A/G alleles.
+    caveats:
+      - >-
+        This card concerns detecting odorants after asparagus consumption, not producing
+        them. Production and perception are distinct traits, and both vary between people.
+      - >-
+        rs4481887 sits in a large linkage-disequilibrium block containing many olfactory
+        receptor genes. OR2M7 is nearby, but the association does not identify one causal gene.
+      - Phenotypes were self-reported in the large discovery cohort and studied only in people of European ancestry.
+
+  - id: cilantro_soapy_perception
+    section: traits
+    kind: interpretation
+    title: Soapy perception of cilantro
+    gene: OR6A2
+    match:
+      variants:
+        - rsid: rs72921001
+          chrom: "11"
+          pos_grch37: 6889648
+          alleles: [A, C]
+      genotypes:
+        AA: lower
+        AC: somewhat_lower
+        CC: reference
+    outcomes:
+      lower:
+        summary: "Your {genotype} genotype is associated with lower odds of reporting that cilantro tastes soapy."
+        detail: >-
+          Each A allele was associated with 0.81 times the odds of detecting a soapy taste
+          in a European-ancestry GWAS, so AA carries two copies of the lower-odds allele.
+          Preference and perception nevertheless vary widely within every genotype.
+      somewhat_lower:
+        summary: "Your {genotype} genotype carries one allele associated with modestly lower odds of cilantro tasting soapy."
+        detail: >-
+          The A-allele effect was modest: 0.81 times the odds of soapy-taste detection per
+          copy. A single marker cannot determine whether cilantro will taste soapy or
+          whether someone will like it.
+      reference:
+        summary: "Your {genotype} genotype lacks the A allele associated with lower odds of cilantro tasting soapy."
+        detail: >-
+          CC was the comparison end of the study's additive association. It does not mean
+          cilantro will taste soapy; most of the variation in perception and preference
+          remains unexplained by this locus.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 14604
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 0.81
+    citations:
+      - type: doi
+        id: 10.1186/2044-7248-1-22
+        title: A genetic variant near olfactory receptor genes influences cilantro preference
+        note: "Discovery n=14,604 for soapy taste; distinct replication n=11,851 for cilantro preference."
+      - type: accession
+        id: rs72921001
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs72921001
+        note: GRCh37 forward-strand coordinate and C/A alleles.
+    caveats:
+      - >-
+        The replication phenotype was cilantro liking, not the identical soapy-taste
+        question. The two traits are related but not interchangeable.
+      - >-
+        Common-SNP heritability for soapy-taste detection was estimated at only 8.7%, with
+        a wide interval. Culture, exposure, learning, and other sensory variants matter.
+      - >-
+        rs72921001 lies near a cluster of olfactory receptor genes. OR6A2 is a plausible
+        candidate because it responds to cilantro aldehydes, but the association does not
+        establish it as the causal gene.
+
+  - id: photic_sneeze_reflex
+    section: traits
+    kind: interpretation
+    title: Photic sneeze reflex
+    match:
+      variants:
+        - rsid: rs10427255
+          chrom: "2"
+          pos_grch37: 146125523
+          alleles: [C, T]
+      genotypes:
+        CC: higher_eur
+        CT: intermediate_eur
+        TT: lower_eur
+    outcomes:
+      higher_eur:
+        summary: "Your {genotype} genotype was associated with higher odds of photic sneeze in the original European-ancestry study, but the allele direction conflicts across populations."
+        detail: >-
+          In the original study, 40.1% of CC participants reported sneezing in response to
+          bright light, compared with 32.1% of CT and 27.6% of TT participants. A later
+          Chinese GWAS associated the opposite T allele with higher odds, so this direction
+          should not be treated as settled across ancestries.
+      intermediate_eur:
+        summary: "Your {genotype} genotype had intermediate photic-sneeze frequency in the original European-ancestry study."
+        detail: >-
+          The original cohort observed photic sneeze in 32.1% of CT participants, between
+          CC at 40.1% and TT at 27.6%. A Chinese GWAS later reported the opposite allele
+          direction, limiting individual interpretation.
+      lower_eur:
+        summary: "Your {genotype} genotype was associated with lower photic-sneeze frequency in the original European-ancestry study, but the allele direction conflicts across populations."
+        detail: >-
+          The original cohort observed photic sneeze in 27.6% of TT participants. A later
+          Chinese GWAS found T associated with higher rather than lower odds, so genotype
+          does not support a stable cross-ancestry prediction here.
+    evidence:
+      tier: gwas
+      replication: conflicting
+      sample_size: 5390
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 1.323
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+        note: "Original European-ancestry association: OR 1.323 per C allele; Table 10 genotype frequencies."
+      - type: doi
+        id: 10.1038/s41598-019-41551-0
+        title: A genome-wide association study on photic sneeze reflex in the Chinese population
+        note: "East Asian association at the same locus but opposite T-allele direction: OR 1.68 (95% CI 1.50-1.88)."
+      - type: accession
+        id: rs10427255
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs10427255
+        note: GRCh37 forward-strand coordinate and C/T alleles.
+    caveats:
+      - >-
+        The two primary GWAS agree that the locus is associated with photic sneeze but
+        report opposite effect alleles in European- and Chinese-ancestry cohorts. Possible
+        explanations include population-specific linkage disequilibrium, phenotype or
+        analysis differences, or an unresolved strand/reporting issue.
+      - >-
+        rs10427255 is intergenic, far from the nearest annotated protein-coding gene, and
+        has no established mechanism. The reflex is polygenic rather than Mendelian.
+      - Survey-reported sneezing in bright light is not the same as a standardized provocation test.
+
+  - id: tchh_hair_morphology
+    section: traits
+    kind: interpretation
+    title: Hair straightness and curl
+    gene: TCHH
+    match:
+      variants:
+        - rsid: rs11803731
+          chrom: "1"
+          pos_grch37: 152083325
+          alleles: [A, T]
+      genotypes:
+        AA: lower_straightness
+        AT: intermediate
+        TT: higher_straightness
+    outcomes:
+      lower_straightness:
+        summary: "Your {genotype} genotype carries no TCHH T allele associated with straighter hair in Europeans."
+        detail: >-
+          In three Australian samples of European ancestry, progressively more T alleles
+          were associated with progressively more straight rather than wavy or curly hair.
+          AA was the least straight-associated of the three genotype groups, but hair form
+          still varied substantially within it.
+      intermediate:
+        summary: "Your {genotype} genotype carries one TCHH allele associated with straighter hair in Europeans."
+        detail: >-
+          The T allele showed an additive shift toward straighter hair in three independent
+          study samples. AT was intermediate between AA and TT, rather than defining one
+          hair category by itself.
+      higher_straightness:
+        summary: "Your {genotype} genotype carries two TCHH alleles associated with straighter hair in Europeans."
+        detail: >-
+          TT was the most straight-associated genotype in the European-ancestry study. The
+          TCHH region explained about 6.1% of hair-morphology variance, so many TT
+          participants still had wavy or curly hair.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4845
+      ancestry: [EUR]
+      effect:
+        measure: percent_variance_explained
+        value: 6.11
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2009.10.009
+        title: Common Variants in the Trichohyalin Gene Are Associated with Straight Hair in Europeans
+        note: "Meta-analysis of three samples; rs11803731 T shifted hair morphology toward straight and the locus explained 6.11% of variance."
+      - type: accession
+        id: rs11803731
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs11803731
+        note: GRCh37 forward-strand coordinate and common A/T alleles.
+    caveats:
+      - >-
+        The effect estimate comes from European-ancestry Australian samples. Other
+        populations have different important hair-form loci, including EDAR in many East
+        Asian populations, so this marker does not transfer as a universal predictor.
+      - >-
+        rs11803731 was imputed with reported Rsq 0.92 in the original study. Although it
+        changes TCHH Leu790Met, the study did not establish that this coding change rather
+        than a linked variant is causal.
+      - Hair treatments, age, hormones, follicle shape, and many other variants affect observed hair form.
+
+  - id: rgs16_morningness
+    section: traits
+    kind: interpretation
+    title: Morning versus evening preference
+    gene: RGS16
+    match:
+      variants:
+        - rsid: rs516134
+          chrom: "1"
+          pos_grch37: 182553693
+          alleles: [C, T]
+      genotypes:
+        CC: morningness_associated
+        CT: morningness_associated
+        TT: common_reference
+    outcomes:
+      morningness_associated:
+        summary: "Your {genotype} genotype carries the uncommon rs516134 C allele associated with a modest shift toward morning preference."
+        detail: >-
+          Each C allele was associated with 1.21-fold higher odds of self-identifying as a
+          morning rather than evening person in the UK Biobank analysis. The association
+          replicated in an independent 23andMe cohort, but this is a small probabilistic
+          shift rather than a prediction of sleep schedule.
+      common_reference:
+        summary: "Your {genotype} genotype lacks the uncommon rs516134 morningness-associated C allele."
+        detail: >-
+          TT was the common comparison genotype in the study. It does not imply an evening
+          chronotype: hundreds of variants plus age, work, light exposure, and behaviour
+          contribute to when someone prefers to sleep.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 114765
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 1.21
+        ci_low: 1.16
+        ci_high: 1.26
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1006125
+        title: Genome-Wide Association Analyses in 128,266 Individuals Identifies New Morningness and Sleep Duration Loci
+        note: "The binary morning-versus-evening analysis used n=114,765 and gave rs516134-C OR 1.21; the independent 23andMe replication used a continuous phenotype in different units."
+      - type: accession
+        id: rs516134
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs516134
+        note: GRCh37 forward-strand coordinate and common C/T alleles.
+    caveats:
+      - >-
+        Chronotype was self-reported, and the C allele was uncommon at about 3% frequency
+        in the European-ancestry discovery sample. The per-allele estimate is much too
+        small to classify an individual as a morning or evening person.
+      - >-
+        rs516134 is near RGS16, a biologically plausible circadian regulator, but the GWAS
+        association does not prove that this SNP or RGS16 is the causal mechanism.
+      - The reported effect and replication were in European-ancestry cohorts; transfer to other ancestries is uncertain.

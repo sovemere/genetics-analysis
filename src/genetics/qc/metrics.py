@@ -451,12 +451,17 @@ def _warnings(
     return tuple(out)
 
 
-def run_qc(table: GenotypeTable, *, source: SourceInfo) -> QCReport:
+def run_qc(
+    table: GenotypeTable,
+    *,
+    source: SourceInfo,
+    anchors: tuple[BuildAnchor, ...] = ANCHORS,
+) -> QCReport:
     """Compute the full QC report for a freshly parsed, ploidy-naive table."""
     rates = call_rates(table)
     het = heterozygosity(table)
     sex = infer_sex(table, het)
-    build = check_build(table, declared=source.build)
+    build = check_build(table, declared=source.build, anchors=anchors)
     indels = indel_summary(table)
     duplicates = duplicate_summary(table)
     het_haploid = _count_het_haploid(table, sex.inferred)

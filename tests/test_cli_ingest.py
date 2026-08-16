@@ -16,6 +16,7 @@ import pytest
 from typer.testing import CliRunner
 
 from genetics.cli.main import app
+from genetics.qc import AnchorError
 from genetics.testing.fixtures import DEFAULT_FIXTURE_DIR
 
 runner = CliRunner()
@@ -51,6 +52,20 @@ def test_ingest_json_is_parseable_and_complete() -> None:
     assert payload["qc"]["sex"]["inferred"] == "female"
     assert payload["qc"]["call_rates"]["total_markers"] > 0
     assert payload["adapter"]["vendor_id"] == "ancestrydna_v2"
+
+
+def test_ingest_reports_an_invalid_fetched_anchor_artifact_without_a_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_anchors() -> None:
+        raise AnchorError("build_anchors.json: stale artifact provenance")
+
+    monkeypatch.setattr("genetics.qc.default_anchors", reject_anchors)
+    result = runner.invoke(app, ["ingest", "--input", fixture("ancestry_v2_female.txt")])
+
+    assert result.exit_code == 2
+    assert "stale artifact provenance" in result.output
+    assert "Traceback" not in result.output
 
 
 def test_unverified_adapter_is_flagged_in_both_output_modes() -> None:

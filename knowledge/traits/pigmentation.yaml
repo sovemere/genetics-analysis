@@ -1,0 +1,785 @@
+schema_version: 1
+cards:
+  - id: herc2_oca2_eye_shade
+    section: traits
+    kind: interpretation
+    title: HERC2/OCA2 eye-shade association
+    gene: HERC2
+    match:
+      variants:
+        - rsid: rs12913832
+          chrom: "15"
+          pos_grch37: 28365618
+          alleles: [A, G]
+      genotypes:
+        AA: two_darker_score_alleles
+        AG: one_darker_score_allele
+        GG: no_darker_score_allele
+    outcomes:
+      no_darker_score_allele:
+        summary: "Your {genotype} has no copy of the A allele associated with a darker eye-color score in the cited study."
+        detail: >-
+          In 4,402 northern-European participants, each A allele was associated with a
+          {effect_value}-point shift toward the brown end of a self-reported 0-to-6
+          blue-to-dark-brown scale. Having no A allele at this marker does not determine
+          an eye-color category; other pigmentation variants still contribute.
+      one_darker_score_allele:
+        summary: "Your {genotype} has one A allele associated with a darker eye-color score."
+        detail: >-
+          In 4,402 northern-European participants, each A allele was associated with a
+          {effect_value}-point shift toward the brown end of a self-reported 0-to-6
+          blue-to-dark-brown scale. This is a population association, not a categorical
+          prediction of your eye color.
+      two_darker_score_alleles:
+        summary: "Your {genotype} has two A alleles associated with a darker eye-color score."
+        detail: >-
+          The cited additive model estimated {effect_value} scale points per A allele in
+          4,402 northern-European participants. The scale has a fixed upper bound and the
+          estimate must not be mechanically doubled into an individual eye-color claim.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 4402
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 2.491
+        units: points per A-allele copy on a 0-to-6 eye-color scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+      - type: doi
+        id: 10.1101/gr.128652.111
+        title: HERC2 rs12913832 modulates human pigmentation by attenuating chromatin-loop formation between a long-range enhancer and the OCA2 promoter
+    caveats:
+      - "Eye color is polygenic; this marker alone does not determine blue, green, hazel, or brown eyes."
+      - "The association used self-reported pictures and an ordinal scale in a northern-European cohort, so the numerical shift is not a physical pigment measurement and may not transfer across ancestries."
+      - "Some papers report the complementary T/C strand at this locus; this card follows the forward-strand A/G study and array representation on GRCh37."
+
+  - id: oca2_r419q_eye_shade
+    section: traits
+    kind: interpretation
+    title: OCA2 R419Q eye-shade association
+    gene: OCA2
+    match:
+      variants:
+        - rsid: rs1800407
+          chrom: "15"
+          pos_grch37: 28230318
+          alleles: [C, T]
+      genotypes:
+        CC: no_darker_score_allele
+        CT: one_darker_score_allele
+        TT: two_darker_score_alleles
+    outcomes:
+      no_darker_score_allele:
+        summary: "Your {genotype} has no T allele from this eye-shade association."
+        detail: >-
+          In 4,402 northern-European participants, each T allele was associated with a
+          {effect_value}-point shift toward the brown end of a self-reported 0-to-6 eye
+          color scale. No T at this marker is not a prediction of light eyes.
+      one_darker_score_allele:
+        summary: "Your {genotype} has one T allele associated with a modestly darker eye-color score."
+        detail: >-
+          The cited additive analysis estimated a {effect_value}-point shift toward the
+          brown end of the 0-to-6 scale per T allele. The result describes an average
+          association and does not identify a specific eye-color category.
+      two_darker_score_alleles:
+        summary: "Your {genotype} has two T alleles associated with a modestly darker eye-color score."
+        detail: >-
+          The study estimated {effect_value} scale points per T allele, but its additive
+          coefficient should not be turned into a deterministic or unbounded two-copy
+          prediction for one person.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4402
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.823
+        units: points per T-allele copy on a 0-to-6 eye-color scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "This effect is much smaller than the HERC2/OCA2 regulatory signal and can act as a modifier rather than a standalone predictor."
+      - "The source phenotype was self-reported and the study was restricted to northern-European ancestry."
+      - "The effect is a per-allele regression coefficient, not the probability of brown or intermediate eyes."
+
+  - id: slc24a4_eye_shade
+    section: traits
+    kind: interpretation
+    title: SLC24A4 eye-shade association
+    gene: SLC24A4
+    match:
+      variants:
+        - rsid: rs12896399
+          chrom: "14"
+          pos_grch37: 92773663
+          alleles: [G, T]
+      genotypes:
+        GG: no_lighter_score_allele
+        GT: one_lighter_score_allele
+        TT: two_lighter_score_alleles
+    outcomes:
+      no_lighter_score_allele:
+        summary: "Your {genotype} has no T allele from this lighter-eye association."
+        detail: >-
+          In 4,402 northern-European participants, each T allele was associated with a
+          {effect_value}-point change on the 0-to-6 eye-color scale; the negative sign
+          points toward the blue end. No T at this marker does not determine dark eyes.
+      one_lighter_score_allele:
+        summary: "Your {genotype} has one T allele associated with a slightly lighter eye-color score."
+        detail: >-
+          The cited additive study estimated {effect_value} points per T allele on a scale
+          running from blue toward dark brown. The effect is small and describes a group
+          average, not an individual color category.
+      two_lighter_score_alleles:
+        summary: "Your {genotype} has two T alleles associated with a slightly lighter eye-color score."
+        detail: >-
+          Two copies carry the study's lighter-score allele, but the per-allele
+          {effect_value}-point coefficient is not a deterministic two-copy prediction.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4402
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: -0.343
+        units: points per T-allele copy on a 0-to-6 eye-color scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "The marker explained about 1.6% of eye-color variance in the cited cohort and should be read as a small modifier."
+      - "The phenotype was self-reported and the population was northern European; direction and magnitude need not transfer unchanged to other ancestries."
+      - "The card declares the forward-strand G/T pair evaluated by the association; other rare alleles in dbSNP are outside this array interpretation."
+
+  - id: tyr_eye_shade
+    section: traits
+    kind: interpretation
+    title: TYR eye-shade association
+    gene: TYR
+    match:
+      variants:
+        - rsid: rs1393350
+          chrom: "11"
+          pos_grch37: 89011046
+          alleles: [A, G]
+      genotypes:
+        AA: two_lighter_score_alleles
+        AG: one_lighter_score_allele
+        GG: no_lighter_score_allele
+    outcomes:
+      no_lighter_score_allele:
+        summary: "Your {genotype} has no A allele from this lighter-eye association."
+        detail: >-
+          The northern-European study estimated a {effect_value}-point change per A allele
+          on a 0-to-6 scale from blue to dark brown; the negative sign points toward blue.
+          No A at this marker is not a prediction of brown eyes.
+      one_lighter_score_allele:
+        summary: "Your {genotype} has one A allele associated with a slightly lighter eye-color score."
+        detail: >-
+          One A allele was associated with a {effect_value}-point shift toward the blue
+          end of the study's self-reported scale. This small average shift cannot specify
+          your eye-color category.
+      two_lighter_score_alleles:
+        summary: "Your {genotype} has two A alleles associated with a slightly lighter eye-color score."
+        detail: >-
+          The study fit an additive {effect_value}-point coefficient per A allele. Two
+          copies indicate two effect alleles, not a guaranteed light-eye phenotype.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4402
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: -0.278
+        units: points per A-allele copy on a 0-to-6 eye-color scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "This marker explained about 0.8% of eye-color variance in the cited cohort and is a modifier, not a primary determinant."
+      - "The result comes from self-reported eye color in northern Europeans and may not transport to other populations."
+      - "A per-allele beta on an ordinal scale is not an absolute probability or a named eye color."
+
+  - id: slc45a2_hair_shade
+    section: traits
+    kind: interpretation
+    title: SLC45A2 hair-shade association
+    gene: SLC45A2
+    match:
+      variants:
+        - rsid: rs16891982
+          chrom: "5"
+          pos_grch37: 33951693
+          alleles: [C, G]
+      genotypes:
+        CC: two_darker_score_alleles
+        CG: one_darker_score_allele
+        GG: no_darker_score_allele
+    outcomes:
+      no_darker_score_allele:
+        summary: "Your {genotype} has no C allele from this darker-hair association."
+        detail: >-
+          In 3,044 northern-European participants without red hair, each C allele was
+          associated with a {effect_value}-point shift toward the dark end of a
+          self-reported 0-to-6 blond-to-black scale. No C here is not a prediction of blond hair.
+      one_darker_score_allele:
+        summary: "Your {genotype} has one C allele associated with a darker hair-color score."
+        detail: >-
+          The cited additive analysis estimated {effect_value} scale points toward darker
+          hair per C allele. It is a population average across a polygenic trait, not a
+          categorical prediction.
+      two_darker_score_alleles:
+        summary: "Your {genotype} has two C alleles associated with a darker hair-color score."
+        detail: >-
+          Two copies carry the study's darker-score allele, but the {effect_value}-point
+          per-allele estimate should not be converted into a guaranteed hair shade.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 3044
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 1.104
+        units: points per C-allele copy on a 0-to-6 blond-to-black hair-color scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "The blond-to-brown analysis excluded red hair and used a self-reported ordinal scale."
+      - "The study population was northern European, where allele frequencies and pigmentation backgrounds differ from many other ancestries."
+      - "The card declares the forward-strand G/C pair evaluated by the association; other rare alleles in dbSNP are outside this array interpretation."
+
+  - id: kitlg_blond_hair_enhancer
+    section: traits
+    kind: interpretation
+    title: KITLG blond-hair enhancer
+    gene: KITLG
+    match:
+      variants:
+        - rsid: rs12821256
+          chrom: "12"
+          pos_grch37: 89328335
+          alleles: [C, T]
+      genotypes:
+        CC: two_blond_associated_alleles
+        CT: one_blond_associated_allele
+        TT: no_blond_associated_allele
+    outcomes:
+      no_blond_associated_allele:
+        summary: "Your {genotype} has no C allele from this blond-versus-brown hair association."
+        detail: >-
+          In the 2,986-participant European discovery cohort, each C allele was associated
+          with {effect_value}-fold higher odds of blond rather than brown hair. The signal
+          was then replicated in two cohorts, bringing total enrollment to 6,918. No C at
+          this marker does not determine brown hair.
+      one_blond_associated_allele:
+        summary: "Your {genotype} has one C allele associated with higher odds of blond versus brown hair."
+        detail: >-
+          The cited multiplicative model reported an odds ratio of {effect_value} per C
+          allele for blond versus brown hair. Functional experiments support an effect on
+          a hair-follicle KITLG enhancer, but this is still not an individual probability.
+      two_blond_associated_alleles:
+        summary: "Your {genotype} has two C alleles associated with higher odds of blond versus brown hair."
+        detail: >-
+          Two copies carry the blond-associated enhancer allele. The published
+          {effect_value} odds ratio is per allele and does not imply that blond hair is
+          certain, because many loci contribute to hair color.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 2986
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 2.32
+        ci_low: 1.86
+        ci_high: 2.89
+    citations:
+      - type: doi
+        id: 10.1038/ng.2007.13
+        title: Genetic determinants of hair, eye and skin pigmentation in Europeans
+        note: "Discovery OR 2.32 (95% CI 1.86-2.89), n=2,986; replicated in Icelandic n=2,718 and Dutch n=1,214 cohorts."
+      - type: doi
+        id: 10.1038/ng.2991
+        title: A molecular basis for classic blond hair color in Europeans
+    caveats:
+      - "The odds ratio compares blond with brown hair in European cohorts; it is not an absolute chance of blond hair and does not cover red or black hair categories."
+      - "Functional work found allele-dependent enhancer activity in keratinocytes and transgenic mice, which supports mechanism but does not make the human phenotype deterministic."
+      - "Some molecular literature uses the complementary A/G representation; this card follows the forward-strand T/C study and array representation on GRCh37."
+
+  - id: mc1r_r151c_red_hair
+    section: traits
+    kind: interpretation
+    title: MC1R R151C and red hair
+    gene: MC1R
+    match:
+      variants:
+        - rsid: rs1805007
+          chrom: "16"
+          pos_grch37: 89986117
+          alleles: [C, T]
+      genotypes:
+        CC: no_r151c_allele
+        CT: one_r151c_allele
+        TT: two_r151c_alleles
+    outcomes:
+      no_r151c_allele:
+        summary: "Your {genotype} has no T allele encoding the MC1R R151C substitution."
+        detail: >-
+          In the cited UK Biobank analysis, each T allele had an additive odds ratio of
+          {effect_value} for red rather than dark brown or black hair. No T at this one
+          site does not exclude red hair or other MC1R variants.
+      one_r151c_allele:
+        summary: "Your {genotype} has one high-effect MC1R R151C allele associated with red hair."
+        detail: >-
+          The study reported {effect_value}-fold higher per-allele odds of red versus dark
+          hair for T. One copy can contribute to red pigmentation, but MC1R effects are
+          dose-dependent and depend strongly on the second MC1R haplotype and other loci.
+      two_r151c_alleles:
+        summary: "Your {genotype} has two high-effect MC1R R151C alleles associated with red hair."
+        detail: >-
+          Two T copies fit the high-effect MC1R pattern associated with red hair. Even so,
+          the study's per-allele odds ratio is not an absolute probability and red hair is
+          not guaranteed by this marker alone.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 402000
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 12.74
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddz018
+        title: "A study in scarlet: MC1R as the main predictor of red hair and exemplar of the flip-flop effect"
+    caveats:
+      - "The odds ratio is from an additive single-variant model contrasting red hair with dark brown or black hair; blond and light-brown participants were excluded from that contrast."
+      - "The paper reports 402,000 QC-passing UK Biobank participants, but not the exact phenotype-complete N for each red-versus-dark variant test."
+      - "MC1R inheritance is dose-dependent and compound heterozygosity matters; unphased single-marker cards cannot reconstruct a complete MC1R diplotype."
+      - "The card interprets the forward-strand C/T pair evaluated by the study and consumer array; other rare dbSNP alleles are out of scope."
+
+  - id: mc1r_r160w_red_hair
+    section: traits
+    kind: interpretation
+    title: MC1R R160W and red hair
+    gene: MC1R
+    match:
+      variants:
+        - rsid: rs1805008
+          chrom: "16"
+          pos_grch37: 89986144
+          alleles: [C, T]
+      genotypes:
+        CC: no_r160w_allele
+        CT: one_r160w_allele
+        TT: two_r160w_alleles
+    outcomes:
+      no_r160w_allele:
+        summary: "Your {genotype} has no T allele encoding the MC1R R160W substitution."
+        detail: >-
+          The cited UK Biobank model estimated an additive odds ratio of {effect_value}
+          per T allele for red rather than dark brown or black hair. Absence here does not
+          exclude red hair or other red-hair-associated MC1R variants.
+      one_r160w_allele:
+        summary: "Your {genotype} has one high-effect MC1R R160W allele associated with red hair."
+        detail: >-
+          One T allele carried {effect_value}-fold higher per-allele odds of red versus
+          dark hair in the cited model. The result is contributory, not a standalone hair-color prediction.
+      two_r160w_alleles:
+        summary: "Your {genotype} has two high-effect MC1R R160W alleles associated with red hair."
+        detail: >-
+          Two copies fit a high-effect MC1R genotype pattern, but the published odds ratio
+          remains a population comparison rather than an absolute probability for you.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 402000
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 5.119
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddz018
+        title: "A study in scarlet: MC1R as the main predictor of red hair and exemplar of the flip-flop effect"
+    caveats:
+      - "The comparison was red hair versus dark brown or black hair and does not directly estimate red versus blond or light-brown hair."
+      - "The reported 402,000 is the QC-passing cohort size; the source does not give a separate phenotype-complete N for this variant comparison."
+      - "Two damaging MC1R alleles, including compound heterozygotes across different sites, are generally more informative than one unphased marker."
+      - "The C/T genotypes were well imputed in the study (info score 1.0); other rare alleles recorded by dbSNP were not part of that model."
+
+  - id: mc1r_d294h_red_hair
+    section: traits
+    kind: interpretation
+    title: MC1R D294H and red hair
+    gene: MC1R
+    match:
+      variants:
+        - rsid: rs1805009
+          chrom: "16"
+          pos_grch37: 89986546
+          alleles: [C, G]
+      genotypes:
+        CC: two_d294h_alleles
+        CG: one_d294h_allele
+        GG: no_d294h_allele
+    outcomes:
+      no_d294h_allele:
+        summary: "Your {genotype} has no C allele encoding the MC1R D294H substitution."
+        detail: >-
+          Each C allele had an additive odds ratio of {effect_value} for red rather than
+          dark brown or black hair in the cited UK Biobank analysis. No C here does not
+          rule out red hair or other high-effect MC1R alleles.
+      one_d294h_allele:
+        summary: "Your {genotype} has one high-effect MC1R D294H allele associated with red hair."
+        detail: >-
+          One C allele was associated with {effect_value}-fold higher per-allele odds of
+          red versus dark hair. Expression depends on the other MC1R haplotype and the
+          wider pigmentation background.
+      two_d294h_alleles:
+        summary: "Your {genotype} has two high-effect MC1R D294H alleles associated with red hair."
+        detail: >-
+          Two C copies form a high-effect MC1R genotype, but the association does not make
+          red hair certain and the per-allele odds ratio is not an individual risk estimate.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 402000
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 6.658
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddz018
+        title: "A study in scarlet: MC1R as the main predictor of red hair and exemplar of the flip-flop effect"
+    caveats:
+      - "The odds ratio compares red hair with dark brown or black hair under an additive single-variant model."
+      - "The effective QC-passing cohort numbered 402,000; exact phenotype-complete N was not reported for this variant test."
+      - "This variant was imputed with an info score of 0.93 in the source, so the association estimate is not based wholly on directly typed calls."
+      - "MC1R compound genotypes matter; the card interprets only the forward-strand G/C pair evaluated in the cited model."
+
+  - id: mc1r_d84e_red_hair
+    section: traits
+    kind: interpretation
+    title: MC1R D84E and red hair
+    gene: MC1R
+    match:
+      variants:
+        - rsid: rs1805006
+          chrom: "16"
+          pos_grch37: 89985918
+          alleles: [A, C]
+      genotypes:
+        AA: two_d84e_alleles
+        AC: one_d84e_allele
+        CC: no_d84e_allele
+    outcomes:
+      no_d84e_allele:
+        summary: "Your {genotype} has no A allele encoding the MC1R D84E substitution."
+        detail: >-
+          The cited additive model reported an odds ratio of {effect_value} per A allele
+          for red rather than dark brown or black hair. Absence of this particular allele
+          does not exclude red hair.
+      one_d84e_allele:
+        summary: "Your {genotype} has one high-effect MC1R D84E allele associated with red hair."
+        detail: >-
+          One A allele was associated with {effect_value}-fold higher per-allele odds of
+          red versus dark hair. Because D84E is uncommon and MC1R is highly polymorphic,
+          the other haplotype remains important.
+      two_d84e_alleles:
+        summary: "Your {genotype} has two high-effect MC1R D84E alleles associated with red hair."
+        detail: >-
+          Two A copies carry the high-effect substitution on both observed alleles, but
+          the population odds ratio still does not make an individual phenotype certain.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 402000
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 3.477
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddz018
+        title: "A study in scarlet: MC1R as the main predictor of red hair and exemplar of the flip-flop effect"
+    caveats:
+      - "The red-versus-dark comparison excluded blond and light-brown categories and therefore does not represent all non-red hair."
+      - "The source reports 402,000 QC-passing participants but not the exact analytic N for each variant/phenotype contrast."
+      - "D84E is uncommon; a chip call can be less reliable as population frequency falls, and confidence must be computed separately from this evidence record."
+      - "Compound heterozygous MC1R genotypes require multi-variant phasing that this single-variant card does not perform."
+
+  - id: mc1r_r142h_red_hair
+    section: traits
+    kind: interpretation
+    title: MC1R R142H and red hair
+    gene: MC1R
+    match:
+      variants:
+        - rsid: rs11547464
+          chrom: "16"
+          pos_grch37: 89986091
+          alleles: [A, G]
+      genotypes:
+        AA: two_r142h_alleles
+        AG: one_r142h_allele
+        GG: no_r142h_allele
+    outcomes:
+      no_r142h_allele:
+        summary: "Your {genotype} has no A allele encoding the MC1R R142H substitution."
+        detail: >-
+          The cited additive model estimated an odds ratio of {effect_value} per A allele
+          for red rather than dark brown or black hair. No A here does not rule out red
+          hair or another high-effect MC1R variant.
+      one_r142h_allele:
+        summary: "Your {genotype} has one high-effect MC1R R142H allele associated with red hair."
+        detail: >-
+          One A allele was associated with {effect_value}-fold higher per-allele odds of
+          red versus dark hair. The estimate is not an individual probability and the
+          second MC1R haplotype can materially change expression.
+      two_r142h_alleles:
+        summary: "Your {genotype} has two high-effect MC1R R142H alleles associated with red hair."
+        detail: >-
+          Two A copies carry a high-effect MC1R substitution, but pigmentation remains
+          polygenic and even a strong association does not establish an inevitable phenotype.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 402000
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 4.67
+    citations:
+      - type: doi
+        id: 10.1093/hmg/ddz018
+        title: "A study in scarlet: MC1R as the main predictor of red hair and exemplar of the flip-flop effect"
+    caveats:
+      - "The odds ratio is for red versus dark brown/black hair; it is not an absolute red-hair probability."
+      - "The paper's 402,000 figure is the QC-passing cohort size, not a separately reported phenotype-complete N for this test."
+      - "R142H is uncommon, so the frequency-sensitive confidence calculator should lower trust in an isolated array call even though the association itself is strong."
+      - "A full MC1R interpretation needs the other allele and potentially other sites; this card is deliberately single-variant."
+
+  - id: irf4_freckling
+    section: traits
+    kind: interpretation
+    title: IRF4 freckling association
+    gene: IRF4
+    match:
+      variants:
+        - rsid: rs12203592
+          chrom: "6"
+          pos_grch37: 396321
+          alleles: [C, T]
+      genotypes:
+        CC: no_higher_freckling_allele
+        CT: one_higher_freckling_allele
+        TT: two_higher_freckling_alleles
+    outcomes:
+      no_higher_freckling_allele:
+        summary: "Your {genotype} has no T allele from this higher-freckling association."
+        detail: >-
+          In 4,405 northern-European participants, each T allele was associated with a
+          {effect_value}-point increase on a self-reported 0-to-16 freckling score. No T
+          at this marker does not mean freckles are absent.
+      one_higher_freckling_allele:
+        summary: "Your {genotype} has one T allele associated with a higher freckling score."
+        detail: >-
+          The cited additive analysis estimated {effect_value} more freckling-score points
+          per T allele. Functional experiments support allele-dependent IRF4 enhancer
+          activity, but the result remains an average rather than a personal freckle count.
+      two_higher_freckling_alleles:
+        summary: "Your {genotype} has two T alleles associated with a higher freckling score."
+        detail: >-
+          Two copies carry the study's higher-score allele. The {effect_value}-point
+          coefficient is per allele on a bounded, image-based scale and should not be
+          treated as a deterministic score for one person.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 4405
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 1.611
+        units: points per T-allele copy on a 0-to-16 freckling scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+      - type: doi
+        id: 10.1016/j.cell.2013.10.022
+        title: A Polymorphism in IRF4 Affects Human Pigmentation through a Tyrosinase-Dependent MITF/TFAP2A Pathway
+    caveats:
+      - "Freckling was self-scored from reference images across the face, arms, and shoulders; the 0-to-16 value is not a direct melanin measurement."
+      - "The association cohort was northern European, and the T allele is uncommon or absent in some non-European populations."
+      - "Sun exposure, age, skin background, and many other variants affect whether and how freckles are visible."
+      - "The card interprets the forward-strand C/T pair evaluated by the association and array; other rare RefSNP alleles are outside this card."
+
+  - id: bnc2_freckling
+    section: traits
+    kind: interpretation
+    title: BNC2 freckling association
+    gene: BNC2
+    match:
+      variants:
+        - rsid: rs2153271
+          chrom: "9"
+          pos_grch37: 16864521
+          alleles: [C, T]
+      genotypes:
+        CC: two_lower_freckling_alleles
+        CT: one_lower_freckling_allele
+        TT: no_lower_freckling_allele
+    outcomes:
+      no_lower_freckling_allele:
+        summary: "Your {genotype} has no C allele from this lower-freckling-score association."
+        detail: >-
+          In 4,405 northern-European participants, each C allele was associated with a
+          {effect_value}-point change on the 0-to-16 freckling scale; the negative sign
+          indicates fewer freckles on average. No C here does not predict heavy freckling.
+      one_lower_freckling_allele:
+        summary: "Your {genotype} has one C allele associated with a slightly lower freckling score."
+        detail: >-
+          The original GWAS estimated {effect_value} points per C allele on its image-based
+          freckling scale. This small average effect cannot determine whether freckles are visible.
+      two_lower_freckling_alleles:
+        summary: "Your {genotype} has two C alleles associated with a slightly lower freckling score."
+        detail: >-
+          Two copies carry the lower-score allele, but the additive {effect_value}-point
+          estimate is not a personal freckle count or an absence-of-freckles guarantee.
+    evidence:
+      tier: gwas
+      replication: none
+      sample_size: 4405
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: -0.402
+        units: points per C-allele copy on a 0-to-16 freckling scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "This was a novel association in the cited study, so the evidence record conservatively marks replication as none rather than treating later work at linked BNC2 markers as direct replication."
+      - "The effect was modest on a subjective, image-based scale in northern Europeans and may not transfer across populations."
+      - "Freckling depends on sun exposure, age, skin pigmentation, and variants at IRF4, MC1R, ASIP, TYR, and other loci."
+      - "The card interprets the forward-strand T/C pair evaluated by the original GWAS and consumer array; other rare dbSNP alleles are outside this card."
+
+  - id: tyr_s192y_freckling
+    section: traits
+    kind: interpretation
+    title: TYR S192Y freckling association
+    gene: TYR
+    match:
+      variants:
+        - rsid: rs1042602
+          chrom: "11"
+          pos_grch37: 88911696
+          alleles: [A, C]
+      genotypes:
+        AA: two_lower_freckling_alleles
+        AC: one_lower_freckling_allele
+        CC: no_lower_freckling_allele
+    outcomes:
+      no_lower_freckling_allele:
+        summary: "Your {genotype} has no A allele from this lower-freckling-score association."
+        detail: >-
+          In 4,405 northern-European participants, each A allele was associated with a
+          {effect_value}-point change on a 0-to-16 freckling score; the negative value
+          points toward fewer freckles. No A here is not a prediction of more freckles.
+      one_lower_freckling_allele:
+        summary: "Your {genotype} has one A allele associated with a slightly lower freckling score."
+        detail: >-
+          The cited additive model estimated {effect_value} freckling-score points per A
+          allele. The effect was suggestive under the study's correction across all 22
+          traits and is not an individual freckle prediction.
+      two_lower_freckling_alleles:
+        summary: "Your {genotype} has two A alleles associated with a slightly lower freckling score."
+        detail: >-
+          Two copies carry the lower-score allele, but the per-allele estimate is small,
+          comes from a bounded subjective scale, and should not be doubled into a personal count.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4405
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: -0.356
+        units: points per A-allele copy on a 0-to-16 freckling scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "The association was suggestive after correcting across all 22 traits in the source, not one of that paper's strongest freckling signals."
+      - "The study used an image-based self-report score in northern Europeans, and TYR is only one contributor to a polygenic, exposure-dependent phenotype."
+      - "The beta is a per-allele shift on an ordinal scale, not an absolute probability of having freckles."
+
+  - id: asip_region_freckling
+    section: traits
+    kind: interpretation
+    title: ASIP-region freckling association
+    gene: ASIP
+    match:
+      variants:
+        - rsid: rs619865
+          chrom: "20"
+          pos_grch37: 33867697
+          alleles: [A, G]
+      genotypes:
+        AA: two_higher_freckling_alleles
+        AG: one_higher_freckling_allele
+        GG: no_higher_freckling_allele
+    outcomes:
+      no_higher_freckling_allele:
+        summary: "Your {genotype} has no A allele from this higher-freckling-score association."
+        detail: >-
+          In 4,405 northern-European participants, each A allele was associated with a
+          {effect_value}-point increase on the 0-to-16 freckling scale. No A at this
+          marker does not imply low freckling.
+      one_higher_freckling_allele:
+        summary: "Your {genotype} has one A allele associated with a higher freckling score."
+        detail: >-
+          The cited additive analysis estimated {effect_value} more scale points per A
+          allele. This marker tags a broader ASIP-region haplotype, so it should not be
+          read as a proven causal change or a personal freckle count.
+      two_higher_freckling_alleles:
+        summary: "Your {genotype} has two A alleles associated with a higher freckling score."
+        detail: >-
+          Two copies carry the study's higher-score allele, but the association is a
+          haplotype tag and the {effect_value}-point per-allele estimate is not deterministic.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 4405
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.771
+        units: points per A-allele copy on a 0-to-16 freckling scale
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1000993
+        title: Web-Based, Participant-Driven Studies Yield Novel Genetic Associations for Common Traits
+    caveats:
+      - "rs619865 is a marker for an associated ASIP-region haplotype rather than an established causal allele."
+      - "The phenotype was self-scored from images in northern Europeans; environmental exposure and ancestry affect portability."
+      - "The card interprets the forward-strand G/A pair evaluated by the cited study and consumer array; other rare dbSNP alleles are outside this card."

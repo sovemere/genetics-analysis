@@ -55,8 +55,14 @@ jobs:
       - name: Type check
         run: uv run mypy
 
+      # dbSNP is a 28 GB fetched reference and never enters CI. This exercises every
+      # card check except the explicitly reported reference lookup; full local lint fails
+      # closed when the derived dbSNP index is absent.
+      - name: Card pack lint (schema/templates; dbSNP unavailable in CI)
+        run: uv run genetics cards lint --schema-only
+
       - name: Privacy suite
-        run: uv run pytest tests/privacy -v
+        run: uv run pytest -m privacy -v
 
       - name: Tests
         run: uv run pytest -q

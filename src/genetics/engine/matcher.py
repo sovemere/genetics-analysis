@@ -55,7 +55,13 @@ from typing import ClassVar, Final
 
 from genetics.engine.cards import Card, CardKind, KnowledgePack, Outcome
 from genetics.ingest.indels import IndelPolicy, matchable_mask
-from genetics.ingest.keys import LocusKey, MergeTable, VariantKey, lookup_loci
+from genetics.ingest.keys import (
+    LocusKey,
+    MergeTable,
+    UnresolvableRsidError,
+    VariantKey,
+    lookup_loci,
+)
 from genetics.ingest.schema import CallStatus, Chrom, GenotypeTable
 from genetics.privacy import NoGenotypeRepr
 
@@ -259,6 +265,13 @@ class LocusIndex(NoGenotypeRepr):
     def get(self, locus: LocusKey) -> tuple[_Row, ...]:
         return self._rows.get(locus, ())
 
+    @property
+    def rsids(self) -> tuple[str, ...]:
+        """Only sample rsIDs at card loci, used for query-scoped merge loading."""
+        return tuple(
+            row.rsid for rows in self._rows.values() for row in rows if row.rsid is not None
+        )
+
     @classmethod
     def build(
         cls,
@@ -318,7 +331,10 @@ class Matcher:
     ) -> Matcher:
         loci = [c.variant_key.locus for c in pack.cards if c.variant_key is not None]
         index = LocusIndex.build(table, loci, policy=policy or IndelPolicy.default())
-        return cls(index=index, merges=merges or MergeTable.empty())
+        if merges is None:
+            authored = [card.match.variant.rsid for card in pack.cards if card.match is not None]
+            merges = MergeTable.default((*authored, *index.rsids))
+        return cls(index=index, merges=merges)
 
     def match(self, card: Card) -> MatchResult:
         if card.kind is CardKind.IMPOSSIBILITY:
@@ -369,14 +385,24 @@ class Matcher:
         caveats: list[str] = [duplicate_note] if duplicate_note else []
 
         if row.rsid is not None:
-            observed = self.merges.resolve(row.rsid)
-            expected = self.merges.resolve(card.match.variant.rsid)
-            if observed != expected:
+            try:
+                observed = self.merges.resolve(row.rsid)
+                expected = self.merges.resolve(card.match.variant.rsid)
+            except UnresolvableRsidError as exc:
+                resolution = exc.resolution
+                targets = f" ({', '.join(resolution.targets)})" if resolution.targets else ""
                 caveats.append(
-                    f"The card names {card.match.variant.rsid} and the array names "
-                    f"{row.rsid} at this position. Matching is positional, so this is "
-                    "reported rather than treated as a failure."
+                    f"dbSNP cannot map {resolution.queried_rsid} to one current rsID: "
+                    f"{resolution.status.value}{targets}. Matching remains positional, "
+                    "and the unresolved identifier is reported rather than guessed."
                 )
+            else:
+                if observed != expected:
+                    caveats.append(
+                        f"The card names {card.match.variant.rsid} and the array names "
+                        f"{row.rsid} at this position. Matching is positional, so this is "
+                        "reported rather than treated as a failure."
+                    )
 
         def unresolved(status: MatchStatus, reason: str) -> MatchResult:
             """A result with the observed data attached but no interpretation.

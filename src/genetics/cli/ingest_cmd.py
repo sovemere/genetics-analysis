@@ -30,7 +30,7 @@ import typer
 from genetics.ingest import IngestError, IngestResult, ingest
 from genetics.ingest.registry import Adapter, detect
 from genetics.privacy import assert_no_genotype
-from genetics.qc import InferredSex, QCReport
+from genetics.qc import AnchorError, InferredSex, QCReport
 
 _EXPECTED_KEYS = ("markers", "called", "no_calls", "indels")
 
@@ -140,7 +140,7 @@ def run(
     try:
         adapter = detect(input_path)
         result = ingest(input_path)
-    except IngestError as exc:
+    except (IngestError, AnchorError) as exc:
         # The message is genotype-free by construction (see genetics.ingest.errors), so it
         # is safe to show. A traceback here would be noise: these are expected refusals,
         # not crashes.
@@ -228,7 +228,7 @@ def _render(
     _echo(f"  build check  declared {qc.build.declared}, verdict {qc.build.verdict}")
     if qc.build.anchors_available == 0:
         _echo(
-            "    no verified coordinate anchors yet -- M2 supplies them from dbSNP. "
+            "    no verified coordinate anchors yet -- refs fetch derives them from ClinVar. "
             "The header assertion and the coordinate-bounds check both passed."
         )
 

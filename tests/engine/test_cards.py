@@ -391,9 +391,52 @@ def test_a_proportion_outside_zero_to_one_is_refused(value: float) -> None:
         Card.parse(_mutate(["evidence", "effect"], {"measure": "penetrance", "value": value}), "t")
 
 
+def test_a_generic_proportion_requires_numerator_denominator_context() -> None:
+    with pytest.raises(CardError, match="numerator and denominator"):
+        Card.parse(
+            _mutate(["evidence", "effect"], {"measure": "proportion", "value": 0.8}),
+            "t",
+        )
+
+    card = Card.parse(
+        _mutate(
+            ["evidence", "effect"],
+            {
+                "measure": "proportion",
+                "value": 0.8,
+                "context": "synthetic concordance (8 of 10 participants)",
+            },
+        ),
+        "t",
+    )
+    assert card.evidence is not None
+    assert card.evidence.effect.context == "synthetic concordance (8 of 10 participants)"
+
+
 def test_a_non_positive_odds_ratio_is_refused() -> None:
     with pytest.raises(CardError):
         Card.parse(_mutate(["evidence", "effect"], {"measure": "odds_ratio", "value": 0}), "t")
+
+
+@pytest.mark.parametrize("value", [float("nan"), float("inf"), float("-inf")])
+def test_a_non_finite_effect_value_is_refused(value: float) -> None:
+    with pytest.raises(CardError, match="finite"):
+        Card.parse(
+            _mutate(["evidence", "effect"], {"measure": "odds_ratio", "value": value}),
+            "t",
+        )
+
+
+@pytest.mark.parametrize("value", [-0.1, 100.1])
+def test_percent_variance_explained_is_bounded(value: float) -> None:
+    with pytest.raises(CardError, match="between 0 and 100"):
+        Card.parse(
+            _mutate(
+                ["evidence", "effect"],
+                {"measure": "percent_variance_explained", "value": value},
+            ),
+            "t",
+        )
 
 
 def test_a_value_outside_its_own_interval_is_refused() -> None:
@@ -413,6 +456,18 @@ def test_half_an_interval_is_refused() -> None:
     with pytest.raises(CardError):
         Card.parse(
             _mutate(["evidence", "effect"], {"measure": "odds_ratio", "value": 1.4, "ci_low": 1.2}),
+            "t",
+        )
+
+
+@pytest.mark.parametrize("bound", [float("nan"), float("inf"), float("-inf")])
+def test_non_finite_interval_bounds_are_refused(bound: float) -> None:
+    with pytest.raises(CardError, match="finite"):
+        Card.parse(
+            _mutate(
+                ["evidence", "effect"],
+                {"measure": "odds_ratio", "value": 1.4, "ci_low": 1.2, "ci_high": bound},
+            ),
             "t",
         )
 
@@ -494,6 +549,23 @@ def test_a_placeholder_from_an_unbuilt_milestone_is_refused_by_name() -> None:
     with pytest.raises(CardError) as caught:
         Card.parse(_mutate(["outcomes", "yes", "summary"], "Frequency {frequency}."), "t")
     assert "M7.2" in str(caught.value)
+
+
+def test_confidence_placeholder_is_available_after_m3_3() -> None:
+    card = Card.parse(_mutate(["outcomes", "yes", "summary"], "Confidence: {confidence}."), "t")
+
+    assert card.outcomes["yes"].summary == "Confidence: {confidence}."
+    assert TEMPLATE_VARS["confidence"].available
+
+
+def test_impossibility_card_cannot_claim_a_confidence_placeholder() -> None:
+    """No genotype is observed and no evidence is scored for an impossibility card."""
+
+    raw = _impossibility()
+    raw["summary"] = "Confidence: {confidence}."
+    with pytest.raises(CardError) as caught:
+        Card.parse(raw, "t")
+    assert "matches no variant" in str(caught.value)
 
 
 def test_a_format_spec_is_refused() -> None:
@@ -697,21 +769,28 @@ def test_a_yml_file_is_refused_rather_than_skipped(tmp_path: Path) -> None:
     assert "b.yml" in str(caught.value)
 
 
-def test_the_committed_knowledge_pack_is_empty_and_that_is_deliberate() -> None:
-    """M3.6 and M3.7 fill it. A card written now would need coordinates from memory, which
-    is the invented-data failure AGENTS.md 6 forbids -- the same reason ``build_anchors``
-    and the fixture ``spike_ins`` hook both shipped empty.
+def test_the_committed_m3_6_seed_pack_has_reviewable_traits_coverage() -> None:
+    """M3.6 is a deliberately small, hand-reviewable traits seed pack.
 
-    Asserted rather than assumed so that whoever adds the first real card sees this test
-    and the reasoning behind it, instead of an empty directory of unclear intent.
+    The range prevents both accidental disappearance and an unreviewable bulk import.
+    Exact IDs pin the high-confidence demonstrations promised by the roadmap without
+    coupling this acceptance test to every editorial addition in the pack.
     """
     from genetics.engine.cards import default_knowledge_dir
 
     root = default_knowledge_dir()
-    assert root.is_dir(), "knowledge/ must exist even while empty"
-    assert not list(root.rglob("*.yaml")), (
-        "the first real cards land in M3.6/M3.7; update this test when they do"
-    )
+    pack = KnowledgePack.load(root)
+    traits = pack.in_section(Section.TRAITS)
+    assert 25 <= len(traits) <= 40
+
+    required = {
+        "abcc11_earwax_type",
+        "tas2r38_prop_ptc_bitterness",
+        "mcm6_lactase_persistence",
+        "herc2_oca2_eye_shade",
+        "mc1r_r151c_red_hair",
+    }
+    assert required <= {card.id for card in traits}
 
 
 # ---------------------------------------------------------------------------

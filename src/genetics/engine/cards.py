@@ -47,6 +47,7 @@ code honours.
 
 from __future__ import annotations
 
+import math
 import re
 import string
 from collections.abc import Iterable, Mapping, Sequence
@@ -245,9 +246,10 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     TemplateVar("effect_value", "The authored effect size."),
     TemplateVar("effect_units", "Its units, empty for dimensionless measures."),
     TemplateVar("sample_size", "Sample size of the source study."),
-    # Declared but not yet suppliable. Listed so an author can see what is coming and
-    # gets told which milestone supplies it, instead of a bare "unknown placeholder".
-    TemplateVar("confidence", "The computed confidence tier.", milestone="M3.3"),
+    # M3.3 supplies this through ConfidenceResult. The remaining entries are declared but
+    # not yet suppliable, so authors see the responsible milestone instead of a bare
+    # "unknown placeholder".
+    TemplateVar("confidence", "The computed confidence tier."),
     TemplateVar("frequency", "Population allele frequency from gnomAD.", milestone="M7.2"),
     TemplateVar("ppv", "Empirical PPV for the frequency band.", milestone="M7.3"),
     TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M5.8"),
@@ -268,6 +270,7 @@ _MATCH_VARS: Final[frozenset[str]] = frozenset(
         "effect_value",
         "effect_units",
         "sample_size",
+        "confidence",
     }
 )
 """Placeholders that need a matched variant and an evidence block behind them. An
@@ -415,7 +418,10 @@ def _number(raw: Any, where: str, field_name: str) -> float:
     """
     if isinstance(raw, bool) or not isinstance(raw, int | float):
         raise CardError(f"{where}: {field_name} must be a number, got {type(raw).__name__}")
-    return float(raw)
+    value = float(raw)
+    if not math.isfinite(value):
+        raise CardError(f"{where}: {field_name} must be finite, got {raw!r}")
+    return value
 
 
 def _string_list(raw: Any, where: str) -> tuple[str, ...]:
@@ -434,7 +440,9 @@ def _string_list(raw: Any, where: str) -> tuple[str, ...]:
 # Effect and evidence
 # ---------------------------------------------------------------------------
 
-_EFFECT_KEYS: Final[frozenset[str]] = frozenset({"measure", "value", "units", "ci_low", "ci_high"})
+_EFFECT_KEYS: Final[frozenset[str]] = frozenset(
+    {"measure", "value", "units", "ci_low", "ci_high", "context"}
+)
 
 
 @dataclass(frozen=True)
@@ -446,6 +454,7 @@ class Effect:
     units: str | None = None
     ci_low: float | None = None
     ci_high: float | None = None
+    context: str | None = None
 
     @classmethod
     def parse(cls, raw: Any, where: str) -> Effect:
@@ -463,6 +472,8 @@ class Effect:
         if isinstance(raw_value, bool) or not isinstance(raw_value, int | float):
             raise CardError(f"{where}: value must be a number")
         value = float(raw_value)
+        if not math.isfinite(value):
+            raise CardError(f"{where}: value must be finite, got {raw_value!r}")
 
         units = str(data["units"]).strip() if data.get("units") else None
         if measure.requires_units and not units:
@@ -476,6 +487,13 @@ class Effect:
                 "is how 'units: OR' and 'units: \"\"' get into the corpus."
             )
 
+        context = str(data["context"]).strip() if data.get("context") else None
+        if measure is EffectMeasure.PROPORTION and not context:
+            raise CardError(
+                f"{where}: proportion needs 'context' naming its numerator and denominator; "
+                "a bare fraction can be mistaken for penetrance"
+            )
+
         if measure.is_proportion and not 0.0 <= value <= 1.0:
             raise CardError(
                 f"{where}: {measure.value} must be between 0 and 1, got {value}. "
@@ -483,6 +501,10 @@ class Effect:
             )
         if measure.is_ratio and value <= 0:
             raise CardError(f"{where}: {measure.value} must be positive, got {value}")
+        if measure is EffectMeasure.PERCENT_VARIANCE_EXPLAINED and not 0.0 <= value <= 100.0:
+            raise CardError(
+                f"{where}: percent_variance_explained must be between 0 and 100, got {value}"
+            )
 
         low, high = data.get("ci_low"), data.get("ci_high")
         if (low is None) != (high is None):
@@ -492,14 +514,25 @@ class Effect:
             ci_high = _number(high, where, "ci_high")
             if ci_low > ci_high:
                 raise CardError(f"{where}: ci_low {ci_low} exceeds ci_high {ci_high}")
+            if measure.is_ratio and ci_low <= 0:
+                raise CardError(f"{where}: {measure.value} interval bounds must be positive")
+            if measure.is_proportion and not 0.0 <= ci_low <= ci_high <= 1.0:
+                raise CardError(f"{where}: {measure.value} interval must stay between 0 and 1")
+            if (
+                measure is EffectMeasure.PERCENT_VARIANCE_EXPLAINED
+                and not 0.0 <= ci_low <= ci_high <= 100.0
+            ):
+                raise CardError(
+                    f"{where}: percent_variance_explained interval must stay between 0 and 100"
+                )
             if not ci_low <= value <= ci_high:
                 raise CardError(
                     f"{where}: value {value} lies outside its own interval "
                     f"[{ci_low}, {ci_high}] -- one of the three is transcribed wrong."
                 )
-            return cls(measure, value, units, ci_low, ci_high)
+            return cls(measure, value, units, ci_low, ci_high, context)
 
-        return cls(measure, value, units)
+        return cls(measure, value, units, context=context)
 
 
 _EVIDENCE_KEYS: Final[frozenset[str]] = frozenset(
@@ -1146,9 +1179,13 @@ class KnowledgePack:
 
 
 def default_knowledge_dir() -> Path:
-    """``knowledge/`` in the repository.
+    """The reviewable checkout corpus, or its installed-wheel copy.
 
     Committed, unlike references and run bundles: cards are the reviewable corpus, and
-    AGENTS.md 3 wants them readable as a diff.
+    AGENTS.md 3 wants them readable as a diff. Hatch includes the same directory at
+    ``genetics/knowledge`` so the installed CLI does not lose its engine data.
     """
-    return repo_root() / "knowledge"
+    checkout = repo_root() / "knowledge"
+    if checkout.is_dir():
+        return checkout
+    return Path(__file__).resolve().parents[1] / "knowledge"

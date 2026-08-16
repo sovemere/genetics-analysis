@@ -11,11 +11,15 @@ Nothing in this file downloads anything. ``fetch`` is only ever exercised with
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
+import pytest
 from typer.testing import CliRunner
 
 from genetics.cli.main import app
+from genetics.cli.refs_cmd import _render_report
+from genetics.refs import fetcher, postprocess
 
 runner = CliRunner()
 
@@ -46,7 +50,10 @@ def test_refs_status_lists_every_source_with_its_state() -> None:
             "manual-step",
             "blocked-by-licence",
             "empty",
+            "processing",
+            "processing-required",
         }
+        assert row["post_process_outputs_present"] <= row["post_process_outputs_total"]
 
 
 def test_refs_status_reports_what_a_missing_source_costs() -> None:
@@ -57,10 +64,61 @@ def test_refs_status_reports_what_a_missing_source_costs() -> None:
     assert any("frequency gate" in capability for capability in gnomad["enables"])
 
 
+def test_refs_status_reports_an_active_part_file_as_partial(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A multi-gigabyte resumable download must not look completely absent."""
+
+    source_dir = tmp_path / "dbsnp_b157_grch37"
+    source_dir.mkdir()
+    (source_dir / "GCF_000001405.25.gz.part").write_bytes(b"public reference prefix")
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+
+    result = runner.invoke(app, ["refs", "status", "--json"])
+    payload = json.loads(result.stdout)
+    dbsnp = next(row for row in payload["sources"] if row["id"] == "dbsnp_b157_grch37")
+
+    assert result.exit_code == 0
+    assert dbsnp["state"] == "partial"
+
+
+def test_refs_status_requires_provenance_for_every_post_process_output(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A finished-looking table without its input/transform record is not complete."""
+
+    source_dir = tmp_path / "dbsnp_b157_grch37"
+    source_dir.mkdir()
+    for name in ("GCF_000001405.25.gz", "refsnp-merged.json.bz2"):
+        (source_dir / name).touch()
+
+    outputs = (
+        "rsid_merges.parquet",
+        "rsid_unresolvable.parquet",
+        "dbsnp_variants.parquet",
+    )
+    for name in outputs:
+        (source_dir / name).touch()
+    for name in outputs[:2]:
+        (source_dir / f"{name}.provenance.json").write_text("{}", encoding="utf-8")
+
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+    result = runner.invoke(app, ["refs", "status", "--json"])
+    payload = json.loads(result.stdout)
+    dbsnp = next(row for row in payload["sources"] if row["id"] == "dbsnp_b157_grch37")
+
+    assert result.exit_code == 0
+    assert dbsnp["state"] == "processing-required"
+    assert dbsnp["post_process_outputs_present"] == 2
+    assert dbsnp["post_process_outputs_total"] == 3
+
+
 def test_refs_fetch_dry_run_reports_size_without_downloading() -> None:
     """The required set is 92 GB. Finding that out afterwards is not useful."""
     payload = run_json("refs", "fetch", "--dry-run")
     assert payload["total_bytes"] > 0
+    assert payload["postprocess_workspace_bytes"] > 0
+    assert payload["estimated_peak_bytes"] > payload["total_bytes"]
     assert payload["sources"]
     # Defaults to required-only, so the 495 GB optional genomes must not be included.
     ids = {row["id"] for row in payload["sources"]}
@@ -99,12 +157,41 @@ def test_refs_licenses_reports_obligations_and_the_opt_in_list() -> None:
         assert row["terms_url"].startswith("https://")
 
 
-def test_refs_verify_reports_missing_files_and_exits_nonzero() -> None:
-    """Nothing is fetched in a test environment, so everything should read as missing."""
+def test_refs_verify_reports_missing_files_and_exits_nonzero(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Verification against an isolated empty reference root reports missing."""
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
     result = runner.invoke(app, ["refs", "verify", "--only", "phylotree_17", "--json"])
     payload = json.loads(result.stdout)
     assert payload["sources"][0]["files"][0]["status"] == "missing"
     assert result.exit_code == 1
+
+
+def test_human_report_prints_successful_postprocess_detail(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    report = fetcher.FetchReport(
+        sources=(
+            fetcher.SourceResult(
+                source_id="dbsnp_b157_grch37",
+                status=fetcher.SourceStatus.COMPLETE,
+                process_results=(
+                    postprocess.ProcessResult(
+                        step="extract_rsid_merge_table",
+                        status=postprocess.ProcessStatus.ALREADY_PRESENT,
+                        output="rsid_merges.parquet",
+                        rows=21,
+                        detail="23,340 unresolvable merge record(s)",
+                    ),
+                ),
+            ),
+        )
+    )
+
+    _render_report(report, as_json=False)
+
+    assert "23,340 unresolvable merge record(s)" in capsys.readouterr().out
 
 
 # ---------------------------------------------------------------------------

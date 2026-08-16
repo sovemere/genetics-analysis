@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "sources": {
+    "clinvar_grch37": {
+      "files": {
+        "clinvar_20260804.vcf.gz": {
+          "first_seen": "2026-08-16",
+          "sha256": "da7d8a7f1143e6294a168b68361057197127a418bd6389d1d59d4f11c63b0966",
+          "size_bytes": 193086366,
+          "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/vcf_GRCh37/archive_2.0/2026/clinvar_20260804.vcf.gz"
+        },
+        "variant_summary.txt.gz": {
+          "first_seen": "2026-08-16",
+          "sha256": "44d47173c6f786a442df0503e2758918e26e9d6c276e4f15f40c71d633596e4b",
+          "size_bytes": 441836319,
+          "url": "https://ftp.ncbi.nlm.nih.gov/pub/clinvar/tab_delimited/variant_summary.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": false,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-US-Government-Public-Domain",
+        "name": "US Government work, public domain (NCBI)",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": false,
+        "standing": "needs-review",
+        "terms_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "2026-08-04"
+    },
+    "dbsnp_b157_grch37": {
+      "files": {
+        "GCF_000001405.25.gz": {
+          "first_seen": "2026-08-16",
+          "sha256": "13c9973947067c9ffbade53c0c53975614ce4f187e9dc4214ee3852b33dc4d3a",
+          "size_bytes": 28194800139,
+          "url": "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/VCF/GCF_000001405.25.gz"
+        },
+        "refsnp-merged.json.bz2": {
+          "first_seen": "2026-08-16",
+          "sha256": "3ea8d75ecd89d87c571784a74ba09099806ec817eff9dd015a6c3874048dafee",
+          "size_bytes": 813797312,
+          "url": "https://ftp.ncbi.nlm.nih.gov/snp/archive/b157/JSON/refsnp-merged.json.bz2"
+        }
+      },
+      "license": {
+        "attribution_required": false,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-US-Government-Public-Domain",
+        "name": "US Government work, public domain (NCBI)",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": false,
+        "standing": "needs-review",
+        "terms_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "b157"
+    },
+    "phylotree_17": {
+      "files": {
+        "mtDNA_tree_Build_17.zip": {
+          "first_seen": "2026-08-16",
+          "sha256": "3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146",
+          "size_bytes": 421842,
+          "url": "https://www.phylotree.org/builds/mtDNA_tree_Build_17.zip"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PhyloTree-Academic-Attribution",
+        "name": "PhyloTree mtDNA build 17 (van Oven), citation required",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": false,
+        "standing": "needs-review",
+        "terms_url": "https://www.phylotree.org/"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "17"
+    }
+  }
+}

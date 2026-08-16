@@ -394,9 +394,8 @@ def test_an_adapter_declaring_nothing_still_gets_the_check() -> None:
     assert any("no markers at all on:" in w for w in report.warnings)
 
 
-def test_build_anchor_table_ships_empty_pending_m2() -> None:
-    """Coordinates written from memory would be invented data (AGENTS.md 6). M2 fetches
-    dbSNP; until then the mechanism is tested with injected anchors."""
+def test_build_anchor_table_has_no_hand_authored_coordinates() -> None:
+    """Real coordinates are generated from fetched ClinVar data, never committed by hand."""
     assert ANCHORS == ()
 
 

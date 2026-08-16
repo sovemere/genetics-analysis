@@ -4,15 +4,18 @@ Card definitions. **Committed** — this is the reviewable corpus, and AGENTS.md
 readable as a diff. The schema is `src/genetics/engine/cards.py`; that module is the
 authority, this file is orientation.
 
-## It is empty on purpose
+## Current corpus
 
-M3.1 built the schema. The cards come in **M3.6** (traits seed pack) and **M3.7**
-(impossibility cards).
+M3.6 supplies the first small, hand-reviewable seed pack under `traits/`. It emphasizes
+large-effect, array-tractable findings in pigmentation, sensory biology, metabolism,
+morphology, and circadian preference. Every locus was checked against the pinned dbSNP
+GRCh37 index; dbSNP merge history is fetched alongside that index for runtime matching.
+Every interpretation is tied to a primary paper with quantitative evidence and population
+context.
 
-Shipping a card now would mean writing GRCh37 coordinates from memory, which is the
-invented-data failure AGENTS.md §6 forbids. `qc/build_anchors.py` and the fixture
-`spike_ins` hook shipped empty for the same reason: a mechanism with no data is honest,
-and a mechanism with *invented* data is the exact failure the mechanism exists to catch.
+This is intentionally a curated pack, not a bulk database import. M3.7 adds the explicit
+"not determinable" cards required by AGENTS.md §3.2. Later milestones expand the other
+sections through the same schema and lint path.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be

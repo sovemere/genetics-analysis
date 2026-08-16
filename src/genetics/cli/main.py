@@ -36,6 +36,13 @@ def _add_refs_commands() -> None:
     app.add_typer(tools_app, name="tools")
 
 
+def _add_cards_commands() -> None:
+    """Register card tooling without importing the Polars-backed lint engine yet."""
+    from genetics.cli.cards_cmd import cards_app
+
+    app.add_typer(cards_app, name="cards")
+
+
 @app.command()
 def version(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
@@ -295,6 +302,7 @@ def paths(
 
 
 _add_refs_commands()
+_add_cards_commands()
 
 
 if __name__ == "__main__":

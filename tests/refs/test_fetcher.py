@@ -8,6 +8,7 @@ which is otherwise almost impossible to provoke on demand.
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import io
 from pathlib import Path
@@ -198,10 +199,79 @@ def test_an_interrupted_transfer_keeps_the_part_for_a_later_resume(tmp_path: Pat
     result = fetcher.fetch_file(
         source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
     )
-    # A short body is indistinguishable from a stream that stopped early, so the digest
-    # is what catches it -- and the part is discarded because it failed verification.
+    # The declared size identifies this as a short transfer before a digest decision.
+    # Keeping the valid prefix means a later invocation can resume it.
     assert result.status is FileStatus.FAILED
+    assert "resume" in result.detail
     assert not (tmp_path / "example" / "ref.txt").exists()
+    assert (tmp_path / "example" / "ref.txt.part").read_bytes() == PAYLOAD[:120]
+
+
+def test_an_unpinned_short_first_fetch_is_discarded_and_restarts(tmp_path: Path) -> None:
+    """A size cannot prove two ranged responses came from the same rolling entity."""
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    first_transport = FakeTransport(truncate_at=120)
+
+    first = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=first_transport,
+        previous=lockfile.Lock(),
+    )
+
+    assert first.status is FileStatus.FAILED
+    assert "size mismatch" in first.detail
+    assert "no digest" in first.detail
+    assert "left in place" not in first.detail
+    assert not (tmp_path / "example" / "ref.txt").exists()
+    assert not (tmp_path / "example" / "ref.txt.part").exists()
+
+    second_transport = FakeTransport()
+    second = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=second_transport,
+        previous=lockfile.Lock(),
+    )
+    assert second.status is FileStatus.DOWNLOADED
+    assert second_transport.requests == [(URL, 0)]
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+
+
+def test_an_existing_unpinned_short_part_is_discarded_before_open(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    part = tmp_path / "example" / "ref.txt.part"
+    part.parent.mkdir(parents=True)
+    part.write_bytes(PAYLOAD[:120])
+    transport = FakeTransport()
+
+    result = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+
+    assert result.status is FileStatus.DOWNLOADED
+    assert transport.requests == [(URL, 0)]
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+
+
+def test_an_unpinned_oversized_first_fetch_is_discarded(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    oversized = PAYLOAD + b"unexpected trailing bytes"
+
+    result = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport({URL: oversized}),
+        previous=lockfile.Lock(),
+    )
+
+    assert result.status is FileStatus.FAILED
+    assert "size mismatch" in result.detail
+    assert not (tmp_path / "example" / "ref.txt").exists()
+    assert not (tmp_path / "example" / "ref.txt.part").exists()
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +282,7 @@ def test_an_interrupted_transfer_keeps_the_part_for_a_later_resume(tmp_path: Pat
 def test_a_digest_mismatch_discards_the_partial_file(tmp_path: Path) -> None:
     """Keeping it would poison every later resume, failing forever for an invisible reason."""
     source = make_source()
-    transport = FakeTransport({URL: b"a completely different payload"})
+    transport = FakeTransport({URL: b"x" * len(PAYLOAD)})
     result = fetcher.fetch_file(
         source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
     )
@@ -244,6 +314,40 @@ def test_an_already_present_file_is_verified_not_refetched(tmp_path: Path) -> No
     )
     assert result.status is FileStatus.ALREADY_PRESENT
     assert transport.requests == [], "nothing should have been requested"
+
+
+def test_an_unpinned_present_file_with_the_wrong_size_is_rejected(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    target = tmp_path / "example" / "ref.txt"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(PAYLOAD[:-1])
+
+    transport = FakeTransport()
+    result = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=transport,
+        previous=lockfile.Lock(),
+    )
+
+    assert result.status is FileStatus.FAILED
+    assert "size mismatch" in result.detail
+    assert "delete it" in result.detail
+    assert transport.requests == []
+
+
+def test_verify_enforces_manifest_size_without_a_digest(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="rolling latest release")
+    target = tmp_path / "example" / "ref.txt"
+    target.parent.mkdir(parents=True)
+    target.write_bytes(PAYLOAD[:-1])
+
+    result = fetcher.verify_file(source, source.files[0], root=tmp_path, previous=lockfile.Lock())
+
+    assert result.status is FileStatus.FAILED
+    assert "size mismatch" in result.detail
+    assert "delete it" in result.detail
 
 
 def test_a_corrupted_present_file_is_reported_not_silently_accepted(tmp_path: Path) -> None:
@@ -457,6 +561,52 @@ def test_fetch_writes_a_lock_and_reports_unimplemented_steps(tmp_path: Path) -> 
     result = report.sources[0]
     assert result.pending_steps and "convert_to_bref3" in result.pending_steps[0]
     assert "M8.2" in result.pending_steps[0], "an unimplemented step should name its owner"
+
+
+def test_fetch_executes_implemented_post_processing_and_reports_it(tmp_path: Path) -> None:
+    events: list[fetcher.ProgressEvent] = []
+    vcf = gzip.compress(
+        b"##fileformat=VCFv4.2\n"
+        b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n"
+        b"NC_000001.10\t101\trs101\tA\tG\t.\t.\tRS=101\n"
+    )
+    url = "https://example.org/dbsnp.vcf.gz"
+    item = manifest.RemoteFile(
+        url=url,
+        filename="dbsnp.vcf.gz",
+        sha256=hashlib.sha256(vcf).hexdigest(),
+        size_bytes=len(vcf),
+    )
+    source = manifest.Source(
+        id="dbsnp_test",
+        name="Synthetic dbSNP",
+        tier=manifest.Tier.A,
+        version="test",
+        homepage="https://example.org/",
+        license_id="CC0-1.0",
+        files=(item,),
+        post_process=(
+            manifest.PostProcess(
+                step="extract_dbsnp_variant_index",
+                params={"input": "dbsnp.vcf.gz", "output": "dbsnp_variants.parquet"},
+            ),
+        ),
+    )
+    report = fetcher.fetch(
+        manifest.Manifest(schema_version=1, sources=(source,)),
+        root=tmp_path / "refs",
+        transport=FakeTransport({url: vcf}),
+        lock_path=tmp_path / "manifest.lock",
+        include_optional=True,
+        progress=events.append,
+    )
+
+    assert report.ok
+    process = report.sources[0].process_results[0]
+    assert process.status == "created"
+    assert process.rows == 1
+    assert (tmp_path / "refs" / "dbsnp_test" / "dbsnp_variants.parquet").is_file()
+    assert any(event.unit == "rows" and event.downloaded == 1 for event in events)
 
 
 def test_rerunning_a_fetch_produces_a_byte_identical_lock(tmp_path: Path) -> None:

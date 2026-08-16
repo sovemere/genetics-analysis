@@ -364,7 +364,9 @@ def test_an_installed_jar_is_rechecked_against_its_pin(tmp_path: Path) -> None:
 
 def test_a_corrupted_download_does_not_install(tmp_path: Path) -> None:
     tool = tools.loads(MINIMAL.format(sha=SHA)).get("widget")
-    result = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(b"wrong bytes"))
+    # Same declared length, different bytes: this reaches the digest gate rather than
+    # exercising the independent short-transfer/resume path.
+    result = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(b"wrong bytes!"))
     assert result.status is InstallStatus.FAILED
     assert "sha256 mismatch" in result.detail
 

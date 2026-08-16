@@ -61,3 +61,13 @@ def test_the_hook_selects_by_marker_not_by_directory() -> None:
         "the hook selects by directory, which skips privacy-marked tests living beside the "
         "code they guard"
     )
+
+
+def test_ci_selects_privacy_checks_by_marker_not_by_directory() -> None:
+    """CI must cover the same distributed privacy suite as the pre-commit hook."""
+
+    workflow = (PRIVACY_DIR.parents[1] / ".github" / "workflows" / "ci.yml").read_text(
+        encoding="utf-8"
+    )
+    assert "pytest -m privacy" in workflow
+    assert "pytest tests/privacy" not in workflow

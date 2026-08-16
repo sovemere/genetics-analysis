@@ -207,6 +207,15 @@ class PostProcess:
                 f"{where}: step {name!r} got unexpected param(s) {', '.join(unexpected)}. "
                 f"Accepted: {', '.join(sorted(allowed)) or 'none'}."
             )
+        # These values become filesystem writes/reads in the post-process runner.  They
+        # get the same early traversal refusal as downloaded filenames; the runner also
+        # performs a resolved-path containment check as the load-bearing second layer.
+        for path_param, value in params.items():
+            if path_param not in {"input", "output"} and not path_param.endswith("_output"):
+                continue
+            if not isinstance(value, str):
+                raise ManifestError(f"{where}.{path_param}: filesystem path must be a string")
+            _check_relative_filename(value, f"{where}.{path_param}")
         return cls(step=name, params=dict(params))
 
 
@@ -401,6 +410,92 @@ class Source:
             )
         if not self.files and self.manual is None:
             raise ManifestError(f"{where}: has neither files nor a manual step")
+
+        # Post-processing is an ordered filesystem program.  Validate that program before
+        # any bytes move: an input must already exist as a download or an earlier output,
+        # and no output may overwrite either a publisher payload or another derived
+        # artifact.  Without this, a one-word typo can atomically replace a checksum-pinned
+        # source after fetch verified it while the lock still records the original digest.
+        downloaded = {item.filename for item in self.files}
+        available = set(downloaded)
+        derived: set[str] = set()
+        reserved: set[str] = set()
+
+        def implementation_paths(output: str, *, merge_primary: bool) -> set[str]:
+            parent, separator, name = output.rpartition("/")
+
+            def sibling(sibling_name: str) -> str:
+                return f"{parent}/{sibling_name}" if separator else sibling_name
+
+            paths = {
+                output,
+                sibling(f"{name}.provenance.json"),
+                sibling(f".{name}.provenance.json.part"),
+                sibling(f".{name}.part"),
+                sibling(f".{name}.chunks"),
+            }
+            if merge_primary:
+                classified = f".{name}.classified.parquet"
+                paths.update(
+                    {
+                        sibling(classified),
+                        sibling(f"{classified}.provenance.json"),
+                        sibling(f".{classified}.provenance.json.part"),
+                        sibling(f".{classified}.part"),
+                        sibling(f".{classified}.chunks"),
+                    }
+                )
+            return paths
+
+        for number, step in enumerate(self.post_process, start=1):
+            step_where = f"{where} post_process #{number} ({step.step})"
+            input_name = step.params.get("input")
+            if input_name is not None and input_name not in available:
+                raise ManifestError(
+                    f"{step_where}: input {input_name!r} is not a downloaded file or an "
+                    "output of an earlier post-processing step"
+                )
+
+            output_params = [
+                (key, str(value))
+                for key, value in step.params.items()
+                if key == "output" or key.endswith("_output")
+            ]
+            outputs = [output for _, output in output_params]
+            if len(outputs) != len(set(outputs)):
+                raise ManifestError(f"{step_where}: two output parameters name the same path")
+            step_reserved: set[str] = set()
+            for output_param, output in output_params:
+                if output in downloaded:
+                    raise ManifestError(
+                        f"{step_where}: output {output!r} would overwrite a downloaded file"
+                    )
+                if output in derived:
+                    raise ManifestError(
+                        f"{step_where}: duplicate post-processing output {output!r}"
+                    )
+                owned = implementation_paths(
+                    output,
+                    merge_primary=(
+                        step.step == "extract_rsid_merge_table" and output_param == "output"
+                    ),
+                )
+                download_collisions = sorted(owned & downloaded)
+                if download_collisions:
+                    raise ManifestError(
+                        f"{step_where}: output {output!r} reserves implementation-owned "
+                        f"path(s) {download_collisions}, which collide with downloaded files"
+                    )
+                output_collisions = sorted(owned & (reserved | step_reserved))
+                if output_collisions:
+                    raise ManifestError(
+                        f"{step_where}: output {output!r} reserves implementation-owned "
+                        f"path(s) {output_collisions}, which collide with another output"
+                    )
+                derived.add(output)
+                available.add(output)
+                step_reserved.update(owned)
+            reserved.update(step_reserved)
 
         if self.imputation_panel:
             offenders = [
