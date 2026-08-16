@@ -13,9 +13,15 @@ GRCh37 index; dbSNP merge history is fetched alongside that index for runtime ma
 Every interpretation is tied to a primary paper with quantitative evidence and population
 context.
 
-This is intentionally a curated pack, not a bulk database import. M3.7 adds the explicit
-"not determinable" cards required by AGENTS.md §3.2. Later milestones expand the other
-sections through the same schema and lint path.
+M3.7 adds `impossibilities/` — the explicit "not determinable" cards AGENTS.md §3.2 calls
+for, one per entry in that register, placed in the section each one qualifies rather than
+in an appendix (M14.6). They are the reason `physical_health`, `genome_structure`,
+`reproductive`, `pharmacogenomics` and `ancestry` are no longer empty: a section whose only
+content is "here is what this data cannot tell you, and why" is more honest than a blank
+one, and it is the difference between a limit stated and a limit implied.
+
+This is intentionally a curated pack, not a bulk database import. Later milestones expand
+the other sections through the same schema and lint path.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -109,6 +115,42 @@ cards:
 
 Unknown keys are rejected everywhere. In a format this full of optional fields, a
 silently-ignored key looks exactly like one that had no effect.
+
+## Impossibility cards
+
+A different shape, because they match nothing:
+
+```yaml
+  - id: some_impossibility
+    section: physical_health   # the section that would otherwise look complete
+    kind: impossibility
+    title: Human-readable title
+    gene: GENE                 # optional; §3.2's own examples are gene-named
+    impossibility_reason: "Why the assay cannot answer this. Not a template."
+    summary: "Not determinable: one line for the card face."
+    detail: "The long form. May use {gene} if the card declares one."
+    caveats:
+      - "Usually the adjacent question that *is* answerable, so the card is not over-read."
+```
+
+Three things differ from an interpretation card:
+
+- **`match`, `outcomes` and `evidence` are refused.** Carrying any of them is what makes a
+  card an interpretation; an impossibility matches no genotype by construction.
+- **`{gene}` is the only placeholder available.** Every other one — `{genotype}`, `{rsid}`,
+  `{effect_value}` and the rest — needs a matched variant or an evidence block, so naming
+  one here would render blank. The loader refuses it by name.
+- **Citations are not required, and the shipped pack has none.** The claim is about the
+  assay rather than about the person, and demanding a DOI for "an array does not measure
+  methylation" pushes an author toward citing something tangentially related, which serves
+  a reader worse than citing nothing. `impossibility_reason` carries the justification
+  instead. A test asserts the pack stays citation-free, because the exemption is only safe
+  while it stays unused.
+
+The set of these cards is checked against AGENTS.md §3.2 in both directions
+(`tests/engine/test_impossibilities.py`): a new bullet with no card fails, and a card no
+bullet declares fails. §3.2 says to maintain it as a live register, and two ways of naming
+one set diverge unless something compares them.
 
 ## Multi-variant cards
 

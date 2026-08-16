@@ -19,9 +19,16 @@ def test_wheel_configuration_includes_the_reviewed_knowledge_corpus() -> None:
     wheel = config["tool"]["hatch"]["build"]["targets"]["wheel"]
     assert wheel["force-include"] == {"knowledge": "genetics/knowledge"}
 
+    # Two subdirectories on purpose. A force-include narrowed to `knowledge/traits` would
+    # still satisfy a list drawn only from `traits/`, and the impossibility cards are the
+    # ones whose absence is hardest to notice: a missing "not determinable" card leaves a
+    # section looking complete rather than leaving an obvious hole.
     expected = (
         "traits/pigmentation.yaml",
         "traits/sensory_metabolism.yaml",
         "traits/morphology_circadian.yaml",
+        "impossibilities/assay_limits.yaml",
+        "impossibilities/structural_variants.yaml",
+        "impossibilities/ancestry_limits.yaml",
     )
     assert all((project_root / "knowledge" / relative).is_file() for relative in expected)

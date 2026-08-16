@@ -599,4 +599,7 @@ gracefully when absent, and prompt the user once.
 3. No fixture derived from a real person's file.
 4. No genotype in any log line, error message, commit message, or test name.
 5. New reference sources are in the manifest with a recorded license.
-6. New cards carry real citations.
+6. New interpretation cards carry real citations. Impossibility cards (§3.2) carry
+   `impossibility_reason` instead and are expected to cite nothing — their claim is about
+   the assay, not the person, and a DOI dragged in to satisfy this line would be the
+   tangential citation the exemption exists to prevent.
