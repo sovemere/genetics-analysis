@@ -409,6 +409,60 @@ def test_the_installed_record_carries_the_licence_for_the_audit(tmp_path: Path) 
     assert state.tools["j"]["sha256"] == tool.builds[0].sha256
 
 
+def test_a_malformed_state_entry_is_hidden_from_readers_but_not_erased_from_disk(
+    tmp_path: Path,
+) -> None:
+    """M4.1 taught ``read_state`` to filter non-record values, and that created this.
+
+    ``record_install`` does read-modify-write, so filtering on read *and* writing the
+    filtered view back meant the next install of any unrelated tool permanently deleted the
+    malformed entry -- including the licence block this module keeps for the M15.4 audit.
+    That is the M2 lock bug in a new place: "recording only the current run's successes
+    replaced the file map, so the digest of the file that just failed was dropped." The
+    resolution is the same one the lock reached -- a write merges over what was there, so
+    success elsewhere can never erase the evidence of a problem here.
+    """
+    import hashlib
+    import json
+
+    state_path = tmp_path / tools.INSTALLED_STATE
+    state_path.write_text(
+        json.dumps(
+            {"schema_version": 1, "tools": {"broken": "not a record", "ok": {"version": "1"}}}
+        ),
+        encoding="utf-8",
+    )
+
+    # The typed view hides it, which is the point of the filter.
+    assert set(tools.read_state(tmp_path).tools) == {"ok"}
+
+    payload = b"jar bytes"
+    tool = tools.Tool(
+        id="j",
+        name="J",
+        version="1",
+        homepage="https://example.org/",
+        license_id="GPL-3.0-or-later",
+        kind=Kind.JAR,
+        required_from="M8",
+        builds=(
+            tools.ToolBuild(
+                platform="any",
+                url="https://example.org/j.jar",
+                filename="j.jar",
+                sha256=hashlib.sha256(payload).hexdigest(),
+                size_bytes=len(payload),
+            ),
+        ),
+    )
+    result = tools.install(tool, tools_root=tmp_path, transport=FakeTransport(payload))
+    tools.record_install(tmp_path, tool, tool.builds[0], result)
+
+    on_disk = json.loads(state_path.read_text(encoding="utf-8"))["tools"]
+    assert on_disk["broken"] == "not a record", "an unrelated install erased the evidence"
+    assert set(on_disk) == {"broken", "ok", "j"}
+
+
 # ---------------------------------------------------------------------------
 # The committed manifest
 # ---------------------------------------------------------------------------
