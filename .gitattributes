@@ -9,3 +9,11 @@ tests/fixtures/synthetic/** text eol=lf
 # Reference manifests and knowledge-pack cards are compared and diffed; keep them LF.
 data/references/manifest.yaml text eol=lf
 knowledge/** text eol=lf
+
+# Vendored front-end assets (M4.4) are pinned by sha256 in src/genetics/web/vendor.yaml.
+# Same situation as the fixtures above and the same fix: a CRLF rewrite on a Windows
+# checkout changes every byte count and the assets would fail their own pins on the
+# machine this project targets. The `* text=auto eol=lf` rule already covers them; this
+# says so explicitly, next to the reason, because that is the rule someone would relax
+# without realising what it was holding up.
+src/genetics/web/static/** text eol=lf

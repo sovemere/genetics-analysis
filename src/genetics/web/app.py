@@ -38,11 +38,13 @@ from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
+from fastapi.staticfiles import StaticFiles
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.paths import UnsafeDataDirError
 from genetics.run import store
 from genetics.run.bundle import BUNDLE_FORMAT_VERSION
+from genetics.web.assets import STATIC_DIR
 from genetics.web.config import WebConfig
 
 SECURITY_HEADERS: dict[str, str] = {
@@ -115,6 +117,13 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         openapi_url=None,
     )
     app.state.config = settings
+
+    # Mounted before the middleware is declared for readability only -- Starlette applies
+    # middleware around the whole app, mounts included, so the policy headers and the host
+    # check cover every asset served here exactly as they cover the routes below. A static
+    # mount that escaped the host check would be the DNS-rebinding hole reopened for the
+    # one part of the app that is easiest to forget about.
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
     @app.middleware("http")
     async def _local_only(
@@ -229,11 +238,28 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         it. The markup is inline rather than a template: Jinja2 belongs to the milestone
         that has something to render, and an empty ``templates/`` directory now would be a
         structure decided before the thing that has to fit in it.
+
+        It loads htmx and Alpine (M4.4) even though nothing here uses them yet, and that is
+        the point: a vendored asset nobody requests is a vendored asset nobody has proved is
+        served, mounted at the path the templates will use, and permitted by the policy. All
+        three are true or this page fails to load them.
+
+        ``htmx-config`` is a **meta tag rather than an inline script** because
+        ``script-src 'self'`` blocks inline scripts -- setting the config the usual way would
+        have been the first thing to quietly violate the policy this app advertises.
+        ``allowEval: false`` turns htmx's two eval-backed features into a loud
+        ``htmx:evalDisallowedError`` instead of a silent CSP refusal in a console nobody has
+        open. See ``static/vendor/VENDOR.yaml``.
         """
         return HTMLResponse(
             "<!doctype html>\n"
             '<html lang="en"><head><meta charset="utf-8">'
-            "<title>genetics</title></head><body>"
+            '<meta name="viewport" content="width=device-width, initial-scale=1">'
+            '<meta name="htmx-config" content=\'{"allowEval":false}\'>'
+            "<title>genetics</title>"
+            '<script src="/static/vendor/htmx.min.js" defer></script>'
+            '<script src="/static/vendor/alpine.min.js" defer></script>'
+            "</head><body>"
             "<h1>genetics</h1>"
             f"<p>Engine {ENGINE_VERSION}. The dashboard is not built yet (roadmap M4.5).</p>"
             '<p><a href="/healthz">/healthz</a> reports what this process can see.</p>'
