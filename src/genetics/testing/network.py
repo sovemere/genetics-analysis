@@ -28,11 +28,12 @@ is written to swallow. As a ``RuntimeError`` it propagates intact, saying what i
 
 from __future__ import annotations
 
-import ipaddress
 import socket
 from collections.abc import Iterator
 from contextlib import contextmanager
 from typing import Any
+
+from genetics.netaddr import is_local_address
 
 __all__ = [
     "NetworkAccessError",
@@ -74,45 +75,12 @@ def guard_is_active() -> bool:
 # ---------------------------------------------------------------------------
 # What counts as leaving the machine
 # ---------------------------------------------------------------------------
-
-
-def is_local_address(host: object) -> bool:
-    """True for destinations that never leave this machine.
-
-    Anything unrecognised is treated as *remote*: the guard refuses what it cannot vouch
-    for, the same fail-closed rule the licence gate (M2.1) and the build check (M1.5)
-    follow. Guessing in the permissive direction here would let exactly the call this
-    module exists to catch through.
-    """
-    if host is None:
-        # ``getaddrinfo(None, port)`` asks for a local bind address, not a destination.
-        return True
-
-    if isinstance(host, bytes | bytearray):
-        try:
-            host = bytes(host).decode("ascii")
-        except UnicodeDecodeError:
-            return False
-
-    if not isinstance(host, str):
-        return False
-
-    text = host.strip()
-    try:
-        address: ipaddress.IPv4Address | ipaddress.IPv6Address = ipaddress.ip_address(text)
-    except ValueError:
-        lowered = text.lower()
-        return lowered == "localhost" or lowered.endswith(".localhost")
-
-    # ``::ffff:127.0.0.1`` is loopback in every sense that matters here, but
-    # ``IPv6Address.is_loopback`` is true only of ``::1``, so unwrap first.
-    mapped = getattr(address, "ipv4_mapped", None)
-    if mapped is not None:
-        address = mapped
-
-    # ``is_unspecified`` covers 0.0.0.0 and ::, which name the wildcard *bind* address
-    # rather than any remote host.
-    return address.is_loopback or address.is_unspecified
+#
+# :func:`is_local_address` moved to :mod:`genetics.netaddr` in M4.3 and is re-exported
+# here, because the web server's binding policy has to draw the same line this guard does.
+# Two copies would let the suite block the very server it is meant to drive, or vouch for a
+# bind it never checked -- and either way the disagreement would surface as a puzzling test
+# failure instead of as the policy question it is.
 
 
 def _destination(address: object) -> object | None:
