@@ -1,0 +1,92 @@
+# Vendored front-end assets -- roadmap M4.4.
+#
+# Lives beside the code and NOT in static/, though it describes what is in there. Every
+# file under static/ is served to a browser, and this one exists to record the URL each
+# asset was downloaded from -- it is the only file in the project whose job is to hold
+# external URLs, so keeping it in the served tree would have forced the "no external URL in
+# any static asset" test to carve out an exception on the day it was written.
+#
+# COMMITTED, unlike every other third-party artifact in this repository. That is the
+# decision worth explaining, because AGENTS.md 1.4 says the opposite for reference data and
+# M2.5 keeps PLINK and Beagle out of the checkout entirely.
+#
+# The difference is what the file is for. A reference panel is 63 GB of data the analysis
+# reads; these are 114 KB the *browser* needs before the first page renders. Fetching them
+# at runtime means a CDN request from the user's machine, on a page showing that user's
+# genome -- the exact thing M4.3's Content-Security-Policy exists to forbid. Fetching them
+# at install time means `pip install genetics-analysis` needs the network to produce a
+# working dashboard, and an offline-first tool whose UI does not work offline is not one.
+# So they are committed, pinned here, and verified by tests/web/test_static.py.
+#
+# Every URL, size and sha256 below was downloaded and hashed on 2026-08-17. Files are
+# stored with LF endings (.gitattributes enforces it repo-wide) so the digests hold on
+# Windows as well as POSIX -- a CRLF checkout would fail its own pin.
+#
+# TO UPGRADE: download the new dist file, replace the .js, update version/sha256/size and
+# the `verified` date here, and re-read the licence in case it changed. There is
+# deliberately no fetch script: this happens about once a year, and a downloader nobody
+# runs is a downloader nobody maintains. The test that matters -- do the bytes on disk
+# still match this file -- needs no network and runs on every commit.
+
+schema_version: 1
+
+assets:
+  - id: htmx
+    name: htmx
+    version: 2.0.10
+    filename: htmx.min.js
+    sha256: 71ea67185bfa8c98c39d31717c6fce5d852370fcdfd129db4543774d3145c0de
+    size_bytes: 51238
+    homepage: https://htmx.org/
+    source_url: https://registry.npmjs.org/htmx.org/-/htmx.org-2.0.10.tgz
+    source_member: package/dist/htmx.min.js
+    license: 0BSD
+    license_file: LICENSE-htmx.txt
+    verified: 2026-08-17
+    notes: >-
+      Zero-Clause BSD, which requires no attribution notice at all. The licence text is
+      vendored anyway, because M15.4's release audit reads these files and "the licence
+      that happens to need no notice" is not a distinction worth making the auditor
+      rediscover.
+
+      CSP: htmx contains one `new Function`, reached only for `hx-on:` attributes and the
+      `js:` prefix in hx-vals/hx-headers, and gated behind `htmx.config.allowEval`. The
+      page sets that to false through the `htmx-config` meta tag -- a meta tag rather than
+      an inline script precisely because `script-src 'self'` blocks inline scripts -- so
+      those features fail loudly with an htmx:evalDisallowedError instead of silently
+      tripping the policy. Do not use them; there is no eval to enable.
+
+  - id: alpinejs
+    name: Alpine.js (CSP build)
+    version: 3.16.1
+    filename: alpine.min.js
+    sha256: 56c3922e901dd63a8cf50a42de749d06209a004543a583b02f8c1ad516ff13a9
+    size_bytes: 62639
+    homepage: https://alpinejs.dev/
+    source_url: https://registry.npmjs.org/@alpinejs/csp/-/csp-3.16.1.tgz
+    source_member: package/dist/cdn.min.js
+    license: MIT
+    license_file: LICENSE-alpinejs.txt
+    verified: 2026-08-17
+    notes: >-
+      **The CSP build, not the standard one, and the difference is measurable.** The
+      standard `alpinejs` bundle contains a `new Function` and therefore needs
+      `script-src 'unsafe-eval'`; this build contains none, and neither does it call
+      `eval`. Counted in both files before choosing.
+
+      Weakening the policy would have been the easier road and is the one M4.3's own
+      docstring warns about -- a strict CSP relaxed later under pressure from a single
+      asset, on a page whose subject is somebody's genome. Alpine ships a build designed
+      for exactly this situation, so the trade is paid in syntax rather than in policy.
+
+      **What that costs M4.5 onward:** component logic must be registered with
+      `Alpine.data('name', () => ({...}))` and referenced by name. Inline expressions --
+      `x-on:click="open = !open"` -- do not work; `x-on:click="toggle"` does. This is
+      arguably the better structure for a server-rendered htmx app anyway, but it is a
+      real constraint and it is stated here rather than discovered.
+
+      The MIT licence text is *required* to travel with the code, and the npm tarball does
+      not contain it -- `@alpinejs/csp` ships dist, src, builds and package.json, no
+      LICENSE. It was fetched separately from the v3.16.1 tag on GitHub, which is the
+      version-matched source; taking it from `main` would have pinned a notice describing
+      different code.
