@@ -116,7 +116,12 @@ INCOMING_PREFIX: Final[str] = ".incoming-"
 shape rather than by remembering to, and so a killed process leaves something visibly
 unfinished rather than a run id with half a payload under it."""
 
-_PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME)
+PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME)
+"""The files a bundle must record a digest for.
+
+Public because M4.2's listing has to require exactly the same set. When it did not, a
+manifest with no ``files`` key at all listed as ``readable`` while ``read_bundle`` refused
+it -- the listing/read divergence the store's own docstring sets out to prevent."""
 
 
 class BundleError(ValueError):
@@ -489,8 +494,12 @@ def new_run_id(now: datetime | None = None) -> str:
     return f"{stamp}-{secrets.token_hex(4)}"
 
 
-def _check_run_id(identifier: str) -> None:
+def check_run_id(identifier: str) -> None:
     """Refuse any run id that is not a plain directory name.
+
+    Public because M4.2's store reads and *deletes* by run id, and a deletion that
+    validated its target by a second, similar-looking rule would be the two-names-for-one-
+    thing failure this project has now hit three times. One check, one caller-visible name.
 
     Written as a *structural* check rather than a blacklist of separators, because the
     blacklist it replaces was wrong in a way only Windows shows. ``root / "D:elsewhere"``
@@ -527,7 +536,13 @@ def _check_run_id(identifier: str) -> None:
         )
 
 
-def _resolve_root(runs_root: Path | None) -> Path:
+def resolve_runs_root(runs_root: Path | None) -> Path:
+    """The runs directory, resolved and proved to be outside the checkout.
+
+    Public for the same reason as :func:`check_run_id`: M4.2 lists, reads and deletes under
+    this root, and every one of those must agree with the writer about where it is. A
+    second resolver would be a second answer.
+    """
     root = (runs_root or runs_dir()).resolve()
     if is_inside_repo(root):
         raise UnsafeDataDirError(
@@ -560,13 +575,13 @@ def write_bundle(
     is a copy that can fail halfway, and the system temp directory is not one of the paths
     :mod:`genetics.paths` registers as genotype-bearing.
     """
-    root = _resolve_root(runs_root)
+    root = resolve_runs_root(runs_root)
     stamp = (created_at or datetime.now(UTC)).astimezone(UTC)
     # `run_id or new_run_id(...)` would treat an explicit "" as "not supplied" and quietly
     # generate one, so a caller passing a blank --run-id would get a bundle under a name it
     # did not choose instead of an error. Falsy is not the same as absent.
     identifier = new_run_id(stamp) if run_id is None else run_id
-    _check_run_id(identifier)
+    check_run_id(identifier)
 
     destination = root / identifier
     if destination.parent != root:
@@ -612,7 +627,7 @@ def write_bundle(
                 "cards": len(cards),
                 "with_interpretation": sum(1 for card in cards if card.has_interpretation),
             },
-            "files": {name: _digest(staging / name) for name in _PAYLOAD_FILES},
+            "files": {name: _digest(staging / name) for name in PAYLOAD_FILES},
         }
         manifest_text = _render(manifest)
 
@@ -684,6 +699,42 @@ def _load_json(path: Path) -> Mapping[str, Any]:
     return _mapping(raw, path.name)
 
 
+def payload_name(raw: Any, where: str) -> str:
+    """A name recorded in ``manifest.files``, checked to be a plain filename.
+
+    ``manifest["files"]`` maps a name to a digest, and the reader turns each into
+    ``directory / name``. The writer only ever puts plain filenames there, but the reader is
+    reading a file it did not write -- so an edited manifest naming ``../something`` would
+    have sent it to stat, and then to *hash*, a file outside the bundle, and report the
+    result as this bundle's integrity. Tampering is outside the threat model (see the module
+    docstring) and this is not a hole in it; the point is narrower and duller. A manifest
+    naming a file somewhere else is a damaged manifest, and saying so is more useful than a
+    digest mismatch against a file the user never associated with this run.
+
+    Same conclusion as :func:`check_run_id` and as M2.5's archive extractor, checked the same
+    way: on the outcome, not by enumerating the forms a path can take.
+    """
+    text = str(raw)
+    if not text or text in {".", ".."} or text != Path(text).name:
+        raise BundleError(
+            f"{where}: {text!r} is not a plain filename. A bundle records files that sit "
+            "beside its manifest, so a name resolving anywhere else is a damaged manifest."
+        )
+    return text
+
+
+def read_manifest(directory: Path) -> Mapping[str, Any]:
+    """Load ``manifest.json`` alone, with damage reported as :class:`BundleError`.
+
+    Split out for M4.2's listing, which must describe a whole directory of bundles without
+    reading -- or digesting -- any payload. Sharing the loader rather than reimplementing
+    it is what keeps "this bundle is damaged" meaning the same thing in a listing as it
+    does in a read: the review that widened the caught exception set here would otherwise
+    have had to be repeated, and would have been missed.
+    """
+    return _load_json(directory / MANIFEST_NAME)
+
+
 def _stored_card(raw: Any, where: str) -> StoredCard:
     data = _mapping(raw, where)
     _reject_unknown(data, CARD_KEYS, where)
@@ -738,7 +789,7 @@ def read_bundle(path: Path) -> RunBundle:
     if not directory.is_dir():
         raise BundleError(f"not a run bundle directory: {directory}")
 
-    manifest = _load_json(directory / MANIFEST_NAME)
+    manifest = read_manifest(directory)
     declared = _require(manifest, "format_version", MANIFEST_NAME)
     if not isinstance(declared, int) or isinstance(declared, bool):
         raise BundleError(f"{MANIFEST_NAME}: format_version must be an integer")
@@ -761,11 +812,11 @@ def read_bundle(path: Path) -> RunBundle:
     _reject_unknown(manifest, MANIFEST_KEYS, MANIFEST_NAME)
 
     recorded = _mapping(_require(manifest, "files", MANIFEST_NAME), f"{MANIFEST_NAME}.files")
-    missing = sorted(set(_PAYLOAD_FILES) - set(recorded))
+    missing = sorted(set(PAYLOAD_FILES) - set(recorded))
     if missing:
         raise BundleError(f"{MANIFEST_NAME}.files: no digest recorded for {', '.join(missing)}")
     for name, expected in sorted(recorded.items()):
-        target = directory / name
+        target = directory / payload_name(name, f"{MANIFEST_NAME}.files")
         if not target.is_file():
             raise BundleIntegrityError(f"{name} is recorded in the manifest but absent from {path}")
         actual = _digest(target)

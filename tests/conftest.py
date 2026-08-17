@@ -21,11 +21,19 @@ than the guard being removed for everyone.
 
 from __future__ import annotations
 
+import shutil
 from collections.abc import Iterator
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
 from genetics.testing.network import allow_network, block_network
+
+if TYPE_CHECKING:
+    from genetics.engine.cards import KnowledgePack
+    from genetics.engine.evidence import AssembledCard
+    from genetics.qc.report import QCReport
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -42,3 +50,90 @@ def _offline(request: pytest.FixtureRequest) -> Iterator[None]:
         return
     with allow_network():
         yield
+
+
+# ---------------------------------------------------------------------------
+# Building a saved run (M4.1/M4.2)
+# ---------------------------------------------------------------------------
+#
+# Shared because ``tests/run/test_store.py`` and ``tests/test_cli_runs.py`` both need a
+# bundle on disk and neither is testing how one is built. ``tests/run/test_bundle.py``
+# keeps its own, richer card fixtures on purpose: it is testing the *format*, so the
+# genotypes it writes and the rare card carrying an empirical PPV are the subject matter
+# there rather than scaffolding.
+
+SYNTHETIC_EXPORT = Path(__file__).parent / "fixtures" / "synthetic" / "ancestry_v2_male.txt"
+SYNTHETIC_CARDS = Path(__file__).parent / "fixtures" / "cards"
+SAMPLE_GENOTYPE = "AG"
+
+
+@pytest.fixture
+def sample_genotype() -> str:
+    """The call ``sample_cards`` writes, as a fixture rather than an import.
+
+    ``tests/`` is not a package, so a test in another directory cannot import the constant;
+    and a test that recovered it from the bundle it is checking would be asserting that the
+    output contains the output.
+    """
+    return SAMPLE_GENOTYPE
+
+
+@pytest.fixture(scope="session")
+def sample_qc() -> QCReport:
+    """A real QC report from a real parse. Session-scoped: it is read-only and identical."""
+    # Imported here rather than at module scope so a run of the fast unit tests does not
+    # pay for Polars and the whole ingest stack during collection.
+    from genetics.ingest import ingest
+
+    return ingest(SYNTHETIC_EXPORT).qc
+
+
+@pytest.fixture
+def sample_pack(tmp_path: Path) -> KnowledgePack:
+    """A private copy of the synthetic card pack.
+
+    Copied rather than loaded in place because ``knowledge_provenance`` digests the files
+    on disk, and a test that edits or deletes the pack must not reach the committed one.
+    """
+    from genetics.engine.cards import KnowledgePack
+
+    destination = tmp_path / "knowledge"
+    shutil.copytree(SYNTHETIC_CARDS, destination)
+    return KnowledgePack.load(destination)
+
+
+@pytest.fixture
+def sample_cards(sample_pack: KnowledgePack) -> tuple[AssembledCard, ...]:
+    """One matched card, so a bundle has something with a genotype and a citation in it."""
+    from genetics.engine.confidence import CallSource
+    from genetics.engine.evidence import ObservationEvidence, PopulationFrequency, assemble_card
+    from genetics.engine.matcher import MatchResult, MatchStatus, Strand
+
+    card = sample_pack.by_id("synthetic_dominant_trait")
+    assert card is not None and card.match is not None
+    outcome_name = next(iter(card.match.genotypes.values()))
+    match = MatchResult(
+        card_id=card.id,
+        status=MatchStatus.MATCHED,
+        reason="Matched.",
+        genotype=SAMPLE_GENOTYPE,
+        observed_genotype=SAMPLE_GENOTYPE,
+        observed_rsid=card.match.variant.rsid,
+        outcome_name=outcome_name,
+        outcome=card.outcomes[outcome_name],
+        strand=Strand.AS_WRITTEN,
+    )
+    return (
+        assemble_card(
+            card,
+            match,
+            ObservationEvidence(
+                call_source=CallSource.DIRECT,
+                frequencies=(
+                    PopulationFrequency("A", 0.80, "EUR", "synthetic-reference-v1"),
+                    PopulationFrequency("G", 0.20, "EUR", "synthetic-reference-v1"),
+                ),
+                ancestry_match=1.0,
+            ),
+        ),
+    )

@@ -23,6 +23,12 @@ dependencies = [
     # than `requests`: this is the project's only network code path and it would be a
     # dependency shipped forever to make an offline-first tool fetch data once.
     "pyyaml>=6.0",
+    # M4.3: the local dashboard. FastAPI serves it and uvicorn runs it, both bound to
+    # loopback -- see genetics/web/config.py for why that is checked rather than documented.
+    # Neither is used to make an outbound request; a structural test in tests/web asserts no
+    # module under genetics/web imports a network client at all.
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
 ]
 
 [project.optional-dependencies]
@@ -31,6 +37,15 @@ dev = [
     "ruff>=0.6",
     "mypy>=1.11",
     "types-PyYAML>=6.0",
+    # Required by fastapi.testclient, which drives the M4.3 app without opening a socket.
+    # httpx2 rather than httpx: current Starlette deprecates the latter and says so on
+    # every test run, and a warning nobody can act on is a warning everyone learns to skim
+    # past -- including on the day it says something else.
+    #
+    # Listed here and not in a [dependency-groups] table (where `uv add --dev` puts it)
+    # because CI installs with `uv pip install -e ".[dev]"` and would not see it there:
+    # the web tests would fail on the runner and pass on every developer's machine.
+    "httpx2>=2.10",
 ]
 
 [project.scripts]
@@ -88,3 +103,4 @@ markers = [
     # and it should stay that way -- see genetics/testing/network.py (M2.7).
     "network: genuinely needs the network",
 ]
+

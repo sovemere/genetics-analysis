@@ -43,6 +43,22 @@ def _add_cards_commands() -> None:
     app.add_typer(cards_app, name="cards")
 
 
+def _add_runs_commands() -> None:
+    """Register the saved-run store (M4.2).
+
+    Imported inside the function like the heavier commands, though it is worth being honest
+    about what that buys: ``runs_cmd`` reaches ``run.store`` -> ``run.bundle`` ->
+    ``engine.cards`` and ``qc.report``, so this pulls in Polars and yaml regardless. The
+    first version of this docstring claimed "stdlib only", which was simply false and would
+    have misled the next person trying to make ``genetics --help`` fast. Deferring still
+    keeps it off the ``--help`` path only in the sense that every other group here does; the
+    real fix, if that ever matters, is a lazy command tree, not this line.
+    """
+    from genetics.cli.runs_cmd import runs_app
+
+    app.add_typer(runs_app, name="runs")
+
+
 @app.command()
 def version(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
@@ -303,6 +319,7 @@ def paths(
 
 _add_refs_commands()
 _add_cards_commands()
+_add_runs_commands()
 
 
 if __name__ == "__main__":
