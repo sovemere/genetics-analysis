@@ -1,0 +1,69 @@
+{#
+  The run selector (roadmap M4.5).
+
+  Rendered as its own partial because it is one of the two regions this page scans with
+  assert_no_genotype. Keeping it separate is what lets the scan stay narrow when M4.6 puts
+  card faces -- which state the reader's genotype by design -- on the same page. A scan over
+  the whole document would have to be switched off on the day cards land, and M0.3 settled
+  what happens to a guard that fails on correct output.
+
+  Every run is listed, including the ones that cannot be opened. A damaged or newer-format
+  bundle becomes a disabled row carrying its reason, exactly as `genetics runs list` shows
+  it: hiding an unopenable run is how somebody concludes their analysis was deleted.
+#}
+<div class="runselect" x-data="runselector">
+  <label class="visually-hidden" for="run-picker">Saved run</label>
+  <select id="run-picker" x-on:change="open" {% if not shell.runs %}disabled{% endif %}>
+    {% if not shell.runs %}
+      <option value="">No saved runs</option>
+    {% else %}
+      {% for run in shell.runs %}
+        <option value="{{ run.run_id }}"
+                {% if run.run_id == shell.selected_id %}selected{% endif %}
+                {% if not run.selectable %}disabled{% endif %}>
+          {{ run.created_at or run.run_id }}
+          {%- if run.vendor %} · {{ run.vendor }}{% endif %}
+          {%- if run.card_count is not none %} · {{ run.card_count }} card(s){% endif %}
+          {%- if run.with_interpretation is not none %}, {{ run.with_interpretation }} interpreted{% endif %}
+          {%- if not run.selectable %} · {{ run.status }}{% endif %}
+        </option>
+      {% endfor %}
+    {% endif %}
+  </select>
+  <noscript>
+    {# The selector is a `select` driven by one Alpine handler, so without scripting it
+       renders and does nothing. The same runs as plain links, so the page is usable with
+       JavaScript off -- which is also the state a CSP refusal leaves it in. #}
+    <ul class="runlinks">
+      {% for run in shell.runs if run.selectable %}
+        <li><a href="/runs/{{ run.run_id }}">{{ run.created_at or run.run_id }}</a></li>
+      {% endfor %}
+    </ul>
+  </noscript>
+</div>
+
+{% if shell.runs | rejectattr("selectable") | list %}
+  <ul class="notices">
+    {% for run in shell.runs if not run.selectable %}
+      <li class="notice notice-{{ run.status }}">
+        <strong>{{ run.run_id }}</strong> — {{ run.status }}.
+        {{ run.detail or "" }}
+        {% if run.status == "future-version" %}
+          It is intact; open it with the version of this tool that wrote it.
+        {% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}
+
+{% if shell.incomplete %}
+  <ul class="notices">
+    {% for item in shell.incomplete %}
+      <li class="notice notice-incomplete">
+        Run <strong>{{ item.run_id }}</strong> was interrupted while saving and holds
+        {{ item.size_display }}. Nothing was saved under that id — the run is absent, not
+        damaged. Remove <code>{{ item.name }}</code> with <code>genetics runs prune</code>.
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

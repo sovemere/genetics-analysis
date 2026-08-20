@@ -29,6 +29,12 @@ dependencies = [
     # module under genetics/web imports a network client at all.
     "fastapi>=0.115",
     "uvicorn>=0.30",
+    # M4.5: the dashboard's templates. Arrives now rather than with the M4.3 skeleton
+    # because that skeleton had one placeholder page and an empty `templates/` directory
+    # would have been a structure decided before the thing that has to fit in it.
+    # Autoescaping is on for every template extension this app uses -- a card's summary is
+    # authored text and a QC warning is generated text, and neither is trusted markup.
+    "jinja2>=3.1",
 ]
 
 [project.optional-dependencies]

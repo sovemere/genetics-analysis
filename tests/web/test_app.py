@@ -9,6 +9,7 @@ mechanism, because the one that catches a stray ``urlopen`` cannot see a ``<scri
 from __future__ import annotations
 
 import ast
+import re
 import socket
 import threading
 import time
@@ -423,9 +424,24 @@ def test_health_says_what_it_is(client: TestClient) -> None:
     assert payload["bundle_format_version"] == BUNDLE_FORMAT_VERSION
 
 
-def test_the_index_says_it_is_a_placeholder(client: TestClient) -> None:
+def test_the_index_renders_and_loads_only_first_party_assets(client: TestClient) -> None:
     """A skeleton nobody can open is a skeleton nobody has run, and every claim above is
-    only worth something once a real request has travelled through it."""
+    only worth something once a real request has travelled through it.
+
+    This checked for the "not built yet (M4.5)" placeholder until M4.5 replaced it. What it
+    asserts now is the part that outlived the placeholder: the page renders against an empty
+    store, states the engine version, and every asset it pulls comes from this server.
+    """
     body = client.get("/").text
-    assert "M4.5" in body, "the page should say what is missing and where it is coming from"
     assert ENGINE_VERSION in body
+    assert "/static/vendor/htmx.min.js" in body
+    assert "/static/vendor/alpine.min.js" in body
+
+    # Every reference the browser would follow is rooted at this server. The
+    # protocol-relative `//host` form is included because it reads as a comment and fetches
+    # anyway -- `tests/web/test_static.py` drives the same form past its scanner.
+    referenced = re.findall(r'(?:src|href)="([^"]*)"', body)
+    assert referenced, "nothing was checked; this assertion would pass vacuously"
+    offenders = [url for url in referenced if not url.startswith(("/", "#"))]
+    assert not offenders, f"off-origin references on the dashboard: {offenders}"
+    assert not [url for url in referenced if url.startswith("//")]

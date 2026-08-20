@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{#
+  The dashboard shell (roadmap M4.5): section nav, run selector, QC banner.
+
+  The card grid is M4.6. What stands in for it here is a per-section placeholder that says
+  so by name -- not an empty panel. A section that renders nothing and explains nothing is
+  the failure the definition of done (item 3) names, and "the grid is not built yet" is a
+  perfectly good explanation while it is true.
+
+  There is no filter control on this page, and that is not an oversight: M4.7 owns filtering
+  and its rule is that filtering must never be the only way to see a card. Shipping a
+  default filter here would decide that question early and in the wrong direction.
+#}
+
+{% block title %}genetics{% if shell.selected_id %} · {{ shell.selected_id }}{% endif %}{% endblock %}
+
+{#
+  These two regions are rendered separately, scanned with assert_no_genotype, and passed in
+  as already-safe markup -- see `_render_scanned` in app.py. `{% include %}` would have been
+  the obvious spelling and would have made the scanned region a comment rather than a fact:
+  there is no way to scan half of one render pass. Coming in as arguments means a future
+  edit that moves card content into the banner fails the scan instead of quietly widening
+  what the guard was supposed to cover.
+#}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+
+{% block nav %}
+  <ol class="sections">
+    {% for view in shell.sections %}
+      <li class="section {% if view.is_empty %}section-empty{% endif %}">
+        <a href="#section-{{ view.section }}">
+          <span class="section-title">{{ view.title }}</span>
+          <span class="section-count"
+                title="{{ view.card_count }} card(s), {{ view.interpreted }} interpreted">
+            {{ view.interpreted }}/{{ view.card_count }}
+          </span>
+        </a>
+      </li>
+    {% endfor %}
+  </ol>
+  <p class="muted navnote">
+    All thirteen sections are listed whether or not this run has anything in them.
+    Counts are interpreted / total.
+  </p>
+{% endblock %}
+
+{% block content %}
+  {% if shell.problem %}
+    <section class="problem" aria-label="Nothing to show">
+      <h1>Nothing to show</h1>
+      <p>{{ shell.problem }}</p>
+      <p class="muted">
+        Runs are read from <code>{{ shell.runs_root }}</code>. Create one with
+        <code>genetics run --input &lt;export&gt;</code>, or point
+        <code>GENETICS_DATA_DIR</code> somewhere else.
+      </p>
+    </section>
+  {% endif %}
+
+  {% for view in shell.sections %}
+    <section class="panel" id="section-{{ view.section }}" aria-labelledby="h-{{ view.section }}">
+      <h2 id="h-{{ view.section }}">{{ view.title }}</h2>
+      <p class="muted">{{ view.blurb }}</p>
+
+      {% if view.empty_reason %}
+        <p class="empty">{{ view.empty_reason }}</p>
+      {% else %}
+        <p class="placeholder">
+          {{ view.card_count }} card(s), {{ view.interpreted }} with an interpretation.
+          The card grid arrives with roadmap M4.6; until then read them with
+          <code>genetics runs show {{ shell.selected_id }}</code>.
+        </p>
+      {% endif %}
+    </section>
+  {% endfor %}
+{% endblock %}

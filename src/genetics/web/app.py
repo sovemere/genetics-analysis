@@ -34,18 +34,60 @@ to rot quietly.
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
+from markupsafe import Markup
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.paths import UnsafeDataDirError
+from genetics.privacy import assert_no_genotype
 from genetics.run import store
-from genetics.run.bundle import BUNDLE_FORMAT_VERSION
+from genetics.run.bundle import BUNDLE_FORMAT_VERSION, BundleError, RunBundle
+from genetics.run.store import RunNotFoundError
+from genetics.web import views
 from genetics.web.assets import STATIC_DIR
 from genetics.web.config import WebConfig
+
+TEMPLATE_DIR: Path = Path(__file__).resolve().parent / "templates"
+
+SCANNED_PARTIALS: tuple[str, ...] = ("_runselector.html", "_qcbanner.html")
+"""The regions of the page held to "no genotype", by name.
+
+The dashboard is **not** scanned as a whole document, and that is a decision rather than an
+omission. M4.6 puts card faces on this page, and a card's summary states the reader's own
+genotype by design -- so a whole-page scan would begin failing on correct output the day
+cards land, and M0.3 settled what happens to a guard that does that: it gets switched off,
+including on the day it was right.
+
+So the split follows M4.2's, which drew the same line between ``runs list`` (scanned, both
+branches) and ``runs show`` (not scanned, deliberately). The banner and the selector are
+manifest- and QC-derived, exactly like a listing, and they are rendered on their own so the
+scan is a property of the code rather than a claim in a comment.
+"""
+
+
+def _environment() -> Environment:
+    """The Jinja environment. Two settings here are not defaults and both matter.
+
+    ``autoescape`` covers ``.html`` -- a QC warning is generated text and a card title is
+    authored text, and neither is trusted markup. ``StrictUndefined`` turns a typo'd or
+    renamed context key into an error at render time instead of an empty string: the failure
+    it prevents is a QC banner that silently loses its call rate after a field is renamed,
+    which looks like a data problem and is not.
+    """
+    return Environment(
+        loader=FileSystemLoader(TEMPLATE_DIR),
+        autoescape=select_autoescape(("html", "xml")),
+        undefined=StrictUndefined,
+        trim_blocks=True,
+        lstrip_blocks=True,
+    )
+
 
 SECURITY_HEADERS: dict[str, str] = {
     # The browser half of "no external requests". `default-src 'self'` means the page may
@@ -102,6 +144,10 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
     of a setting no command was about to use.
     """
     settings = config or WebConfig()
+    # Built per app rather than at module scope. The templates never change at runtime, so
+    # a module-level environment would work and would also be shared state that a test
+    # cannot vary -- the same reason `create_app` is a factory at all.
+    environment = _environment()
 
     app = FastAPI(
         title="genetics",
@@ -228,43 +274,105 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             payload["detail"] = " ".join(notes) or None
         return JSONResponse(payload, headers=SECURITY_HEADERS)
 
-    @app.get("/", response_class=HTMLResponse)
-    async def index() -> HTMLResponse:
-        """A placeholder that says so.
+    def _render(shell: views.Shell) -> HTMLResponse:
+        """Render the dashboard, scanning the two regions that must hold no genotype.
 
-        The dashboard arrives at M4.5. This exists because a skeleton nobody can open is a
-        skeleton nobody has run, and every claim on this page -- the binding, the headers,
-        the host check -- is only worth anything once a real request has travelled through
-        it. The markup is inline rather than a template: Jinja2 belongs to the milestone
-        that has something to render, and an empty ``templates/`` directory now would be a
-        structure decided before the thing that has to fit in it.
-
-        It loads htmx and Alpine (M4.4) even though nothing here uses them yet, and that is
-        the point: a vendored asset nobody requests is a vendored asset nobody has proved is
-        served, mounted at the path the templates will use, and permitted by the policy. All
-        three are true or this page fails to load them.
-
-        ``htmx-config`` is a **meta tag rather than an inline script** because
-        ``script-src 'self'`` blocks inline scripts -- setting the config the usual way would
-        have been the first thing to quietly violate the policy this app advertises.
-        ``allowEval: false`` turns htmx's two eval-backed features into a loud
-        ``htmx:evalDisallowedError`` instead of a silent CSP refusal in a console nobody has
-        open. See ``static/vendor/VENDOR.yaml``.
+        The partials are rendered first and on their own, checked, then handed to the page
+        as already-escaped markup. Rendering the page once and scanning a slice of the
+        result would be the same claim with no way to enforce it, and ``{% include %}``
+        would give one output string that cannot be scanned in halves.
         """
+        context: dict[str, Any] = {
+            "shell": shell,
+            "engine_version": ENGINE_VERSION,
+            "bundle_format_version": BUNDLE_FORMAT_VERSION,
+        }
+        for name in SCANNED_PARTIALS:
+            markup = environment.get_template(name).render(context)
+            assert_no_genotype(markup, context=f"dashboard partial {name}")
+            key = name.removeprefix("_").removesuffix(".html")
+            context[f"{key}_html"] = Markup(markup)
+
         return HTMLResponse(
-            "<!doctype html>\n"
-            '<html lang="en"><head><meta charset="utf-8">'
-            '<meta name="viewport" content="width=device-width, initial-scale=1">'
-            '<meta name="htmx-config" content=\'{"allowEval":false}\'>'
-            "<title>genetics</title>"
-            '<script src="/static/vendor/htmx.min.js" defer></script>'
-            '<script src="/static/vendor/alpine.min.js" defer></script>'
-            "</head><body>"
-            "<h1>genetics</h1>"
-            f"<p>Engine {ENGINE_VERSION}. The dashboard is not built yet (roadmap M4.5).</p>"
-            '<p><a href="/healthz">/healthz</a> reports what this process can see.</p>'
-            "</body></html>\n",
+            environment.get_template("dashboard.html").render(context),
             headers=SECURITY_HEADERS,
         )
+
+    def _shell(run_id: str | None) -> views.Shell:
+        """Resolve what to display, turning every failure into a sentence.
+
+        Four states reach this page and all four are ordinary: the store is unusable, the
+        store is empty, the requested id names nothing, and the requested bundle will not
+        open. None is an exception the user caused, and a dashboard that 500s on any of them
+        is a dashboard that cannot explain itself -- ``doctor``'s rule (M0.6), and the same
+        one ``/healthz`` and ``runs list`` follow.
+        """
+        try:
+            listing = store.list_runs(settings.runs_root)
+        except (UnsafeDataDirError, OSError) as exc:
+            empty = store.RunListing(
+                root=settings.runs_root or Path("(unresolved)"),
+                runs=(),
+                incomplete=(),
+                verified=False,
+            )
+            return views.shell_for(empty, None, selected_id=run_id, problem=str(exc))
+
+        readable = [summary for summary in listing.runs if summary.ok]
+        if run_id is None:
+            if not readable:
+                problem = (
+                    "No saved run can be opened yet."
+                    if listing.runs
+                    else "No runs have been saved yet."
+                )
+                return views.shell_for(listing, None, problem=problem)
+            # Newest first is `list_runs`' own order, so "the default run" is the most
+            # recent readable one. Not the most recent *run*: defaulting to a damaged
+            # bundle would open the dashboard on an error for someone whose last save
+            # happened to fail.
+            run_id = readable[0].run_id
+
+        try:
+            bundle: RunBundle = store.load_run(run_id, settings.runs_root)
+        except RunNotFoundError:
+            return views.shell_for(
+                listing,
+                None,
+                selected_id=run_id,
+                problem=(
+                    f"No run named {run_id!r} is saved here. It may have been deleted, or "
+                    "this may be a link from a different data directory."
+                ),
+            )
+        except (BundleError, OSError) as exc:
+            # BundleVersionError included: it is a BundleError, and its message already
+            # explains that a newer engine wrote the bundle. Re-deriving that distinction
+            # here would be a third copy of a sentence `runs list` and `runs show` already
+            # get right.
+            return views.shell_for(listing, None, selected_id=run_id, problem=str(exc))
+
+        return views.shell_for(listing, bundle)
+
+    # Declared `def`, not `async def`: both routes below do synchronous filesystem work --
+    # `list_runs` walks the store and `load_run` digests every payload -- which inside a
+    # coroutine would block the event loop for the whole read. See `healthz` for the same
+    # reasoning at more length.
+    @app.get("/", response_class=HTMLResponse)
+    def index() -> HTMLResponse:
+        """The dashboard, showing the most recent readable run."""
+        return _render(_shell(None))
+
+    @app.get("/runs/{run_id}", response_class=HTMLResponse)
+    def dashboard(run_id: str) -> HTMLResponse:
+        """The dashboard for one specific run.
+
+        A URL per run rather than a client-side swap: a run is the whole page's state, so
+        this is what makes one linkable, reloadable and reachable with the back button.
+        ``run_id`` is passed to ``store.resolve_run``, whose ``check_run_id`` proves it is a
+        plain directory name and refuses anything that resolves elsewhere -- the containment
+        check belongs there, once, rather than being re-implemented at this boundary.
+        """
+        return _render(_shell(run_id))
 
     return app
