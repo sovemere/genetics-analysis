@@ -1,0 +1,225 @@
+/*
+ * Dashboard styling (roadmap M4.5).
+ *
+ * System fonts only. A webfont means a font CDN, which is an outbound request from the
+ * user's machine on a page whose subject is that user's genome -- the exact thing M4.3's
+ * Content-Security-Policy refuses and M4.4's static scan checks for. Self-hosting one is
+ * possible and is not worth 200 KB and a licence audit for a local tool.
+ *
+ * Light and dark both come from `prefers-color-scheme`. M4.8 owns the explicit toggle;
+ * respecting the system setting costs one media query now and means the page is not white
+ * at night in the meantime.
+ */
+
+:root {
+  --bg: #ffffff;
+  --panel: #f6f7f9;
+  --ink: #16181d;
+  --muted: #5c6370;
+  --line: #d9dce2;
+  --accent: #2b5cd9;
+  --warn-bg: #fff4e0;
+  --warn-ink: #7a4b00;
+  --bad-bg: #fdecec;
+  --bad-ink: #8d1f1f;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f25;
+    --ink: #e7e9ee;
+    --muted: #9aa2b1;
+    --line: #2c313a;
+    --accent: #7ea2ff;
+    --warn-bg: #33270f;
+    --warn-ink: #f0c67a;
+    --bad-bg: #3a1c1c;
+    --bad-ink: #f0a0a0;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 0.9em; }
+
+.muted { color: var(--muted); }
+
+/* Visible on focus only: a keyboard user needs a way past thirteen nav links. */
+.skip {
+  position: absolute;
+  left: -9999px;
+}
+.skip:focus {
+  left: 0.5rem;
+  top: 0.5rem;
+  z-index: 10;
+  background: var(--panel);
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--line);
+}
+
+.brand { display: flex; gap: 0.75rem; align-items: baseline; }
+
+.runselect select {
+  font: inherit;
+  padding: 0.35rem 0.5rem;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  max-width: 32rem;
+}
+
+.runlinks { margin: 0.5rem 0 0; padding-left: 1.25rem; }
+
+.notices { list-style: none; margin: 0.5rem 0 0; padding: 0; }
+
+.notice {
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.25rem;
+  border-radius: 4px;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  font-size: 0.9rem;
+}
+
+.notice-damaged { background: var(--bad-bg); color: var(--bad-ink); }
+
+.qcbanner {
+  padding: 0.9rem 1.25rem;
+  background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+
+.qcfacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 2rem;
+  margin: 0;
+}
+
+.qcfacts dt { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.qcfacts dd { margin: 0; font-variant-numeric: tabular-nums; }
+.qcfacts .flagged { color: var(--warn-ink); font-weight: 600; }
+
+.warnings { list-style: none; margin: 0.75rem 0 0; padding: 0; }
+
+.warning {
+  padding: 0.4rem 0.6rem;
+  margin-top: 0.25rem;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border-radius: 4px;
+  font-size: 0.9rem;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(14rem, 20rem) 1fr;
+  align-items: start;
+}
+
+/* One column on narrow screens; the nav becomes a header rather than disappearing.
+   M4.8 owns responsive layout properly -- this keeps the shell usable until then. */
+@media (max-width: 48rem) {
+  .layout { grid-template-columns: 1fr; }
+  .sidenav { position: static; border-right: 0; border-bottom: 1px solid var(--line); }
+}
+
+.sidenav {
+  position: sticky;
+  top: 0;
+  padding: 1rem;
+  border-right: 1px solid var(--line);
+}
+
+.sections { list-style: none; margin: 0; padding: 0; }
+
+.sections a {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 4px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.sections a:hover, .sections a:focus { background: var(--panel); }
+
+/* Dimmed, never hidden. AGENTS.md 0.1A: an empty section still has to be visible and
+   still has to say why -- see the `empty` paragraph in each panel. */
+.section-empty a { color: var(--muted); }
+
+.section-count { font-variant-numeric: tabular-nums; color: var(--muted); }
+
+.navnote { font-size: 0.8rem; margin-top: 0.75rem; }
+
+.content { padding: 1.25rem; max-width: 60rem; }
+
+.panel {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.panel h2 { margin: 0 0 0.25rem; font-size: 1.05rem; }
+
+.empty, .placeholder {
+  margin: 0.75rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.placeholder { border-left-color: var(--accent); }
+
+.problem {
+  padding: 1rem 1.25rem;
+  margin-bottom: 1rem;
+  background: var(--warn-bg);
+  color: var(--warn-ink);
+  border-radius: 6px;
+}
+
+.problem h1 { margin: 0 0 0.5rem; font-size: 1.1rem; }
+
+.footer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: space-between;
+  padding: 0.75rem 1.25rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.85rem;
+}

@@ -160,6 +160,43 @@ def ingest(
 
 
 @app.command()
+def run(
+    input_path: Annotated[
+        Path,
+        typer.Option(
+            "--input",
+            "-i",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+            help="Raw vendor export.",
+        ),
+    ],
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Analyse an export and save it as a run bundle (M4.0).
+
+    The whole pipeline: ingest, QC, match, assemble, save. Prints counts and the new run
+    id; never a genotype. Read the cards with `genetics runs show <run-id>`.
+    """
+    # Lazy for the same reason as `ingest` below: this reaches the Polars-backed ingest
+    # stack, the card engine and the bundle writer, and `genetics --help` should not pay
+    # for any of them.
+    from genetics.cli.run_cmd import run as run_pipeline
+
+    run_pipeline(input_path=input_path, knowledge=knowledge, as_json=as_json)
+
+
+@app.command()
 def adapters(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
 ) -> None:

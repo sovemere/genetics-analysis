@@ -1,0 +1,60 @@
+{#
+  The QC banner (roadmap M4.5).
+
+  The second of the two scanned regions -- see _runselector.html for why the split exists.
+  Everything here is manifest- and QC-derived, and the bundle's own writer already refuses
+  to write a QC report containing a genotype, so a scan here should never fire. That is the
+  argument for keeping it: a guard on a boundary that is correct today is a guard that
+  catches the change that makes it wrong.
+
+  Warnings render in full and in order. QC sorts them most-consequential-first and
+  AGENTS.md 0.1A is explicit that the job is to label rather than filter, so there is no
+  "show more" here -- collapsing the third warning would be a filter wearing a disclosure
+  triangle.
+#}
+{% if shell.banner %}
+<section class="qcbanner" aria-label="Quality control">
+  <dl class="qcfacts">
+    <div><dt>Source</dt><dd>{{ shell.banner.vendor or "unknown vendor" }}
+      {%- if shell.banner.source_path %} · <code>{{ shell.banner.source_path }}</code>{% endif %}</dd></div>
+    <div><dt>Markers</dt><dd>{{ shell.banner.markers_display }}</dd></div>
+    <div><dt>Call rate</dt><dd>{{ shell.banner.call_rate_percent }}</dd></div>
+    <div><dt>Inferred sex</dt>
+      <dd class="{% if shell.banner.inferred_sex == 'ambiguous' %}flagged{% endif %}">
+        {{ shell.banner.inferred_sex or "-" }}</dd></div>
+    <div><dt>Build</dt><dd>{{ shell.banner.build_verdict or "-" }}</dd></div>
+    {#
+      Shown as counts rather than left to the warnings below, because a warning only fires
+      above a threshold: `het_haploid_calls: 0` produces no warning at all, and "zero" is a
+      different and useful fact from "not measured". The het-haploid count is also the
+      direct measure of how much to trust the inferred sex above it, which is why it sits
+      beside it.
+    #}
+    <div><dt>Het at haploid loci</dt>
+      <dd class="{% if shell.banner.het_haploid_calls %}flagged{% endif %}">
+        {{ "-" if shell.banner.het_haploid_calls is none else shell.banner.het_haploid_calls }}</dd></div>
+    <div><dt>Duplicate rows</dt>
+      <dd>{{ "-" if shell.banner.duplicate_rows is none else shell.banner.duplicate_rows }}</dd></div>
+    <div><dt>Cards</dt><dd>{{ shell.total_cards }} · {{ shell.total_interpreted }} interpreted</dd></div>
+  </dl>
+
+  {% if shell.banner.warnings %}
+    <ul class="warnings" aria-label="QC warnings">
+      {% for warning in shell.banner.warnings %}
+        <li class="warning">{{ warning }}</li>
+      {% endfor %}
+    </ul>
+  {% endif %}
+
+  {% if shell.unknown_sections %}
+    {# A newer engine's fourteenth section. Said out loud rather than dropped: cards under
+       a section this version does not define would otherwise disappear from the nav,
+       which is indistinguishable from cards that did not match. #}
+    <p class="warning">
+      This run contains {{ shell.unknown_sections | length }} section(s) this version does
+      not know: {{ shell.unknown_sections | join(", ") }}. Their cards are not shown in the
+      navigation. Open the run with the version of this tool that wrote it.
+    </p>
+  {% endif %}
+</section>
+{% endif %}

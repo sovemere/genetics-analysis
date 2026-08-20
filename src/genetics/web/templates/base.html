@@ -1,0 +1,59 @@
+{#
+  The page frame (roadmap M4.5).
+
+  Two things here are load-bearing and easy to undo by accident:
+
+  * Every script is a `src=` to `/static`, never inline. `script-src 'self'` blocks inline
+    scripts, so htmx is configured through the `htmx-config` meta tag and our own component
+    registration lives in `/static/app.js`. The first `<script>alert(1)</script>` added for
+    debugging will silently do nothing and look like a bug in something else.
+  * `theme-color` and the stylesheet are first-party. No font CDN, no icon CDN. The static
+    scan in `tests/web/test_static.py` reads this file and fails on an external host, which
+    is the point at which it costs nothing to fix.
+#}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# allowEval:false turns htmx's two eval-backed features into a loud
+     htmx:evalDisallowedError rather than a silent CSP refusal in a console nobody has
+     open. See static/vendor/VENDOR.yaml. #}
+  <meta name="htmx-config" content='{"allowEval":false}'>
+  <title>{% block title %}genetics{% endblock %}</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <script src="/static/vendor/htmx.min.js" defer></script>
+  <script src="/static/app.js" defer></script>
+  {# Alpine last: it starts on DOMContentLoaded and must find every Alpine.data()
+     registration from app.js already made, or the components it names do not exist.
+     Both are `defer`, so they run in document order -- swapping these two lines is a
+     working page that quietly loses every interactive control. #}
+  <script src="/static/vendor/alpine.min.js" defer></script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+
+<header class="topbar">
+  <div class="brand">
+    <strong>genetics</strong>
+    <span class="muted">offline · local only</span>
+  </div>
+  {% block runselector %}{% endblock %}
+</header>
+
+{% block banner %}{% endblock %}
+
+<div class="layout">
+  <nav class="sidenav" aria-label="Sections">
+    {% block nav %}{% endblock %}
+  </nav>
+  <main id="content" class="content">
+    {% block content %}{% endblock %}
+  </main>
+</div>
+
+<footer class="footer">
+  <span class="muted">Engine {{ engine_version }} · bundle format {{ bundle_format_version }}</span>
+  <span class="muted">Runs in <code>{{ shell.runs_root }}</code></span>
+</footer>
+</body>
+</html>
