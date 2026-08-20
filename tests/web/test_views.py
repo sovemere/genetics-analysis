@@ -14,9 +14,11 @@ from typing import Any
 import pytest
 
 from genetics.engine.sections import SECTION_ORDER, Section
+from genetics.qc.report import QCReport
 from genetics.run.bundle import RunBundle, StoredCard
 from genetics.run.store import IncompleteWrite, RunListing, RunStatus, RunSummary
 from genetics.web.views import (
+    QCBanner,
     banner_for,
     section_views,
     shell_for,
@@ -151,28 +153,38 @@ def test_a_known_section_is_never_reported_as_unknown() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_the_banner_reads_the_qc_payload() -> None:
-    banner = banner_for(
-        _bundle(
-            (),
-            qc={
-                "vendor": "ancestrydna_v2",
-                "source_path": "AncestryDNA.txt",
-                "call_rates": {"total_markers": 677436, "call_rate": 0.999188},
-                "sex": {"inferred": "male"},
-                "build": {"verdict": "consistent"},
-                "het_haploid_calls": 7,
-                "duplicates": {"duplicate_rows": 656},
-                "warnings": ["first", "second"],
-            },
-        )
-    )
+def test_every_banner_field_is_populated_by_a_real_qc_report(sample_qc: QCReport) -> None:
+    """Driven by an actual ``QCReport``, and that is the whole point of the test.
 
-    assert banner.vendor == "ancestrydna_v2"
-    assert banner.markers_display == "677,436"
-    assert banner.call_rate_percent == "99.92%"
-    assert banner.inferred_sex == "male"
-    assert banner.warnings == ("first", "second")
+    The first cut of ``banner_for`` read ``duplicates.duplicate_rows`` — a key no QC payload
+    has ever contained, since ``DuplicateSummary`` carries ``duplicate_rsids`` and
+    ``duplicate_positions``. The banner therefore rendered "-" on every run ever saved,
+    reading as "not measured" when it had been. It survived a review *and* a field-coverage
+    test because both the code and the test invented the same shape: a test that writes its
+    own payload agrees with the reader about a structure neither one shares with QC.
+
+    So this asserts against ``QCReport.to_dict()`` and demands every field resolve. A field
+    reading a key that does not exist now fails here rather than rendering a dash forever.
+    """
+    from dataclasses import fields
+
+    banner = banner_for(_bundle((), qc=dict(sample_qc.to_dict())))
+    for field in fields(QCBanner):
+        assert getattr(banner, field.name) is not None, (
+            f"QCBanner.{field.name} reads a key a real QC report does not contain"
+        )
+
+
+def test_the_banner_reads_the_qc_payload(sample_qc: QCReport) -> None:
+    """Values, against the same real report."""
+    banner = banner_for(_bundle((), qc=dict(sample_qc.to_dict())))
+
+    assert banner.vendor == sample_qc.vendor
+    assert banner.total_markers == sample_qc.call_rates.total_markers
+    assert banner.inferred_sex == sample_qc.sex.inferred.value
+    assert banner.duplicate_rsids == sample_qc.duplicates.duplicate_rsids
+    assert banner.duplicate_positions == sample_qc.duplicates.duplicate_positions
+    assert banner.het_haploid_calls == sample_qc.het_haploid_calls
 
 
 def test_the_banner_renders_from_a_qc_payload_that_is_missing_everything() -> None:
@@ -187,13 +199,41 @@ def test_the_banner_renders_from_a_qc_payload_that_is_missing_everything() -> No
     assert banner.warnings == ()
 
 
-@pytest.mark.parametrize("value", [True, "0.99", None, [0.99]])
-def test_a_call_rate_that_is_not_a_number_is_dropped_rather_than_rendered(value: Any) -> None:
+@pytest.mark.parametrize(
+    "value",
+    [
+        True,
+        "0.99",
+        None,
+        [0.99],
+        # `json.loads` accepts bare NaN and Infinity and `_load_json` does not restrict it,
+        # so these reach the banner from a real file. Without the finiteness check the page
+        # read `nan%`, which is the one shape `_number`'s docstring already claimed to catch.
+        float("nan"),
+        float("inf"),
+    ],
+)
+def test_a_call_rate_that_is_not_a_finite_number_is_dropped(value: Any) -> None:
     """``True`` is not a call rate. Formatting it would print ``100.00%`` for a bundle whose
     QC payload is damaged in a way nothing else here would notice."""
     banner = banner_for(_bundle((), qc={"call_rates": {"call_rate": value}}))
     assert banner.call_rate is None
     assert banner.call_rate_percent == "-"
+
+
+@pytest.mark.parametrize("value", ["677436", True, 1.5, None, []])
+def test_a_marker_count_that_is_not_a_whole_number_does_not_take_the_page_down(
+    value: Any,
+) -> None:
+    """``markers_display`` formats with ``:,``, which raises ``ValueError`` on a string.
+
+    ``call_rate`` was guarded from the start and the counts were not, so a ``qc.run.json``
+    written by another engine — the case this module exists to render — 500'd the whole
+    dashboard instead of showing a dash.
+    """
+    banner = banner_for(_bundle((), qc={"call_rates": {"total_markers": value}}))
+    assert banner.total_markers is None
+    assert banner.markers_display == "-"
 
 
 def test_warnings_are_never_truncated() -> None:
@@ -273,5 +313,5 @@ def test_a_selected_run_reports_its_own_id_rather_than_the_requested_one() -> No
     assert shell.selected_id == "r1"
     assert shell.has_selection
     assert shell.problem is None
-    assert shell.total_cards == 1
+    assert shell.card_count == 1
     assert shell.total_interpreted == 1

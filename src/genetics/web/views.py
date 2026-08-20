@@ -27,6 +27,7 @@ fail to render the run *because* the run is the one worth looking at -- which is
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -69,10 +70,33 @@ def _get(mapping: Mapping[str, Any] | None, *path: str) -> Any:
 
 
 def _number(value: Any) -> float | None:
-    """A finite number, or ``None``. Booleans are rejected: ``True`` is not a call rate."""
+    """A finite number, or ``None``.
+
+    Three rejections, and the third is the one that was missing. Booleans, because ``True``
+    is not a call rate. Non-numerics, because a bundle is a file another version wrote. And
+    **non-finite floats**: ``json.loads`` accepts bare ``NaN`` and ``Infinity`` by default
+    and ``_load_json`` does not restrict it, so a QC payload carrying ``NaN`` rendered as
+    ``nan%`` in the banner -- the exact shape this function's docstring already claimed to
+    catch.
+    """
     if isinstance(value, bool) or not isinstance(value, int | float):
         return None
-    return float(value)
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _count(value: Any) -> int | None:
+    """A whole-number count, or ``None``.
+
+    ``call_rate`` went through :func:`_number` from the start and the counts did not, which
+    is the asymmetry that mattered: ``markers_display`` formats with ``:,``, and that raises
+    ``ValueError`` on a string. A ``qc.run.json`` written by another engine -- the case this
+    module exists to render -- took the whole dashboard down with a 500 instead of showing
+    a dash.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None
+    return value
 
 
 @dataclass(frozen=True)
@@ -95,7 +119,8 @@ class QCBanner:
     call_rate: float | None
     inferred_sex: str | None
     het_haploid_calls: int | None
-    duplicate_rows: int | None
+    duplicate_rsids: int | None
+    duplicate_positions: int | None
     build_verdict: str | None
     warnings: tuple[str, ...]
 
@@ -127,11 +152,18 @@ def banner_for(bundle: RunBundle) -> QCBanner:
     return QCBanner(
         vendor=_get(qc, "vendor"),
         source_path=_get(qc, "source_path"),
-        total_markers=_get(qc, "call_rates", "total_markers"),
+        total_markers=_count(_get(qc, "call_rates", "total_markers")),
         call_rate=_number(_get(qc, "call_rates", "call_rate")),
         inferred_sex=_get(qc, "sex", "inferred"),
-        het_haploid_calls=_get(qc, "het_haploid_calls"),
-        duplicate_rows=_get(qc, "duplicates", "duplicate_rows"),
+        het_haploid_calls=_count(_get(qc, "het_haploid_calls")),
+        # Two counts, not one. `DuplicateSummary` carries `duplicate_rsids` and
+        # `duplicate_positions` and they mean different things -- an rsID repeats after a
+        # dbSNP merge, two probes repeat a position -- so collapsing them would be inventing
+        # a third quantity. The first cut read a `duplicate_rows` key that no QC payload has
+        # ever contained, so the banner said "-" on every run ever saved while looking like
+        # a measurement.
+        duplicate_rsids=_count(_get(qc, "duplicates", "duplicate_rsids")),
+        duplicate_positions=_count(_get(qc, "duplicates", "duplicate_positions")),
         build_verdict=_get(qc, "build", "verdict"),
         warnings=_warnings(qc.get("warnings")),
     )
@@ -316,8 +348,20 @@ class Shell:
     def has_selection(self) -> bool:
         return self.banner is not None
 
+    card_count: int
+    """Every card in the run, including any under a section this version cannot place.
+
+    Carried rather than summed from :attr:`sections`, which counts only the thirteen known
+    ones. With a newer engine's fourteenth section in the bundle, a sum would print a card
+    total smaller than the ``card_count`` the run selector shows from the manifest on the
+    same page -- two numbers disagreeing with nothing to explain the gap, while the
+    unknown-section notice says only that those cards are missing from the *navigation*.
+    """
+
     @property
-    def total_cards(self) -> int:
+    def placed_cards(self) -> int:
+        """Cards the nav can actually show. Below :attr:`card_count` only for a newer
+        engine's sections, which is exactly when the difference is worth seeing."""
         return sum(view.card_count for view in self.sections)
 
     @property
@@ -346,12 +390,19 @@ def shell_for(
             StagingNotice(run_id=item.run_id, name=item.path.name, size_bytes=item.size_bytes)
             for item in listing.incomplete
         ),
-        selected_id=selected_id if bundle is None else bundle.run_id,
+        # The **directory name**, not the manifest's ``run_id``. ``summarise_run`` already
+        # settled which wins: "the directory name wins, because it is what `delete` and
+        # `load` resolve against". When someone renames a bundle directory the two disagree,
+        # and taking the manifest's id meant the selector marked no option as current and
+        # the page printed a `genetics runs show <id>` that `runs show` cannot resolve --
+        # advice that fails for the one run it was given about.
+        selected_id=selected_id if bundle is None else bundle.path.name,
         banner=None if bundle is None else banner_for(bundle),
         # The thirteen sections render even with no run open, so the nav is the same shape
         # on an empty store as on a full one. A nav that appears only once a run is loaded
         # makes an empty dashboard look broken rather than empty.
         sections=section_views(() if bundle is None else bundle.cards),
         unknown_sections=() if bundle is None else unknown_sections(bundle.cards),
+        card_count=0 if bundle is None else len(bundle.cards),
         problem=problem,
     )

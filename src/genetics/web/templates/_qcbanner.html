@@ -33,9 +33,14 @@
     <div><dt>Het at haploid loci</dt>
       <dd class="{% if shell.banner.het_haploid_calls %}flagged{% endif %}">
         {{ "-" if shell.banner.het_haploid_calls is none else shell.banner.het_haploid_calls }}</dd></div>
-    <div><dt>Duplicate rows</dt>
-      <dd>{{ "-" if shell.banner.duplicate_rows is none else shell.banner.duplicate_rows }}</dd></div>
-    <div><dt>Cards</dt><dd>{{ shell.total_cards }} · {{ shell.total_interpreted }} interpreted</dd></div>
+    <div><dt>Duplicate rsIDs</dt>
+      <dd>{{ "-" if shell.banner.duplicate_rsids is none else shell.banner.duplicate_rsids }}</dd></div>
+    <div><dt>Duplicate positions</dt>
+      <dd>{{ "-" if shell.banner.duplicate_positions is none else shell.banner.duplicate_positions }}</dd></div>
+    <div><dt>Cards</dt><dd>{{ shell.card_count }} · {{ shell.total_interpreted }} interpreted
+      {%- if shell.placed_cards != shell.card_count %}
+        ({{ shell.card_count - shell.placed_cards }} not placed in any section below)
+      {%- endif %}</dd></div>
   </dl>
 
   {% if shell.banner.warnings %}

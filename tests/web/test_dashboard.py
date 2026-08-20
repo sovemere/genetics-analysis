@@ -18,7 +18,7 @@ from fastapi.testclient import TestClient
 from genetics.engine.cards import KnowledgePack
 from genetics.privacy import GenotypeLeakError
 from genetics.qc.report import QCReport
-from genetics.run.bundle import CARDS_NAME, MANIFEST_NAME, write_bundle
+from genetics.run.bundle import CARDS_NAME, MANIFEST_NAME, RunBundle, StoredCard, write_bundle
 from genetics.run.store import RunListing
 from genetics.testing.fixtures import FIXTURES, render_fixture
 from genetics.web import WebConfig, create_app
@@ -303,7 +303,8 @@ def test_every_fact_the_banner_collects_reaches_the_page() -> None:
         "call_rate": (0.5, "50.00%"),
         "inferred_sex": ("female", "female"),
         "het_haploid_calls": (7, "7"),
-        "duplicate_rows": (656, "656"),
+        "duplicate_rsids": (656, "656"),
+        "duplicate_positions": (655, "655"),
         "build_verdict": ("consistent", "consistent"),
         "warnings": (("a distinctive warning",), "a distinctive warning"),
     }
@@ -348,11 +349,97 @@ def test_every_fact_the_run_selector_collects_reaches_the_page() -> None:
     assert "disabled" in markup, "an unselectable run must be marked as such"
 
 
-def test_the_real_qc_facts_appear_on_the_page(client: TestClient, saved: Path) -> None:
-    """The template check above proves the field is referenced; this proves it renders."""
+def test_the_real_qc_facts_appear_on_the_page(
+    client: TestClient, saved: Path, sample_qc: QCReport
+) -> None:
+    """The template check above proves the field is referenced; this proves it *renders a
+    real value*.
+
+    Asserting only the labels was what let a field reading a key no QC payload contains sit
+    on the page showing "-" — the label was there, so the test passed, and the dash read as
+    "not measured" rather than "never wired up".
+    """
     body = client.get("/").text
     assert "Het at haploid loci" in body
-    assert "Duplicate rows" in body
+    assert "Duplicate rsIDs" in body
+    assert "Duplicate positions" in body
+    assert f"{sample_qc.call_rates.total_markers:,}" in body
+    assert f"<dd>{sample_qc.duplicates.duplicate_rsids}</dd>" in body
+
+
+def test_a_renamed_bundle_is_addressed_by_its_directory_name(
+    client: TestClient, saved: Path
+) -> None:
+    """The directory name wins, because it is what `delete` and `load` resolve against.
+
+    ``summarise_run`` settled that; the shell took the manifest's ``run_id`` instead, so a
+    renamed bundle rendered with no option marked current and told the reader to run
+    `genetics runs show <manifest id>` — advice that fails for the one run it is about.
+    """
+    renamed = saved.parent / "renamed-run"
+    saved.rename(renamed)
+
+    body = client.get("/runs/renamed-run").text
+    assert "renamed-run" in body
+    assert 'value="renamed-run"' in body
+    assert "selected" in body, "the open run must be the one the selector marks current"
+
+
+def test_the_card_total_counts_cards_the_nav_cannot_place(client: TestClient, saved: Path) -> None:
+    """Two numbers on one page must not disagree in silence.
+
+    The selector shows the manifest's ``card_count``; the banner summed the thirteen known
+    sections. A bundle carrying a newer engine's section made the second smaller than the
+    first, with the unknown-section notice explaining only that those cards are absent from
+    the *navigation*.
+    """
+    from genetics.web.views import section_views, shell_for
+
+    unplaceable = _card_in_section("epigenetics")
+    shell = shell_for(_empty_listing(), _bundle_with((unplaceable,)))
+
+    assert shell.card_count == 1
+    assert shell.placed_cards == 0
+    assert sum(v.card_count for v in section_views((unplaceable,))) == 0
+
+    markup = _render_one("_qcbanner.html", shell)
+    assert "not placed in any section below" in markup
+
+
+def _card_in_section(section: str) -> StoredCard:
+    return StoredCard(
+        card_id="future",
+        section=section,
+        kind="interpretation",
+        title="From a newer engine",
+        status="matched",
+        summary="s",
+        detail="d",
+        gene=None,
+        impossibility_reason=None,
+        confidence_tier="moderate",
+        variant=None,
+        match={},
+        confidence=None,
+        observation=None,
+        frequencies=(),
+        confidence_frequency=None,
+        citations=(),
+        authored_caveats=(),
+        computed_caveats=(),
+    )
+
+
+def _bundle_with(cards: tuple[StoredCard, ...]) -> RunBundle:
+    return RunBundle(
+        path=Path("/runs/r1"),
+        run_id="r1",
+        format_version=1,
+        created_at="2026-08-21T00:00:00Z",
+        provenance={},
+        qc={},
+        cards=cards,
+    )
 
 
 # ---------------------------------------------------------------------------
