@@ -98,6 +98,8 @@ genetics-analysis/
 ├── phase1_roadmap.md
 ├── pyproject.toml
 ├── src/genetics/
+│   ├── *.py             cross-cutting singles: paths, privacy, guard, netaddr, doctor
+│   ├── testing/         fixture generator + the offline guard the suite installs
 │   ├── ingest/          vendor adapters, sniffing, normalized table
 │   ├── qc/              sex inference, call rate, build assertion
 │   ├── refs/            manifest, fetcher, license lock, tool acquisition
@@ -110,7 +112,8 @@ genetics-analysis/
 ├── knowledge/           card definitions (YAML) — COMMITTED
 │   ├── traits/  pgx/  nutrition/  health/  …
 │   └── impossibilities/
-├── data/references/     manifest.yaml COMMITTED, payloads gitignored
+├── data/                tools.yaml COMMITTED
+│   └── references/      manifest.yaml + manifest.lock COMMITTED, payloads gitignored
 ├── tests/
 │   ├── fixtures/synthetic/   COMMITTED, generated only
 │   └── privacy/              leak-prevention suite
@@ -171,10 +174,11 @@ permanent in git history.*
         the generator source must contain no file-reading call at all, so it cannot
         acquire a "path to a real export" argument later.
 - [x] **M0.3** Privacy test suite — **selected by the `privacy` marker, not by directory**
-      (see M0.4; 150 marked tests, of which 128 live in `tests/privacy/` and the rest beside
+      (see M0.4; 189 marked tests, of which 140 live in `tests/privacy/` and the rest beside
       the code they guard). Two enabling modules:
       `genetics.privacy` (leak detection, redaction, `NoGenotypeRepr`) and
-      `genetics.paths` (canonical write locations + `APP_WRITE_PATHS` registry).
+      `genetics.paths` (canonical write locations + `APP_WRITE_PATHS` registry), surfaced
+      as `genetics paths --json` so the registry is inspectable rather than only asserted.
       - [x] no tracked file matches genotype-derived name patterns
       - [x] **no tracked file *contains* genotype content** — the check that matters most.
             `.gitignore` only catches files whose name gives them away; this catches a
@@ -513,7 +517,9 @@ permanent in git history.*
         instead of 0.17s, because those are real DNS timeouts. The tests drive
         `UrllibTransport` itself, not a bare socket no shipped code resembles.
       - **Cannot see a subprocess, by construction.** PLINK 2, Beagle, Java and R get
-        their own address spaces. That gap is why M4.10 is still an open box.
+        their own address spaces. That gap is what [M4.10](#m4--run-bundle--first-ui) closes,
+        with a Linux network namespace — and only on Linux, so on Windows this guard is still
+        the whole of the offline story.
 
 ---
 
@@ -1068,8 +1074,8 @@ section, that proves every layer.*
         the owner's real 677k export. **Not** verified in a browser — no test here executes
         Alpine, so "the selector navigates on change" rests on reading the CSP build's
         contract, not on watching it work. The `<noscript>` links are the reason that gap is
-        tolerable rather than blocking; M4.9 (`genetics serve`) is the natural place to look
-        at it by hand.
+        tolerable rather than blocking; M4.9 (`genetics serve`) now makes looking at it by
+        hand a single command, and the gap is still open.
 - [x] **M4.6** Card grid + detail modal (`web/templates/_card*.html`, `views.CardView`).
       **Confidence tier is visible on the card face**, not only in the modal
       ([AGENTS.md §0.1A](AGENTS.md)). Detail view shows effect size, base rate, source
@@ -1226,23 +1232,91 @@ section, that proves every layer.*
         them, so hiding it would make the no-silent-empty-sections rule true only on a
         desktop. Wide content (the confidence breakdown table) scrolls inside its own
         container, and the modal goes full-bleed below 40rem.
-- [ ] **M4.9** `genetics serve` command.
-- [ ] **M4.10** **Offline guarantee, end-to-end half** — moved here from M2.7, which now
+- [x] **M4.9** `genetics serve` command (`cli/serve_cmd.py`).
+      - **The command binds the socket itself, and that closed a real hole rather than
+        tidying one.** `WebConfig` validates the host it is *given*, and `is_local_address`
+        accepts `localhost` by name because a Host header writes it that way. `localhost`
+        resolves through the hosts file — [M4.3](#m4--run-bundle--first-ui) picked the
+        numeric literal as the default for exactly that reason and then checked nothing on
+        the other side of it. Every existing test asks the config object, and a config
+        object cannot report what the kernel handed out, so a machine whose hosts file
+        pointed `localhost` at its LAN address would have published an unauthenticated
+        genome dashboard to the network with the whole suite green. The address is now
+        checked twice against the *outcome* — once on what `getaddrinfo` resolved, before
+        any socket exists, and once on `getsockname` after the bind, which is the only
+        authoritative answer. `is_wildcard_address`'s own lesson ("check the outcome, not
+        the input forms"), one layer down at the layer that opens the port.
+      - **The host rule is imported, not restated.** `check_bind_host` came out of
+        `WebConfig.__post_init__` so the CLI and the app cannot reach different conclusions
+        about what loopback means — the six-templates-one-rule shape from
+        [M4.6](#m4--run-bundle--first-ui), caught before it was written a second time.
+      - **`--port 0` is a serve concept, not a config one**, and the split is deliberate:
+        `WebConfig` describes an address a URL can name and `http://127.0.0.1:0` names
+        nothing, so zero belongs to the code doing the asking. The config is then built
+        *from the bound socket*, which means `allowed_hosts` describes what is actually
+        listening rather than what was requested.
+      - **The access log is off by default.** A request line names the URL, a card's URL is
+        `/runs/<id>/cards/<card_id>`, and M4.6 already sends `Referrer-Policy: no-referrer`
+        on the argument that a variant plus a person is the genotype ([§1.3](AGENTS.md)).
+        Having established that a card URL must not reach a third party through a header,
+        printing the same URLs to a console — the text people paste into bug reports — is
+        that disclosure through the likelier route. `--access-log` turns it on per
+        invocation.
+      - No `--runs-root`, per [M4.0](#m4--run-bundle--first-ui) and M4.2: the store is
+        addressed through `GENETICS_DATA_DIR`.
+      - **The self-pass found one overclaim of my own**: an explicit `sys.stdout.flush()`
+        with a comment explaining why the startup report needed it. `click.echo` always
+        flushes and documents that it does, so the line changed nothing — a claim nothing
+        behind it honoured, which is the exact pattern the M4.6–M4.8 review recorded. The
+        line is gone and the requirement is held by a test that reads the report off a pipe
+        while the server is still running.
+- [x] **M4.10** **Offline guarantee, end-to-end half** — moved here from M2.7, which now
       holds the in-process guard. With networking disabled **at the OS level**, a full run
       succeeds once references are present.
       - It belongs here and not at M15 because the guarantee should be enforced from the
         moment it is testable, not audited once at the end. **What made it testable is
         [M4.0](#m4--run-bundle--first-ui)** — the "full run" this item waits on is
-        `genetics run`, which is why nothing earlier could have carried this test. The
-        pipeline separates `analyse()` from `save()`, so this can assert on a completed
-        analysis without a store.
+        `genetics run`, which is why nothing earlier could have carried this test.
       - The OS-level part is the point: M2.7 patches this process's `socket` module, which
         has no reach into PLINK 2, Beagle, Java or R. A subprocess phoning home is the
-        failure only this test can see.
+        failure only this test can see. `genetics/testing/isolation.py` runs the child in a
+        **Linux network namespace** (`unshare --map-root-user --net`), which takes the
+        network from the child and everything the child starts.
+      - **The isolation is verified before anything is concluded from it, and verified
+        without sending a packet.** An isolation that silently does nothing makes every test
+        built on it pass, which is worse than having none — so `find_isolation` asks the
+        child which interfaces it can see (`lo` and nothing else inside a fresh namespace)
+        and refuses to hand back a mechanism that reported success while the child could
+        still see `eth0`. Proving it by connecting somewhere would send real traffic on
+        precisely the machine the check exists to detect. The refusal branch is driven
+        directly, on every platform, because it is the failure that must not depend on
+        having the right machine to notice it.
+      - **The reachability demonstration asserts the failure *mode*, not just failure.**
+        Against TEST-NET-1 (`192.0.2.1`, RFC 5737, routed nowhere) an isolated namespace
+        gives an immediate `ENETUNREACH` and a machine with a network gives a timeout, so
+        "the connection failed" would have passed either way — the one-answer check this
+        project has had to fix twice ([M0.6](#m0--foundations--guardrails)).
+      - **Windows skips, and the roadmap says so rather than implying coverage.** Every
+        OS-level mechanism Windows offers — firewall rule, Hyper-V sandbox — needs
+        elevation, and a check that runs only for administrators does not run. There the
+        in-process guard is all there is, and it covers less. To stop "covered" and "skipped
+        everywhere, forever" from looking identical, `GENETICS_REQUIRE_OS_ISOLATION` turns
+        the skip into a failure and **CI sets it on the Linux job**.
       - Re-verified at full pipeline scope by [M15.1](#m15--v1-release-gate).
 
-> **Slice checkpoint:** ingest a synthetic fixture → traits cards → browse in the UI →
-> save → reload. If this works, the architecture is proven. Do not proceed until it does.
+> **Slice checkpoint — [x] passed 2026-08-21.** Ingest a synthetic fixture → traits cards →
+> browse in the UI → save → reload. Run by hand end to end once M4.9 made it a single
+> command: a spiked synthetic export produced **43 cards, 30 interpreted** (29 moderate, 1
+> limited); the dashboard listed the run, the run page rendered every card with its tier
+> badge, a card page carried the reader's genotype on the face and two resolving DOIs; the
+> run survived an app restart and `genetics runs list` reported the same id the UI showed.
+> **The architecture is proven and M5 may start.**
+>
+> One thing worth carrying forward: the *committed* fixtures produce 0 interpreted cards,
+> because they carry no spike-ins and so land on none of the pack's markers. That is correct
+> — M0.2 generates from allele frequencies, not from the knowledge pack — but it means "run
+> the fixture and look at the UI" shows an empty grid, and the honest demo needs an export
+> rendered with the pack's own variants. The same reason `tests/test_cli_run.py` builds one.
 
 ---
 
@@ -1522,6 +1596,8 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-21 | M4.9–M4.10 review | Diff-driven self-pass over the session's changes. **Six findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it** -- the sixth by the pre-commit hook rather than by me. **1242 tests + 5 skips**; ruff, `ruff format` and `mypy --strict` clean. **The pattern was mine and it was the last review's pattern again: a comment claiming behaviour nothing behind it honoured** -- three of the five are that shape, written by me in the same session that recorded the lesson. **(1) A comment justified `log_level="warning"` by saying uvicorn would otherwise print a banner naming the *requested* host and port, announcing port 0 next to the real one.** It would not: `Server.startup` skips `_log_started_message` entirely whenever it is handed sockets, at every level. Confirmed by running the command at `info` and by reading the branch. The real reason is plainer -- three lines of framework chatter -- and the comment now says so. **(2) The address was announced before the app existed.** `_report` ran ahead of `create_app`, which mounts the static directory and raises on an installation missing its package data, so the failure printed "here is your dashboard, at this URL" and then a traceback for a server that never was. Reordered; the guard fails when the old order is put back. **(3) `genetics serve --json` printed prose on failure** while `genetics run --json` next door emitted `{"ok": false, "error": {...}}` for the same class of refusal -- an agent driving both had to special-case one, which is what [§3](AGENTS.md)'s "keep every command JSON-capable" exists to prevent. Now mirrors `run_cmd`, with `config` and `serve` as the two kinds. **(4) A test that asserts nothing on the platform that matters:** `if isinstance(found, Unavailable): assert ...` is a no-op on Linux, the one platform where the isolation works and so the only place a regression in the *other* branches would go unnoticed. Parametrized over Windows/Darwin/FreeBSD instead, so all three reasons are checked everywhere. **(5) The Ctrl+C comment overclaimed a "clean exit".** Measured instead of assumed: CTRL_BREAK to the running command on Windows stops it with no traceback and nothing on stderr, and an exit status of `0xC000013A` -- Windows' STATUS_CONTROL_C_EXIT, not a value this command chooses. A true CTRL_C_EVENT cannot be delivered to a child from a harness, so the comment now says which half is verified and which is not. **(6) `genetics check-staged` refused the first commit**, and it was right: `tests/test_cli_serve.py` spelled a tab-separated genotype row out in full to prove the startup report is scanned, which is a genotype row in a public repo whatever the surrounding test says it is for. Assembled at runtime with `"	".join(...)` instead, which is what `test_cli_run.py` already does for the same reason -- worth recording because the guard caught a file written by the person who had just finished reading the guard's own rules. **Also verified and clean:** the `check_bind_host` extraction is behaviour-preserving (the whole web suite passes unchanged); the socket is listening before the URL is printed, so a caller that connects the instant it reads the report lands in the accept backlog rather than being refused -- which the end-to-end test depends on and therefore demonstrates. |
+| 2026-08-21 | M4.9 + M4.10 | `genetics serve` and the OS-level offline guarantee. **1242 tests + 5 skips** (36 more); ruff, `ruff format` and `mypy --strict` clean; the M4 slice checkpoint run by hand and passed. **M4.9 turned out to be closing a hole rather than wrapping uvicorn.** `WebConfig` validates the host it is *given* and `is_local_address` accepts `localhost` by name -- it has to, a Host header writes it that way -- while `localhost` resolves through the hosts file, which a machine can be made to lie about. M4.3's `DEFAULT_HOST` docstring says exactly that and picks the numeric literal for exactly that reason, and then nothing checked the other side of it: every existing test asks the config object, which cannot know what the kernel handed out. A machine whose hosts file pointed `localhost` at its LAN address would have served an unauthenticated genome dashboard to the network with the suite green. The command now binds the socket itself and checks the *outcome* twice -- what `getaddrinfo` resolved, before any socket exists, and what `getsockname` reports after -- which is `is_wildcard_address`'s own lesson one layer down. `check_bind_host` was lifted out of `WebConfig.__post_init__` so the CLI and the app cannot disagree about what loopback means. **Three new guards verified by neutering them**, and the ordering one caught its own point: moving the resolved-address check below `socket()` fails the test that asserts nothing is bound while the address is being judged. **The self-pass caught one overclaim of mine**: an explicit `sys.stdout.flush()` documented as what lets a supervising process read the startup report off a pipe. `click.echo` always flushes and says so in its own docstring, so the line did nothing -- a claim nothing behind it honoured, the M4.6-M4.8 pattern again, mine this time. Removed; the requirement is held by a test that reads the report from a live process instead. **M4.10 is Linux-only and the roadmap now says so rather than implying coverage.** `unshare --map-root-user --net` takes the network from a child and everything it starts, which is the half M2.7's in-process patch can never reach; Windows has no unprivileged equivalent, so it skips with the reason printed. The isolation is **verified before anything is concluded from it and without sending a packet** -- the child is asked which interfaces it can see, not asked to reach something, because proving it by connecting would send real traffic on exactly the machine where the isolation silently did nothing. `GENETICS_REQUIRE_OS_ISOLATION` turns the skip into a failure and CI sets it on the Linux job, so "covered" and "skipped everywhere, forever" stop looking identical. **One defect found by running the test body rather than reading it**: the bundle-path assertion compared a resolved path against an unresolved temp dir, which passes nowhere -- Windows hands back an 8.3 short name and macOS a symlinked /tmp. **Not verified locally:** the Linux branch itself, since this machine has no WSL distro and no Docker; it runs first on CI. |
 | 2026-08-21 | M4.6–M4.8 review | Diff-driven self-pass over the session's changes. **Six findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it.** **1206 tests + 1 platform skip** (8 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern this time was a claim the markup or a docstring made that nothing behind it honoured** — three of the six are that shape, which is the M2 review's pattern arriving in a template layer rather than in Python. **(1) The one that mattered: run ids and card ids were concatenated into URLs.** A run id is a *directory name on disk* and `list_runs` reports whatever it finds, not only the names `check_run_id` would have written — so `/runs/evil%3Fgroup=tier` rendered every nav link on the page as `/runs/evil?group=tier#section-ancestry`, a query string injected into links the reader never set, and a `#` in a card id truncated the card URL and made the card unopenable. Autoescaping held, so it is not an escape; it is a URL built from unvalidated page content, which is exactly the habit `runselector` in app.js already had a comment written against ("the id here came out of a `<select>` in a document, not out of the store"). Fixed by moving URL construction into the view model as `run_path`/`card_path` and giving `Shell` and `CardView` their own addresses, so no template concatenates one — six templates were doing it, and a rule enforced in six places is the shape of problem this project keeps recording. **(2) `aria-modal="true"` was a false claim.** It tells a screen reader that everything outside the dialog is unavailable, and nothing made that true: a keyboard user could tab straight out into the grid behind it. Same defect class as the impossibility card's fabricated explanations, one layer up. The background is now `inert` while a card is open. **(3) A dead function with a docstring naming a caller that does not exist** — `resolvable_databases()`, "public for the tests that check…", and no test ever called it. Deleted. **(4) My own new guard was fail-open, and it is worth recording because it is the third time this project has hit it.** The test backing (2) asserted `"inert" in app_js`, which passes with the mechanism replaced by `data-x` because the word survives in the comment explaining it — a guard whose first casualty is its own documentation, the same trap M4.4 avoided for Python and I walked into for JavaScript. It now matches the `setAttribute('inert'` / `removeAttribute('inert'` calls. **(5) Two entries in the card field-coverage test were vacuous**, and they were vacuous for exactly the two fields whose rendering is *conditional*: `kind` and `bundle_format_version` only choose which sentence appears, so any fixed marker for them was satisfied by text present regardless. They are now excluded by name, each asserted by its own test, and the coverage check still counts them so a third such field cannot be dropped in silently. **(6) Two keys for one registry** — `"pgs catalog"` and `"pgscatalog"` both mapped to the PGS Catalog, and `PGS-Catalog` mapped to nothing and would have rendered as text with nothing to say why. The database name is now reduced to letters and digits before lookup. **Also verified and clean:** a card whose every optional block is the wrong shape (a string where a mapping belongs, `NaN`, `Infinity`, a negative frequency, a mapping where a title belongs) renders without raising, without printing a Python repr, without an unescaped tag and without `nan` on the page — the `.get`/`_number`/`_text` discipline holds; and a 22-URL sweep of every route and parameter combination against a real uvicorn process produced no 5xx, with path traversal 404ing. |
 | 2026-08-21 | M4.6–M4.8 | Card grid, detail modal, sort/filter/group, theming. **1198 tests + 1 platform skip** (84 new, 177 privacy-marked); ruff, `ruff format` and `mypy --strict` clean. **Bundle format version 2** — the first bump, and a UI milestone caused it, which is the entry's main content. M4.6 asks the detail view for effect size, base rate and source population; version 1 stored none of them. It stored `confidence.inputs.effect_measure` and `effect_value` — the *scoring* inputs — and dropped units, the interval, the sample size, the study population and the `context` sentence saying what the number is a proportion *of*, because none of those move a score. `proportion 0.992` rendered as "the effect size" is the vaguer sensitive card [§0.1B](AGENTS.md) calls a defect, and the alternative — reading the rest back out of `knowledge/` at display time — is the re-rendering M4.1 built the format to refuse. The bump cost almost nothing because the additive contract had already been settled, and `test_bundle.py`'s pinned nested shape is what forced it: the first run after adding the key failed with *bump BUNDLE_FORMAT_VERSION in the same commit*, which is the job that test exists to do. **The base rate is still missing and is named rather than approximated.** No card records how common an *outcome* is — that gap is in the card schema, not the bundle — so a ratio is labelled relative and the page says what would make it absolute (M7, M9); the population **allele** frequency sits under its own heading and is never called a base rate, because how common an allele is and how common an outcome is are different quantities and letting one stand for the other is the euphemism §0.1B forbids. A `base_rate` key that all 43 cards left empty would have been a second name for something nobody wrote. **The hardest call was the citation links, because M4.6 and M4.4 read as contradicting each other.** "Clickable citations" against "no external URL in any template or rendered response". They do not actually conflict: what M4.4 protects is that *the browser makes no request to a third party while a genome is on screen*, and an anchor makes none until a person clicks it — on a published identifier, with no referrer, carrying nothing about them. What M4.4 refuses is a subresource fetched unasked. So the rule was refined rather than waived: an external host may appear **only** inside an anchor with `class="citelink"`, `target="_blank"` and `rel="noreferrer noopener"`, everywhere else still fails, and `/` stays on the unrefined list so a resolver URL on the card grid fails rather than passing by association. Structural rather than a host allowlist, because a `url` citation may legitimately point anywhere a card author cited. Driven with five forms it must still catch, all mutation-verified. Two consequences worth recording: `Referrer-Policy: no-referrer` stopped being belt-and-braces the moment this landed — without it the publisher learns the reader came from `/runs/<id>/cards/<card_id>`, a card id naming the variant — and the URLs are built in Python from a **re-validated** identifier, because a `url` citation's stored id *is* the href and a bundle is read back without re-parsing, so an unvalidated one is a clickable `javascript:`. **The Alpine CSP-build trap became a test and immediately caught me.** M4.4 recorded that `x-on:click="open = !open"` is silently inert under that build — no error, no violation, just a dead control. Three static checks now cover it (no non-bare directive value, no `x-data` naming an unregistered component, no method reference app.js does not define), all mutation-verified, and the first thing they found was mine: `cardmodal.close()` used `this.$el`, which is the element the *directive* is on — the close button inside the swapped fragment — so it would have emptied the button and left the modal standing. **The self-pass found four defects, and the two worth recording are both sentences that were false rather than merely empty.** (1) An impossibility card rendered an *Effect size* heading over "this card records no effect size", and an *Allele frequency* heading over "no population frequency was available, so the rarity check could not be applied and the confidence tier is capped" — on a card that has no variant and no confidence tier. The second sentence was equally wrong on every marker-absent card. A false explanation is worse than the blank it replaced, because a reader cannot tell it from the case where it is true, and this project's whole editorial stance is that a reader can trust what the page says about what it does not know. Those blocks are now suppressed where they have nothing true to say, and the rarity sentence is produced only for a card that actually matched and scored. (2) The same card rendered *How this was called* over *Call source: direct* — because `call_source` is recorded for every observation including the ones that produced nothing, and its value there is `direct`, so the page asserted a direct call at a position the array does not carry. The test is now an observed rsID or an imputation quality: something actually answered, or something was actually attempted. Also added while fixing these: a card that did not match still shows the published claim, because a reader is owed what they are being told nothing about, but it now says so above the figures — a number under a heading on a genome dashboard reads as personal unless something says otherwise. **The self-pass also found the M4.7 controls lying.** Tier checkboxes were built from the tiers present in the run, so a newer engine's tier got a box the parser rejects: ticking it produced "ignored tier=…" and no filtering. One function now defines the filterable set for both. **Two decisions I expected to be harder than they were, and one that was harder.** Easy: one URL per card with two representations (`HX-Request` picks), since two addresses would have been two names for one card and would have let the no-JavaScript path rot silently; and filtering server-side in the query string, since M4.7's rule is a rule about what the page shows and can only be asserted where it is computed. Harder: grouping by tier removes the section panels, and with them the sentence each empty section was carrying — the definition of done is about the reader telling *not built yet* from *nothing matched*, not about the panel shape, so those reasons are collected into their own block in that mode rather than allowed to follow the layout out of existence. **M4.5's whole-page no-genotype test was narrowed, not deleted**: card faces state the reader's call by design, so the assertion moved to the two scanned regions and a second test now asserts the face **does** state it — without which the first would be satisfied by a page showing nothing. **Verified beyond the suite** against a real uvicorn process: index, tier-grouped, filtered and bogus-parameter pages plus both card representations all 200, five static assets served, `Vary: HX-Request` and the security headers present, `runs show --json` carrying the new `evidence` block, `cards lint` still 43 cards / 210 renders. **Not** verified in a browser — nothing here executes Alpine or htmx, so the modal, the theme toggle and the auto-submit rest on documented contracts plus the three new static checks; every one of them has a server-side path that works without scripting, which is why that gap is tolerable and M4.9 (`genetics serve`) is still the natural place to look at it properly. |
 | 2026-08-21 | Agent review of M4.0/M4.5 | `/code-review high` over the same diff, after the self-pass had already fixed six. **Five more findings, all verified and all fixed**; **1114 tests + 1 platform skip** (10 new). The one that matters is a lesson about test construction rather than about this code. `banner_for` read `duplicates.duplicate_rows`; `DuplicateSummary` has `duplicate_rsids` and `duplicate_positions` and never had a `duplicate_rows`. So the banner rendered `-` for it on every run ever written — and a dash reads as *not measured*, which is the specific wrong impression this project keeps trying not to give. **It survived both my self-pass and the field-coverage test I had just added for exactly this class of bug**, because that test writes its own QC payload: a test that invents the input agrees with the reader about a shape neither of them shares with the producer, and the agreement is the bug. The banner tests take `QCReport.to_dict()` now and one of them demands every field resolve to something. On the real export the cell says 656, matching the QC warning that was already on the page beside it. **The other four:** `total_markers` was unguarded while its sibling `call_rate` went through `_number`, and `markers_display` formats with `:,` — which raises `ValueError` on a string, so a `qc.run.json` from another engine 500'd the whole dashboard instead of showing a dash, in the module whose docstring says rendering such a file is its job; `selected_id` came from the manifest's `run_id` while every other operation addresses a run by directory name, so a renamed bundle rendered with no option marked current and printed a `genetics runs show <id>` that cannot resolve; `Shell.total_cards` summed the thirteen known sections while the selector showed the manifest's count, so a newer engine's fourteenth section made two numbers on one page disagree in silence; and `_number` promised "a finite number" while accepting `NaN`, which `json.loads` parses by default, rendering `nan%`. Worth recording that the agent found all five *after* a self-pass that found six, and that its sharpest finding was aimed at the test I wrote during that self-pass. |

@@ -115,6 +115,41 @@ class WebConfigError(ValueError):
     """Raised for a configuration that would expose the dashboard beyond this machine."""
 
 
+def check_bind_host(host: str) -> str:
+    """Return ``host`` in bare form, or raise if binding it would expose the dashboard.
+
+    Module-level rather than inline in :meth:`WebConfig.__post_init__` because there are two
+    callers and the rule must not be able to differ between them. ``genetics serve`` (M4.9)
+    needs the answer *before* it has a config -- it binds the socket first, so that the
+    config it eventually builds describes the address the kernel actually handed out rather
+    than the one that was asked for -- and a second copy of these two checks living in the
+    CLI is the shape of problem this project keeps recording.
+    """
+    bare = bare_host(host)
+    if not is_local_address(bare):
+        raise WebConfigError(
+            f"refusing to bind the dashboard to {host!r}. This app serves a run "
+            "bundle, which is raw DNA (AGENTS.md 1.1), over HTTP with no authentication "
+            "of any kind -- it is safe only because nothing outside this machine can "
+            "reach it. Bind to 127.0.0.1. If you need it from another machine, forward "
+            "the port over SSH, which keeps the trust boundary where it is."
+        )
+    if is_wildcard_address(bare):
+        # `is_local_address` treats the wildcard as local, correctly, because it answers
+        # "does this leave the machine" for an outbound connection. As a *bind* address
+        # it means the opposite: every interface, so every machine on the network. The
+        # two questions differ only here, which is why this is a second check rather
+        # than a weakening of the shared predicate.
+        raise WebConfigError(
+            f"refusing to bind the dashboard to the wildcard address {host!r}. "
+            "That is every network interface on this machine, which publishes an "
+            "unauthenticated view of somebody's genome to the local network. It is the "
+            "one-character change that turns a private tool into a public one, so it is "
+            "refused however it is spelled."
+        )
+    return bare
+
+
 @dataclass(frozen=True)
 class WebConfig:
     """How to serve the dashboard. Validated at construction, so no caller can skip it."""
@@ -135,28 +170,12 @@ class WebConfig:
     """Host header values the app will answer. See the module docstring on DNS rebinding."""
 
     def __post_init__(self) -> None:
-        host = bare_host(self.host)
-        if not is_local_address(host):
-            raise WebConfigError(
-                f"refusing to bind the dashboard to {self.host!r}. This app serves a run "
-                "bundle, which is raw DNA (AGENTS.md 1.1), over HTTP with no authentication "
-                "of any kind -- it is safe only because nothing outside this machine can "
-                "reach it. Bind to 127.0.0.1. If you need it from another machine, forward "
-                "the port over SSH, which keeps the trust boundary where it is."
-            )
-        if is_wildcard_address(host):
-            # `is_local_address` treats the wildcard as local, correctly, because it answers
-            # "does this leave the machine" for an outbound connection. As a *bind* address
-            # it means the opposite: every interface, so every machine on the network. The
-            # two questions differ only here, which is why this is a second check rather
-            # than a weakening of the shared predicate.
-            raise WebConfigError(
-                f"refusing to bind the dashboard to the wildcard address {self.host!r}. "
-                "That is every network interface on this machine, which publishes an "
-                "unauthenticated view of somebody's genome to the local network. It is the "
-                "one-character change that turns a private tool into a public one, so it is "
-                "refused however it is spelled."
-            )
+        host = check_bind_host(self.host)
+        # Zero is excluded here and accepted by `genetics serve --port 0`, and the gap is
+        # deliberate. This class describes an address a URL can name -- `url` renders it --
+        # and `http://127.0.0.1:0` names nothing. Zero is a request to the kernel, not an
+        # address, so it belongs to the code doing the asking; by the time a config is built
+        # from a bound socket the kernel has already answered with a real port.
         if not 1 <= self.port <= 65535:
             raise WebConfigError(f"port {self.port} is not a usable TCP port")
         if not self.allowed_hosts:
