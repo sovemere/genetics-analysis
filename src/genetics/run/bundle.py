@@ -51,7 +51,7 @@ import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
@@ -515,6 +515,14 @@ def check_run_id(identifier: str) -> None:
     the same thing M2.5's archive extractor concluded about member names after enumerating
     zip-slip forms. ``.`` and ``..`` need naming explicitly -- ``Path("..").name`` is
     ``".."``, so they pass the basename test while denoting a directory that is not one.
+
+    The basename is taken under *both* path flavours rather than the host's. ``Path`` is
+    ``PosixPath`` on Linux, where ``a\\b`` and ``D:elsewhere`` are ordinary filenames that
+    are already their own basename -- so the rule this function exists to state changed
+    meaning depending on which OS asked, and the ids the docstring above calls refused were
+    accepted on the Linux half of CI. A runs directory is meant to be movable between the
+    two, so the answer has to be the same on both: refuse what either flavour reads as
+    more than a name.
     """
     if not identifier or identifier != identifier.strip():
         raise BundleError(f"invalid run id {identifier!r}: must be a non-blank name")
@@ -529,7 +537,10 @@ def check_run_id(identifier: str) -> None:
             f"skips ({INCOMING_PREFIX!r} marks a bundle still being written), so a run "
             "named that way would be written and then never found"
         )
-    if identifier in {".", ".."} or identifier != Path(identifier).name:
+    is_plain_name = all(
+        identifier == flavour(identifier).name for flavour in (PurePosixPath, PureWindowsPath)
+    )
+    if identifier in {".", ".."} or not is_plain_name:
         raise BundleError(
             f"invalid run id {identifier!r}: a run id is a single directory name, not a "
             "path. Separators, drive letters and '..' are refused rather than normalised."
