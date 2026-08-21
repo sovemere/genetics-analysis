@@ -709,6 +709,42 @@ def recorded_path(tools_root: Path, tool_id: str) -> Path | None:
     return path if path.is_file() else None
 
 
+def find_executable(name: str, *, tools_root: Path, tool_id: str | None = None) -> Path | None:
+    """Locate an installed program, preferring what this project put on disk over PATH.
+
+    Three places are consulted, in descending order of authority:
+
+    1. **The installer's own record** (:func:`recorded_path`), when ``tool_id`` is given.
+       This is the only source that cannot be wrong about where :func:`install` wrote the
+       file, and reading it is what fixed the M2.5 bug where ``genetics doctor`` reported
+       PLINK 2 missing immediately after installing it -- ``doctor`` had guessed at a
+       one-level layout while the installer writes two levels down.
+    2. **A scan of the tools tree**, for a binary someone placed there by hand. Recursive
+       rather than depth-fixed, because assuming a depth is precisely what broke before.
+    3. **PATH**, for a system install.
+
+    Lives here rather than in :mod:`genetics.doctor` because M5.1 needs the same answer:
+    a wrapper that resolved PLINK 2 differently from the command that reports on PLINK 2
+    would recreate the original defect with the two modules swapped.
+    """
+    if tool_id is not None:
+        recorded = recorded_path(tools_root, tool_id)
+        if recorded is not None:
+            return recorded
+
+    if tools_root.is_dir():
+        found = shutil.which(name, path=str(tools_root))
+        if found:
+            return Path(found)
+        for child in sorted(p for p in tools_root.rglob("*") if p.is_dir()):
+            found = shutil.which(name, path=str(child))
+            if found:
+                return Path(found)
+
+    on_path = shutil.which(name)
+    return Path(on_path) if on_path else None
+
+
 def _raw_tools(tools_root: Path) -> dict[str, Any]:
     """Whatever the state file actually holds, unvalidated.
 

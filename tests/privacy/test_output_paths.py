@@ -109,6 +109,43 @@ def test_gitignore_covers_every_writable_path() -> None:
 
 
 @requires_git
+def test_every_plink_artifact_name_is_ignored() -> None:
+    """The M5.2 conversion's outputs, by name rather than by directory.
+
+    ``test_gitignore_covers_every_writable_path`` asks about the *locations* the app
+    writes to, which is the first line of defence and the one that holds when the workspace
+    is where it should be. This asks the complementary question: if one of these files is
+    copied into the checkout by hand -- to look at a pgen, to diff two harmonized VCFs --
+    is it still ignored? The knowledge-pack allowlist has already re-admitted a run bundle
+    once (see the ``.gitignore`` note above ``/knowledge/**/*.run.json``), and a string
+    search of the file cannot see precedence, negation or ordering. Only git can.
+
+    ``<stem>-temporary.pvar.zst`` is in the list because it is the one PLINK writes that
+    the ``*.pvar`` rule does not match, and because it survives a crash.
+    """
+    root = repo_root()
+    artifacts = [
+        "sample.harmonized.vcf",
+        "sample.pgen",
+        "sample.pvar",
+        "sample.psam",
+        "sample.log",
+        "sample-temporary.pgen",
+        "sample-temporary.pvar.zst",
+        "sample-temporary.psam",
+    ]
+
+    tracked = [
+        name
+        for name in artifacts
+        if subprocess.run(["git", "check-ignore", "-q", name], cwd=root, check=False).returncode
+        != 0
+    ]
+
+    assert not tracked, f"these PLINK outputs would be committable: {tracked}"
+
+
+@requires_git
 def test_manifest_and_lock_stay_trackable() -> None:
     """Reproducible builds depend on these being committed alongside ignored payloads."""
     root = repo_root()

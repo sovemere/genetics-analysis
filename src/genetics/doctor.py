@@ -129,45 +129,39 @@ def _run_version(cmd: Sequence[str]) -> tuple[Status, str | None, str | None]:
 def _which(name: str, tool_id: str | None = None) -> str | None:
     """Locate an executable, searching the app's own tools dir before PATH.
 
-    M2.5 installs pinned builds under the user-data directory rather than expecting a
-    system install, so a PATH-only lookup would miss the copy this project put there.
+    A thin adapter over :func:`genetics.refs.tools.find_executable`, which owns the search
+    order and the reasons for it. It is worth saying why the delegation exists rather than
+    a second copy of the search: this function once guessed at the installer's layout --
+    scanning the tools directory one level deep while M2.5 wrote two levels down -- and the
+    result was ``doctor`` reporting PLINK 2 missing immediately after ``genetics tools
+    install`` had put it there. Two modules written from the same mental model and never
+    connected. M5.1 needs the same lookup, so the fix is one implementation, not a third.
 
-    **The installer's own record is consulted first.** This function originally guessed at
-    the layout -- scanning the tools directory one level deep -- and M2.5 then installed to
-    ``<tools_root>/<id>/<version>/``, two levels down. The result was that ``doctor``
-    reported PLINK 2 missing immediately after ``genetics tools install`` succeeded: the
-    command whose entire job is saying what you have, contradicting the command that had
-    just put it there. Two modules written from the same mental model and never actually
-    connected. Reading what the installer wrote removes the guess; the directory scan stays
-    as a fallback for a tool placed there by hand.
+    Three things stay local, and all three are about this module's contract rather than
+    about the search. The ``UnsafeDataDirError`` fallback and the blanket ``except`` below
+    exist because ``doctor`` must *describe* a broken environment rather than raise inside
+    it -- it runs precisely when something is wrong -- and the ``str`` return type is what
+    the rest of this module reports with.
+
+    The blanket ``except`` predates the delegation and is deliberately kept. No reachable
+    failure is known: every path through ``find_executable`` that could raise is already
+    guarded, and a state file naming an unusable path resolves to ``None`` rather than an
+    error. But the refactor that moved the search out of this function should not quietly
+    narrow the promise the function makes, and "reports missing" is the right answer for a
+    machine broken in a way nobody anticipated.
     """
+    from genetics.refs.tools import find_executable
+
     try:
         local = tools_dir()
     except UnsafeDataDirError:
         return shutil.which(name)
 
-    if tool_id is not None:
-        try:
-            from genetics.refs.tools import recorded_path
-
-            recorded = recorded_path(local, tool_id)
-        except Exception:
-            recorded = None
-        if recorded is not None:
-            return str(recorded)
-
-    if local.is_dir():
-        found = shutil.which(name, path=str(local))
-        if found:
-            return found
-        # Fallback for a hand-placed binary: scan the tools tree rather than assuming a
-        # fixed depth, since that assumption is precisely what failed before.
-        for child in sorted(p for p in local.rglob("*") if p.is_dir()):
-            found = shutil.which(name, path=str(child))
-            if found:
-                return found
-
-    return shutil.which(name)
+    try:
+        found = find_executable(name, tools_root=local, tool_id=tool_id)
+    except Exception:
+        return None
+    return str(found) if found is not None else None
 
 
 def _check_plink2() -> ToolReport:

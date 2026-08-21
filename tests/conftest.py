@@ -21,8 +21,10 @@ than the guard being removed for everyone.
 
 from __future__ import annotations
 
+import os
 import shutil
-from collections.abc import Iterator
+import sys
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -33,6 +35,7 @@ from genetics.testing.network import allow_network, block_network
 if TYPE_CHECKING:
     from genetics.engine.cards import KnowledgePack
     from genetics.engine.evidence import AssembledCard
+    from genetics.external.plink2 import Plink2
     from genetics.qc.report import QCReport
 
 
@@ -158,3 +161,108 @@ def sample_cards(sample_pack: KnowledgePack) -> tuple[AssembledCard, ...]:
             ),
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# A stand-in for PLINK 2 (M5.1/M5.2)
+# ---------------------------------------------------------------------------
+#
+# CI installs no external tools -- the workflow runs on synthetic fixtures and fetches
+# nothing -- so a test that reached for the real binary would skip on every runner, which
+# M4.10 already established is indistinguishable from a test that does not exist. The stub
+# is a *real subprocess*: argument passing, exit codes, stream capture and the log file are
+# all exercised, and only the program at the far end is fake.
+#
+# Shared here, beside the run-bundle fixtures and for the same reason: `tests/external/
+# test_plink2.py` and `tests/external/test_pgen.py` both need a stub and neither is testing
+# how one is built. It cannot live in a `tests/external/conftest.py`, because `tests/` is
+# not a package and mypy then sees two modules named `conftest`.
+
+PINNED_PLINK2_VERSION = "PLINK v2.0.0-a.7.3 64-bit (8 Aug 2026)"
+"""What the build pinned in ``data/tools.yaml`` prints.
+
+Test modules that assert on the version string keep their own copy: one derived from the
+same place the code reads would pass no matter what either said.
+"""
+
+
+def write_plink2_stub(directory: Path, body: str) -> Path:
+    """Write a runnable stand-in for ``plink2`` that executes ``body`` as Python.
+
+    A launcher rather than the script itself, because a ``.py`` file is not executable on
+    Windows and Windows is this project's primary platform (AGENTS.md 4.9). Both forms
+    forward every argument and propagate the exit code, which the tests rely on.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    script = directory / "stub_plink2.py"
+    script.write_text(body, encoding="utf-8")
+    script_lines: tuple[str, ...]
+    if os.name == "nt":
+        launcher = directory / "plink2.cmd"
+        script_lines = ("@echo off", f'"{sys.executable}" "{script}" %*', "exit /b %ERRORLEVEL%")
+        launcher.write_text("\r\n".join(script_lines) + "\r\n", encoding="utf-8")
+    else:
+        launcher = directory / "plink2"
+        script_lines = ("#!/bin/sh", f'exec "{sys.executable}" "{script}" "$@"')
+        launcher.write_text("\n".join(script_lines) + "\n", encoding="utf-8")
+        launcher.chmod(0o755)
+    return launcher
+
+
+@pytest.fixture
+def stub_binary(tmp_path: Path) -> Callable[[str], Path]:
+    """The stub as a bare path, for tests that drive discovery rather than invocation."""
+    made: list[Path] = []
+
+    def build(body: str) -> Path:
+        directory = tmp_path / f"tool{len(made)}"
+        made.append(directory)
+        return write_plink2_stub(directory, body)
+
+    return build
+
+
+@pytest.fixture
+def stub_plink2(tmp_path: Path) -> Callable[[str], Plink2]:
+    """Build a :class:`~genetics.external.plink2.Plink2` around a stub, skipping discovery.
+
+    The dataclass is a plain record on purpose so this is possible; see its docstring. Each
+    call gets its own directory so a test may hold two stubs at once.
+    """
+    from genetics.external.plink2 import Plink2
+
+    made: list[Path] = []
+
+    def build(body: str) -> Plink2:
+        directory = tmp_path / f"bin{len(made)}"
+        made.append(directory)
+        return Plink2(path=write_plink2_stub(directory, body), version=PINNED_PLINK2_VERSION)
+
+    return build
+
+
+@pytest.fixture
+def installed_plink2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callable[[str], Path]:
+    """Install a stub where ``Plink2.discover()`` will find it, and point the app at it.
+
+    For code that discovers PLINK itself rather than being handed one -- the M5.3 transform
+    runs inside ``genetics.refs.postprocess``, which has no seam to inject a binary through
+    and should not grow one just for tests. Writes the installed-state record the real
+    installer writes, under a ``GENETICS_DATA_DIR`` outside the checkout.
+    """
+
+    def build(body: str) -> Path:
+        from genetics.refs import tools
+
+        data_dir = tmp_path / "appdata"
+        tools_root = data_dir / "tools"
+        tools_root.mkdir(parents=True, exist_ok=True)
+        binary = write_plink2_stub(tmp_path / "stub", body)
+        (tools_root / tools.INSTALLED_STATE).write_text(
+            tools.render_state({"plink2": {"path": str(binary), "version": PINNED_PLINK2_VERSION}}),
+            encoding="utf-8",
+        )
+        monkeypatch.setenv("GENETICS_DATA_DIR", str(data_dir))
+        return binary
+
+    return build
