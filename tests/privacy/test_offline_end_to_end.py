@@ -55,8 +55,14 @@ immediate no-route error from one without.
 
 @pytest.fixture(scope="module")
 def isolation() -> Isolation:
-    """OS-level network isolation, or a skip that explains itself."""
-    found = find_isolation()
+    """OS-level network isolation, or a skip that explains itself.
+
+    ``allow_sudo`` is tied to the same flag that says isolation is required here, so a
+    developer running the suite with cached sudo credentials never has part of it silently
+    run as root, while CI -- where GitHub's Ubuntu 24.04 refuses the unprivileged namespace
+    outright -- still gets the real thing.
+    """
+    found = find_isolation(allow_sudo=bool(os.environ.get(REQUIRE_ENV)))
     if isinstance(found, Isolation):
         return found
     assert isinstance(found, Unavailable)
@@ -221,16 +227,32 @@ def test_isolation_that_did_not_isolate_is_refused(monkeypatch: pytest.MonkeyPat
     be allowed to depend on having the right machine to notice it.
     """
     monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
-    monkeypatch.setattr(
-        Isolation,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="['lo', 'eth0']\n", stderr=""
-        ),
-    )
+    monkeypatch.setattr(Isolation, "run", _answering(interfaces=["lo", "eth0"]))
     found = find_isolation()
     assert isinstance(found, Unavailable)
     assert "not isolated" in found.reason
+
+
+def _answering(
+    *, interfaces: list[str], echo_token: bool = True, returncode: int = 0, stderr: str = ""
+) -> object:
+    """A fake ``Isolation.run`` that answers the probe the way a real child would.
+
+    It reads the token out of the environment it was handed rather than hard-coding one,
+    because ``_verify`` generates a fresh token per call precisely so that a stale or
+    fabricated answer cannot satisfy it.
+    """
+
+    def run(
+        _self: object, _argv: object, *, env: dict[str, str] | None = None, **_kwargs: object
+    ) -> subprocess.CompletedProcess[str]:
+        token = (env or {}).get("GENETICS_ISOLATION_PROBE") if echo_token else None
+        payload = json.dumps({"interfaces": interfaces, "token": token})
+        return subprocess.CompletedProcess(
+            args=[], returncode=returncode, stdout="" if returncode else payload, stderr=stderr
+        )
+
+    return run
 
 
 def test_a_working_namespace_comes_back_with_the_flags_that_make_it_unprivileged(
@@ -238,59 +260,67 @@ def test_a_working_namespace_comes_back_with_the_flags_that_make_it_unprivileged
 ) -> None:
     """The success branch, exercised where the Linux runner is not.
 
-    ``--map-root-user`` is the half that matters: without it ``--net`` needs privileges the
-    account running the suite does not have, so dropping it would turn every run of this
-    file into a skip on the one platform that can do the work.
+    ``--map-root-user`` is the half that matters for the first candidate: without it
+    ``--net`` needs privileges the account running the suite does not have.
     """
     monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
-    monkeypatch.setattr(
-        Isolation,
-        "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[], returncode=0, stdout="['lo']\n", stderr=""
-        ),
-    )
+    monkeypatch.setattr(Isolation, "run", _answering(interfaces=["lo"]))
     found = find_isolation()
     assert isinstance(found, Isolation)
     assert "--net" in found.prefix
     assert "--map-root-user" in found.prefix
+    assert "sudo" not in found.prefix, "the unprivileged candidate must win when it works"
 
 
-@pytest.mark.parametrize("system", ["Windows", "Darwin", "FreeBSD"])
-def test_every_platform_without_a_mechanism_says_what_would_be_needed(
-    system: str, monkeypatch: pytest.MonkeyPatch
+def test_isolation_that_isolated_but_dropped_the_environment_is_refused(
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A skip nobody can read is a skip nobody investigates.
+    """The failure the ``sudo`` candidate introduced, and the reason the probe checks two things.
 
-    Parametrized over the platforms rather than asked of whichever one is running, because
-    the first version of this test was ``if isinstance(found, Unavailable): assert ...`` --
-    which asserts nothing at all on Linux, the one platform where the mechanism works and so
-    the one place a regression in the *other* branches would go unnoticed until somebody
-    tried to run the suite on a Mac.
+    ``sudo`` resets the environment by default. A mechanism that takes the network away and
+    quietly drops ``GENETICS_DATA_DIR`` would run the pipeline against the wrong store and
+    still exit zero -- isolated, and measuring nothing anybody asked about.
     """
-    monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: system)
+    monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
+    monkeypatch.setattr(Isolation, "run", _answering(interfaces=["lo"], echo_token=False))
+    found = find_isolation(allow_sudo=True)
+    assert isinstance(found, Unavailable)
+    assert "did not pass the environment through" in found.reason
+
+
+def test_sudo_is_not_tried_unless_isolation_was_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Escalation is opt-in, and the refusal says so rather than looking like an absence."""
+    monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
+    monkeypatch.setattr(
+        Isolation, "run", _answering(interfaces=[], returncode=1, stderr="unshare: denied\n")
+    )
     found = find_isolation()
     assert isinstance(found, Unavailable)
-    assert len(found.reason) > 40, "the reason has to say what would be needed, not just no"
-    assert system.lower() in found.reason.lower(), "the reason has to name the platform"
+    assert "not attempted" in found.reason
 
 
 def test_a_kernel_that_refuses_the_namespace_is_reported_with_its_own_words(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A distribution can ship ``unshare`` and forbid the call. The reason has to survive."""
+    """A distribution can ship ``unshare`` and forbid the call. The reason has to survive.
+
+    The message here is the real one CI produced on the first run of M4.10: GitHub's
+    ubuntu-latest is Ubuntu 24.04, which restricts unprivileged user namespaces through
+    AppArmor, so the namespace is created and the uid mapping is then denied. That failure
+    is what put the ``sudo`` candidate in the list, and losing the kernel's own words would
+    have left it looking like `unshare` was simply missing.
+    """
     monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
     monkeypatch.setattr(
         Isolation,
         "run",
-        lambda *_args, **_kwargs: subprocess.CompletedProcess(
-            args=[],
+        _answering(
+            interfaces=[],
             returncode=1,
-            stdout="",
-            stderr="unshare: unshare failed: Operation not permitted\n",
+            stderr="unshare: write failed /proc/self/uid_map: Operation not permitted\n",
         ),
     )
-    found = find_isolation()
+    found = find_isolation(allow_sudo=False)
     assert isinstance(found, Unavailable)
     assert "Operation not permitted" in found.reason
 
