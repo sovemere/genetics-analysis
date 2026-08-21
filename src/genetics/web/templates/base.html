@@ -1,12 +1,16 @@
 {#
-  The page frame (roadmap M4.5).
+  The page frame (roadmap M4.5, theming M4.8).
 
-  Two things here are load-bearing and easy to undo by accident:
+  Three things here are load-bearing and easy to undo by accident:
 
   * Every script is a `src=` to `/static`, never inline. `script-src 'self'` blocks inline
     scripts, so htmx is configured through the `htmx-config` meta tag and our own component
     registration lives in `/static/app.js`. The first `<script>alert(1)</script>` added for
     debugging will silently do nothing and look like a bug in something else.
+  * `theme.js` is the one script **not** deferred, and that is deliberate. It applies the
+    saved theme to `<html>` before the first paint; deferred, it would run after the page
+    had already been painted in the system theme and every load would flash. It is kept
+    tiny for exactly that reason -- it is a blocking script on every page.
   * `theme-color` and the stylesheet are first-party. No font CDN, no icon CDN. The static
     scan in `tests/web/test_static.py` reads this file and fails on an external host, which
     is the point at which it costs nothing to fix.
@@ -15,11 +19,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  {# Both schemes declared, so form controls, scrollbars and the canvas behind the page
+     follow the theme rather than staying light under a dark layout. #}
+  <meta name="color-scheme" content="light dark">
   {# allowEval:false turns htmx's two eval-backed features into a loud
      htmx:evalDisallowedError rather than a silent CSP refusal in a console nobody has
      open. See static/vendor/VENDOR.yaml. #}
   <meta name="htmx-config" content='{"allowEval":false}'>
   <title>{% block title %}genetics{% endblock %}</title>
+  <script src="/static/theme.js"></script>
   <link rel="stylesheet" href="/static/app.css">
   <script src="/static/vendor/htmx.min.js" defer></script>
   <script src="/static/app.js" defer></script>
@@ -37,7 +45,20 @@
     <strong>genetics</strong>
     <span class="muted">offline · local only</span>
   </div>
-  {% block runselector %}{% endblock %}
+  <div class="topbarcontrols">
+    {% block runselector %}{% endblock %}
+    {#
+      Hidden until theme.js sets `data-js` on the root element. A toggle that needs
+      JavaScript and renders anyway is a control that silently does nothing, which reads as
+      a broken page rather than as an unavailable feature. Without scripting the system
+      preference still applies through `prefers-color-scheme`.
+    #}
+    <button type="button" class="themetoggle" x-data="themetoggle" x-on:click="cycle"
+            aria-label="Colour theme">
+      <span aria-hidden="true" x-text="icon">◐</span>
+      <span class="themelabel" x-text="label">System</span>
+    </button>
+  </div>
 </header>
 
 {% block banner %}{% endblock %}
@@ -50,6 +71,19 @@
     {% block content %}{% endblock %}
   </main>
 </div>
+
+{#
+  Where a card modal lands (M4.6). Empty on every server render: the fragment is fetched on
+  click, so nothing here costs anything until somebody opens a card, and a page whose HTML
+  already contained every card's detail would be a page that had to be re-rendered whole to
+  change one.
+
+  `x-data` lives on the host rather than inside the fragment because htmx replaces the
+  fragment's markup on every open; a component declared inside would be torn down and
+  rebuilt, and the escape-key listener with it.
+#}
+<div id="card-modal" class="modalhost" x-data="cardmodal"
+     x-on:keydown.escape.window="close"></div>
 
 <footer class="footer">
   <span class="muted">Engine {{ engine_version }} · bundle format {{ bundle_format_version }}</span>

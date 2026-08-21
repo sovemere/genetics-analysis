@@ -1,0 +1,85 @@
+{#
+  Sort, group and filter (roadmap M4.7).
+
+  **A plain GET form.** It works with scripting off, the arrangement lands in the URL, and
+  every rule about what it may do is a property of `GridQuery` in Python rather than of a
+  browser. `x-on:change="submit"` on the two selects makes it feel immediate when Alpine is
+  present; the Apply button is always there, so nothing depends on that.
+
+  **No control is preselected.** M4.7's rule is that filtering must never be the only way to
+  see a card, and the way to break that is not a bad filter -- it is a default one. Every
+  checkbox below starts clear, so the first paint of this page shows every card the run
+  contains, including the ones tiered `likely-artifact` (AGENTS.md §0.1A).
+
+  Counts beside each option are of the whole run, not of what the current filter left, so
+  the numbers describe the run rather than the controls' own effect.
+#}
+<form class="controls" method="get" action="{{ shell.run_url }}" x-data="gridcontrols">
+  <div class="control">
+    <label for="control-group">Group by</label>
+    <select id="control-group" name="group" x-on:change="submit">
+      <option value="section" {% if shell.grid.query.group == "section" %}selected{% endif %}>Section</option>
+      <option value="tier" {% if shell.grid.query.group == "tier" %}selected{% endif %}>Confidence tier</option>
+    </select>
+  </div>
+
+  <div class="control">
+    <label for="control-sort">Sort by</label>
+    <select id="control-sort" name="sort" x-on:change="submit">
+      <option value="tier" {% if shell.grid.query.sort == "tier" %}selected{% endif %}>Confidence, strongest first</option>
+      <option value="section" {% if shell.grid.query.sort == "section" %}selected{% endif %}>Section</option>
+      <option value="title" {% if shell.grid.query.sort == "title" %}selected{% endif %}>Title</option>
+    </select>
+  </div>
+
+  <details class="control filterset" {% if shell.grid.query.tiers %}open{% endif %}>
+    <summary>
+      Confidence tier
+      {%- if shell.grid.query.tiers %} · {{ shell.grid.query.tiers | length }} selected{% endif %}
+    </summary>
+    <ul class="optionlist">
+      {% for option in shell.grid.tier_options %}
+        <li>
+          <label>
+            <input type="checkbox" name="tier" value="{{ option.value }}"
+                   {% if option.selected %}checked{% endif %}>
+            {{ option.label }} <span class="muted">({{ option.count }})</span>
+          </label>
+        </li>
+      {% endfor %}
+    </ul>
+  </details>
+
+  <details class="control filterset" {% if shell.grid.query.sections %}open{% endif %}>
+    <summary>
+      Section
+      {%- if shell.grid.query.sections %} · {{ shell.grid.query.sections | length }} selected{% endif %}
+    </summary>
+    <ul class="optionlist">
+      {% for option in shell.grid.section_options %}
+        <li>
+          <label>
+            <input type="checkbox" name="section" value="{{ option.value }}"
+                   {% if option.selected %}checked{% endif %}>
+            {{ option.label }} <span class="muted">({{ option.count }})</span>
+          </label>
+        </li>
+      {% endfor %}
+    </ul>
+  </details>
+
+  <label class="control inlinecheck">
+    <input type="checkbox" name="interpreted" value="1"
+           {% if shell.grid.query.interpreted_only %}checked{% endif %}>
+    Only cards with an interpretation
+  </label>
+
+  <div class="control controlactions">
+    <button type="submit">Apply</button>
+    {% if shell.grid.is_filtered %}
+      <a class="clearfilter" href="{{ shell.run_url }}{{ shell.grid.query.unfiltered().query_string }}">
+        Clear filters
+      </a>
+    {% endif %}
+  </div>
+</form>

@@ -1,0 +1,36 @@
+{#
+  One card, as the grid shows it (roadmap M4.6).
+
+  **An anchor first, an htmx target second.** The `href` is the card's own page and works
+  with scripting off; `hx-get` on the same element and to the same URL turns the click into
+  a fragment swap when htmx is loaded. One address, two representations -- see the `card`
+  route for why a separate fragment URL would have been two names for one card and would
+  have let the no-JavaScript path rot unnoticed.
+
+  The tier badge is on the face by requirement, not by taste (AGENTS.md §0.1A).
+
+  This partial states the reader's genotype -- that is what a card summary is -- so it is
+  deliberately outside the `assert_no_genotype` scan. See `SCANNED_PARTIALS` in app.py.
+#}
+<article class="card tier-{{ card.tier_key }}{% if not card.is_interpreted %} card-uninterpreted{% endif %}">
+  <a class="cardlink"
+     href="{{ card.url }}{{ shell.grid.query.query_string }}"
+     hx-get="{{ card.url }}{{ shell.grid.query.query_string }}"
+     hx-target="#card-modal"
+     hx-swap="innerHTML"
+     aria-haspopup="dialog">
+    <div class="cardbadges">
+      <span class="tier tier-{{ card.tier_key }}">{{ card.tier_label }}</span>
+      {% if not card.is_interpreted %}
+        <span class="statusbadge">{{ card.status_label }}</span>
+      {% endif %}
+    </div>
+    <h3 class="cardtitle">{{ card.title }}</h3>
+    <p class="cardsummary">{{ card.summary }}</p>
+    <p class="cardmeta muted">
+      {{ card.section_title }}
+      {%- if card.gene %} · {{ card.gene }}{% endif %}
+      {%- if card.variant and card.variant.rsid %} · {{ card.variant.rsid }}{% endif %}
+    </p>
+  </a>
+</article>

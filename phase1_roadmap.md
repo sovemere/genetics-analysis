@@ -1070,12 +1070,162 @@ section, that proves every layer.*
         contract, not on watching it work. The `<noscript>` links are the reason that gap is
         tolerable rather than blocking; M4.9 (`genetics serve`) is the natural place to look
         at it by hand.
-- [ ] **M4.6** Card grid + detail modal. **Confidence tier is visible on the card face**,
-      not only in the modal ([AGENTS.md §0.1A](AGENTS.md)). Modal shows effect size, base
-      rate, source population, caveats, and clickable citations.
-- [ ] **M4.7** Sort/filter/group by confidence tier and section. **Filtering must never be
-      the only way to see a card** — no default filter hides low-confidence results.
-- [ ] **M4.8** Light/dark theming, responsive layout.
+- [x] **M4.6** Card grid + detail modal (`web/templates/_card*.html`, `views.CardView`).
+      **Confidence tier is visible on the card face**, not only in the modal
+      ([AGENTS.md §0.1A](AGENTS.md)). Detail view shows effect size, base rate, source
+      population, caveats, and clickable citations.
+      - **The milestone moved the bundle format, and that is the entry's main content.**
+        "Effect size, base rate, source population" is a display requirement that version 1
+        could not meet: it stored `confidence.inputs.effect_measure` and `effect_value`,
+        which are the *scoring* inputs, and dropped everything that does not affect a score
+        — units, the confidence interval, the sample size, the study population, and the
+        `context` sentence saying what the number is a proportion *of*. Rendering
+        `proportion 0.992` as "the effect size" would have been the vaguer sensitive card
+        [§0.1B](AGENTS.md) names as a defect, and the alternative — reaching back into
+        `knowledge/` at display time for the rest — is the re-rendering
+        [M4.1](#m4--run-bundle--first-ui) built this format to refuse. So **bundle format
+        version 2** adds an `evidence` block per card. The additive contract made the bump
+        cheap and `test_bundle.py`'s pinned nested shape is what forced it: the first run of
+        the suite after adding the key failed with *bump BUNDLE_FORMAT_VERSION in the same
+        commit*, which is exactly the job that test was written for.
+      - **Base rate is the one of the four that is still missing, and it is named on the
+        card rather than approximated.** No card records how common an *outcome* is — that
+        is absent from the card schema, not merely from the bundle — so an odds ratio is
+        labelled as relative and the detail view says what would be needed to make it
+        absolute (M7, M9). The population **allele** frequency sits below under its own
+        heading and is never called a base rate: how common an allele is and how common an
+        outcome is are different quantities, and letting one stand in for the other is
+        precisely the euphemism §0.1B calls a defect. Adding a `base_rate` key that all 43
+        cards would leave empty would have been a second name for something nobody has
+        written.
+      - **Clickable citations are the first thing on this page that points outward, and the
+        M4.4 rule had to be re-stated rather than waived.** A card page now carries
+        `https://doi.org/…` in an `href`. That is not the property M4.4 protects: an anchor
+        causes no request until a person clicks it, and what M4.4 refuses is a *subresource*
+        — a script, font or image the page fetches itself, unasked, while a genome is on
+        screen. So external hosts are permitted **only** inside an anchor carrying
+        `class="citelink"`, `target="_blank"` and `rel="noreferrer noopener"`, and every
+        other appearance still fails in every file and every rendered response. The
+        exemption is structural rather than a host allowlist, because a `url` citation may
+        legitimately point wherever a card author cited. `/` stays on the unrefined list:
+        citations are detail-view content, so a resolver URL appearing on the grid fails
+        rather than passing by association. Driven with five forms it must still catch,
+        including an anchor missing its `rel`.
+      - **`Referrer-Policy: no-referrer` stopped being belt-and-braces here.** Until a
+        citation was clickable the CSP meant the page could cause no cross-origin request at
+        all. Now, without it, the publisher receives the URL the reader came from — which is
+        `/runs/<id>/cards/<card_id>`, a card id naming the variant, handed to a third party
+        because somebody wanted to read the paper. Two mechanisms, since one is an attribute
+        a tidy-up can drop.
+      - **Citation URLs are built in Python from a re-validated identifier**
+        (`engine.citations.citation_url`), never authored in a template. A stored citation
+        is whatever some version of this engine wrote, read back without re-parsing, and for
+        a `url` citation the stored `id` *is* the href — so an unvalidated one becomes a
+        clickable `javascript:`. Anything that fails the schema's own format patterns, or
+        names an accession database with no resolver, renders as text with its identifier
+        visible rather than as a link to somewhere plausible. A test asserts every accession
+        in the committed pack resolves.
+      - **One URL per card, two representations.** htmx sends `HX-Request` and gets the
+        modal body; a browser with scripting off follows the same `href` and gets a whole
+        page through the same `_carddetail.html`. Two addresses would have routed more
+        simply and would have been two names for one card — the failure this project has hit
+        at M0.4, M3.7 and M4.1 — and the anchor's `href` would then differ from its
+        `hx-get`, which is how a no-JavaScript path rots while every test still passes.
+        `Vary: HX-Request` rides on **both** answers; declaring it on one is not declaring
+        it.
+      - The scan split [M4.5](#m4--run-bundle--first-ui) built is what made this cheap: card
+        faces state the reader's call by design and are outside it, the banner and selector
+        are inside it. M4.5's test asserting the *whole page* held no genotype was narrowed
+        to the two scanned regions rather than deleted, and a second test now asserts the
+        card face **does** state the call — without it, the first could be satisfied by a
+        page showing nothing at all.
+      - **Nothing in the detail view states something it cannot know.** An impossibility
+        card renders no effect-size, allele-frequency or how-it-was-called block at all,
+        because the first cut filled all three with sentences that were false rather than
+        empty — an effect size a card of that kind could not have, and a rarity caveat
+        naming a confidence tier it does not have. A card that *did not match* still shows
+        the published claim, since a reader is owed what they are being told nothing about,
+        but it says so above the figures.
+      - **Every URL is built in the view model, never concatenated in a template**
+        (`run_path`, `card_path`, `Shell.run_url`, `CardView.url`). Found in review: a run
+        id is a directory name and `list_runs` reports whatever it finds, so one containing
+        `?` injected a query string into every nav link on its page and one containing `#`
+        truncated a card URL into an unopenable one. Six templates were concatenating, and a
+        rule enforced in six places is the failure shape this project keeps recording.
+      - **A static check for the Alpine CSP build's one trap.** `x-on:click="open = !open"`
+        is silently inert under that build: no console error, no violation report, just a
+        control that does nothing. M4.4 wrote it down; M4.6 turned it into three tests — no
+        directive value that is not a bare reference, no `x-data` naming an unregistered
+        component, no method reference app.js does not define. All three verified by
+        mutation. It immediately caught a real defect of my own: `cardmodal.close()` used
+        `this.$el`, which is the element the *directive* is on — the close button inside the
+        swapped fragment — so it would have emptied the button and left the modal standing.
+- [x] **M4.7** Sort/filter/group by confidence tier and section (`views.GridQuery`,
+      `web/templates/_controls.html`). **Filtering is never the only way to see a card** —
+      no default filter, and every hidden card is counted with one click back.
+      - **Server-side, in the URL, and never a default**, and each third of that is a
+        decision. *In the URL* because an arrangement is state somebody wants to link and
+        return to — M4.5's argument for a run having its own address, one level down.
+        *Server-side* because M4.7's rule is a rule about what the page must show, and the
+        only place such a rule can be asserted is where it is computed; in Alpine it would
+        live in a browser where the Python suite cannot see it. *Never a default* because
+        the way to break §0.1A is not a bad filter, it is a default one — applied before the
+        reader knew there was a decision.
+      - **An unrecognised filter value is dropped and reported, not obeyed.** `?tier=strng`
+        treated as a filter matches nothing and shows an empty grid, which reads as *this
+        run found nothing*; dropped, it shows everything, which is merely unfiltered. Under
+        §0.1A the safe failure for a filter is always to show more — and then to say so,
+        because silently ignoring it is how somebody concludes the control is broken.
+      - **The self-pass found the controls and the parser disagreeing.** Tier checkboxes
+        were built from the tiers *present in the run*, so a bundle from a newer engine got
+        a checkbox for a tier the parser rejects: ticking it produced "ignored tier=…" and
+        no filtering — a control that renders, looks live, and lies. One function now
+        defines the filterable set for both, and its cards remain visible, grouped under
+        their own heading, and counted in `Grid.hidden` when an explicit filter excludes
+        them.
+      - **Grouping by tier takes the section panels off the page, and the sentence each
+        empty one was carrying with them.** The definition of done (item 3) is about a
+        reader telling *not built yet* from *nothing matched*, not about the shape of the
+        panel saying so, so a "Sections with nothing to show" block collects the same
+        reasons in that mode. Dropping them because the layout changed would have been the
+        rule quietly following the layout.
+      - **Filters never touch the navigation counts.** The nav describes the run; the grid
+        describes an arrangement of it. Had a filter reached the nav, hiding the low tiers
+        would make a section report `0/0` — read as *this section found nothing*, the exact
+        confusion the no-silent-empty rule exists to prevent, arriving through the one
+        control that is supposed to be reversible. Asserted in the view model and again over
+        HTTP, because the two are rendered from different objects.
+      - A card is resolvable by URL even while the reader's own filter hides it; the card
+        route looks in the run, not in the grid. Otherwise a link would work or not
+        depending on a control setting elsewhere on the page.
+      - Sorting offers tier, **section** and title. Section is a no-op inside a
+        section-grouped page and is the useful one on a tier-grouped page — which is the
+        arrangement §0.1A actually recommends — so the two controls are worth having
+        independently.
+- [x] **M4.8** Light/dark theming, responsive layout (`static/theme.js`, `static/app.css`).
+      - **Three theme states, not two.** `system` is a real choice and the default, so a
+        two-way toggle would make following the OS setting unreachable once somebody had
+        picked either explicit theme. The cascade needs both guards and only one of them is
+        obvious: `@media (prefers-color-scheme: dark)` is qualified with
+        `:root:not([data-theme="light"])` so an explicit light choice wins on a machine set
+        to dark, and `:root[data-theme="dark"]` restates the palette so an explicit dark
+        choice wins on a machine set to light. Every token is defined on bare `:root` first,
+        so no colour has its only definition inside a media query — the failure where an
+        untested theme renders half-unstyled.
+      - **`theme.js` is the one script not deferred**, and it is kept tiny for exactly that
+        reason. It writes `data-theme` before the first paint; deferred, every load under an
+        explicit theme would flash the system one. It also sets `data-js`, which is what
+        reveals the toggle: a control that needs scripting and renders anyway is a control
+        that silently does nothing, which reads as a broken page rather than an unavailable
+        feature. Without scripting the system preference still applies.
+      - **A confidence tier is never communicated by colour alone.** Each tier has a hue and
+        every badge carries its own text, because the one attribute §0.1A makes
+        non-negotiable must not be invisible to a reader with a colour vision deficiency.
+      - The nav collapses to a header rather than disappearing on a narrow screen: it is the
+        only thing on the page listing all thirteen sections whether or not this run filled
+        them, so hiding it would make the no-silent-empty-sections rule true only on a
+        desktop. Wide content (the confidence breakdown table) scrolls inside its own
+        container, and the modal goes full-bleed below 40rem.
 - [ ] **M4.9** `genetics serve` command.
 - [ ] **M4.10** **Offline guarantee, end-to-end half** — moved here from M2.7, which now
       holds the in-process guard. With networking disabled **at the OS level**, a full run
@@ -1372,6 +1522,8 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-21 | M4.6–M4.8 review | Diff-driven self-pass over the session's changes. **Six findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it.** **1206 tests + 1 platform skip** (8 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern this time was a claim the markup or a docstring made that nothing behind it honoured** — three of the six are that shape, which is the M2 review's pattern arriving in a template layer rather than in Python. **(1) The one that mattered: run ids and card ids were concatenated into URLs.** A run id is a *directory name on disk* and `list_runs` reports whatever it finds, not only the names `check_run_id` would have written — so `/runs/evil%3Fgroup=tier` rendered every nav link on the page as `/runs/evil?group=tier#section-ancestry`, a query string injected into links the reader never set, and a `#` in a card id truncated the card URL and made the card unopenable. Autoescaping held, so it is not an escape; it is a URL built from unvalidated page content, which is exactly the habit `runselector` in app.js already had a comment written against ("the id here came out of a `<select>` in a document, not out of the store"). Fixed by moving URL construction into the view model as `run_path`/`card_path` and giving `Shell` and `CardView` their own addresses, so no template concatenates one — six templates were doing it, and a rule enforced in six places is the shape of problem this project keeps recording. **(2) `aria-modal="true"` was a false claim.** It tells a screen reader that everything outside the dialog is unavailable, and nothing made that true: a keyboard user could tab straight out into the grid behind it. Same defect class as the impossibility card's fabricated explanations, one layer up. The background is now `inert` while a card is open. **(3) A dead function with a docstring naming a caller that does not exist** — `resolvable_databases()`, "public for the tests that check…", and no test ever called it. Deleted. **(4) My own new guard was fail-open, and it is worth recording because it is the third time this project has hit it.** The test backing (2) asserted `"inert" in app_js`, which passes with the mechanism replaced by `data-x` because the word survives in the comment explaining it — a guard whose first casualty is its own documentation, the same trap M4.4 avoided for Python and I walked into for JavaScript. It now matches the `setAttribute('inert'` / `removeAttribute('inert'` calls. **(5) Two entries in the card field-coverage test were vacuous**, and they were vacuous for exactly the two fields whose rendering is *conditional*: `kind` and `bundle_format_version` only choose which sentence appears, so any fixed marker for them was satisfied by text present regardless. They are now excluded by name, each asserted by its own test, and the coverage check still counts them so a third such field cannot be dropped in silently. **(6) Two keys for one registry** — `"pgs catalog"` and `"pgscatalog"` both mapped to the PGS Catalog, and `PGS-Catalog` mapped to nothing and would have rendered as text with nothing to say why. The database name is now reduced to letters and digits before lookup. **Also verified and clean:** a card whose every optional block is the wrong shape (a string where a mapping belongs, `NaN`, `Infinity`, a negative frequency, a mapping where a title belongs) renders without raising, without printing a Python repr, without an unescaped tag and without `nan` on the page — the `.get`/`_number`/`_text` discipline holds; and a 22-URL sweep of every route and parameter combination against a real uvicorn process produced no 5xx, with path traversal 404ing. |
+| 2026-08-21 | M4.6–M4.8 | Card grid, detail modal, sort/filter/group, theming. **1198 tests + 1 platform skip** (84 new, 177 privacy-marked); ruff, `ruff format` and `mypy --strict` clean. **Bundle format version 2** — the first bump, and a UI milestone caused it, which is the entry's main content. M4.6 asks the detail view for effect size, base rate and source population; version 1 stored none of them. It stored `confidence.inputs.effect_measure` and `effect_value` — the *scoring* inputs — and dropped units, the interval, the sample size, the study population and the `context` sentence saying what the number is a proportion *of*, because none of those move a score. `proportion 0.992` rendered as "the effect size" is the vaguer sensitive card [§0.1B](AGENTS.md) calls a defect, and the alternative — reading the rest back out of `knowledge/` at display time — is the re-rendering M4.1 built the format to refuse. The bump cost almost nothing because the additive contract had already been settled, and `test_bundle.py`'s pinned nested shape is what forced it: the first run after adding the key failed with *bump BUNDLE_FORMAT_VERSION in the same commit*, which is the job that test exists to do. **The base rate is still missing and is named rather than approximated.** No card records how common an *outcome* is — that gap is in the card schema, not the bundle — so a ratio is labelled relative and the page says what would make it absolute (M7, M9); the population **allele** frequency sits under its own heading and is never called a base rate, because how common an allele is and how common an outcome is are different quantities and letting one stand for the other is the euphemism §0.1B forbids. A `base_rate` key that all 43 cards left empty would have been a second name for something nobody wrote. **The hardest call was the citation links, because M4.6 and M4.4 read as contradicting each other.** "Clickable citations" against "no external URL in any template or rendered response". They do not actually conflict: what M4.4 protects is that *the browser makes no request to a third party while a genome is on screen*, and an anchor makes none until a person clicks it — on a published identifier, with no referrer, carrying nothing about them. What M4.4 refuses is a subresource fetched unasked. So the rule was refined rather than waived: an external host may appear **only** inside an anchor with `class="citelink"`, `target="_blank"` and `rel="noreferrer noopener"`, everywhere else still fails, and `/` stays on the unrefined list so a resolver URL on the card grid fails rather than passing by association. Structural rather than a host allowlist, because a `url` citation may legitimately point anywhere a card author cited. Driven with five forms it must still catch, all mutation-verified. Two consequences worth recording: `Referrer-Policy: no-referrer` stopped being belt-and-braces the moment this landed — without it the publisher learns the reader came from `/runs/<id>/cards/<card_id>`, a card id naming the variant — and the URLs are built in Python from a **re-validated** identifier, because a `url` citation's stored id *is* the href and a bundle is read back without re-parsing, so an unvalidated one is a clickable `javascript:`. **The Alpine CSP-build trap became a test and immediately caught me.** M4.4 recorded that `x-on:click="open = !open"` is silently inert under that build — no error, no violation, just a dead control. Three static checks now cover it (no non-bare directive value, no `x-data` naming an unregistered component, no method reference app.js does not define), all mutation-verified, and the first thing they found was mine: `cardmodal.close()` used `this.$el`, which is the element the *directive* is on — the close button inside the swapped fragment — so it would have emptied the button and left the modal standing. **The self-pass found four defects, and the two worth recording are both sentences that were false rather than merely empty.** (1) An impossibility card rendered an *Effect size* heading over "this card records no effect size", and an *Allele frequency* heading over "no population frequency was available, so the rarity check could not be applied and the confidence tier is capped" — on a card that has no variant and no confidence tier. The second sentence was equally wrong on every marker-absent card. A false explanation is worse than the blank it replaced, because a reader cannot tell it from the case where it is true, and this project's whole editorial stance is that a reader can trust what the page says about what it does not know. Those blocks are now suppressed where they have nothing true to say, and the rarity sentence is produced only for a card that actually matched and scored. (2) The same card rendered *How this was called* over *Call source: direct* — because `call_source` is recorded for every observation including the ones that produced nothing, and its value there is `direct`, so the page asserted a direct call at a position the array does not carry. The test is now an observed rsID or an imputation quality: something actually answered, or something was actually attempted. Also added while fixing these: a card that did not match still shows the published claim, because a reader is owed what they are being told nothing about, but it now says so above the figures — a number under a heading on a genome dashboard reads as personal unless something says otherwise. **The self-pass also found the M4.7 controls lying.** Tier checkboxes were built from the tiers present in the run, so a newer engine's tier got a box the parser rejects: ticking it produced "ignored tier=…" and no filtering. One function now defines the filterable set for both. **Two decisions I expected to be harder than they were, and one that was harder.** Easy: one URL per card with two representations (`HX-Request` picks), since two addresses would have been two names for one card and would have let the no-JavaScript path rot silently; and filtering server-side in the query string, since M4.7's rule is a rule about what the page shows and can only be asserted where it is computed. Harder: grouping by tier removes the section panels, and with them the sentence each empty section was carrying — the definition of done is about the reader telling *not built yet* from *nothing matched*, not about the panel shape, so those reasons are collected into their own block in that mode rather than allowed to follow the layout out of existence. **M4.5's whole-page no-genotype test was narrowed, not deleted**: card faces state the reader's call by design, so the assertion moved to the two scanned regions and a second test now asserts the face **does** state it — without which the first would be satisfied by a page showing nothing. **Verified beyond the suite** against a real uvicorn process: index, tier-grouped, filtered and bogus-parameter pages plus both card representations all 200, five static assets served, `Vary: HX-Request` and the security headers present, `runs show --json` carrying the new `evidence` block, `cards lint` still 43 cards / 210 renders. **Not** verified in a browser — nothing here executes Alpine or htmx, so the modal, the theme toggle and the auto-submit rest on documented contracts plus the three new static checks; every one of them has a server-side path that works without scripting, which is why that gap is tolerable and M4.9 (`genetics serve`) is still the natural place to look at it properly. |
 | 2026-08-21 | Agent review of M4.0/M4.5 | `/code-review high` over the same diff, after the self-pass had already fixed six. **Five more findings, all verified and all fixed**; **1114 tests + 1 platform skip** (10 new). The one that matters is a lesson about test construction rather than about this code. `banner_for` read `duplicates.duplicate_rows`; `DuplicateSummary` has `duplicate_rsids` and `duplicate_positions` and never had a `duplicate_rows`. So the banner rendered `-` for it on every run ever written — and a dash reads as *not measured*, which is the specific wrong impression this project keeps trying not to give. **It survived both my self-pass and the field-coverage test I had just added for exactly this class of bug**, because that test writes its own QC payload: a test that invents the input agrees with the reader about a shape neither of them shares with the producer, and the agreement is the bug. The banner tests take `QCReport.to_dict()` now and one of them demands every field resolve to something. On the real export the cell says 656, matching the QC warning that was already on the page beside it. **The other four:** `total_markers` was unguarded while its sibling `call_rate` went through `_number`, and `markers_display` formats with `:,` — which raises `ValueError` on a string, so a `qc.run.json` from another engine 500'd the whole dashboard instead of showing a dash, in the module whose docstring says rendering such a file is its job; `selected_id` came from the manifest's `run_id` while every other operation addresses a run by directory name, so a renamed bundle rendered with no option marked current and printed a `genetics runs show <id>` that cannot resolve; `Shell.total_cards` summed the thirteen known sections while the selector showed the manifest's count, so a newer engine's fourteenth section made two numbers on one page disagree in silence; and `_number` promised "a finite number" while accepting `NaN`, which `json.loads` parses by default, rendering `nan%`. Worth recording that the agent found all five *after* a self-pass that found six, and that its sharpest finding was aimed at the test I wrote during that self-pass. |
 | 2026-08-21 | M4.5 | Dashboard shell. **1100 tests + 1 platform skip** (41 new); ruff, `ruff format` and `mypy --strict` clean. Jinja2 added. **The design question that took the time was where the genotype scan stops.** `runs list` is scanned and `runs show` is not (M4.2), and this page is about to become both: the banner and selector are manifest-derived, and M4.6's card faces state the reader's genotype by design. A whole-page scan would have been correct today and would have started failing on correct output the day cards land — M0.3's guard-that-gets-switched-off, walked into deliberately. So the two safe regions are rendered as their own templates, scanned, and passed into the page as already-safe markup. `{% raw %}{% include %}{% endraw %}` was the obvious spelling and I rejected it for a specific reason: one render pass produces one string and there is no way to scan half of it, so the scanned region would have been a comment rather than a fact. Both scans mutation-tested by deleting the call and confirming the parametrised test fails. **A view model went in between the bundle and the templates**, which was not in the plan and earns its place: `read_bundle` deliberately returns strings and mappings so an old run fails with a version error or not at all, and a template indexing `bundle.qc["call_rates"]` puts that fragility back as a Jinja error mid-page. It also makes every rule testable without HTTP — "no silent empty sections" is now one assertion over `section_views` rather than a grep for a heading somebody will reword. **The rule that needed the most thought was what an empty section says.** There are two empty states and they are not the same fact: *not built yet, roadmap M9.8* is about this tool, *N cards here, none produced an interpretation* is about this genome. Collapsing them would tell a reader their array lacks a marker when the truth is nobody has written the card, which is precisely the misreading AGENTS.md 0.1A is written against. **Two things the tests caught that I had wrong:** the `RunOption` model carried `vendor` and the selector template never rendered it — found because the privacy mutation test poisoned `vendor` and nothing leaked, which is a passing test proving the guard untested rather than the code safe; and I asserted a raw `Fitness & physiology` in the markup, which autoescape correctly renders as `&amp;` — asserting the raw form would have quietly required turning autoescape off on a page rendering authored text. Also handled: a `warnings` field that is a bare string is a `Sequence`, so the obvious isinstance check turns "oops" into four warnings reading o, o, p, s. **Verified beyond the suite** against a real uvicorn process and the owner's real 677k export: page plus all four assets 200 with the security headers, 13 sections in the nav, both QC warnings rendered, 99.92% call rate. **Not** verified in a browser — nothing here executes Alpine, so the selector's navigate-on-change rests on the CSP build's documented contract rather than on watching it work; the `<noscript>` list of plain links is why that gap is tolerable rather than blocking. **Self-pass afterwards found four more**, all fixed: `QCBanner` collected `het_haploid_calls` and `duplicate_rows` and the template rendered neither — the same dead-field slip as `vendor`, which means finding it by mutation test the first time was luck, so there are now two tests asserting every field of both view models reaches the page, checked by *rendering* rather than by grepping the template (two fields arrive through formatting properties, and a name check calls those missing while they are on screen); `Shell` carried a `_repr_fields` that does nothing because it does not inherit `NoGenotypeRepr`, which is worse than absent since it reads as a genotype-safe repr; `name.lstrip('_')` strips a character set rather than a prefix, the exact habit `check_run_id` and `is_wildcard_address` were corrected for; and `analyse` loaded the knowledge pack *after* ingest, so a typo in a card file was reported after a full parse of 677,000 rows — the slowest way to learn about the cheapest mistake, and card authoring is when it gets made. |
 | 2026-08-20 | M4.0 | `genetics run` — the pipeline command that was missing. **1059 tests + 1 platform skip** (28 new); ruff, `ruff format` and `mypy --strict` clean. Found while planning M4.5: the definition of done names `genetics run`, no milestone item owned it, and `write_bundle` had no caller outside the test suite — so the dashboard would have been built against bundles a conftest wrote by hand, which is the failure M4.2 named when it refused a `--runs-root` flag. **The wiring was genuinely five calls; two things were not.** **(1) The observation layer is a decision, not glue.** I expected `assemble_pack` to take matches and go. It refuses an interpretation card without `ObservationEvidence`, on the grounds that assuming a direct call would score an imputed observation as perfect — so the pipeline has to *state* that this milestone does no imputation and has no ancestry fit. That constant now lives in `pipeline.observations()` with a test that names M5 and M8 as the milestones that will replace it, rather than becoming a default inside `assemble_card` where it would be invisible. The visible price: an unknown frequency and an unknown ancestry fit each score a neutral 0.5, so against the owner's real export 26 matched cards land at `moderate` and one at `limited`, and nothing reaches `strong`. That is the correct reading of what is known today; the tempting fix is AGENTS.md §4.1's rarity inversion going quiet. **(2) No committed fixture can produce a matched card.** `spike_ins` is empty across the whole synthetic corpus by design — inventing GRCh37 coordinates was rejected back in M0 — so every interpretation card returns `marker_absent`, which is exactly what a broken matcher also returns. My first test plan would have asserted "the pipeline runs" against a result that could not distinguish the two. The suites render their own spiked export from the same generator instead, and M4.5 now carries a warning not to develop the dashboard against the committed fixtures. **One assumption I got wrong and checked:** I wrote a test asserting an empty frequency list produces the "no population frequency" caveat. It does not — that caveat is for a *partially* priced locus; a locus with no frequencies at all returns no missing alleles and scores the neutral 0.5. The test now pins the breakdown recording `None` for both inputs, which is the honest claim: a saved run must read as "these were not known", not "these were known and average". **Verified beyond the suite:** the real 677,436-marker export runs end to end in 2.8 s — 26 matched, 12 not-determinable, 3 strand-ambiguous, 2 marker-absent — and both privacy guards were mutation-tested by deleting each `assert_no_genotype` call in turn and confirming the parametrised test fails. Numbered M4.0 rather than inserted as a new M4.5: `M4.5` is referenced from eight places outside this file, one of them a live test assertion, and renumbering would have edited working code to relabel work that had not changed. |

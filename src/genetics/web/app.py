@@ -33,7 +33,7 @@ to rot quietly.
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any
 
@@ -103,9 +103,15 @@ SECURITY_HEADERS: dict[str, str] = {
     # to a modern browser; this is here for the ones that only understand the old header.
     "X-Frame-Options": "DENY",
     "X-Content-Type-Options": "nosniff",
-    # A card's URL will name a variant, and a variant plus a person is the genotype
-    # (AGENTS.md 1.3). `no-referrer` keeps that out of any request the page can cause --
-    # which, under the CSP above, should be none, so this is the belt to that braces.
+    # A card's URL names a variant, and a variant plus a person is the genotype (AGENTS.md
+    # 1.3). `no-referrer` keeps that out of any request the page can cause.
+    #
+    # **This stopped being belt-and-braces at M4.6.** Until then the CSP meant the page
+    # could cause no cross-origin request at all, so the header guarded nothing that could
+    # happen. A card's citations are now clickable: following one is a navigation the CSP
+    # does not govern, and without this header the publisher would receive the URL of the
+    # page it came from -- which is `/runs/<id>/cards/<card_id>`, a card id naming the
+    # variant, sent to a third party because somebody wanted to read the paper.
     "Referrer-Policy": "no-referrer",
     # A run bundle is DNA. Nothing should be caching it anywhere but this process.
     "Cache-Control": "no-store",
@@ -114,6 +120,16 @@ SECURITY_HEADERS: dict[str, str] = {
 
 On *every* response is the part that needs saying: a 404 or a 500 is still a page a browser
 renders, and an error page that lost the policy is an error page that could load anything.
+"""
+
+VARIES_BY_HTMX: dict[str, str] = {"Vary": "HX-Request"}
+"""Sent on the card route, whose one URL answers with a fragment or a whole page.
+
+One address per card is worth more than the two it would take to avoid negotiating -- two
+would be two names for one thing, and the anchor's ``href`` would then differ from its
+``hx-get`` -- but a cache that did not know the response varied would hand a bare fragment
+to a browser that asked for a document. It goes on **both** representations, because a
+header that describes the URL is worth nothing if only one of the answers carries it.
 """
 
 _ALLOWED_HOSTS_KEY = "genetics_allowed_hosts"
@@ -274,18 +290,31 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             payload["detail"] = " ".join(notes) or None
         return JSONResponse(payload, headers=SECURITY_HEADERS)
 
-    def _render(shell: views.Shell) -> HTMLResponse:
-        """Render the dashboard, scanning the two regions that must hold no genotype.
+    def _render(
+        shell: views.Shell,
+        template: str = "dashboard.html",
+        *,
+        headers: Mapping[str, str] | None = None,
+        **extra: Any,
+    ) -> HTMLResponse:
+        """Render a full page, scanning the two regions that must hold no genotype.
 
         The partials are rendered first and on their own, checked, then handed to the page
         as already-escaped markup. Rendering the page once and scanning a slice of the
         result would be the same claim with no way to enforce it, and ``{% include %}``
         would give one output string that cannot be scanned in halves.
+
+        ``template`` became a parameter at M4.6, when the card page arrived as a second full
+        page wearing the same frame. Routing it through here rather than giving it its own
+        renderer is what keeps the scan attached to *every* page carrying a banner and a run
+        selector: a second render path would have been a second place to remember, and the
+        one that forgot would be the page nobody thought about.
         """
         context: dict[str, Any] = {
             "shell": shell,
             "engine_version": ENGINE_VERSION,
             "bundle_format_version": BUNDLE_FORMAT_VERSION,
+            **extra,
         }
         for name in SCANNED_PARTIALS:
             markup = environment.get_template(name).render(context)
@@ -294,11 +323,37 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             context[f"{key}_html"] = Markup(markup)
 
         return HTMLResponse(
-            environment.get_template("dashboard.html").render(context),
-            headers=SECURITY_HEADERS,
+            environment.get_template(template).render(context),
+            headers={**SECURITY_HEADERS, **(headers or {})},
         )
 
-    def _shell(run_id: str | None) -> views.Shell:
+    def _fragment(template: str, **context: Any) -> HTMLResponse:
+        """Render a partial for htmx to swap in.
+
+        **Not scanned, deliberately.** A card states the reader's genotype by design --
+        AGENTS.md 0.1A wants the finding and its tier on the face, before any click -- so a
+        scan here would fail on correct output, which is the guard M0.3 recorded getting
+        switched off, including on the day it was right. The scanned region is the banner
+        and the selector, on the line M4.2 drew between ``runs list`` and ``runs show``.
+
+        :data:`VARIES_BY_HTMX` rides on the *whole-page* half too -- see the route, which
+        sets it on both. Declaring it on only one of two representations is the same as not
+        declaring it: the header describes the URL, and the response most likely to be stored
+        and replayed to the wrong kind of request is the ordinary page.
+        """
+        return HTMLResponse(
+            environment.get_template(template).render(context),
+            headers={**SECURITY_HEADERS, **VARIES_BY_HTMX},
+        )
+
+    def _query(request: Request) -> views.GridQuery:
+        """The arrangement asked for in the URL, with unrecognised values dropped."""
+        raw: dict[str, list[str]] = {}
+        for name, value in request.query_params.multi_items():
+            raw.setdefault(name, []).append(value)
+        return views.parse_query(raw)
+
+    def _shell(run_id: str | None, query: views.GridQuery | None = None) -> views.Shell:
         """Resolve what to display, turning every failure into a sentence.
 
         Four states reach this page and all four are ordinary: the store is unusable, the
@@ -316,7 +371,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
                 incomplete=(),
                 verified=False,
             )
-            return views.shell_for(empty, None, selected_id=run_id, problem=str(exc))
+            return views.shell_for(empty, None, selected_id=run_id, problem=str(exc), query=query)
 
         readable = [summary for summary in listing.runs if summary.ok]
         if run_id is None:
@@ -326,7 +381,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
                     if listing.runs
                     else "No runs have been saved yet."
                 )
-                return views.shell_for(listing, None, problem=problem)
+                return views.shell_for(listing, None, problem=problem, query=query)
             # Newest first is `list_runs`' own order, so "the default run" is the most
             # recent readable one. Not the most recent *run*: defaulting to a damaged
             # bundle would open the dashboard on an error for someone whose last save
@@ -344,27 +399,28 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
                     f"No run named {run_id!r} is saved here. It may have been deleted, or "
                     "this may be a link from a different data directory."
                 ),
+                query=query,
             )
         except (BundleError, OSError) as exc:
             # BundleVersionError included: it is a BundleError, and its message already
             # explains that a newer engine wrote the bundle. Re-deriving that distinction
             # here would be a third copy of a sentence `runs list` and `runs show` already
             # get right.
-            return views.shell_for(listing, None, selected_id=run_id, problem=str(exc))
+            return views.shell_for(listing, None, selected_id=run_id, problem=str(exc), query=query)
 
-        return views.shell_for(listing, bundle)
+        return views.shell_for(listing, bundle, query=query)
 
     # Declared `def`, not `async def`: both routes below do synchronous filesystem work --
     # `list_runs` walks the store and `load_run` digests every payload -- which inside a
     # coroutine would block the event loop for the whole read. See `healthz` for the same
     # reasoning at more length.
     @app.get("/", response_class=HTMLResponse)
-    def index() -> HTMLResponse:
+    def index(request: Request) -> HTMLResponse:
         """The dashboard, showing the most recent readable run."""
-        return _render(_shell(None))
+        return _render(_shell(None, _query(request)))
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
-    def dashboard(run_id: str) -> HTMLResponse:
+    def dashboard(run_id: str, request: Request) -> HTMLResponse:
         """The dashboard for one specific run.
 
         A URL per run rather than a client-side swap: a run is the whole page's state, so
@@ -372,7 +428,48 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         ``run_id`` is passed to ``store.resolve_run``, whose ``check_run_id`` proves it is a
         plain directory name and refuses anything that resolves elsewhere -- the containment
         check belongs there, once, rather than being re-implemented at this boundary.
+
+        The sort, filter and grouping (M4.7) ride in the query string for the same reason
+        the run rides in the path: an arrangement somebody chose is state they will want to
+        link, bookmark, and get back to with the back button.
         """
-        return _render(_shell(run_id))
+        return _render(_shell(run_id, _query(request)))
+
+    @app.get("/runs/{run_id}/cards/{card_id}", response_class=HTMLResponse)
+    def card(run_id: str, card_id: str, request: Request) -> HTMLResponse:
+        """One card in full: effect size, populations, caveats and citations (M4.6).
+
+        **One URL, two representations.** htmx asks for it with ``HX-Request`` and gets the
+        modal body; a browser with no JavaScript follows the same ``href`` and gets a whole
+        page. Two addresses would have routed more simply and would have been two names for
+        one card -- the failure this project has now hit at M0.4, M3.7 and M4.1 -- and the
+        anchor would then carry a different ``href`` from its ``hx-get``, which is exactly
+        how a no-JavaScript path rots while every test still passes.
+
+        ``card_id`` names an entry inside an already-opened bundle, so it is matched by
+        equality against what that bundle holds and never resolved against the filesystem.
+        There is no containment rule to apply because no path is being built from it; the
+        run id, which *is* a directory name, is checked by ``check_run_id`` in the store.
+        """
+        shell = _shell(run_id, _query(request))
+        found = views.find_card(shell.cards, card_id)
+        wants_fragment = request.headers.get("hx-request", "").lower() == "true"
+
+        if found is None:
+            # A sentence, not a bare 404. The realistic cause is a stale link -- a card
+            # dropped from the knowledge pack, or a URL carried across data directories --
+            # and every other "nothing to show" state here is explained rather than thrown
+            # (M0.6's rule for `doctor`, which `/healthz` and `runs list` also follow).
+            missing = (
+                f"This run has no card called {card_id!r}. It may be from another run, or "
+                "from a version of the knowledge pack that no longer carries it."
+            )
+            if wants_fragment:
+                return _fragment("_carddialog.html", card=None, shell=shell, problem=missing)
+            return _render(shell, "card.html", headers=VARIES_BY_HTMX, card=None, problem=missing)
+
+        if wants_fragment:
+            return _fragment("_carddialog.html", card=found, shell=shell, problem=None)
+        return _render(shell, "card.html", headers=VARIES_BY_HTMX, card=found, problem=None)
 
     return app

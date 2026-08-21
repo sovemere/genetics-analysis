@@ -8,6 +8,7 @@ stack trace, and that the privacy split the page depends on is real in both dire
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from dataclasses import replace
 from pathlib import Path
@@ -18,10 +19,17 @@ from fastapi.testclient import TestClient
 from genetics.engine.cards import KnowledgePack
 from genetics.privacy import GenotypeLeakError
 from genetics.qc.report import QCReport
-from genetics.run.bundle import CARDS_NAME, MANIFEST_NAME, RunBundle, StoredCard, write_bundle
+from genetics.run.bundle import (
+    BUNDLE_FORMAT_VERSION,
+    CARDS_NAME,
+    MANIFEST_NAME,
+    RunBundle,
+    StoredCard,
+    write_bundle,
+)
 from genetics.run.store import RunListing
 from genetics.testing.fixtures import FIXTURES, render_fixture
-from genetics.web import WebConfig, create_app
+from genetics.web import STATIC_DIR, WebConfig, create_app, views
 from genetics.web.app import _environment
 from genetics.web.views import QCBanner, RunOption, Shell, shell_for
 
@@ -245,13 +253,12 @@ def test_an_unbuilt_section_names_its_milestone_on_the_page(
     assert "roadmap M5" in body, "the ancestry section should name the milestone that fills it"
 
 
-def test_a_populated_section_points_at_the_command_that_reads_the_cards(
-    client: TestClient, interpreted: Path
-) -> None:
-    """The card grid is M4.6. Until then the page says so and names what does work today."""
+def test_a_populated_section_renders_its_cards(client: TestClient, interpreted: Path) -> None:
+    """M4.5's placeholder said the grid was not built yet and named the CLI instead. M4.6
+    replaced it, so this asserts the replacement rather than being deleted with it."""
     body = client.get("/").text
-    assert "M4.6" in body
-    assert f"genetics runs show {interpreted.name}" in body
+    assert "Synthetic dominant trait" in body
+    assert f"/runs/{interpreted.name}/cards/synthetic_dominant_trait" in body
 
 
 def _empty_listing() -> RunListing:
@@ -421,6 +428,7 @@ def _card_in_section(section: str) -> StoredCard:
         variant=None,
         match={},
         confidence=None,
+        evidence=None,
         observation=None,
         frequencies=(),
         confidence_frequency=None,
@@ -434,7 +442,7 @@ def _bundle_with(cards: tuple[StoredCard, ...]) -> RunBundle:
     return RunBundle(
         path=Path("/runs/r1"),
         run_id="r1",
-        format_version=1,
+        format_version=BUNDLE_FORMAT_VERSION,
         created_at="2026-08-21T00:00:00Z",
         provenance={},
         qc={},
@@ -448,14 +456,45 @@ def _bundle_with(cards: tuple[StoredCard, ...]) -> RunBundle:
 
 
 @pytest.mark.privacy
-def test_the_shell_prints_no_genotype_even_when_the_run_has_matches(
-    client: TestClient, interpreted: Path
+@pytest.mark.parametrize("partial", ["_runselector.html", "_qcbanner.html"])
+def test_the_scanned_regions_hold_no_genotype_on_a_run_that_matched(
+    client: TestClient, interpreted: Path, partial: str
 ) -> None:
-    """The shell renders counts; card faces are M4.6. Asserted against a run that *did*
-    match, since a run where nothing matched would pass with the guard removed."""
+    """The banner and the selector carry no call, on a run where there is a call to carry.
+
+    The M4.5 form of this test asserted the *whole page* held no genotype, which was true
+    then and is deliberately false now: M4.6 puts the reader's call on every card face by
+    design (AGENTS.md 0.1A wants the finding and its tier before the click). Deleting the
+    test along with the property would have removed the coverage; narrowing it to the two
+    regions that are still genotype-free keeps it, and keeps it where the guard actually is.
+
+    Asserted against a run that *did* match, since a run where nothing matched would pass
+    with the whole mechanism removed. ``test_the_card_face_does_state_the_genotype`` is the
+    other half: without it, this could be satisfied by a page that showed nothing at all.
+    """
+    from genetics.run import store
+
+    listing = store.list_runs(interpreted.parent)
+    bundle = store.load_run(interpreted.name, interpreted.parent)
+    shell = shell_for(listing, bundle)
+    assert any(card.status == "matched" for card in bundle.cards), "nothing matched to hide"
+
+    markup = _render_one(partial, shell)
+    assert SPIKED_GENOTYPE not in markup
+
+
+@pytest.mark.privacy
+def test_the_card_face_does_state_the_genotype(client: TestClient, interpreted: Path) -> None:
+    """The other direction, and it is a requirement rather than a tolerated leak.
+
+    AGENTS.md 0.1A puts the finding and its confidence tier on the card face, in the summary
+    view, before the reader clicks through — and a matched card's summary is a sentence
+    about the reader's own call. Asserting it is present is what stops somebody "fixing" the
+    narrowed scan above by widening it back over the whole page, which would fail on correct
+    output and then be switched off (M0.3).
+    """
     body = client.get("/").text
-    assert SPIKED_GENOTYPE not in body
-    assert "1/1" in body, "the counts are there; it is the calls that are not"
+    assert SPIKED_GENOTYPE in body, "the card face must state the call it is interpreting"
 
 
 @pytest.mark.privacy
@@ -501,3 +540,509 @@ def test_the_dashboard_serves_without_touching_the_network(client: TestClient, s
     assert guard_is_active(), "the offline guard is not installed; this would prove nothing"
     assert client.get("/").status_code == 200
     assert client.get(f"/runs/{saved.name}").status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# The card grid (roadmap M4.6)
+# ---------------------------------------------------------------------------
+
+
+def test_the_confidence_tier_is_on_the_card_face_not_only_in_the_modal(
+    client: TestClient, interpreted: Path
+) -> None:
+    """AGENTS.md 0.1A makes this a requirement rather than a nicety: nothing is withheld for
+    being weak, so the weakness travels with the finding into the summary view, before the
+    reader clicks. A grid without it reads as a list of equally solid results."""
+    body = client.get("/").text
+    grid = body.split('id="card-modal"')[0]
+
+    assert 'class="tier tier-moderate">Moderate<' in grid
+    assert "Synthetic dominant trait" in grid
+
+
+def test_a_card_face_links_to_the_same_address_it_fetches(
+    client: TestClient, interpreted: Path
+) -> None:
+    """One URL, two representations. An ``href`` that differed from the ``hx-get`` would be
+    two names for one card, and the no-JavaScript half would rot with every test passing."""
+    body = client.get("/").text
+    url = f"/runs/{interpreted.name}/cards/synthetic_dominant_trait"
+
+    assert f'href="{url}"' in body
+    assert f'hx-get="{url}"' in body
+    assert 'hx-target="#card-modal"' in body
+
+
+def test_the_card_url_answers_with_a_page_and_with_a_fragment(
+    client: TestClient, interpreted: Path
+) -> None:
+    url = f"/runs/{interpreted.name}/cards/synthetic_dominant_trait"
+    page = client.get(url)
+    fragment = client.get(url, headers={"HX-Request": "true"})
+
+    assert page.status_code == fragment.status_code == 200
+    assert page.text.startswith("<!doctype html>")
+    assert "<!doctype html>" not in fragment.text
+    assert 'role="dialog"' in fragment.text
+    # The same rendered detail underneath both, from one template.
+    for body in (page.text, fragment.text):
+        assert "Odds ratio 1.4 (95% CI 1.25 to 1.57)" in body
+
+
+def test_the_card_url_declares_that_it_varies(client: TestClient, interpreted: Path) -> None:
+    """A cache that did not know would hand a bare fragment to a browser asking for a page."""
+    url = f"/runs/{interpreted.name}/cards/synthetic_dominant_trait"
+    assert client.get(url).headers.get("Vary") == "HX-Request"
+
+
+def test_a_card_id_that_names_nothing_is_a_sentence_in_both_forms(
+    client: TestClient, interpreted: Path
+) -> None:
+    """A stale link is the realistic cause -- a card dropped from the pack, or a URL carried
+    across data directories -- and every other nothing-to-show state here explains itself."""
+    url = f"/runs/{interpreted.name}/cards/no_such_card"
+    for headers in ({}, {"HX-Request": "true"}):
+        response = client.get(url, headers=headers)
+        assert response.status_code == 200
+        assert "no card called" in response.text
+
+
+def test_the_no_javascript_card_page_can_get_back_to_the_run(
+    client: TestClient, interpreted: Path
+) -> None:
+    """It is the whole page a click reaches with scripting off, so it needs a way out that
+    is not the browser's back button."""
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text
+    assert f'href="/runs/{interpreted.name}"' in body
+    assert "All cards in this run" in body
+
+
+def test_the_detail_view_states_the_population_the_estimate_came_from(
+    client: TestClient, interpreted: Path
+) -> None:
+    """One of the four things AGENTS.md 0.1B requires beside a sensitive claim, and the one
+    bundle format 1 could not have shown: ``confidence.inputs`` never held the ancestry."""
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text
+
+    assert "Study population" in body
+    assert "EUR, EAS" in body
+    assert "120,000" in body, "the sample size the estimate rests on"
+
+
+def test_the_detail_view_refuses_to_call_an_allele_frequency_a_base_rate(
+    client: TestClient, interpreted: Path
+) -> None:
+    """How common an allele is and how common an outcome is are different quantities.
+    Letting the first stand in for the second is the vagueness 0.1B calls a defect."""
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text
+
+    assert "This is not the base rate of the" in body
+    assert "Turning it into an absolute risk needs the base rate" in body
+
+
+def test_the_detail_view_shows_the_arithmetic_behind_the_tier(
+    client: TestClient, interpreted: Path
+) -> None:
+    """AGENTS.md 6 forbids a card authoring its confidence; a computed number with its
+    inputs hidden is the same unaccountable figure by another route. Also M13.4's
+    requirement, answerable from the page."""
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text
+
+    for label in ("Evidence tier", "Replication", "Ancestry match to the study"):
+        assert label in body
+    assert "Weighted score" in body
+
+
+def test_a_citation_is_clickable_and_says_where_it_goes(
+    client: TestClient, interpreted: Path
+) -> None:
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text
+
+    assert 'href="https://doi.org/10.1038/s41586-000-00000-0"' in body
+    assert "leaves your machine" in body, "an outbound link is labelled, not hidden"
+
+
+def test_the_page_a_citation_is_followed_from_sends_no_referrer(
+    client: TestClient, interpreted: Path
+) -> None:
+    """Load-bearing as of M4.6, and it was not before.
+
+    Until a citation was clickable the CSP meant this page could cause no cross-origin
+    request at all, so the header guarded nothing that could happen. Now: without it the
+    publisher receives the URL the reader came from, which is ``/runs/<id>/cards/<card_id>``
+    -- a card id that names the variant, handed to a third party because somebody wanted to
+    read the paper. Two mechanisms, because one of them is an attribute a tidy-up can drop:
+    the response header, and ``rel="noreferrer"`` on every anchor (``test_static.py``).
+    """
+    response = client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait")
+    assert response.headers.get("Referrer-Policy") == "no-referrer"
+    assert 'rel="noreferrer noopener"' in response.text
+
+
+# ---------------------------------------------------------------------------
+# Every field reaches the page
+# ---------------------------------------------------------------------------
+
+
+def _full_card() -> views.CardView:
+    """A card with every optional block populated and distinctively valued."""
+    return views.CardView.of(
+        StoredCard(
+            card_id="everything",
+            section="traits",
+            kind="interpretation",
+            title="TITLE-MARKER",
+            status="matched",
+            summary="SUMMARY-MARKER",
+            detail="DETAIL-MARKER",
+            gene="GENEMARK",
+            impossibility_reason="IMPOSSIBLE-MARKER",
+            confidence_tier="limited",
+            variant={
+                "rsid": "rs900000001",
+                "chrom": "7",
+                "pos_grch37": 12345678,
+                "alleles": ["A", "G"],
+            },
+            match={"observed_rsid": "rs900000009", "strand": "complemented"},
+            confidence={
+                "tier": "limited",
+                "score": 0.42,
+                "inputs": {"evidence_tier": "gwas", "evidence_score": 0.8},
+                "empirical_ppv": {
+                    "estimate": 0.16,
+                    "population_frequency_ceiling": 0.00001,
+                    "applies_to": "PPV-MARKER",
+                },
+            },
+            evidence={
+                "tier": "gwas",
+                "replication": "meta_analysis",
+                "sample_size": 424242,
+                "ancestry": ["SAS"],
+                "within_family_attenuation": 0.55,
+                "effect": {
+                    "measure": "odds_ratio",
+                    "value": 1.23,
+                    "units": None,
+                    "ci_low": 1.11,
+                    "ci_high": 1.36,
+                    "context": "CONTEXT-MARKER",
+                },
+            },
+            observation={
+                "call_source": "imputed",
+                "imputation_quality": 0.77,
+                "ancestry_match": 0.66,
+            },
+            frequencies=({"allele": "G", "frequency": 0.25, "population": "AFR", "source": "SRC"},),
+            confidence_frequency={
+                "allele": "A",
+                "frequency": 0.11,
+                "population": "AMR",
+                "source": "CFSRC",
+            },
+            citations=({"type": "doi", "id": "10.1038/ng1733", "title": "CITE-MARKER"},),
+            authored_caveats=("AUTHORED-MARKER",),
+            computed_caveats=("COMPUTED-MARKER",),
+        ),
+        format_version=BUNDLE_FORMAT_VERSION,
+        run_id="a-run",
+    )
+
+
+def _render_card(card: views.CardView, template: str) -> str:
+    shell = replace(shell_for(_empty_listing(), None), selected_id="a-run", run_url="/runs/a-run")
+    return _environment().get_template(template).render({"card": card, "shell": shell})
+
+
+#: Fields whose outlet is *conditional* on their own value, so no fixed marker in the map
+#: below can test them: rendering `_full_card()` produces the same string whatever they hold.
+#: Each is asserted by its own test, named here so the coverage check stays exhaustive
+#: rather than being quietly satisfied by a marker that proves nothing.
+CONDITIONAL_FIELDS = {
+    "kind": "test_the_kind_of_card_decides_which_citations_sentence_is_shown",
+    "bundle_format_version": "test_an_old_bundle_says_so_where_the_effect_size_would_be",
+}
+
+
+def test_every_field_a_card_view_collects_reaches_a_rendered_card() -> None:
+    """A field in the view model with no outlet in a template is invisible.
+
+    Written the way the banner's equivalent was, after exactly that failure: ``RunOption``
+    carried a ``vendor`` the selector never rendered, and it surfaced only because a privacy
+    mutation test poisoned the field and nothing leaked. Checked by *rendering* rather than
+    by grepping for names, because several fields reach the page through formatting
+    properties. Both templates are rendered and the union taken, because ``url`` is a
+    property of the card *face* and the tier and title appear on both.
+
+    **Two fields are excluded by name rather than given a marker**, and that is the fix for
+    a real defect in the first version of this test: ``kind`` and ``bundle_format_version``
+    are only read to choose *which* sentence renders, so any marker for them was satisfied
+    by text that is present regardless — the assertion was vacuous for exactly the two
+    fields whose rendering is conditional. They are asserted by the two tests named in
+    :data:`CONDITIONAL_FIELDS`, and the coverage check below still counts them, so a third
+    such field cannot be dropped in silently.
+    """
+    from dataclasses import fields
+
+    expected: dict[str, str] = {
+        "card_id": "everything",
+        "section": "#section-traits",
+        "section_title": "Traits, morphology",
+        "title": "TITLE-MARKER",
+        "gene": "GENEMARK",
+        "status": "Interpreted",
+        "summary": "SUMMARY-MARKER",
+        "detail": "DETAIL-MARKER",
+        "impossibility_reason": "IMPOSSIBLE-MARKER",
+        "tier": "Limited",
+        "variant": "chr7:12,345,678",
+        "evidence": "424,242",
+        "confidence": "0.42",
+        "frequencies": "G: 25.0% in AFR (SRC)",
+        "confidence_frequency": "A: 11.0% in AMR (CFSRC)",
+        "citations": "CITE-MARKER",
+        "authored_caveats": "AUTHORED-MARKER",
+        "computed_caveats": "COMPUTED-MARKER",
+        "observed_rsid": "rs900000009",
+        "call_source": "imputed",
+        "imputation_quality": "0.77",
+        "ancestry_match": "0.66",
+        "strand": "complemented",
+        "url": "/runs/a-run/cards/everything",
+    }
+    declared = {field.name for field in fields(views.CardView)}
+    assert set(expected) | set(CONDITIONAL_FIELDS) == declared, (
+        "the expected-output map has drifted from CardView; a new field needs an outlet in "
+        "a card template and an entry here (or a named test, if its outlet is conditional)"
+    )
+
+    card = _full_card()
+    markup = _render_card(card, "_carddetail.html") + _render_card(card, "_cardface.html")
+    missing = {name: marker for name, marker in expected.items() if marker not in markup}
+    assert not missing, f"collected but never rendered: {missing}"
+
+    for field_name, test_name in CONDITIONAL_FIELDS.items():
+        assert test_name in globals(), f"{field_name} names a test that does not exist"
+
+
+def test_the_kind_of_card_decides_which_citations_sentence_is_shown() -> None:
+    """``kind``'s only outlet. An impossibility card citing nothing is correct and says so;
+    an interpretation card citing nothing is a card that is not ready to ship."""
+    interpretation = replace(_full_card(), citations=())
+    impossibility = replace(interpretation, kind="impossibility")
+
+    assert "records no citation" in _render_card(interpretation, "_carddetail.html")
+    assert "the exemption exists to prevent" in _render_card(impossibility, "_carddetail.html")
+
+
+def test_an_old_bundle_says_so_where_the_effect_size_would_be() -> None:
+    """``bundle_format_version``'s only outlet, and it has to be distinguishable from a card
+    that simply records no evidence — otherwise a reader goes looking for a defect in the
+    card when the answer is to re-run the analysis."""
+    old = replace(_full_card(), evidence=None, bundle_format_version=1)
+    current = replace(_full_card(), evidence=None)
+
+    assert "bundle format 1" in _render_card(old, "_carddetail.html")
+    assert "Re-run" in _render_card(old, "_carddetail.html"), "and what to do about it"
+    assert "records no published evidence" in _render_card(current, "_carddetail.html")
+    assert "bundle format" not in _render_card(current, "_carddetail.html")
+
+
+def test_the_detail_page_carries_the_effect_context_and_the_ppv_note() -> None:
+    """Both are sentences that only exist to stop a number being misread, so a template edit
+    that dropped either would leave the figure looking more certain than it is."""
+    markup = _render_card(_full_card(), "_carddetail.html")
+
+    assert "CONTEXT-MARKER" in markup
+    assert "PPV-MARKER" in markup
+    assert "Meta-analysis" in markup and "GWAS" in markup
+
+
+# ---------------------------------------------------------------------------
+# Sort, filter, group over HTTP (roadmap M4.7)
+# ---------------------------------------------------------------------------
+
+
+def test_the_unarranged_page_shows_every_card_in_the_run(
+    client: TestClient, interpreted: Path
+) -> None:
+    """The rule is about the *first* paint: a page that arrives pre-filtered has made the
+    hiding decision 0.1A forbids, before the reader knew there was one."""
+    from genetics.run import store
+
+    bundle = store.load_run(interpreted.name, interpreted.parent)
+    body = client.get("/").text
+
+    assert bundle.cards, "nothing to show; this would pass vacuously"
+    for card in bundle.cards:
+        assert f"/cards/{card.card_id}" in body, f"{card.card_id} is not on the default page"
+    assert "hidden by the filter" not in body
+
+
+def test_a_filter_states_what_it_hid_and_offers_one_click_back(
+    client: TestClient, interpreted: Path
+) -> None:
+    body = client.get("/?tier=well-established").text
+
+    assert "card(s) are hidden" in body
+    assert "Show every card" in body
+    assert f'href="/runs/{interpreted.name}"' in body, "the way back drops every filter"
+
+
+def test_grouping_by_tier_still_explains_the_sections_that_are_empty(
+    client: TestClient, interpreted: Path
+) -> None:
+    """Grouping by tier takes the section panels off the page and the sentence each empty one
+    was carrying with them. The definition of done (item 3) is about the reader being able to
+    tell "not built yet" from "nothing matched", not about the shape of the panel saying so."""
+    body = client.get("/?group=tier").text
+
+    assert "Sections with nothing to show" in body
+    assert "roadmap M5" in body, "the ancestry section still names the milestone that fills it"
+    assert "Likely artifact" in body, "every tier gets a heading, populated or not"
+
+
+def test_an_unrecognised_arrangement_shows_everything_and_says_it_was_ignored(
+    client: TestClient, interpreted: Path
+) -> None:
+    response = client.get("/?tier=strng&group=sideways")
+
+    assert response.status_code == 200
+    assert "Ignored" in response.text and "tier=strng" in response.text
+    assert "card(s) are hidden" not in response.text
+
+
+def test_the_navigation_counts_do_not_move_when_a_filter_is_on(
+    client: TestClient, interpreted: Path
+) -> None:
+    """Asserted over HTTP as well as in the view model, because the nav is rendered from a
+    different object than the grid and the coupling that keeps them apart is a template."""
+    plain = client.get("/").text
+    filtered = client.get("/?tier=well-established").text
+
+    def counts(body: str) -> list[str]:
+        nav = body.split('class="sections"')[1].split("</ol>")[0]
+        return re.findall(r'title="(\d+ card\(s\), \d+ interpreted)"', nav)
+
+    assert "card(s) are hidden" in filtered, "the filter really is hiding something"
+    assert counts(plain) == counts(filtered) != []
+    # The *links* do differ, and should: they carry the arrangement so that following one
+    # does not silently drop the reader's filter. It is the numbers that must not move.
+    assert "tier=well-established" in filtered.split('class="sections"')[1]
+
+
+def test_the_controls_preselect_nothing_on_a_fresh_page(
+    client: TestClient, interpreted: Path
+) -> None:
+    body = client.get("/").text
+    controls = body.split('class="controls"')[1].split("</form>")[0]
+
+    assert 'name="tier"' in controls, "the tier filter is offered"
+    assert "checked" not in controls, "no filter is on by default"
+    assert "Clear filters" not in controls, "there is nothing to clear"
+
+
+def test_the_controls_are_a_plain_get_form(client: TestClient, interpreted: Path) -> None:
+    """It has to work with scripting off, and the arrangement has to land in the URL so it
+    can be linked and returned to."""
+    body = client.get("/").text
+    controls = body.split('class="controls"')[1].split("</form>")[0]
+
+    form = body.split("<form", 1)[1].split(">", 1)[0]
+    assert 'method="get"' in form and 'class="controls"' in form
+    assert '<button type="submit">Apply</button>' in controls
+
+
+# ---------------------------------------------------------------------------
+# Theming and layout (roadmap M4.8)
+# ---------------------------------------------------------------------------
+
+
+def test_the_theme_script_runs_before_the_first_paint(client: TestClient) -> None:
+    """Deferred, it would run after the page had been painted in the system theme, and every
+    load under an explicit choice would flash the other one."""
+    body = client.get("/").text
+    tag = next(line for line in body.splitlines() if "theme.js" in line)
+
+    assert "defer" not in tag and "async" not in tag
+    assert body.index("theme.js") < body.index("app.css"), "the attribute must exist before CSS"
+
+
+def test_the_theme_toggle_is_hidden_when_scripting_is_off() -> None:
+    """A control that needs JavaScript and renders anyway is a control that silently does
+    nothing, which reads as a broken page rather than an unavailable feature."""
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+
+    assert ".themetoggle { display: none; }" in css
+    assert ':root[data-js="on"] .themetoggle' in css
+
+
+def test_the_palette_survives_all_three_theme_states() -> None:
+    """Three states, not two. The media query needs the ``:not([data-theme="light"])`` guard
+    or an explicit light choice loses to a machine set to dark; the ``[data-theme="dark"]``
+    block is the same argument in the other direction. Only one of the two is obvious."""
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+
+    assert ':root:not([data-theme="light"])' in css
+    assert ':root[data-theme="dark"]' in css
+    # Every token defined on bare :root first, so nothing has its only definition inside a
+    # media query -- the failure where an untested theme renders half-unstyled.
+    root = css.split(":root {")[1].split("}")[0]
+    for token in ("--bg", "--ink", "--panel", "--line", "--tier-artifact-bg", "--scrim"):
+        assert token in root, f"{token} is not defined in the base palette"
+
+
+def test_a_confidence_tier_is_never_communicated_by_colour_alone() -> None:
+    """The one attribute 0.1A makes non-negotiable must not be invisible to a reader with a
+    colour vision deficiency."""
+    markup = _render_card(_full_card(), "_carddetail.html")
+    assert ">Limited<" in markup, "the tier badge carries its own text, not just a hue"
+
+
+def test_wide_content_scrolls_inside_itself_rather_than_the_page() -> None:
+    css = (STATIC_DIR / "app.css").read_text(encoding="utf-8")
+    assert ".tablescroll { overflow-x: auto; }" in css
+    assert "grid-template-columns: 1fr;" in css, "the layout collapses to one column"
+    assert "@media (max-width: 40rem)" in css and "@media (max-width: 60rem)" in css
+
+
+def test_an_impossibility_card_renders_no_measurement_blocks(
+    client: TestClient, interpreted: Path
+) -> None:
+    """Over HTTP, because the suppression is a template condition and the view-model test
+    can only assert the inputs to it."""
+    body = client.get(f"/runs/{interpreted.name}/cards/synthetic_impossibility").text
+
+    assert "Why this cannot be determined" in body
+    for absent in ("Effect size", "Allele frequency", "How this was called"):
+        assert absent not in body, f"an impossibility card claims a {absent!r} block"
+    assert "the tangential reference the exemption exists to prevent" in body
+
+
+def test_a_card_that_did_not_match_says_its_figures_are_not_about_the_reader() -> None:
+    """It still shows the published claim — a reader is owed what they are being told
+    nothing about — but a number under a heading on a genome dashboard reads as personal
+    unless something says otherwise.
+
+    Rendered directly rather than over HTTP because ``interpreted`` spikes both synthetic
+    markers, so every interpretation card in it matches. A fixture built to make this card
+    absent would be a third pipeline run for one template condition.
+    """
+    from genetics.web import views
+
+    card = replace(
+        _full_card(),
+        status="marker_absent",
+        observed_rsid=None,
+        imputation_quality=None,
+        call_source="direct",
+    )
+    assert isinstance(card, views.CardView)
+    markup = _render_card(card, "_carddetail.html")
+
+    assert "Nothing below is a statement about" in markup
+    assert "Marker not on this array" in markup
+    assert "Odds ratio 1.23" in markup, "the published claim is still shown"
+    assert "How this was called" not in markup, "no probe answered at this position"
