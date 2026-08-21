@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{#
+  One card as a whole page (roadmap M4.6).
+
+  This is what the card link resolves to with scripting off, or when htmx has not loaded --
+  the state a Content-Security-Policy refusal also leaves the page in. It is the same URL
+  the modal fetches, rendered through the same `_carddetail.html`, inside the same frame as
+  the dashboard so the banner and the run selector are still scanned on the way out.
+
+  It is also simply useful with scripting on: a card has its own address, so it can be
+  linked, bookmarked and reloaded.
+#}
+
+{% block title %}{% if card %}{{ card.title }}{% else %}Card not found{% endif %} · genetics{% endblock %}
+
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+
+{% block nav %}
+  {% include "_sectionnav.html" %}
+{% endblock %}
+
+{% block content %}
+  <p class="backlink">
+    <a href="{{ shell.run_url }}{{ shell.grid.query.query_string }}">← All cards in this run</a>
+  </p>
+  {% if card %}
+    {% include "_carddetail.html" %}
+  {% else %}
+    <section class="problem" aria-label="Nothing to show">
+      <h1>Nothing to show</h1>
+      <p>{{ problem }}</p>
+    </section>
+  {% endif %}
+{% endblock %}

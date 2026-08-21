@@ -25,6 +25,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any, Final
+from urllib.parse import quote
 
 
 class CitationError(ValueError):
@@ -151,3 +152,100 @@ class Citation:
             database=database,
             note=str(raw["note"]).strip() if raw.get("note") else None,
         )
+
+
+# ---------------------------------------------------------------------------
+# Resolution (roadmap M4.6)
+# ---------------------------------------------------------------------------
+
+#: Where an accession lives, keyed by its database name reduced to letters and digits.
+#:
+#: Keyed on the database rather than on the identifier's shape, because accession formats
+#: overlap: ``rs17822931`` and ``RCV000030373`` are both matched by the deliberately loose
+#: accession pattern, and guessing the registry from the prefix would silently point a
+#: PharmGKB id at dbSNP the first time a new database arrives. A database this table does
+#: not name resolves to ``None`` -- shown as text, never as a link to somewhere plausible.
+#:
+#: ``database`` is authored free text, so it is reduced by :func:`_registry` before lookup
+#: rather than matched literally. The first cut lowercased only, and then needed *two* keys
+#: for the PGS Catalog to cover ``PGS Catalog`` and ``PGScatalog`` -- two names for one
+#: registry, and still no entry for ``PGS-Catalog``, which would have silently rendered as
+#: text with nothing to say why.
+_ACCESSION_RESOLVERS: Final[dict[str, str]] = {
+    "dbsnp": "https://www.ncbi.nlm.nih.gov/snp/{id}",
+    "clinvar": "https://www.ncbi.nlm.nih.gov/clinvar/variation/{id}/",
+    "pharmgkb": "https://www.pharmgkb.org/variant/{id}",
+    "pgscatalog": "https://www.pgscatalog.org/score/{id}/",
+    "omim": "https://www.omim.org/entry/{id}",
+    "ensembl": "https://www.ensembl.org/id/{id}",
+}
+
+_NOT_ALPHANUMERIC: Final[re.Pattern[str]] = re.compile(r"[^a-z0-9]+")
+
+
+def _registry(database: str | None) -> str:
+    """A database name reduced to the key :data:`_ACCESSION_RESOLVERS` uses.
+
+    ``PGS Catalog``, ``PGS-Catalog``, ``pgscatalog`` and ``PGS_Catalog`` are one registry
+    written four ways, and a card author has no reason to prefer any of them.
+    """
+    return _NOT_ALPHANUMERIC.sub("", (database or "").strip().lower())
+
+
+_TYPE_RESOLVERS: Final[dict[CitationType, str]] = {
+    CitationType.DOI: "https://doi.org/{id}",
+    CitationType.PMID: "https://pubmed.ncbi.nlm.nih.gov/{id}/",
+    CitationType.PMCID: "https://www.ncbi.nlm.nih.gov/pmc/articles/{id}/",
+}
+
+#: Characters left alone when an identifier is placed into a URL path.
+#:
+#: Exactly the set :data:`_FORMATS` already permits in a DOI, so a well-formed identifier
+#: passes through unchanged and the escaping is a second line rather than a transformation
+#: nobody can predict. ``quote`` still runs, because the identifier reaching this function
+#: came out of a *saved bundle* -- a file another version wrote -- and not out of the
+#: schema that validated it at authoring time.
+_PATH_SAFE: Final[str] = "/:;()-._~"
+
+
+def citation_url(citation_type: str, identifier: str, database: str | None = None) -> str | None:
+    """The public page for a citation, or ``None`` when this project will not link to it.
+
+    Takes **strings, not a** :class:`Citation`, because its caller is the dashboard and the
+    dashboard's input is a bundle: a stored citation is whatever mapping some version of
+    this engine wrote, re-read without re-validation (see
+    :mod:`genetics.run.bundle`). Handing that to a template and letting Jinja put it in an
+    ``href`` would make the one attribute on the page that leaves the machine the one field
+    nothing checks -- and for ``CitationType.URL`` the stored ``id`` *is* the whole URL, so
+    a bundle carrying ``javascript:...`` there would become a clickable script.
+
+    So every input is re-validated here, against the same :data:`_FORMATS` patterns the
+    schema applies at load, and anything that does not match resolves to ``None``. A card
+    whose citation will not resolve still renders -- as text, with its identifier visible --
+    because AGENTS.md §0.1A's rule is that a weak thing is labelled rather than dropped,
+    and that applies to a citation this reader cannot turn into a link just as much as to a
+    finding it cannot score.
+    """
+    try:
+        parsed = CitationType(str(citation_type).strip().lower())
+    except ValueError:
+        return None
+
+    raw = str(identifier).strip()
+    if not _FORMATS[parsed].fullmatch(raw):
+        return None
+
+    if parsed is CitationType.URL:
+        # Returned verbatim rather than quoted: it is already a URL, and percent-encoding
+        # one re-encodes its query string into nonsense. The pattern above has established
+        # the `https://` scheme and the absence of whitespace, which is what makes putting
+        # it in an `href` safe -- there is no `javascript:` form that reaches here.
+        return raw
+
+    template = _TYPE_RESOLVERS.get(parsed)
+    if template is None:
+        template = _ACCESSION_RESOLVERS.get(_registry(database))
+        if template is None:
+            return None
+
+    return template.format(id=quote(raw, safe=_PATH_SAFE))

@@ -1,0 +1,28 @@
+{#
+  The section navigation (roadmap M4.5, extracted at M4.6 so the card page shares it).
+
+  **Counts here are of the whole run and are never filtered.** The nav describes the shape
+  of the saved analysis; the grid describes an arrangement of it. If a filter reached this
+  list, a reader who hid the low tiers would see a section report `0/0` and read it as *this
+  section found nothing* -- which is the confusion the no-silent-empty-sections rule exists
+  to prevent, arriving through the one control that is supposed to be reversible.
+
+  All thirteen render whatever the run contains, for the reason `section_views` gives.
+#}
+<ol class="sections">
+  {% for view in shell.sections %}
+    <li class="section {% if view.is_empty %}section-empty{% endif %}">
+      <a href="{{ shell.run_url }}{{ shell.grid.query.with_group("section").query_string }}#section-{{ view.section }}">
+        <span class="section-title">{{ view.title }}</span>
+        <span class="section-count"
+              title="{{ view.card_count }} card(s), {{ view.interpreted }} interpreted">
+          {{ view.interpreted }}/{{ view.card_count }}
+        </span>
+      </a>
+    </li>
+  {% endfor %}
+</ol>
+<p class="muted navnote">
+  All thirteen sections are listed whether or not this run has anything in them.
+  Counts are interpreted / total, for the whole run — a filter never changes them.
+</p>

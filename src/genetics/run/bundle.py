@@ -56,7 +56,7 @@ from typing import Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
-from genetics.engine.cards import KnowledgePack
+from genetics.engine.cards import Card, KnowledgePack
 from genetics.engine.citations import Citation
 from genetics.engine.confidence import ConfidenceResult
 from genetics.engine.evidence import AssembledCard, PopulationFrequency
@@ -66,8 +66,26 @@ from genetics.qc.report import QCReport
 from genetics.refs import lock as refs_lock
 from genetics.refs import tools as refs_tools
 
-BUNDLE_FORMAT_VERSION: Final[int] = 1
+BUNDLE_FORMAT_VERSION: Final[int] = 2
 """Bumped whenever a reader of the previous version would misread the payload.
+
+**Version 2 (M4.6) added ``evidence`` to each card**, and it is worth recording why a UI
+milestone moved the format. M4.6 requires a card's detail view to state the effect size,
+the base rate and the population the estimate came from -- AGENTS.md 0.1B's "precision is
+the duty of care" as a display requirement. Version 1 stored none of that. It stored
+``confidence.inputs.effect_measure`` and ``effect_value``, which are the *scoring* inputs:
+``proportion 0.992`` with no units, no interval, and no ``context`` saying it is a
+phenotype/genotype concordance in 126 people. Rendering that as "the effect size" would
+have been the vaguer sensitive card 0.1B names as a defect, and the alternative -- reaching
+back into ``knowledge/`` at display time to fetch the rest -- is the re-rendering this
+format exists to refuse.
+
+The one thing version 2 still does not carry is an **outcome base rate**: how common the
+trait or condition is to begin with, without which an odds ratio has no absolute meaning.
+That is absent from the *card schema*, not merely from the bundle, so recording it is a
+knowledge-layer decision belonging to M7 and M9 where absolute risk becomes computable.
+Adding a ``base_rate`` key here that every existing card leaves empty would be a second
+name for something nobody has written. The dashboard says so on the card instead.
 
 **The compatibility contract is additive: a payload key may be added, never removed and
 never repurposed.** That single rule is what lets :func:`read_bundle` accept any bundle at
@@ -93,6 +111,15 @@ What actually forces the bump is ``test_bundle.py``, which pins the payload's wh
 key structure. That is the right home for it: the job is to stop *this* project's next
 commit from adding a field silently, and that is a developer-facing check, not a
 data-facing one.
+"""
+
+EVIDENCE_FORMAT_VERSION: Final[int] = 2
+"""The first format version whose cards carry ``evidence``.
+
+Named rather than written as a bare ``2`` at the one place that checks it, because the
+dashboard has to tell two different absences apart -- a card with no evidence, and a bundle
+saved before evidence was recorded -- and a literal in the display layer is the second name
+for a format fact that this project has already been bitten by three times.
 """
 
 MANIFEST_NAME: Final[str] = "manifest.json"
@@ -230,6 +257,49 @@ def _confidence_payload(confidence: ConfidenceResult) -> dict[str, Any]:
     }
 
 
+def _evidence_payload(card: Card) -> dict[str, Any] | None:
+    """The published claim behind a card: what was measured, in whom, and how large.
+
+    Separate from ``confidence`` even though the two overlap, and the overlap is the reason
+    rather than an oversight. ``confidence.inputs`` records the *scored* form of these --
+    ``effect_measure``, ``effect_value``, ``evidence_tier``, ``replication`` -- because that
+    is what produced the tier, and a tier without its inputs is the unaccountable number
+    AGENTS.md 6 forbids. What it deliberately drops is everything that does not affect a
+    score: units, the confidence interval, the sample size, the study population, and the
+    ``context`` sentence that says what the number is a proportion *of*.
+
+    Those are exactly the fields AGENTS.md 0.1B requires a sensitive card to state, so a
+    display built on ``confidence.inputs`` alone would have been precise about the arithmetic
+    and vague about the finding. Recorded here in full, and recorded even for a card that did
+    not match: ``confidence`` is ``None`` for every one of those, and a reader looking at
+    "this marker is not on your array" is still owed the claim they are being told nothing
+    about.
+
+    ``None`` only when the card has no evidence at all, which is an impossibility card
+    (AGENTS.md 3.2) -- whose claim is about the assay rather than about a population, and
+    which the schema already forbids from carrying evidence or citations.
+    """
+    evidence = card.evidence
+    if evidence is None:
+        return None
+    effect = evidence.effect
+    return {
+        "tier": evidence.tier.value,
+        "replication": evidence.replication.value,
+        "sample_size": evidence.sample_size,
+        "ancestry": [population.value for population in evidence.ancestry],
+        "within_family_attenuation": evidence.within_family_attenuation,
+        "effect": {
+            "measure": effect.measure.value,
+            "value": effect.value,
+            "units": effect.units,
+            "ci_low": effect.ci_low,
+            "ci_high": effect.ci_high,
+            "context": effect.context,
+        },
+    }
+
+
 def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
     card = assembled.card
     match = assembled.match
@@ -265,6 +335,7 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "confidence": None
         if assembled.confidence is None
         else _confidence_payload(assembled.confidence),
+        "evidence": _evidence_payload(card),
         # Recorded separately from `confidence` because `confidence` is None for every card
         # that did not match, and these three are facts about the *observation* rather than
         # about the finding. Without them a saved run cannot say whether an absent result
@@ -303,6 +374,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "variant",
         "match",
         "confidence",
+        "evidence",
         "observation",
         "frequencies",
         "confidence_frequency",
@@ -447,6 +519,14 @@ class StoredCard(NoGenotypeRepr):
     variant: Mapping[str, Any] | None
     match: Mapping[str, Any]
     confidence: Mapping[str, Any] | None
+    evidence: Mapping[str, Any] | None
+    """The published claim: effect, sample size, study population, replication.
+
+    ``None`` for an impossibility card, and ``None`` for **every card in a format-version 1
+    bundle**, which is not the same thing and is why the dashboard distinguishes them by
+    ``format_version`` rather than by this field being empty. See :func:`_evidence_payload`.
+    """
+
     observation: Mapping[str, Any] | None
     """How the call entered the engine. Present even when ``confidence`` is not, which is
     every card that did not match -- see ``_card_payload`` for why the two are separate."""
@@ -751,6 +831,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     _reject_unknown(data, CARD_KEYS, where)
     confidence = data.get("confidence")
     confidence_map = None if confidence is None else _mapping(confidence, f"{where}.confidence")
+    evidence = data.get("evidence")
     tier = confidence_map.get("tier") if confidence_map is not None else None
     variant = data.get("variant")
     observation = data.get("observation")
@@ -771,6 +852,10 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         variant=None if variant is None else _mapping(variant, f"{where}.variant"),
         match=_mapping(_require(data, "match", where), f"{where}.match"),
         confidence=confidence_map,
+        # `.get`, so a version-1 bundle -- written before this key existed -- reads back
+        # with `evidence` absent rather than failing on a required field. That is the
+        # additive contract doing its job; see BUNDLE_FORMAT_VERSION.
+        evidence=None if evidence is None else _mapping(evidence, f"{where}.evidence"),
         observation=None if observation is None else _mapping(observation, f"{where}.observation"),
         frequencies=tuple(
             _mapping(item, f"{where}.frequencies[{i}]")

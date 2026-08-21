@@ -236,6 +236,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
                 "variant": None if card.variant is None else dict(card.variant),
                 "match": dict(card.match),
                 "confidence": None if card.confidence is None else dict(card.confidence),
+                "evidence": None if card.evidence is None else dict(card.evidence),
                 "observation": None if card.observation is None else dict(card.observation),
                 "frequencies": [dict(f) for f in card.frequencies],
                 "confidence_frequency": None

@@ -1,0 +1,263 @@
+{#
+  One card in full (roadmap M4.6): effect size, base rate, source population, caveats,
+  clickable citations.
+
+  Rendered by both representations of the card URL -- the htmx fragment and the whole page
+  -- so there is one description of what a card says. Two copies would have been the same
+  sentence maintained twice, and it is the copy nobody looks at that goes stale.
+
+  **The base-rate block says what is missing rather than approximating it.** AGENTS.md
+  §0.1B asks for the effect size, the base rate, the absolute risk and the source
+  population. Three of those are recorded; the base rate of the *outcome* is not on any card
+  in the corpus, so an odds ratio here is labelled as relative and the gap is named. The
+  population allele frequency sits below it under its own heading and is never called a base
+  rate: how common an allele is and how common an outcome is are different quantities, and
+  letting one stand in for the other is the vagueness §0.1B calls a defect.
+
+  Genotype-bearing by design; not scanned. See `SCANNED_PARTIALS` in app.py.
+#}
+<article class="carddetail tier-{{ card.tier_key }}">
+  <header class="detailhead">
+    <div class="cardbadges">
+      <span class="tier tier-{{ card.tier_key }}">{{ card.tier_label }}</span>
+      <span class="statusbadge">{{ card.status_label }}</span>
+    </div>
+    <h2 class="detailtitle" id="carddetail-title">{{ card.title }}</h2>
+    <p class="muted">
+      {# Linked rather than printed, so the section is a way back to the rest of the run
+         rather than a label. `#section-<key>` is the anchor the grid renders when it is
+         grouped by section, which is why the link says so explicitly. #}
+      <a href="{{ shell.run_url }}?group=section#section-{{ card.section }}">{{ card.section_title }}</a>
+      {%- if card.gene %} · <strong>{{ card.gene }}</strong>{% endif %}
+      {%- if card.variant %}
+        {%- if card.variant.rsid %} · {{ card.variant.rsid }}{% endif %}
+        {%- if card.variant.locus %} · {{ card.variant.locus }} (GRCh37){% endif %}
+        {%- if card.variant.alleles %} · alleles {{ card.variant.alleles | join("/") }}{% endif %}
+      {%- endif %}
+    </p>
+  </header>
+
+  <p class="detailsummary">{{ card.summary }}</p>
+  {% if card.has_distinct_detail %}
+    <p class="detailbody">{{ card.detail }}</p>
+  {% endif %}
+
+  {% if card.impossibility_reason %}
+    <section class="detailblock">
+      <h3>Why this cannot be determined</h3>
+      <p>{{ card.impossibility_reason }}</p>
+    </section>
+  {% endif %}
+
+{#
+  Everything below this point describes a *measurement*, so none of it renders for an
+  impossibility card. The first cut rendered all three headings regardless and filled them
+  with sentences that were false rather than merely empty -- "this card records no effect
+  size" over a card that could not have one, and a rarity-check caveat naming a confidence
+  tier the card does not have. A false explanation is worse than a blank, because a reader
+  cannot tell it from the case where it is true.
+#}
+{% if not card.is_impossibility %}
+  <section class="detailblock">
+    <h3>Effect size</h3>
+    {% if not card.is_interpreted and card.evidence %}
+      {#
+        A card that did not match still shows the published claim, because a reader is owed
+        what they are being told nothing about -- but the figures below are about a variant
+        and not about them, and a number under a heading on a genome dashboard reads as
+        personal unless something says otherwise. The status badge above says it once; this
+        says it where the numbers are.
+      #}
+      <p class="muted">
+        This is the published claim for this variant. Nothing below is a statement about
+        you — see <em>{{ card.status_label }}</em> above.
+      </p>
+    {% endif %}
+    {% if card.effect %}
+      <p class="figure">{{ card.effect.display }}</p>
+      {% if card.effect.context %}
+        <p class="muted">{{ card.effect.context }}</p>
+      {% endif %}
+    {% elif card.evidence_absence %}
+      <p class="muted">{{ card.evidence_absence }}</p>
+    {% else %}
+      <p class="muted">This card records no effect size.</p>
+    {% endif %}
+
+    {% if card.base_rate_note %}
+      <p class="caution">{{ card.base_rate_note }}</p>
+    {% endif %}
+
+    {% if card.evidence %}
+      <dl class="facts">
+        <div><dt>Study population</dt><dd>{{ card.evidence.populations_display }}</dd></div>
+        <div><dt>Sample size</dt><dd>{{ card.evidence.sample_size_display or "not recorded" }}</dd></div>
+        <div><dt>Evidence tier</dt><dd>{{ card.evidence.tier_label or "not recorded" }}</dd></div>
+        <div><dt>Replication</dt><dd>{{ card.evidence.replication_label or "not recorded" }}</dd></div>
+        {% if card.evidence.within_family_attenuation is not none %}
+          {# Kept visible because it is the honest correction to a population estimate: how
+             much of the effect survives when siblings are compared, which strips the
+             shared-environment and assortative-mating component out of it. #}
+          <div><dt>Within-family attenuation</dt>
+            <dd>{{ "%.2f" | format(card.evidence.within_family_attenuation) }} of the population estimate</dd></div>
+        {% endif %}
+      </dl>
+    {% endif %}
+  </section>
+
+  {% if card.frequencies or card.confidence_frequency or card.frequency_absence %}
+    <section class="detailblock">
+      <h3>Allele frequency</h3>
+      <p class="muted">
+        How common the allele is in a reference population. This is not the base rate of the
+        outcome.
+      </p>
+      {% if card.confidence_frequency %}
+        <p class="figure">{{ card.confidence_frequency.display }}</p>
+        <p class="muted">This is the frequency the confidence calculation used.</p>
+      {% endif %}
+      {% if card.frequencies %}
+        <ul class="plainlist">
+          {% for frequency in card.frequencies %}
+            <li>{{ frequency.display }}</li>
+          {% endfor %}
+        </ul>
+      {% elif card.frequency_absence %}
+        <p class="muted">{{ card.frequency_absence }}</p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if card.has_a_call %}
+    <section class="detailblock">
+      <h3>How this was called</h3>
+      <dl class="facts">
+        {% if card.observed_rsid %}
+          <div><dt>Array marker</dt><dd>{{ card.observed_rsid }}</dd></div>
+        {% endif %}
+        {% if card.call_source %}
+          <div><dt>Call source</dt><dd>{{ card.call_source }}</dd></div>
+        {% endif %}
+        {% if card.imputation_quality is not none %}
+          <div><dt>Imputation quality</dt><dd>{{ "%.2f" | format(card.imputation_quality) }}</dd></div>
+        {% endif %}
+        {% if card.ancestry_match is not none %}
+          <div><dt>Ancestry match to the study</dt><dd>{{ "%.2f" | format(card.ancestry_match) }}</dd></div>
+        {% endif %}
+        {% if card.strand %}
+          <div><dt>Strand</dt><dd>{{ card.strand.replace("_", " ") }}</dd></div>
+        {% endif %}
+      </dl>
+    </section>
+  {% endif %}
+{% endif %}
+
+  {% if card.confidence %}
+    <section class="detailblock">
+      <h3>Why this tier</h3>
+      <p class="muted">
+        Confidence is computed, never authored (AGENTS.md §6). Every number that produced it
+        is here.
+        {% if card.confidence.score is not none %}
+          Weighted score {{ "%.2f" | format(card.confidence.score) }}.
+        {% endif %}
+      </p>
+      <div class="tablescroll">
+        <table class="breakdown">
+          <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>
+          <tbody>
+            {% for row in card.confidence.rows %}
+              <tr>
+                <th scope="row">{{ row.label }}</th>
+                <td>{{ row.observed }}</td>
+                <td class="num">{{ row.score_display }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if card.confidence.has_ppv %}
+        <p class="caution">
+          {{ card.confidence.ppv_display }}.
+          {% if card.confidence.ppv_applies_to %}{{ card.confidence.ppv_applies_to }}{% endif %}
+        </p>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {% if card.authored_caveats or card.computed_caveats %}
+    <section class="detailblock">
+      <h3>Caveats</h3>
+      {#
+        Two lists, not one. An authored caveat is about the claim -- what the literature
+        does not establish -- and a computed one is about this run: which probe answered,
+        what could not be priced, which ploidy contradiction was seen. Merging them would
+        make it impossible to tell a limit of the science from a limit of this chip.
+      #}
+      {% if card.authored_caveats %}
+        <h4 class="caveathead">About the finding</h4>
+        <ul class="plainlist">
+          {% for caveat in card.authored_caveats %}<li>{{ caveat }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      {% if card.computed_caveats %}
+        <h4 class="caveathead">About this run</h4>
+        <ul class="plainlist">
+          {% for caveat in card.computed_caveats %}<li>{{ caveat }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  <section class="detailblock">
+    <h3>Citations</h3>
+    {% if card.citations %}
+      {#
+        The links are the one thing on this page that goes anywhere else, so the page says
+        so instead of leaving it to be found in a network log. What a click sends is the
+        published identifier and nothing more: the app sets `Referrer-Policy: no-referrer`,
+        `rel="noreferrer"` repeats it for the anchor, and no genotype, card id or run id
+        appears in the address.
+
+        The URL is built in Python from a validated identifier, never authored here -- see
+        `genetics.engine.citations.citation_url`. A citation it cannot resolve renders as
+        text rather than as a link to somewhere plausible.
+      #}
+      <p class="muted">
+        Following a citation opens a public record in a new tab and is the only thing on
+        this page that leaves your machine. It sends the identifier below and nothing about
+        you.
+      </p>
+      <ul class="citations">
+        {% for citation in card.citations %}
+          <li>
+            {% if citation.url %}
+              <a href="{{ citation.url }}" target="_blank" rel="noreferrer noopener" class="citelink">
+                {{ citation.title }}<span class="external" aria-hidden="true"> ↗</span>
+                <span class="visually-hidden"> (opens a new tab, leaves this machine)</span>
+              </a>
+            {% else %}
+              <span class="citetitle">{{ citation.title }}</span>
+            {% endif %}
+            <span class="muted citeid">{{ citation.label }}</span>
+            {% if citation.note %}<span class="muted citenote">{{ citation.note }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    {% elif card.kind == "impossibility" %}
+      <p class="muted">
+        None, and that is correct for this kind of card: its claim is about what the assay
+        can measure rather than about a population, so a citation dragged in to satisfy the
+        rule would be the tangential reference the exemption exists to prevent
+        (AGENTS.md §7.6).
+      </p>
+    {% else %}
+      <p class="muted">This card records no citation.</p>
+    {% endif %}
+  </section>
+
+  <p class="muted detailfoot">
+    Card id <code>{{ card.card_id }}</code> · read the whole record with
+    <code>genetics runs show {{ shell.selected_id }} --json</code>
+  </p>
+</article>

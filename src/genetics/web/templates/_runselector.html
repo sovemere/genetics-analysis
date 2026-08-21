@@ -36,7 +36,7 @@
        JavaScript off -- which is also the state a CSP refusal leaves it in. #}
     <ul class="runlinks">
       {% for run in shell.runs if run.selectable %}
-        <li><a href="/runs/{{ run.run_id }}">{{ run.created_at or run.run_id }}</a></li>
+        <li><a href="{{ run.url }}">{{ run.created_at or run.run_id }}</a></li>
       {% endfor %}
     </ul>
   </noscript>

@@ -1,0 +1,29 @@
+{#
+  The modal wrapper htmx swaps into `#card-modal` (roadmap M4.6).
+
+  A plain `div` with `role="dialog"`, not a `<dialog>` element. `<dialog>` only becomes
+  modal when `showModal()` is called, and calling it from swapped-in markup would mean an
+  inline script -- which `script-src 'self'` blocks -- or an Alpine expression, which the
+  CSP build does not evaluate. A div with the right roles behaves identically for assistive
+  technology and needs no script to appear.
+
+  Closing is a method on the `cardmodal` component that owns `#card-modal` in base.html;
+  this fragment only references it by name, because the CSP build of Alpine evaluates no
+  expressions. The host element is outside the swap, so its scope survives every swap.
+#}
+<div class="modalbackdrop" x-on:click="close"></div>
+<div class="modal"
+     role="dialog"
+     aria-modal="true"
+     aria-labelledby="carddetail-title"
+     tabindex="-1">
+  <button type="button" class="modalclose" x-on:click="close" aria-label="Close">×</button>
+  {% if card %}
+    {% include "_carddetail.html" %}
+  {% else %}
+    <div class="carddetail">
+      <h2 id="carddetail-title">Nothing to show</h2>
+      <p>{{ problem }}</p>
+    </div>
+  {% endif %}
+</div>

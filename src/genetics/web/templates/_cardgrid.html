@@ -1,0 +1,97 @@
+{#
+  The card grid (roadmap M4.6) and the filter notice that keeps it honest (M4.7).
+
+  Three things here are load-bearing.
+
+  * **The confidence tier is on the card face, not only in the detail view.** AGENTS.md
+    §0.1A makes that a requirement rather than a nicety: a finding is never withheld for
+    being weak, so the weakness has to travel with it into the summary view, before anybody
+    clicks. A tier that appeared only in the modal would mean the grid reads as a list of
+    equally solid findings.
+  * **Every group renders, populated or not, and an empty one says why.** The three reasons
+    -- nobody has written these cards, cards are here and none matched, your filter is
+    hiding them -- are computed in `CardGroup.empty_reason` and are deliberately not
+    interchangeable.
+  * **A hidden card is always counted.** M4.7's rule is that filtering must never be the
+    only way to see a card; the mechanism is that `grid.hidden` is stated wherever it is
+    non-zero, with one click back to everything.
+#}
+{% if shell.grid.query.ignored %}
+  {# Said out loud rather than obeyed or swallowed. A value this version does not know is
+     dropped -- under §0.1A the safe direction for a filter is always to show more -- but
+     dropping it silently is how somebody concludes the control is broken. #}
+  <p class="notice notice-ignored" role="status">
+    Ignored {{ shell.grid.query.ignored | join(", ") }}: this version does not have those
+    values, so the cards they would have filtered are all still here.
+  </p>
+{% endif %}
+
+{% if shell.grid.hidden %}
+  <p class="filternotice" role="status">
+    <strong>{{ shell.grid.hidden }} of {{ shell.grid.total }} card(s) are hidden</strong>
+    by the filter you set.
+    <a href="{{ shell.run_url }}{{ shell.grid.query.unfiltered().query_string }}">Show every card</a>.
+    Nothing here filters on its own — a low confidence tier labels a card, it never removes
+    it.
+  </p>
+{% endif %}
+
+{% for group in shell.grid.groups %}
+  <section class="panel"
+           id="section-{{ group.key }}"
+           aria-labelledby="h-{{ group.key }}">
+    <div class="panelhead">
+      <h2 id="h-{{ group.key }}">{{ group.title }}</h2>
+      <span class="panelcount" title="{{ group.total }} card(s), {{ group.interpreted }} interpreted">
+        {{ group.interpreted }}/{{ group.total }}
+      </span>
+    </div>
+    {% if group.blurb %}
+      <p class="muted">{{ group.blurb }}</p>
+    {% endif %}
+
+    {% if group.empty_reason %}
+      <p class="empty">{{ group.empty_reason }}</p>
+    {% endif %}
+
+    {% if group.cards %}
+      <ul class="cards">
+        {% for card in group.cards %}
+          <li>{% include "_cardface.html" %}</li>
+        {% endfor %}
+      </ul>
+      {% if group.hidden %}
+        <p class="empty">
+          {{ group.hidden }} more card(s) in this group are hidden by the current filter.
+        </p>
+      {% endif %}
+    {% endif %}
+  </section>
+{% endfor %}
+
+{% if shell.grid.query.group != "section" %}
+  {#
+    Grouping by tier takes the thirteen section panels off the page, and with them the
+    sentence each empty section was carrying. The definition of done (item 3) is about the
+    reader being able to tell "not built yet" from "nothing matched", not about the shape of
+    the panel that tells them -- so the same reasons are collected here instead. Dropping
+    them because the layout changed would be the rule quietly following the layout.
+  #}
+  <section class="panel" id="section-gaps" aria-labelledby="h-gaps">
+    <h2 id="h-gaps">Sections with nothing to show</h2>
+    <p class="muted">
+      Grouping by tier arranges the cards this run produced. These sections produced none,
+      and the two reasons for that are not the same.
+    </p>
+    <dl class="gaps">
+      {% for view in shell.sections if view.empty_reason %}
+        <div>
+          <dt><a href="{{ shell.run_url }}{{ shell.grid.query.with_group("section").query_string }}#section-{{ view.section }}">{{ view.title }}</a></dt>
+          <dd>{{ view.empty_reason }}</dd>
+        </div>
+      {% else %}
+        <div><dt>None</dt><dd>Every section in this run has at least one interpretation.</dd></div>
+      {% endfor %}
+    </dl>
+  </section>
+{% endif %}
