@@ -63,9 +63,18 @@ jobs:
 
       - name: Privacy suite
         run: uv run pytest -m privacy -v
+        env:
+          # M4.10 disables networking at the OS level with a Linux network namespace, and
+          # skips with a reason where there is none -- which on Windows is the honest
+          # answer, since every mechanism it offers needs elevation. Required on Linux so
+          # that "covered" and "skipped everywhere, forever" stop looking identical: with
+          # this set, an unavailable namespace fails the job instead of quietly passing it.
+          GENETICS_REQUIRE_OS_ISOLATION: ${{ runner.os == 'Linux' && '1' || '' }}
 
       - name: Tests
         run: uv run pytest -q
+        env:
+          GENETICS_REQUIRE_OS_ISOLATION: ${{ runner.os == 'Linux' && '1' || '' }}
 
       - name: Fixtures reproduce byte-identically
         run: uv run genetics fixtures --check

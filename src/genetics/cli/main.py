@@ -197,6 +197,44 @@ def run(
 
 
 @app.command()
+def serve(
+    # The two defaults are literals here and named constants in `genetics.web.config`, which
+    # is the drift the `fixtures` command's comment argues against -- so the disagreement is
+    # made impossible rather than promised. Importing the constants would pull FastAPI into
+    # `genetics --help`, because `genetics.web.__init__` re-exports `create_app`; leaving the
+    # defaults out of the signature would blank them out of `--help`, which is the one place
+    # a person looks to find out what port to open. `tests/test_cli_serve.py` asserts the two
+    # spellings agree.
+    host: Annotated[
+        str,
+        typer.Option("--host", help="Loopback address to bind. Anything else is refused."),
+    ] = "127.0.0.1",
+    port: Annotated[
+        int,
+        typer.Option("--port", help="TCP port. 0 asks the OS for a free one."),
+    ] = 8765,
+    access_log: Annotated[
+        bool,
+        typer.Option(
+            "--access-log/--no-access-log",
+            help="Log every request URL. Off by default: a card URL names a variant.",
+        ),
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Serve the dashboard on this machine only (M4.9).
+
+    Binds loopback, refuses anything else, and prints the URL that works. Blocks until
+    Ctrl+C. Nothing it serves leaves this machine.
+    """
+    # Lazy like every other heavy command: this reaches uvicorn, FastAPI and the whole web
+    # package, and `genetics --help` should not import a server to list its own commands.
+    from genetics.cli.serve_cmd import serve as run_server
+
+    run_server(host=host, port=port, access_log=access_log, as_json=as_json)
+
+
+@app.command()
 def adapters(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
 ) -> None:
