@@ -52,6 +52,27 @@ def _offline(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
 
 
+@pytest.fixture(scope="session", autouse=True)
+def _uncoloured_cli() -> Iterator[None]:
+    """Make Typer's help and error output plain text, the same way everywhere.
+
+    Roughly seventy assertions across ``tests/test_cli_*.py`` check for a substring of what
+    a command printed. Rich decides per environment whether to emit colour, and when it does
+    it splits a styled run wherever the highlighter's spans start -- ``--input`` comes out as
+    ``ESC[1;36m-ESC[0mESC[1;36m-inputESC[0m``, which contains no ``--input`` at all.
+
+    Rich treats a GitHub Actions runner as colour-capable even with no TTY attached, so every
+    one of those assertions was passing locally and only ever at risk on CI; ``run --help``
+    was the first to actually name an option and the first to break. ``TERM=dumb`` is what
+    Rich looks at last and overrides the CI detection, so this pins the output format rather
+    than teaching each assertion to strip escape codes.
+    """
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setenv("TERM", "dumb")
+        patch.delenv("FORCE_COLOR", raising=False)
+        yield
+
+
 # ---------------------------------------------------------------------------
 # Building a saved run (M4.1/M4.2)
 # ---------------------------------------------------------------------------

@@ -240,11 +240,15 @@ def is_link(path: Path) -> bool:
     if path.is_symlink():
         return True
     try:
-        attributes: int = path.lstat().st_file_attributes
-    except (AttributeError, OSError):
-        # No `st_file_attributes` outside Windows; an OSError means the entry went away
-        # between the listing and this call, which is not a link either.
+        entry = path.lstat()
+    except OSError:
+        # The entry went away between the listing and this call. Not a link either.
         return False
+    # ``st_file_attributes`` exists only on Windows and typeshed models that faithfully, so
+    # naming it directly is an error under mypy on Linux -- where CI also runs. ``getattr``
+    # asks the same question in a form both platforms' stubs accept, and the default covers
+    # POSIX, where a reparse point cannot exist.
+    attributes: int = getattr(entry, "st_file_attributes", 0)
     return bool(attributes & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
