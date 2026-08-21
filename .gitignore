@@ -60,6 +60,12 @@ incoming/
 *.pgen
 *.pvar
 *.psam
+# PLINK 2 writes its VCF-to-pgen intermediates as `<out>-temporary.*`, and the .pvar
+# among them is zstd-compressed -- so it ends in .zst and the *.pvar rule above does
+# not see it. Normally deleted on success; left behind by a crash, which is exactly
+# when nobody is looking. Added at M5.2 with the conversion that produces them.
+*.pvar.zst
+*-temporary.*
 *.ped
 *.map
 *.tped

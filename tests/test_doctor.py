@@ -287,3 +287,40 @@ def test_doctor_ignores_a_recorded_path_that_no_longer_exists(
 
     # Falls through to the directory scan and PATH, which will not find it either here.
     assert doctor._which("definitely-not-a-real-binary", tool_id="plink2") is None
+
+
+def test_a_malformed_installed_state_reports_missing_rather_than_raising(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A state file naming an unusable path resolves to "missing", not to an error."""
+    from genetics.refs import tools
+
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    (tmp_path / "tools").mkdir(parents=True)
+    (tmp_path / "tools" / tools.INSTALLED_STATE).write_text(
+        '{"schema_version": 1, "tools": {"plink2": {"path": ' + repr(chr(0) + "bad") + "}}}",
+        encoding="utf-8",
+    )
+
+    assert doctor._which("plink2", tool_id="plink2") is None
+    assert doctor.collect().has_problem is False
+
+
+def test_a_lookup_that_raises_is_reported_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``doctor`` runs precisely when the environment is suspect, so it must never raise.
+
+    Pinned during the M5.1 review. The search moved into
+    :func:`genetics.refs.tools.find_executable` and the blanket guard around the call reads
+    like dead code -- the test above shows the realistic malformed input is already handled
+    without it. It is not dead: it is the promise this module makes about a machine broken
+    in a way nobody anticipated, and the refactor should not have narrowed it silently.
+    """
+    from genetics.refs import tools
+
+    def boom(*args: object, **kwargs: object) -> object:
+        raise RuntimeError("something nobody predicted")
+
+    monkeypatch.setattr(tools, "find_executable", boom)
+
+    assert doctor._which("plink2", tool_id="plink2") is None
+    assert doctor.collect().has_problem is False
