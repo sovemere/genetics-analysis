@@ -7,12 +7,16 @@ phoned home would run entirely outside the guard's view and the suite would repo
 This module is the other half: it does not patch anything, it takes the network away from a
 child process and everything that child starts.
 
-**Availability is probed, never assumed.** The mechanism is a Linux network namespace, and
-whether an unprivileged process may create one is a per-machine question -- a distribution
-can forbid unprivileged user namespaces outright. So :func:`find_isolation` runs a real
-probe and reports what happened rather than testing ``unshare`` for existence and hoping.
-A caller that cannot get isolation is told why, in a sentence, because the alternative is a
-test that skips for a reason nobody can see.
+**Availability is probed, never assumed, and the first CI run proved why.** The mechanism is
+a Linux network namespace, and whether an unprivileged process may create one is a
+per-machine question. GitHub's ``ubuntu-latest`` is Ubuntu 24.04, which restricts
+unprivileged user namespaces through AppArmor: ``unshare --map-root-user --net`` gets far
+enough to create the namespace and is then refused the uid mapping --
+``unshare: write failed /proc/self/uid_map: Operation not permitted``. A detector that
+checked ``PATH`` for ``unshare`` would have called that machine capable. So
+:func:`find_isolation` runs a real probe against each candidate in :data:`_CANDIDATES` and
+reports what actually happened; a caller that cannot get isolation is told why, in a
+sentence, because the alternative is a test that skips for a reason nobody can see.
 
 **Nothing here sends a packet, in either direction.** Proving isolation by connecting
 somewhere and failing would send real traffic on any machine where the isolation silently
@@ -29,9 +33,12 @@ roadmap entry.
 
 from __future__ import annotations
 
+import json
+import os
 import platform
 import subprocess
 import sys
+import uuid
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -41,8 +48,25 @@ PROBE_TIMEOUT = 60
 """Seconds. Generous: the probe starts a Python interpreter under ``unshare``, and a cold
 CI runner is slower than it looks."""
 
-_INTERFACE_PROBE = "import socket; print(sorted(name for _, name in socket.if_nameindex()))"
-"""What the child is asked. A fresh network namespace has loopback and nothing else."""
+_PROBE_TOKEN_ENV = "GENETICS_ISOLATION_PROBE"
+"""Set to a known value for the probe, and required back from the child. See :func:`_probe`."""
+
+_PROBE = (
+    "import json, os, socket; "
+    "print(json.dumps({"
+    '"interfaces": sorted(name for _, name in socket.if_nameindex()), '
+    f'"token": os.environ.get("{_PROBE_TOKEN_ENV}")'
+    "}))"
+)
+"""What the child is asked, and it is asked two things rather than one.
+
+The interfaces answer whether the network is gone: a fresh namespace has loopback and
+nothing else. The token answers whether the *environment* survived the trip, which stopped
+being a silly question the moment a ``sudo`` prefix became one of the candidates -- ``sudo``
+resets the environment by default, and a mechanism that isolates the network while quietly
+dropping ``GENETICS_DATA_DIR`` would run the pipeline against the wrong store and pass.
+Both are asked in one child so neither can be answered by a different process than the other.
+"""
 
 
 @dataclass(frozen=True)
@@ -77,13 +101,33 @@ class Unavailable:
     reason: str
 
 
-# ``--map-root-user`` is what makes this work without privileges: it creates a user
-# namespace in which this user is root, which is the only way an ordinary account is allowed
-# to create the network namespace ``--net`` asks for.
-_UNSHARE = ("unshare", "--map-root-user", "--net", "--")
+_CANDIDATES: tuple[tuple[tuple[str, ...], str], ...] = (
+    # First choice, and the only one that needs no privileges at all. ``--map-root-user``
+    # creates a user namespace in which this account is root, which is how an ordinary user
+    # is allowed to create the network namespace ``--net`` asks for.
+    (
+        ("unshare", "--map-root-user", "--net", "--"),
+        "Linux network namespace (unshare --map-root-user --net)",
+    ),
+    # Second choice, and it exists because the first one does not work on the machine this
+    # guarantee most needs to hold: **GitHub's ubuntu-latest refuses it**. Ubuntu 24.04
+    # restricts unprivileged user namespaces through AppArmor, so the namespace is created
+    # and then the uid mapping is denied -- `unshare: write failed /proc/self/uid_map:
+    # Operation not permitted`, which is what CI reported on the first run of M4.10.
+    #
+    # ``-n`` is what keeps this from being a surprise: it makes sudo fail immediately rather
+    # than prompt, so on a machine without passwordless sudo this costs one failed exec and
+    # nothing else. ``-E`` is what keeps the child's environment, and the probe checks that
+    # it actually did rather than trusting the flag. It is still only tried when the caller
+    # says isolation is required here -- see :func:`find_isolation`.
+    (
+        ("sudo", "-n", "-E", "unshare", "--net", "--"),
+        "Linux network namespace via passwordless sudo (sudo -n -E unshare --net)",
+    ),
+)
 
 
-def find_isolation() -> Isolation | Unavailable:
+def find_isolation(*, allow_sudo: bool = False) -> Isolation | Unavailable:
     """The OS-level network isolation available here, or why there is none.
 
     Probed rather than detected. ``unshare`` being on ``PATH`` says nothing about whether
@@ -109,29 +153,55 @@ def find_isolation() -> Isolation | Unavailable:
             "namespaces are the mechanism here; macOS has no unprivileged equivalent."
         )
 
-    candidate = Isolation(prefix=_UNSHARE, description="Linux network namespace (unshare --net)")
+    failures: list[str] = []
+    for prefix, description in _CANDIDATES:
+        if prefix[0] == "sudo" and not allow_sudo:
+            # Escalation is never a silent default. Tied to the caller's "isolation is
+            # required here" rather than tried opportunistically, so a developer running the
+            # suite on a laptop with cached sudo credentials does not have part of it
+            # quietly run as root; CI, which sets that flag, gets the real coverage.
+            failures.append("passwordless sudo not attempted (isolation was not required here)")
+            continue
+        candidate = Isolation(prefix=prefix, description=description)
+        verdict = _verify(candidate)
+        if verdict is None:
+            return candidate
+        failures.append(f"{prefix[0]} -- {verdict}")
+    return Unavailable("no working network namespace: " + "; ".join(failures))
+
+
+def _verify(candidate: Isolation) -> str | None:
+    """``None`` if ``candidate`` really isolates a child, else why it does not.
+
+    Every branch here is a way for a mechanism to look like it worked. The command can be
+    missing, the kernel can refuse it, it can exit zero having changed nothing, and -- once
+    ``sudo`` is a candidate -- it can isolate the network while dropping the environment the
+    caller needs. A mechanism that fails any of these is refused rather than returned,
+    because an isolation that does nothing makes every test built on it pass.
+    """
+    token = uuid.uuid4().hex
     try:
-        probe = candidate.run([sys.executable, "-c", _INTERFACE_PROBE])
+        probe = candidate.run(
+            [sys.executable, "-c", _PROBE],
+            env={**os.environ, _PROBE_TOKEN_ENV: token},
+        )
     except FileNotFoundError:
-        return Unavailable("`unshare` is not installed, so no network namespace can be created.")
+        return f"`{candidate.prefix[0]}` is not installed"
     except subprocess.TimeoutExpired:
-        return Unavailable(f"`unshare` did not answer within {PROBE_TIMEOUT}s.")
+        return f"no answer within {PROBE_TIMEOUT}s"
 
     if probe.returncode != 0:
         detail = (probe.stderr or probe.stdout).strip().splitlines()
-        return Unavailable(
-            "`unshare --map-root-user --net` was refused by this kernel, which usually "
-            "means unprivileged user namespaces are disabled: "
-            + (detail[-1] if detail else f"exit {probe.returncode}")
-        )
+        return detail[-1] if detail else f"exit {probe.returncode}"
 
-    interfaces = probe.stdout.strip()
-    if interfaces not in ("['lo']", "[]"):
-        # The command succeeded and the child could still see the machine's real interfaces,
-        # so whatever ran was not isolated. Reported rather than returned: an isolation that
-        # does nothing is worse than none, because it makes every test built on it pass.
-        return Unavailable(
-            "`unshare --net` reported success but the child still sees "
-            f"{interfaces or '<nothing printed>'}, so it was not isolated."
-        )
-    return candidate
+    try:
+        answer = json.loads(probe.stdout)
+    except json.JSONDecodeError:
+        return f"unreadable probe output {probe.stdout.strip()[:80]!r}"
+
+    interfaces = answer.get("interfaces")
+    if interfaces not in ([], ["lo"]):
+        return f"reported success but the child still sees {interfaces}, so it was not isolated"
+    if answer.get("token") != token:
+        return "isolated the network but did not pass the environment through"
+    return None
