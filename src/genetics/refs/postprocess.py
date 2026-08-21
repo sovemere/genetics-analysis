@@ -35,6 +35,7 @@ from typing import TYPE_CHECKING, Any, Final, TypeAlias
 import polars as pl
 
 if TYPE_CHECKING:
+    from genetics.external.plink2 import Plink2
     from genetics.refs.manifest import PostProcess, Source
 
 
@@ -111,8 +112,29 @@ _STEPS: tuple[Step, ...] = (
         name="build_pca_marker_subset",
         summary="Build the LD-pruned marker subset used for PCA projection.",
         required_params=("output",),
+        optional_params=("maf", "max_missing", "window", "step", "r2"),
+        implemented=True,
         milestone="M5.3",
-        output_is_genotype_derived=True,
+        # Was True until M5.3 implemented it, and the change is a decision rather than a
+        # correction of a typo. The flag means "this transform reads a genotype export",
+        # which is what forces an output outside the checkout. The roadmap's phrasing --
+        # "on array-overlapping markers" -- is what made that look true here: an array's
+        # marker list has to come from somebody's export.
+        #
+        # This implementation does not take one. It prunes the *panel* and nothing else,
+        # so the artifact is a function of public 1000 Genomes data alone and carries no
+        # information about any user; the array intersection moves to the eigenvector
+        # build, where an export is genuinely in hand. That also matches what the manifest
+        # entry already said out loud -- "writing a separate PCA subset beside it is not
+        # [forbidden]" -- and is the reading the two had to be reconciled to.
+        #
+        # If this step is ever given an array marker list, the flag goes back to True and
+        # the output moves out of the repository with it.
+        output_is_genotype_derived=False,
+        # Per-chromosome filtered pgens, their pruned copies, and the merged result all
+        # live in the work directory at once. Conservative on purpose: under-reporting the
+        # disk a multi-hour transform needs is the expensive direction to be wrong in.
+        workspace_multiplier=1.0,
     ),
     Step(
         name="convert_to_bref3",
@@ -187,8 +209,18 @@ def estimated_workspace_bytes(source: Source) -> int:
     total = 0
     for declared in source.post_process:
         definition = declared.definition
-        size = sizes.get(str(declared.params.get("input")))
-        if definition.implemented and size is not None:
+        if not definition.implemented:
+            continue
+        if "input" in declared.params:
+            size = sizes.get(str(declared.params["input"]))
+        else:
+            # A step that names no input consumes the whole source; `build_pca_marker_subset`
+            # reads all 22 autosomal VCFs. Falling through to `None` here reported a 16.75 GB
+            # transform as needing no scratch space at all, which is the one answer that
+            # cannot be right.
+            known = [item.size_bytes for item in source.files if item.size_bytes is not None]
+            size = sum(known) if known else None
+        if size is not None:
             total += int(size * definition.workspace_multiplier)
     return total
 
@@ -268,7 +300,15 @@ def _expected_provenance(
     input_sha256: str,
     *,
     output_param: str = "output",
+    input_filename: str | None = None,
 ) -> dict[str, Any]:
+    """Build the contract a sidecar is checked against.
+
+    ``input_filename`` overrides the name recorded for the input. It exists for
+    ``build_pca_marker_subset``, whose input is 22 files rather than one: there the digest
+    is taken over the ordered ``(name, sha256)`` list and the label names the set. The
+    binding is the digest either way; the name is what a person reads.
+    """
     definition = declared.definition
     # A JSON round trip rejects non-serializable params and gives a stable primitive tree.
     params = json.loads(json.dumps(dict(declared.params), sort_keys=True))
@@ -276,7 +316,10 @@ def _expected_provenance(
         "schema_version": _PROVENANCE_VERSION,
         "step": declared.step,
         "transform_version": definition.transform_version,
-        "input": {"filename": input_path.name, "sha256": input_sha256},
+        "input": {
+            "filename": input_filename if input_filename is not None else input_path.name,
+            "sha256": input_sha256,
+        },
         "params": params,
         # The basename, matching what :func:`_read_provenance` compares against. The
         # sidecar sits beside its artifact, so the directory is already established by
@@ -409,6 +452,12 @@ def _artifact_rows(output: Path) -> int:
             anchors = payload.get("anchors") if isinstance(payload, dict) else None
             if isinstance(anchors, list):
                 return len(anchors)
+        if output.suffix == ".pgen":
+            # A pgen is opaque binary whose variant count lives in the companion .pvar, so
+            # "rows" is read from there. That is not a workaround: it also means a .pvar
+            # swapped for one of a different length fails provenance, which hashing the
+            # .pgen alone would never notice.
+            return _pvar_variants(_companion(output, ".pvar"))
     except (OSError, UnicodeError, json.JSONDecodeError, pl.exceptions.PolarsError) as exc:
         raise ProcessError(f"{output.name}: cannot count artifact rows ({exc})") from exc
     raise ProcessError(f"{output.name}: unsupported provenance-bearing artifact format")
@@ -1359,6 +1408,453 @@ def _run_anchors(
     )
 
 
+# ---------------------------------------------------------------------------
+# build_pca_marker_subset (M5.3)
+# ---------------------------------------------------------------------------
+#
+# The one step here that shells out. Everything above is Python and Polars over text; this
+# is four PLINK 2 invocations per chromosome and a merge, because AGENTS.md 4.9 put format
+# conversion, LD pruning and merging inside one native binary rather than inside htslib.
+#
+# What it produces is the marker set a reference PCA is computed on: common, autosomal,
+# biallelic ACGT SNPs, outside the known long-range LD regions, thinned so that no two
+# markers left standing are in strong linkage. Each of those four words is doing work, and
+# the reasons are on the constants below.
+#
+# It is deliberately *not* restricted to a consumer array's markers, though the roadmap's
+# phrasing for M5.3 invites that. Two reasons. The artifact stops being a function of
+# public data the moment an export chooses its contents -- see the note on the registry
+# entry. And the restriction is better applied where the export already is: the eigenvector
+# build can intersect this subset with the array and prune again, whereas a subset built
+# against one person's chip would be wrong for the next person's.
+
+_PCA_LONG_RANGE_LD_GRCH37: Final[tuple[tuple[str, int, int, str], ...]] = (
+    ("2", 135_000_000, 137_000_000, "LCT"),
+    ("6", 25_000_000, 35_000_000, "MHC"),
+    ("8", 8_000_000, 12_000_000, "inv8p23"),
+    ("17", 40_000_000, 45_000_000, "inv17q21"),
+)
+"""Regions excluded before pruning, in GRCh37 coordinates.
+
+Long-range LD confounds a PCA rather than merely adding noise to it: a single haplotype
+block spanning tens of megabases contributes enough correlated markers to claim a principal
+component outright, and the resulting axis separates inversion carriers from non-carriers
+while looking exactly like an ancestry axis. Price et al. (2008, Am J Hum Genet) is the
+standard reference for excluding them.
+
+**This is the conservative core of that list, not the whole of it.** The four here -- the
+lactase region, the MHC, and the 8p23 and 17q21.31 inversions -- are the ones whose extents
+are not in doubt. Reproducing the full table from memory is exactly the sort of
+plausible-looking fabrication AGENTS.md 6 forbids, and the cost of stopping short is a few
+thousand markers out of hundreds of thousands. Extend it from the paper, not from recall.
+"""
+
+_PCA_DEFAULTS: Final[Mapping[str, Any]] = {
+    # Rare variants are the wrong input to a PCA twice over: their loadings are dominated
+    # by drift rather than by shared ancestry, and a consumer array carries few of them
+    # well. 5% is the usual floor.
+    "maf": 0.05,
+    # 1000 Genomes phase 3 is called at essentially 100%, so this is a tripwire for a
+    # damaged input rather than a filter that does routine work.
+    "max_missing": 0.02,
+    # Window, step and r^2 for --indep-pairwise. A physical window rather than a variant
+    # count, so the thinning does not get denser wherever the panel does.
+    "window": "200kb",
+    "step": 1,
+    "r2": 0.2,
+}
+"""Effective settings when the manifest declares none.
+
+Recorded in the provenance sidecar under ``settings`` rather than left implicit. The
+alternative -- relying on ``transform_version`` alone -- means a changed default silently
+leaves every existing artifact looking current, and this is an artifact somebody waits
+hours for and will not rebuild on a hunch.
+"""
+
+_CHROM_IN_FILENAME: Final[re.Pattern[str]] = re.compile(r"\.chr([0-9]{1,2}|X|Y|MT|M)\.", re.I)
+"""Which chromosome a panel file holds, read from the name the manifest pins.
+
+Reading the name is safe here only because the manifest pins it and the fetcher verifies
+the file's digest against that entry, so the name is as trustworthy as the bytes. It is
+still cross-checked: each conversion passes ``--chr N`` for the N the name claims, so a
+file whose contents disagree yields no variants and fails loudly instead of contributing
+the wrong chromosome's markers.
+"""
+
+
+@dataclass(frozen=True)
+class _PcaSettings:
+    """Resolved filter and pruning settings for one run."""
+
+    maf: float
+    max_missing: float
+    window: str
+    step: int
+    r2: float
+
+    @classmethod
+    def resolve(cls, params: Mapping[str, Any]) -> _PcaSettings:
+        merged = {**_PCA_DEFAULTS, **{k: v for k, v in params.items() if k in _PCA_DEFAULTS}}
+        try:
+            settings = cls(
+                maf=float(merged["maf"]),
+                max_missing=float(merged["max_missing"]),
+                window=str(merged["window"]),
+                step=int(merged["step"]),
+                r2=float(merged["r2"]),
+            )
+        except (TypeError, ValueError) as exc:
+            raise ProcessError(f"build_pca_marker_subset: unusable settings ({exc})") from None
+        if not 0.0 <= settings.maf < 0.5:
+            raise ProcessError(f"maf must be in [0, 0.5), got {settings.maf}")
+        if not 0.0 <= settings.max_missing <= 1.0:
+            raise ProcessError(f"max_missing must be in [0, 1], got {settings.max_missing}")
+        if not 0.0 < settings.r2 <= 1.0:
+            raise ProcessError(f"r2 must be in (0, 1], got {settings.r2}")
+        if settings.step < 1:
+            raise ProcessError(f"step must be at least 1, got {settings.step}")
+        return settings
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "maf": self.maf,
+            "max_missing": self.max_missing,
+            "window": self.window,
+            "step": self.step,
+            "r2": self.r2,
+            "long_range_ld_excluded": [
+                f"{chrom}:{start}-{end}" for chrom, start, end, _ in _PCA_LONG_RANGE_LD_GRCH37
+            ],
+        }
+
+
+@dataclass(frozen=True)
+class _PanelInput:
+    chrom: int
+    path: Path
+    sha256: str
+
+
+_PGEN_COMPANIONS: Final[tuple[str, ...]] = (".pvar", ".psam")
+"""A pgen is a fileset, not a file. All three are promoted and all three are digested."""
+
+
+def _companion(output: Path, suffix: str) -> Path:
+    return output.with_name(output.stem + suffix)
+
+
+def _pvar_variants(pvar: Path) -> int:
+    """Count data lines in a .pvar. Header lines start with ``#``, comments with ``##``."""
+    try:
+        with pvar.open("r", encoding="utf-8") as handle:
+            return sum(1 for line in handle if line.strip() and not line.startswith("#"))
+    except OSError as exc:
+        raise ProcessError(f"{pvar.name}: cannot count variants ({exc})") from exc
+
+
+def _autosomal_panel_inputs(
+    source: Source, source_dir: Path, input_digests: Mapping[str, str] | None
+) -> tuple[_PanelInput, ...]:
+    """The source's per-autosome genotype VCFs, in chromosome order, with their digests."""
+    found: list[_PanelInput] = []
+    for item in source.files:
+        match = _CHROM_IN_FILENAME.search(item.filename)
+        if match is None:
+            continue
+        token = match.group(1).upper()
+        if not token.isdigit() or not 1 <= int(token) <= 22:
+            continue
+        path = _inside(source_dir, item.filename, label="input")
+        if not path.is_file():
+            raise ProcessError(f"panel input {item.filename} is missing; fetch this source first")
+        digest = (input_digests or {}).get(item.filename) or _sha256(path)
+        found.append(_PanelInput(chrom=int(token), path=path, sha256=digest))
+    if not found:
+        raise ProcessError(
+            "no per-autosome genotype VCF found in this source. The filenames the manifest "
+            "pins are what identifies them, and none matched `.chr<1-22>.`"
+        )
+    return tuple(sorted(found, key=lambda item: item.chrom))
+
+
+def _panel_input_digest(inputs: Sequence[_PanelInput]) -> str:
+    """One digest over the ordered set, so any chromosome changing invalidates the whole."""
+    joined = "\n".join(f"{item.path.name} {item.sha256}" for item in inputs)
+    return hashlib.sha256(joined.encode("utf-8")).hexdigest()
+
+
+def _write_long_range_ld_bed(path: Path) -> None:
+    """Write the exclusion regions for ``--exclude bed1`` (1-based, fully closed)."""
+    lines = [
+        f"{chrom}\t{start}\t{end}\t{label}"
+        for chrom, start, end, label in _PCA_LONG_RANGE_LD_GRCH37
+    ]
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
+
+
+def _pca_work_dir(output: Path) -> Path:
+    """Scratch beside the output, hidden and named after it, as the chunked steps are."""
+    return output.with_name(f".{output.name}.work")
+
+
+def _prune_one_chromosome(
+    plink: Plink2,
+    item: _PanelInput,
+    *,
+    work: Path,
+    exclusions: Path,
+    settings: _PcaSettings,
+    stamp: str,
+) -> Path:
+    """Filter, prune and extract one chromosome. Returns the pruned fileset's prefix.
+
+    **Restartable per chromosome.** On real 1000 Genomes each pass is minutes and there are
+    twenty-two of them, so losing the lot to an interrupted run three hours in is not a
+    theoretical cost. The stamp binds a finished chromosome to the input digest and the
+    settings that produced it, so a rerun with either changed redoes the work rather than
+    trusting a file that merely exists -- which is the distinction the M2.3 chunk state
+    already had to learn.
+    """
+    pruned = work / f"pruned{item.chrom}"
+    marker = work / f"pruned{item.chrom}.stamp"
+    written = all(pruned.with_suffix(s).is_file() for s in (".pgen", *_PGEN_COMPANIONS))
+    if written and marker.is_file() and marker.read_text(encoding="utf-8").strip() == stamp:
+        return pruned
+
+    converted = work / f"chr{item.chrom}"
+    plink.run(
+        [
+            "--vcf",
+            str(item.path),
+            "--chr",
+            str(item.chrom),
+            "--snps-only",
+            "just-acgt",
+            "--min-alleles",
+            "2",
+            "--max-alleles",
+            "2",
+            "--maf",
+            str(settings.maf),
+            "--geno",
+            str(settings.max_missing),
+            # 1000 Genomes carries repeated variant IDs. Excluding every copy rather than
+            # keeping the first is the same rule the matcher applies to duplicate probes:
+            # with nothing to choose between them, choosing is manufacturing an answer.
+            "--rm-dup",
+            "exclude-all",
+            "--exclude",
+            "bed1",
+            str(exclusions),
+            "--make-pgen",
+            # --pmerge-list requires position-sorted inputs and says so; this is what
+            # guarantees it rather than hoping the panel was written in order.
+            "--sort-vars",
+        ],
+        out=converted,
+    )
+    plink.run(
+        [
+            "--pfile",
+            str(converted),
+            "--indep-pairwise",
+            settings.window,
+            str(settings.step),
+            str(settings.r2),
+        ],
+        out=converted,
+    )
+    plink.run(
+        [
+            "--pfile",
+            str(converted),
+            "--extract",
+            str(converted.with_suffix(".prune.in")),
+            "--make-pgen",
+        ],
+        out=pruned,
+    )
+    marker.write_text(stamp + "\n", encoding="utf-8", newline="\n")
+    for suffix in (".pgen", ".pvar", ".psam", ".prune.in", ".prune.out"):
+        converted.with_suffix(suffix).unlink(missing_ok=True)
+    return pruned
+
+
+def _merge_pruned(plink: Plink2, prefixes: Sequence[Path], *, work: Path) -> Path:
+    """Combine the per-chromosome pruned filesets into one. Returns the merged prefix."""
+    if len(prefixes) == 1:
+        return prefixes[0]
+    listing = work / "merge-list.txt"
+    listing.write_text(
+        "\n".join(str(prefix) for prefix in prefixes) + "\n", encoding="utf-8", newline="\n"
+    )
+    merged = work / "merged"
+    plink.run(["--pmerge-list", str(listing), "pfile", "--make-pgen"], out=merged)
+    return merged
+
+
+def _promote_fileset(prefix: Path, output: Path) -> None:
+    """Move a finished pgen fileset onto the declared output name.
+
+    ``os.replace`` per file, after every one of them exists. The module's invariant is that
+    a killed run never leaves a file bearing the declared output name; building under a
+    scratch prefix and moving at the end is what keeps that true for a transform whose tool
+    writes wherever it is pointed.
+    """
+    sources = {suffix: prefix.with_suffix(suffix) for suffix in (".pgen", *_PGEN_COMPANIONS)}
+    missing = [s for s, path in sources.items() if not path.is_file()]
+    if missing:
+        raise ProcessError(f"{output.name}: PLINK did not write {', '.join(sorted(missing))}")
+    for suffix, path in sources.items():
+        os.replace(path, _companion(output, suffix) if suffix != ".pgen" else output)
+
+
+def _run_pca_subset(
+    declared: PostProcess,
+    source: Source,
+    source_dir: Path,
+    *,
+    verify_only: bool,
+    progress: ProcessProgressCallback | None,
+    input_digests: Mapping[str, str] | None,
+) -> ProcessResult:
+    from genetics.external.plink2 import Plink2, Plink2Error
+
+    output_name = str(declared.params["output"])
+    output = _inside(source_dir, output_name, label="output")
+    if output.suffix != ".pgen":
+        return ProcessResult(
+            declared.step,
+            ProcessStatus.FAILED,
+            output_name,
+            detail=f"output must name a .pgen fileset, got {output_name!r}",
+        )
+
+    try:
+        settings = _PcaSettings.resolve(declared.params)
+        inputs = _autosomal_panel_inputs(source, source_dir, input_digests)
+    except ProcessError as exc:
+        if verify_only and not output.is_file():
+            return ProcessResult(declared.step, ProcessStatus.PENDING, output_name, detail=str(exc))
+        return ProcessResult(declared.step, ProcessStatus.FAILED, output_name, detail=str(exc))
+
+    combined = _panel_input_digest(inputs)
+    expected = {
+        **_expected_provenance(
+            declared,
+            inputs[0].path,
+            combined,
+            input_filename=f"{len(inputs)} autosomal genotype VCFs",
+        ),
+        "settings": settings.as_dict(),
+    }
+
+    if output.is_file():
+        try:
+            recorded = validate_provenance(
+                output,
+                expected=expected,
+                expected_step=declared.step,
+                expected_transform_version=declared.definition.transform_version,
+            )
+            _validate_companions(output, recorded)
+        except ProcessError as exc:
+            if verify_only:
+                return ProcessResult(
+                    declared.step, ProcessStatus.FAILED, output_name, detail=str(exc)
+                )
+        else:
+            status = ProcessStatus.VERIFIED if verify_only else ProcessStatus.ALREADY_PRESENT
+            return ProcessResult(declared.step, status, output_name, int(recorded["rows"]))
+
+    if verify_only:
+        # Not built is not broken -- the same distinction `_run_anchors` draws, and for the
+        # same reason: `refs verify` must not call a checksum-clean 16.75 GB download
+        # unhealthy because an hours-long transform has not been asked for yet.
+        return ProcessResult(
+            declared.step,
+            ProcessStatus.PENDING,
+            output_name,
+            detail="not built yet; run `genetics refs fetch` for this source",
+        )
+
+    work = _pca_work_dir(output)
+    try:
+        plink = Plink2.discover()
+        work.mkdir(parents=True, exist_ok=True)
+        exclusions = work / "long-range-ld.bed"
+        _write_long_range_ld_bed(exclusions)
+        stamp = hashlib.sha256(
+            json.dumps({"input": combined, "settings": settings.as_dict()}, sort_keys=True).encode(
+                "utf-8"
+            )
+        ).hexdigest()
+
+        prefixes: list[Path] = []
+        seen = 0
+        for item in inputs:
+            prefix = _prune_one_chromosome(
+                plink,
+                item,
+                work=work,
+                exclusions=exclusions,
+                settings=settings,
+                stamp=stamp,
+            )
+            prefixes.append(prefix)
+            seen += _pvar_variants(_companion(prefix.with_suffix(".pgen"), ".pvar"))
+            if progress is not None:
+                progress(ProcessProgressEvent(declared.step, seen))
+
+        merged = _merge_pruned(plink, prefixes, work=work)
+        _promote_fileset(merged, output)
+        rows = _pvar_variants(_companion(output, ".pvar"))
+        if rows == 0:
+            raise ProcessError(f"{output.name}: pruning left no markers")
+        _write_provenance(
+            output,
+            {**expected, "companions": _companion_digests(output)},
+            rows,
+        )
+        validate_provenance(output, expected=expected, actual_rows=rows)
+    except (OSError, Plink2Error, ProcessError, ValueError) as exc:
+        # Leave nothing bearing the declared name. A half-promoted fileset is worse than no
+        # fileset: it satisfies every "is it there?" check `refs status` makes while being
+        # unreadable, and the sidecar that would have caught that is the part not written.
+        for suffix in (".pgen", *_PGEN_COMPANIONS):
+            _companion(output, suffix).unlink(missing_ok=True)
+        provenance_path(output).unlink(missing_ok=True)
+        return ProcessResult(declared.step, ProcessStatus.FAILED, output_name, detail=str(exc))
+
+    # The work directory is removed only here, on success, because it holds a second copy of
+    # every marker in the artifact. A failed run keeps it so that a rerun resumes from the
+    # chromosomes that finished -- which the stamps are what make safe.
+    shutil.rmtree(work, ignore_errors=True)
+    return ProcessResult(declared.step, ProcessStatus.CREATED, output_name, rows)
+
+
+def _companion_digests(output: Path) -> dict[str, str]:
+    return {suffix: _sha256(_companion(output, suffix)) for suffix in _PGEN_COMPANIONS}
+
+
+def _validate_companions(output: Path, recorded: Mapping[str, Any]) -> None:
+    """Check the .pvar and .psam against the digests the sidecar recorded.
+
+    ``validate_provenance`` hashes the artifact it is pointed at, and for a pgen that is one
+    third of the thing. A .psam swapped for one listing different samples would leave the
+    .pgen byte-identical and every downstream projection silently mislabelled.
+    """
+    stored = recorded.get("companions")
+    if not isinstance(stored, Mapping):
+        raise ProcessError(f"{provenance_path(output).name}: records no companion digests")
+    for suffix in _PGEN_COMPANIONS:
+        path = _companion(output, suffix)
+        if not path.is_file():
+            raise ProcessError(f"{output.stem}{suffix} is missing")
+        if stored.get(suffix) != _sha256(path):
+            raise ProcessError(f"{path.name} does not match the digest recorded for it")
+
+
 def run(
     source: Source,
     *,
@@ -1391,6 +1887,30 @@ def run(
             )
             continue
         try:
+            if declared.step == "build_pca_marker_subset":
+                # Routed before the input resolution below, which assumes one named input
+                # file: this step's input is the whole set of per-autosome VCFs and its
+                # provenance digest is taken over all of them together.
+                #
+                # Inside the try, not before it. The executor catches what it can predict,
+                # and this is the net for what it cannot -- an unreadable companion file
+                # caught mid-validation, say. Dispatching ahead of the try would have made
+                # this the one step whose unexpected failure escaped `run()` as a traceback
+                # instead of a FAILED result, and `refs fetch` would have died on it rather
+                # than reporting it.
+                results.append(
+                    _run_pca_subset(
+                        declared,
+                        source,
+                        source_dir,
+                        verify_only=verify_only,
+                        progress=progress,
+                        input_digests=input_digests,
+                    )
+                )
+                if results[-1].status is ProcessStatus.FAILED:
+                    break
+                continue
             input_name = str(declared.params["input"])
             input_path = _inside(source_dir, input_name, label="input")
             input_sha256 = (input_digests or {}).get(input_name)
@@ -1457,6 +1977,7 @@ def assert_registry_is_honest() -> None:
         "extract_rsid_merge_table",
         "extract_dbsnp_variant_index",
         "extract_build_anchors",
+        "build_pca_marker_subset",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:

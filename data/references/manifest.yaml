@@ -260,9 +260,17 @@ sources:
   # --------------------------------------------------------------------------
   # One source, two roles, and the reason `imputation_panel` names a role rather than
   # banning subsetting outright: this panel feeds both the PCA projection (M5.3, which
-  # legitimately reduces it to array-overlapping markers) and imputation (M8, which
-  # must have it whole -- AGENTS.md 5.5). Reducing it in place is forbidden; writing a
+  # legitimately reduces it to a pruned marker subset) and imputation (M8, which must
+  # have it whole -- AGENTS.md 5.5). Reducing it in place is forbidden; writing a
   # separate PCA subset beside it is not.
+  #
+  # `build_pca_marker_subset` writes that subset *beside* the payload rather than into a
+  # cache outside the checkout, and that is only correct because of what it does not do.
+  # It prunes the panel and nothing else -- common autosomal biallelic SNPs, outside the
+  # known long-range LD regions, thinned by LD -- so the artifact is a function of public
+  # 1000 Genomes data alone. The roadmap's "array-overlapping markers" happens later, in
+  # the eigenvector build, where an export is genuinely in hand; a subset chosen by one
+  # person's chip would be both wrong for the next person and no longer public data.
   # --------------------------------------------------------------------------
   - id: thousand_genomes_phase3_grch37
     name: 1000 Genomes phase 3 GRCh37 genotypes

@@ -14,8 +14,45 @@ the source of truth for build state.
 
 ---
 
+## Next up
+
+M0–M4 are done and the M4 slice checkpoint passed. M5 is open, and **the two things
+standing in front of it are not code.** Both are recorded in full under
+[M5.3](#m5--ancestry); repeated here because they are the reason M5 stalls if nobody acts.
+
+1. **Fetch 1000 Genomes.** `refs status` reports it `missing  A
+   thousand_genomes_phase3_grch37  0/25  16.75 GB`. Nothing downstream of M5.2 can run
+   without it. One command — `genetics refs fetch --only thousand_genomes_phase3_grch37`
+   (`--only` is required; the source is `required: false`) — then roughly 30–90 minutes of
+   download and, on the same command, one to three hours of `build_pca_marker_subset`.
+   ~33.5 GB peak disk. **PLINK 2 must be installed first** or the transform fails after the
+   whole download completes. Two consequences worth knowing before starting: **24 of the 25
+   files are unpinned**, so the first fetch defines their digests and `data/references/
+   manifest.lock` — which *is* committed — comes back with 24 new entries to review; and the
+   post-process runs inside `refs fetch` with no flag to skip it.
+
+2. **Resolve HGDP, and decide whether M5.3 waits for it.** `hgdp_grch37` and `sgdp` are
+   both tier B with `version: unresolved` and no file list: the HGDP collection on the 1000G
+   FTP is GRCh38 high-coverage *sequence*, not the GRCh37 genotype panel, and SGDP publishes
+   several differently-processed releases (one named `knownbugs.not_recommended`). M2.3
+   deliberately wrote no URL rather than a plausible one. Somebody has to find the real
+   distributions and verify them against the live server.
+
+   **This is a scope decision, not just a chore.** 1000 Genomes alone is tier A, fully
+   pinned, and sufficient for a working PCA — 2,504 samples across 26 populations, with the
+   sample-to-population map already in the manifest. HGDP and SGDP add resolution *within*
+   continental groups, which matters most to [M5.5](#m5--ancestry)'s "nearest reference
+   populations" and least to M5.4's coordinates. M5.3 can ship 1000G-only and treat the
+   others as a later widening, or block until they are resolved. **Settle this before
+   starting M5.3's eigenvector build**, because it decides what that artifact contains.
+
+Everything else in M5 is ordinary work behind those two.
+
+---
+
 ## Table of contents
 
+- [Next up](#next-up)
 - [Definition of done](#definition-of-done-for-v1)
 - [Tech stack](#tech-stack-decided)
 - [Repository layout](#repository-layout)
@@ -1337,14 +1374,136 @@ section, that proves every layer.*
 
 ## M5 — Ancestry
 
-- [ ] **M5.1** PLINK 2 wrapper (`external/plink2.py`): subprocess, argument building,
+- [x] **M5.1** PLINK 2 wrapper (`external/plink2.py`): subprocess, argument building,
       error surfacing, version pinning.
-- [ ] **M5.2** Convert normalized table → PLINK pgen; harmonize alleles against the
+      - **The pin is enforced, not documented.** `Plink2.discover()` runs the version probe
+        from `data/tools.yaml` and refuses anything else, because a wrapper that executed
+        whatever answered to the name `plink2` would quietly undo AGENTS.md §4.9 — and
+        ancestry coordinates from an untested alpha build look exactly like ancestry
+        coordinates from the pinned one.
+      - **Errors are relayed from stderr; warnings are parsed out of the log.** The two
+        differ because PLINK's channels differ. Its whole error goes to stderr and nothing
+        else does, so quoting it is exact — and it has to be, since the second line of
+        `Error: Unrecognized flag (...)` is `For more info, try ...`, unwrapped and
+        unprefixed, and a length-based continuation rule would drop the actionable half.
+        Warnings have no channel of their own and arrive interleaved with progress output,
+        so they are recovered from PLINK's fixed-width wrapping. That heuristic is biased
+        toward truncating on purpose: the lines after a warning are `Writing <absolute
+        path> ... done.`, so over-reading puts the machine's directory layout into every
+        warning. The first implementation did exactly that, which is why there is a
+        regression test built from a real log.
+      - **The log's header is never surfaced.** It opens with the machine's hostname and
+        working directory. `.gitignore` blocks `*.log`, but an exception travels further
+        than a file does.
+      - Exit codes were read off the pinned build rather than guessed: 3 unreadable file,
+        8 unrecognised flag, 13 empty input.
+      - `find_executable` moved to `refs/tools.py` so `doctor` and this share one lookup.
+        Two copies is how M2.5 produced a `doctor` that reported PLINK 2 missing straight
+        after installing it.
+- [x] **M5.2** Convert normalized table → PLINK pgen; harmonize alleles against the
       reference panel; handle strand and allele-order mismatches explicitly.
-- [ ] **M5.3** Build reference PCA from 1000G + HGDP (+SGDP) on array-overlapping markers;
+      - **The intermediate is a VCF because a single sample cannot establish REF.** PLINK 1
+        `.ped`/`.map` has no REF/ALT concept, so PLINK assigns them from allele frequency —
+        and with one sample that is a coin toss between 0, 0.5 and 1. Every marker's
+        reference allele would be decided by that sample's own genotype, which is backwards:
+        M5.4 subtracts reference means and multiplies by reference loadings, so an allele
+        coded against the wrong reference is a coordinate with its sign flipped.
+      - **Allele order is not information.** `a1`/`a2` are alphabetically sorted by M1, so
+        pairing `a1` with REF would read an artefact of sorting as biology. Orientation is
+        decided by set membership and emitted as allele indices.
+      - **Strand-ambiguous sites are dropped whole, heterozygotes included.** `AT` encodes
+        to `0/1` on either strand, so keeping it looks free — and M3.2's matcher does keep
+        it, correctly, because there the question is which outcome one card reports. Here
+        the question is distributional: keeping only the heterozygotes makes missingness
+        depend on genotype, so the site's surviving dosages are all exactly 1, and
+        mean-imputation then pulls the projection toward a value the data never supported.
+      - **Two consequences worth carrying to M5.3.** A/C/G/T is two complementary pairs, so
+        any allele set of three or more contains one and is ambiguous: **every surviving
+        site is biallelic**, one of A/C, A/G, C/T, G/T. And each of those unioned with its
+        own complement is all four bases, so **a homozygote can never be an allele
+        mismatch** — only a heterozygote can. A suite that used homozygotes throughout
+        would look thorough and never exercise that branch.
+      - **Autosomes only, and not as a parameter.** PLINK refuses a chrX record outright
+        (`Error: chrX is present in the input file, but no sex information was provided`),
+        and a doubled hemizygous call written as a diploid homozygote would be a fabricated
+        second allele. Non-autosomal conversion needs M6.4's ploidy plumbing.
+      - The report's ten outcomes **partition the array's autosomal positions exactly
+        once**, so the count is readable as coverage rather than as overlapping tallies —
+        which is what M9.3's per-score coverage figure has to be built from.
+      - Verified against the real pinned binary: a synthetic panel over the committed male
+        fixture gave 2,896 records from 11,519 autosomal positions, and **every written
+        record decoded back to the original call or its exact complement, none wrong**.
+      - `.gitignore` gained `*.pvar.zst` and `*-temporary.*`: PLINK's conversion
+        intermediates are zstd-compressed, so `*.pvar` does not see them, and they survive
+        a crash.
+- [~] **M5.3** Build reference PCA from 1000G + HGDP (+SGDP) on array-overlapping markers;
       LD-prune first. Cache the eigenvectors as a fetched-reference artifact.
+      - **Done: the marker subset.** `build_pca_marker_subset` is implemented and no longer
+        the registry's only lie — it was marked `implemented=False` while the manifest
+        declared it, so `refs fetch` reported it PENDING forever. Per autosome: convert to
+        pgen keeping only common biallelic ACGT SNPs, drop the long-range LD regions,
+        LD-prune, extract; then one `--pmerge-list` across the twenty-two.
+      - **The step is deliberately *not* array-restricted, and that reverses the flag the
+        registry carried.** `output_is_genotype_derived=True` forces an output outside the
+        checkout, and it means "this transform reads a genotype export" — which the
+        milestone's own wording ("array-overlapping markers") made look true, since an
+        array's marker list has to come from somebody's file. Pruning the panel alone keeps
+        the artifact a function of public 1000G data, so it lives beside the payload exactly
+        as the manifest entry already said it could. **The array intersection moves to the
+        eigenvector build**, where an export is genuinely in hand and where a subset chosen
+        by one person's chip is not silently reused for the next person's. Give this step a
+        marker list and the flag goes back to True with the output following it out of the
+        tree.
+      - **Long-range LD regions are excluded before pruning.** Not a refinement: a single
+        inversion spanning tens of megabases contributes enough correlated markers to claim
+        a principal component outright, and the resulting axis separates inversion carriers
+        from non-carriers while looking exactly like an ancestry axis. LCT, MHC, 8p23 and
+        17q21.31 — the conservative core of Price et al. (2008, *Am J Hum Genet*), not the
+        whole table, because reproducing the rest from memory is the fabrication AGENTS.md
+        §6 forbids.
+      - **The effective settings are written into the provenance sidecar**, not left to
+        `transform_version`. A changed default would otherwise leave every existing artifact
+        looking current, and this is an artifact somebody waits hours for and will not
+        rebuild on a hunch. Verified: flipping `r2` from 0.2 to 0.1 invalidates and rebuilds
+        to a different marker count with no version bump.
+      - **A pgen is three files and the sidecar covers all three.** `validate_provenance`
+        hashes what it is pointed at; a `.psam` swapped for one naming different samples
+        leaves the `.pgen` byte-identical and every projection silently mislabelled. Row
+        count is read from the `.pvar` for the same reason.
+      - Restartable per chromosome, with the stamp bound to the input digest *and* the
+        settings — twenty-two passes of minutes each, so losing the lot to an interruption
+        three hours in is not a theoretical cost. The work directory survives a failure and
+        is removed only on success, where it would otherwise hold a second copy of every
+        marker in the artifact.
+      - `estimated_workspace_bytes` now falls back to the whole source for a step that names
+        no `input`; it had been reporting a 16.75 GB transform as needing no disk at all.
+      - **The whole chain was run once, end to end, against the real pinned binary.** Over a
+        panel synthesised on the committed fixture's own coordinates: subset built (6,288
+        markers), `--pca 4 allele-wts` over it, M5.2 harmonised the fixture against the
+        resulting `.pvar` (6,288 records, every one `as_written`, 5,231 array positions
+        correctly reported `not_in_panel`, and the two summing to the fixture's 11,519
+        autosomal positions), and `--score` produced PC coordinates for the sample. So the
+        artifact this step writes is one M5.4 can actually consume.
+      - **Two things that only showed up by running it, both for M5.4/M5.3's remaining
+        half.** `--indep-pairwise` refuses a panel with fewer than 50 samples, and `--score`
+        refuses to impute frequencies from fewer than 50 — which for a *single* sample means
+        **the projection needs `--read-freq` against a reference `.afreq`**. The eigenvector
+        build must therefore emit `--freq` alongside `--pca allele-wts`; without it M5.4
+        fails at the last step with an error about allele frequencies rather than anything
+        that sounds like a missing artifact.
+      - **Still open, and the blockers are data rather than code** — see
+        [Next up](#next-up) for both: **1000 Genomes is not downloaded** (`refs status`:
+        `missing  0/25  16.75 GB`), so nothing here has run against the real panel; and
+        **HGDP/SGDP remain tier B with `version: unresolved`** (M2.3). The remaining code is
+        the reference PCA itself: `--pca allele-wts` plus `--freq` over this subset,
+        intersected with the array, cached as the fetched artifact M5.4 scores against.
 - [ ] **M5.4** Project the sample onto reference PCs via `--score`
       ([AGENTS.md §4.6](AGENTS.md) — PLINK 2, **not** ADMIXTURE).
+      - **Needs `--read-freq` pointing at the reference's own `.afreq`.** Measured, not
+        assumed: with one sample PLINK refuses to impute allele frequencies and stops with
+        "less than 50 samples are available to impute them from". Flags that worked in the
+        M5.3 trial run: `--score <ref>.eigenvec.allele 2 5 header-read no-mean-imputation
+        variance-standardize --score-col-nums 6-<n>`.
 - [ ] **M5.5** Continuous ancestry coordinates + nearest reference populations with
       distances. Prefer this over pie-chart percentages; if percentages are shown, show
       their uncertainty.
@@ -1611,6 +1770,9 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-21 | M5.1–M5.3 review | Diff-driven self-pass over the session's changes. **Four findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it.** **1362 tests + 5 skips** (6 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern was a refactor quietly removing something, and two of the four were mine from earlier in the same session.** (1) `is_snp_site` accepted a panel record whose ALT repeats its REF, and that survives every later check: the allele index keeps the last position for a repeated letter, `orient` returns a clean `AS_WRITTEN`, and the writer emits `1/1` at a site whose ALT *is* the reference — indistinguishable downstream from a real homozygous-alternate call. Now requires distinct alleles. (2) Moving the tool lookup out of `doctor._which` into `tools.find_executable` dropped the blanket `except Exception` around it. I could not reproduce a failure — Python 3.13's `is_file()` already swallows the realistic cases — but `doctor`'s documented contract is that it *describes* a broken environment rather than raising inside one, and a refactor should not narrow a promise silently. Restored, with a test that monkeypatches the lookup to raise; the first version of that test used a malformed state file and passed with the guard removed, which is the second placebo test this session and the second one the mutation run caught. (3) I dispatched `build_pca_marker_subset` *before* `run()`'s try/except, making it the one step whose unpredicted failure escaped as a traceback — `refs fetch` would have died on it rather than reporting it, after however many gigabytes had downloaded. Moved inside. (4) A dead `_PROBE_TIMEOUT_S` in the PLINK wrapper with a docstring claiming it matched the installer's probe; nothing used it. **Also ran the whole chain end to end against the real binary** — subset, PCA, harmonisation, projection — which is where the two M5.4 facts recorded above came from. |
+| 2026-08-21 | M5.3 (part) | `build_pca_marker_subset`. **1356 tests + 5 skips** (33 new); ruff, `ruff format` and `mypy --strict` clean. Run end to end against the real pinned PLINK over a synthetic 22-chromosome, 60-sample panel: **5,720 markers in, 971 out**, artifact accepted by `--pca 4 allele-wts` (PC1 eigenvalue 7.80 against 1.47 for PC2, which is the two planted groups) and read straight back by M5.2's `read_panel_sites` with no adapter. **The milestone's real decision was a privacy flag, and I reversed one.** The registry marked this step `output_is_genotype_derived=True`, which makes `run()` refuse it outright and demands a cache root outside the repository; the manifest entry beside it said the opposite, that 'writing a separate PCA subset beside it is not [forbidden]'. Both had been written months apart and neither was wrong on its own terms — the flag means 'this transform reads a genotype export', and the roadmap's phrase 'array-overlapping markers' makes that true, because an array's marker list comes from somebody's file. The resolution was to change what the step does rather than to argue about the flag: prune the panel and nothing else, and move the array intersection to the eigenvector build where an export is actually present. That keeps the artifact a function of public data, and it is also better engineering — a subset cut to one person's chip is wrong for the next person's. **The other decision worth recording is long-range LD.** Excluding LCT, MHC, 8p23 and 17q21.31 before pruning is not tidying: an inversion of that size supplies enough correlated markers to take a principal component on its own, and the axis it produces looks exactly like ancestry. I encoded the four regions I am certain of rather than reproducing Price et al.'s full table from memory, and said so in the constant — the alternative is a plausible-looking coordinate, which is the thing §6 exists to stop. **One test was a placebo and the mutation run caught it**: `test_a_failed_run_leaves_no_file_bearing_the_declared_name` failed PLINK at the prune step, before anything is promoted, so deleting the cleanup code changed nothing and the test still passed. Replaced with a run that prunes every marker away — the only failure that happens *after* the fileset is in place, and the reason the cleanup exists. 18 guards, each neutered in turn, each caught by a named test. |
+| 2026-08-21 | M5.1 + M5.2 | PLINK 2 wrapper and pgen conversion. **1323 tests + 5 skips** (81 new, 190 privacy-marked); ruff, `ruff format` and `mypy --strict` clean. PLINK 2 installed and every behaviour below verified against the real pinned build before it was written into a stub. **The milestone's real content was that a single sample cannot establish which allele is REF**, and everything else followed from taking that seriously. The obvious conversion path is PLINK 1 `.ped`/`.map`, which has no REF/ALT concept and lets PLINK infer them from allele frequency — with n=1 that is the sample's own genotype deciding its own reference, and since M5.4 projects by subtracting reference means, every such marker contributes a coordinate with its sign flipped. So the intermediate is a VCF carrying the panel's REF/ALT, and orientation is set membership rather than column order. **The decision that took the thinking was strand-ambiguous heterozygotes.** `AT` encodes identically on both strands, so keeping it costs nothing locally, and M3.2 keeps exactly these — but M3.2 answers a per-card question and this one is distributional: retain only the heterozygotes and every homozygote at that site becomes missing, so the surviving dosages are all 1 and `--score`'s mean-imputation drags the projection somewhere the data never went. Dropped whole. **Two facts fell out of that which are worth having before M5.3**: every surviving site is biallelic (any set of 3+ bases contains a complementary pair), and a homozygote can never be an allele mismatch (each surviving set unioned with its complement is all four bases) — the second found by a test failing, because the mismatch case I had written used a homozygote and was silently exercising the strand-flip branch instead. **The one bug I introduced and caught by running it** was in the M5.1 warning parser: I assumed PLINK separated messages with a blank line, and it does not, so the first version swallowed five lines of `Writing <absolute path> ... done.` into a single warning — leaking the machine's directory layout into anything that displayed one. Fixed by reading PLINK's fixed-width wrapping instead, biased toward truncation, with a cap. Errors avoid the problem entirely by being relayed from stderr verbatim. All 15 new guards verified by neutering each in turn and confirming a named test fails. |
 | 2026-08-21 | M4.9–M4.10 review | Diff-driven self-pass over the session's changes. **Six findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it** -- the sixth by the pre-commit hook rather than by me. **1241 tests + 5 skips**; ruff, `ruff format` and `mypy --strict` clean. **The pattern was mine and it was the last review's pattern again: a comment claiming behaviour nothing behind it honoured** -- three of the five are that shape, written by me in the same session that recorded the lesson. **(1) A comment justified `log_level="warning"` by saying uvicorn would otherwise print a banner naming the *requested* host and port, announcing port 0 next to the real one.** It would not: `Server.startup` skips `_log_started_message` entirely whenever it is handed sockets, at every level. Confirmed by running the command at `info` and by reading the branch. The real reason is plainer -- three lines of framework chatter -- and the comment now says so. **(2) The address was announced before the app existed.** `_report` ran ahead of `create_app`, which mounts the static directory and raises on an installation missing its package data, so the failure printed "here is your dashboard, at this URL" and then a traceback for a server that never was. Reordered; the guard fails when the old order is put back. **(3) `genetics serve --json` printed prose on failure** while `genetics run --json` next door emitted `{"ok": false, "error": {...}}` for the same class of refusal -- an agent driving both had to special-case one, which is what [§3](AGENTS.md)'s "keep every command JSON-capable" exists to prevent. Now mirrors `run_cmd`, with `config` and `serve` as the two kinds. **(4) A test that asserts nothing on the platform that matters:** `if isinstance(found, Unavailable): assert ...` is a no-op on Linux, the one platform where the isolation works and so the only place a regression in the *other* branches would go unnoticed. Parametrized over Windows/Darwin/FreeBSD instead, so all three reasons are checked everywhere. **(5) The Ctrl+C comment overclaimed a "clean exit".** Measured instead of assumed: CTRL_BREAK to the running command on Windows stops it with no traceback and nothing on stderr, and an exit status of `0xC000013A` -- Windows' STATUS_CONTROL_C_EXIT, not a value this command chooses. A true CTRL_C_EVENT cannot be delivered to a child from a harness, so the comment now says which half is verified and which is not. **(6) `genetics check-staged` refused the first commit**, and it was right: `tests/test_cli_serve.py` spelled a tab-separated genotype row out in full to prove the startup report is scanned, which is a genotype row in a public repo whatever the surrounding test says it is for. Assembled at runtime with `"	".join(...)` instead, which is what `test_cli_run.py` already does for the same reason -- worth recording because the guard caught a file written by the person who had just finished reading the guard's own rules. **Also verified and clean:** the `check_bind_host` extraction is behaviour-preserving (the whole web suite passes unchanged); the socket is listening before the URL is printed, so a caller that connects the instant it reads the report lands in the accept backlog rather than being refused -- which the end-to-end test depends on and therefore demonstrates. |
 | 2026-08-21 | M4.9 + M4.10 | `genetics serve` and the OS-level offline guarantee. **1242 tests + 5 skips** (36 more); ruff, `ruff format` and `mypy --strict` clean; the M4 slice checkpoint run by hand and passed. **M4.9 turned out to be closing a hole rather than wrapping uvicorn.** `WebConfig` validates the host it is *given* and `is_local_address` accepts `localhost` by name -- it has to, a Host header writes it that way -- while `localhost` resolves through the hosts file, which a machine can be made to lie about. M4.3's `DEFAULT_HOST` docstring says exactly that and picks the numeric literal for exactly that reason, and then nothing checked the other side of it: every existing test asks the config object, which cannot know what the kernel handed out. A machine whose hosts file pointed `localhost` at its LAN address would have served an unauthenticated genome dashboard to the network with the suite green. The command now binds the socket itself and checks the *outcome* twice -- what `getaddrinfo` resolved, before any socket exists, and what `getsockname` reports after -- which is `is_wildcard_address`'s own lesson one layer down. `check_bind_host` was lifted out of `WebConfig.__post_init__` so the CLI and the app cannot disagree about what loopback means. **Three new guards verified by neutering them**, and the ordering one caught its own point: moving the resolved-address check below `socket()` fails the test that asserts nothing is bound while the address is being judged. **The self-pass caught one overclaim of mine**: an explicit `sys.stdout.flush()` documented as what lets a supervising process read the startup report off a pipe. `click.echo` always flushes and says so in its own docstring, so the line did nothing -- a claim nothing behind it honoured, the M4.6-M4.8 pattern again, mine this time. Removed; the requirement is held by a test that reads the report from a live process instead. **M4.10 is Linux-only and the roadmap now says so rather than implying coverage.** `unshare --map-root-user --net` takes the network from a child and everything it starts, which is the half M2.7's in-process patch can never reach; Windows has no unprivileged equivalent, so it skips with the reason printed. The isolation is **verified before anything is concluded from it and without sending a packet** -- the child is asked which interfaces it can see, not asked to reach something, because proving it by connecting would send real traffic on exactly the machine where the isolation silently did nothing. `GENETICS_REQUIRE_OS_ISOLATION` turns the skip into a failure and CI sets it on the Linux job, so "covered" and "skipped everywhere, forever" stop looking identical. **One defect found by running the test body rather than reading it**: the bundle-path assertion compared a resolved path against an unresolved temp dir, which passes nowhere -- Windows hands back an 8.3 short name and macOS a symlinked /tmp. **Not verified locally:** the Linux branch itself, since this machine has no WSL distro and no Docker; it runs first on CI. |
 | 2026-08-21 | M4.6–M4.8 review | Diff-driven self-pass over the session's changes. **Six findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it.** **1206 tests + 1 platform skip** (8 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern this time was a claim the markup or a docstring made that nothing behind it honoured** — three of the six are that shape, which is the M2 review's pattern arriving in a template layer rather than in Python. **(1) The one that mattered: run ids and card ids were concatenated into URLs.** A run id is a *directory name on disk* and `list_runs` reports whatever it finds, not only the names `check_run_id` would have written — so `/runs/evil%3Fgroup=tier` rendered every nav link on the page as `/runs/evil?group=tier#section-ancestry`, a query string injected into links the reader never set, and a `#` in a card id truncated the card URL and made the card unopenable. Autoescaping held, so it is not an escape; it is a URL built from unvalidated page content, which is exactly the habit `runselector` in app.js already had a comment written against ("the id here came out of a `<select>` in a document, not out of the store"). Fixed by moving URL construction into the view model as `run_path`/`card_path` and giving `Shell` and `CardView` their own addresses, so no template concatenates one — six templates were doing it, and a rule enforced in six places is the shape of problem this project keeps recording. **(2) `aria-modal="true"` was a false claim.** It tells a screen reader that everything outside the dialog is unavailable, and nothing made that true: a keyboard user could tab straight out into the grid behind it. Same defect class as the impossibility card's fabricated explanations, one layer up. The background is now `inert` while a card is open. **(3) A dead function with a docstring naming a caller that does not exist** — `resolvable_databases()`, "public for the tests that check…", and no test ever called it. Deleted. **(4) My own new guard was fail-open, and it is worth recording because it is the third time this project has hit it.** The test backing (2) asserted `"inert" in app_js`, which passes with the mechanism replaced by `data-x` because the word survives in the comment explaining it — a guard whose first casualty is its own documentation, the same trap M4.4 avoided for Python and I walked into for JavaScript. It now matches the `setAttribute('inert'` / `removeAttribute('inert'` calls. **(5) Two entries in the card field-coverage test were vacuous**, and they were vacuous for exactly the two fields whose rendering is *conditional*: `kind` and `bundle_format_version` only choose which sentence appears, so any fixed marker for them was satisfied by text present regardless. They are now excluded by name, each asserted by its own test, and the coverage check still counts them so a third such field cannot be dropped in silently. **(6) Two keys for one registry** — `"pgs catalog"` and `"pgscatalog"` both mapped to the PGS Catalog, and `PGS-Catalog` mapped to nothing and would have rendered as text with nothing to say why. The database name is now reduced to letters and digits before lookup. **Also verified and clean:** a card whose every optional block is the wrong shape (a string where a mapping belongs, `NaN`, `Infinity`, a negative frequency, a mapping where a title belongs) renders without raising, without printing a Python repr, without an unescaped tag and without `nan` on the page — the `.get`/`_number`/`_text` discipline holds; and a 22-URL sweep of every route and parameter combination against a real uvicorn process produced no 5xx, with path traversal 404ing. |
