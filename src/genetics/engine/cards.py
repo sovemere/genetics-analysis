@@ -196,10 +196,14 @@ class Ancestry(StrEnum):
     "European"/"EUR"/"european"/"White British" cannot be compared. These five codes have
     been stable since 1000G phase 3 and need no reference download to write down.
 
-    Finer labels (the twenty-six 1000G populations, HGDP, SGDP) arrive with M5.3, which is
-    where the reference panel is actually chosen; extending this enum is that milestone's
-    job. Until then a study is describable at continental granularity, which is the
-    granularity portability arguments are usually made at anyway.
+    Finer labels (the twenty-six 1000G populations) arrive with M5.3, which is where the
+    reference panel is actually chosen; extending this enum is that milestone's job. HGDP
+    and SGDP were named here too until 2026-08-22, when M5.3 scoped the panel to 1000G
+    alone -- HGDP is withdrawn by its publisher and SGDP's public subset averages two
+    samples per population. So the finer labels that arrive are 1000G's and no others, and
+    whole regions have none. Until then a study is describable at continental
+    granularity, which is the granularity portability arguments are usually made at
+    anyway.
     """
 
     AFR = "AFR"

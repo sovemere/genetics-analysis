@@ -387,8 +387,17 @@ repo and a non-starter on Windows.
 
 **Use PLINK 2.0 instead** — GPLv3, actively maintained, native Windows builds, and
 supports PCA projection of a sample onto reference eigenvectors via `--score`. Project
-onto 1000 Genomes phase 3 + HGDP (both open, GRCh37 available). This yields continuous
-ancestry coordinates, which are more honest than percentage pie charts anyway.
+onto **1000 Genomes phase 3**. This yields continuous ancestry coordinates, which are more
+honest than percentage pie charts anyway.
+
+**Corrected 2026-08-22: this used to say "1000 Genomes phase 3 + HGDP (both open, GRCh37
+available)", and the HGDP half is no longer true.** CEPH withdrew individual genotypes to
+comply with GDPR and now publishes only allele frequencies; the Illumina 650Y download the
+literature cites is 404. See the `hgdp_grch37` manifest entry for the four routes checked.
+The consequence is not that ancestry gets a little coarser — it is that **1000 Genomes has
+no Middle Eastern, North African, Oceanian, Central Asian, Siberian or unadmixed Indigenous
+American populations at all**, so "nearest reference population" has no right answer for
+those users and will confidently return a wrong one unless M5.5 is built to decline.
 
 ### 4.7 Haplogroup resolution is capped by the array
 
@@ -476,7 +485,9 @@ vendored). This tier alone supports the great majority of planned cards.
 | **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | Free; open access |
 | **Pan-UK Biobank** | GWAS across thousands of traits, multi-ancestry | **CC BY 4.0**, explicitly unrestricted |
 | **PharmGKB + CPIC** | Clinical annotations, dosing guidelines. PharmGKB now serves under **ClinPGx** — `pharmgkb.org/downloads` redirects to `clinpgx.org/downloads` and the historic `api.pharmgkb.org` host no longer resolves (checked 2026-08-15) | PharmGKB CC BY-SA 4.0 (share-alike — opt-in in the fetcher); CPIC free |
-| **1000 Genomes / HGDP / SGDP** | Reference panels, GRCh37 available | Open (Fort Lauderdale) |
+| **1000 Genomes** | Reference panel, GRCh37, 2,504 samples / 26 populations | Open (Fort Lauderdale) |
+| **HGDP** | ~~Reference panel~~ **withdrawn by CEPH for GDPR; no GRCh37 genotype distribution survives** (checked 2026-08-22) | n/a |
+| **SGDP** | Reference panel, GRCh37 (measured), but 70 of 345 samples need a signed letter and the public 279 span 130 populations | Open (Fort Lauderdale) + per-sample gate |
 | **AADR (Allen Ancient DNA)** | >10,000 ancient individuals at ~1.2M SNPs | Freely available, CC BY 4.0 |
 | **PhyloTree 17 / Haplogrep 3 trees** | mtDNA phylogeny, 6,380 haplogroups | Public GitHub repos |
 | **Europe PMC OA subset** | Full text for agent-side citation checking | CC or similar, per-article |
@@ -540,10 +551,17 @@ gracefully when absent, and prompt the user once.
 
 ### 5.4 Coverage assessment by section
 
-- **Ancestry — excellent.** 1000G + HGDP + SGDP + AADR are all open, and PLINK 2 PCA
-  projection plus ancient-DNA projection is a strong, fully free stack. Only weak spot
-  is haplogroup resolution (§4.7, §5.3), which is a marker-count and tree-freshness
-  problem, not a paywall.
+- **Ancestry — good, and downgraded from "excellent" on 2026-08-22.** PLINK 2 PCA
+  projection is a strong, fully free stack and 1000G is a solid panel. But **HGDP is gone**
+  (withdrawn for GDPR), **SGDP is ~2 samples per population** in its public subset, and
+  **AADR is still unresolved** — Harvard Dataverse answers 202 and the Reich Lab server
+  answers 200 with a body reading `no access`. So the panel is 1000G, and 1000G has no
+  MENA, Oceanian, Central Asian, Siberian or unadmixed Indigenous American populations.
+  **The weak spot is no longer haplogroup resolution; it is that whole regions of the world
+  have no reference population, and a nearest-neighbour report over an incomplete panel
+  names the least-bad match rather than declining.** That is a correctness requirement on
+  M5.5, and it reaches PRS confidence through §4.4. Haplogroup resolution (§4.7, §5.3)
+  remains a marker-count and tree-freshness problem, not a paywall.
 - **Physical health — very good.** ClinVar + GWAS Catalog + PGS Catalog + gnomAD cover
   it. **Pharmacogenomics is the strongest and most genuinely actionable area available,
   and is completely free** (PharmGKB + CPIC) — prioritise it. Monogenic findings are

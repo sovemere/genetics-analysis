@@ -31,22 +31,36 @@ standing in front of it are not code.** Both are recorded in full under
    manifest.lock` — which *is* committed — comes back with 24 new entries to review; and the
    post-process runs inside `refs fetch` with no flag to skip it.
 
-2. **Resolve HGDP, and decide whether M5.3 waits for it.** `hgdp_grch37` and `sgdp` are
-   both tier B with `version: unresolved` and no file list: the HGDP collection on the 1000G
-   FTP is GRCh38 high-coverage *sequence*, not the GRCh37 genotype panel, and SGDP publishes
-   several differently-processed releases (one named `knownbugs.not_recommended`). M2.3
-   deliberately wrote no URL rather than a plausible one. Somebody has to find the real
-   distributions and verify them against the live server.
+2. ~~**Resolve HGDP, and decide whether M5.3 waits for it.**~~ **Settled 2026-08-22:
+   M5.3 ships 1000G-only, and it is not waiting for anything.** Both panels were chased to
+   the live server and the answer for HGDP was not "unresolved", it was *gone*:
 
-   **This is a scope decision, not just a chore.** 1000 Genomes alone is tier A, fully
-   pinned, and sufficient for a working PCA — 2,504 samples across 26 populations, with the
-   sample-to-population map already in the manifest. HGDP and SGDP add resolution *within*
-   continental groups, which matters most to [M5.5](#m5--ancestry)'s "nearest reference
-   populations" and least to M5.4's coordinates. M5.3 can ship 1000G-only and treat the
-   others as a later widening, or block until they are resolved. **Settle this before
-   starting M5.3's eigenvector build**, because it decides what that artifact contains.
+   - **HGDP cannot be resolved.** CEPH withdrew individual genotypes for GDPR and now
+     serves only allele frequencies, which cannot back a PCA; `hagsc.org/hgdp/files.html`
+     — the Li et al. 2008 650Y download the literature cites — is 404 while the site root
+     still answers 200; the Rosenberg lab has only 517–2,810-marker subsets; and the CEPH
+     panel page distributes *DNA samples* under a purchase order, which was never a tier B
+     one-time step. The full evidence is in the manifest entry, which is now marked
+     `withdrawn-by-publisher` rather than left as a to-do nobody can complete.
+   - **SGDP is resolvable and deliberately deferred.** `cteam_extended.v4.maf0.1perc` is
+     live, is PLINK-format, and was *measured* to be GRCh37 (99.5% of 67,726 chr1 records
+     match dbSNP b157 on position and allele pair). But 70 of its 345 samples need a signed
+     letter, and the 279 public ones span 130 populations — about two samples each. That is
+     breadth in PCA space and useless as a population centroid, which is what
+     [M5.5](#m5--ancestry) wants. It is a later widening, not a blocker.
 
-Everything else in M5 is ordinary work behind those two.
+   **The consequence that matters is not the panel, it is [M5.5](#m5--ancestry).** 1000G
+   covers West/Central Africa, Europe, East Asia, the Indian subcontinent and admixed
+   Latin America. It has *nothing* for the Middle East and North Africa, Oceania, Central
+   Asia and Siberia, unadmixed Indigenous America, or deep-lineage Africa. So "nearest
+   reference population" has no right answer for those users and will return the least-bad
+   one — reporting a Lebanese or Iranian sample as Tuscan, an Indigenous American one as
+   Peruvian. That is a plausible-looking wrong answer with a number attached, and it feeds
+   PRS confidence through [M5.8](#m5--ancestry) ([AGENTS.md §4.4](AGENTS.md)), so the error
+   silently inflates confidence downstream. M5.5 must be able to decline to name a
+   population; see its entry.
+
+Everything else in M5 is ordinary work behind the download.
 
 ---
 
@@ -462,11 +476,14 @@ permanent in git history.*
       - [x] 1000 Genomes phase 3 GRCh37 — 16.75 GB, `imputation_panel: true`, declaring
             both `build_pca_marker_subset` and `convert_to_bref3`. EBI publishes no
             checksums, so these are lock-pinned on first fetch.
-      - [~] HGDP + SGDP — **demoted to tier B with instructions.** The HGDP collection on
-            the 1000G FTP is GRCh38 high-coverage sequence, not the GRCh37 genotype panel
-            M5 needs, and SGDP publishes several differently-processed releases (one named
-            `knownbugs.not_recommended`) whose selection is an M5.3 decision. Writing a
-            plausible URL would be the same failure as inventing a coordinate.
+      - [x] HGDP + SGDP — **demoted to tier B with instructions, and resolved at M5.3.**
+            Writing a plausible URL would have been the same failure as inventing a
+            coordinate, so M2.3 wrote none. That restraint paid: chased down on 2026-08-22,
+            **HGDP turned out to be withdrawn rather than unresolved** (CEPH removed
+            individual genotypes for GDPR; `hagsc.org` is 404) and SGDP's real obstacle is
+            that 70 of 345 samples need a signed letter, not that the release was ambiguous.
+            A plausible URL would have sent someone hunting for a file that no longer
+            exists. Both entries now carry the evidence.
       - [x] GWAS Catalog — real filenames differ from the obvious guess
             (`...-full.zip`, `gwas-catalog-studies.tsv`); only a rolling `latest/` exists.
       - [x] PGS Catalog metadata — see the §4.8 refinement below.
@@ -1486,8 +1503,12 @@ section, that proves every layer.*
       - `.gitignore` gained `*.pvar.zst` and `*-temporary.*`: PLINK's conversion
         intermediates are zstd-compressed, so `*.pvar` does not see them, and they survive
         a crash.
-- [~] **M5.3** Build reference PCA from 1000G + HGDP (+SGDP) on array-overlapping markers;
+- [~] **M5.3** Build reference PCA from **1000 Genomes** on array-overlapping markers;
       LD-prune first. Cache the eigenvectors as a fetched-reference artifact.
+      - **Scoped to 1000G-only on 2026-08-22, on evidence rather than convenience.** HGDP
+        is withdrawn and SGDP is ~2 samples per population; see [Next up](#next-up) and the
+        manifest entries. The panel set is not a placeholder to revisit later — it is the
+        answer, and M5.5 carries the cost.
       - **Done: the marker subset.** `build_pca_marker_subset` is implemented and no longer
         the registry's only lie — it was marked `implemented=False` while the manifest
         declared it, so `refs fetch` reported it PENDING forever. Per autosome: convert to
@@ -1541,12 +1562,16 @@ section, that proves every layer.*
         build must therefore emit `--freq` alongside `--pca allele-wts`; without it M5.4
         fails at the last step with an error about allele frequencies rather than anything
         that sounds like a missing artifact.
-      - **Still open, and the blockers are data rather than code** — see
-        [Next up](#next-up) for both: **1000 Genomes is not downloaded** (`refs status`:
-        `missing  0/25  16.75 GB`), so nothing here has run against the real panel; and
-        **HGDP/SGDP remain tier B with `version: unresolved`** (M2.3). The remaining code is
-        the reference PCA itself: `--pca allele-wts` plus `--freq` over this subset,
-        intersected with the array, cached as the fetched artifact M5.4 scores against.
+      - **One blocker left, and it is a download rather than a decision.** **1000 Genomes
+        is not fetched** (`refs status`: `missing  0/25  16.75 GB`), so nothing here has run
+        against the real panel. The panel-scope question that used to sit beside it is
+        settled above. The remaining code is the reference PCA itself: `--pca allele-wts`
+        plus `--freq` over this subset, intersected with the array, cached as the fetched
+        artifact M5.4 scores against.
+      - **The eigenvector sidecar must record which panels went into it**, alongside the
+        settings the marker-subset sidecar already records. Widening to SGDP later produces
+        a different artifact, and without that field it would look current — the same
+        failure the `r2` provenance fix prevents for LD settings.
 - [ ] **M5.4** Project the sample onto reference PCs via `--score`
       ([AGENTS.md §4.6](AGENTS.md) — PLINK 2, **not** ADMIXTURE).
       - **Needs `--read-freq` pointing at the reference's own `.afreq`.** Measured, not
@@ -1557,6 +1582,23 @@ section, that proves every layer.*
 - [ ] **M5.5** Continuous ancestry coordinates + nearest reference populations with
       distances. Prefer this over pie-chart percentages; if percentages are shown, show
       their uncertainty.
+      - **It must be able to refuse to name a population, and that is now the load-bearing
+        requirement in this milestone.** With 1000G alone (M5.3) there is no correct answer
+        for Middle Eastern, North African, Oceanian, Central Asian, Siberian, unadmixed
+        Indigenous American, or Khoisan/Mbuti ancestry — those populations are simply
+        absent. A nearest-neighbour report over an incomplete panel does not return "no
+        match"; it returns the least-bad label with a distance attached, which reads as an
+        answer. Lebanese comes back as Tuscan. So: a distance threshold beyond which the
+        card reports *"this sample sits far from every reference population, nearest is X
+        at distance d"* and names nothing.
+      - **The reason this is not cosmetic is [M5.8](#m5--ancestry).** Ancestry feeds PRS
+        confidence ([AGENTS.md §4.4](AGENTS.md)), so a Middle Eastern sample quietly
+        labelled European gets PRS confidence that is *too high*. A wrong ancestry call does
+        not stay on the ancestry card.
+      - Pairs with a **coverage-honesty card** in the spirit of [M7.6](#m7--monogenic-health--frequency-gating):
+        which regions the reference panel covers and which it does not. Someone of Lebanese
+        descent should read that we have no reference population near them, not be told
+        they are Tuscan.
 - [ ] **M5.6** AADR projection: affinity to ancient populations. Label clearly as
       *affinity*, not descent.
 - [ ] **M5.7** Y haplogroup from 1,665 markers and mtDNA haplogroup from 263 markers via
