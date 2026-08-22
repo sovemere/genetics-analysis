@@ -510,7 +510,7 @@ permanent in git history.*
         one place and not two.
       - *Verified live:* installed both tools, confirmed PLINK reports the pinned version
         and Beagle matches its digest, and confirmed the archive is cleaned up afterwards.
-- [x] **M2.6** `genetics refs fetch|status|verify|licenses` CLI, plus `genetics tools
+- [x] **M2.6** `genetics refs fetch|status|verify|probe|licenses` CLI, plus `genetics tools
       list|install|status` as M2.5's entry point. Every command is `--json`-capable
       ([AGENTS.md §3](AGENTS.md)) — a command reachable only as human text is one an agent
       cannot review, and M13.5's parity test starts being true or false here.
@@ -520,6 +520,56 @@ permanent in git history.*
         afterwards is not useful. It also shows licence blocks before any bytes move.
       - Progress goes to **stderr**, throttled, so piping `--json` stays clean and a
         per-megabyte callback on a 63 GB file does not spend real time on terminal writes.
+- [x] **M2.8** `genetics refs probe` — reachability and size-drift check over every
+      declared URL, no payload transferred. **Added after HGDP, because HGDP is the failure
+      it exists to catch.**
+      - **`verify` was pointed the wrong way to catch it.** It hashes files already on
+        disk, so it answers "does what we fetched still match what we recorded?" — a good
+        question that is structurally incapable of noticing that a URL nothing has fetched
+        yet has become a 404. The HGDP-CEPH genotype panel was withdrawn from the host the
+        manifest named and no command in the repository could have seen it, because seeing
+        it required a network request none of them was allowed to make.
+      - **Catches three things**: a URL gone 404, a host that has gone away, and a *pinned*
+        file whose size on the server no longer matches the manifest. The third is the one
+        worth the code — that fetch is already doomed, the digest will fail, but only after
+        the whole file transfers. gnomAD exomes is 63 GB and finding out at the end is not
+        the same as finding out now.
+      - **Does not catch a 200 that has stopped meaning yes**, and the docstring says so
+        rather than letting a green probe read as proof the corpus is healthy. `cephb.fr`
+        answers 200 today with every genotype removed behind GDPR; the Reich Lab data
+        server answers 200 with a body reading `no access (s:code104)`. A probe reads
+        status codes, not meaning. It narrows where a surprise can hide; it does not empty
+        it.
+      - **Exit code splits on pinned, not on drift.** Drift on an unpinned file is the
+        manifest working as designed — ClinVar's `variant_summary.txt.gz` and the four
+        rolling GWAS Catalog files are declared unpinnable *because* they move — and
+        failing on them would make a scheduled probe permanently red, which is the same as
+        having no probe. Unreachability is non-fatal for the same reason: a job that goes
+        red when a public mirror hiccups is a job whose red gets ignored (M0.3).
+        404 and pinned-file drift are what fail.
+      - **`Prober` is a separate protocol from `Transport`, not a method on it.** A prober
+        has no way to return a body, so "the probe accidentally downloaded 495 GB of
+        gnomAD" is not a representable state — the same reasoning that made `Transport` a
+        protocol in the first place, and the reason the test asserting it can check for the
+        *absence* of an `open` method.
+      - **HEAD is not universally answered, so there is a one-byte fallback.** Some hosts
+        return 405 to HEAD and serve GET perfectly well; others answer 200 with no
+        `Content-Length`. Both leave the probe unable to check the file it was pointed at,
+        so it re-asks with `Range: bytes=0-0` and reads the total out of `Content-Range` —
+        *not* out of that response's `Content-Length`, which describes the one byte and
+        would report every file in the corpus as having shrunk to a single byte. That is
+        `UrllibTransport.open`'s own bug, met again on the way out.
+      - **Tier B sources are probed on their instructions URL**, since tier B is where the
+        one real surprise came from and would otherwise be the only unprobed part of the
+        manifest. Tool builds are probed too — PLINK 2 is pinned to an alpha, and alpha
+        assets get pulled from `plink2-assets/` when the next one lands.
+      - **Run live against the real corpus on 2026-08-22: 75 URLs in 7.9 seconds.** 73
+        unchanged; two findings, both non-fatal and both already known to be so —
+        `variant_summary.txt.gz` drifted +447,052 bytes (the manifest's one declared
+        unpinnable ClinVar file, doing exactly what it was declared to do), and
+        `omim/<manual instructions>` answers 403 because `api.omim.org` is credential-gated.
+        Nothing pinned had moved.
+
 - [x] **M2.7** Offline guarantee, **in-process half** (`genetics/testing/network.py`,
       `tests/conftest.py`). An autouse fixture refuses every non-loopback connection and
       name lookup for the whole suite; `@pytest.mark.network` is the opt-out and nothing
@@ -1770,6 +1820,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-22 | M2.8 | `genetics refs probe`. **1382 tests + 5 skips** (23 new); ruff, `ruff format` and `mypy --strict` clean. **Written because the HGDP-CEPH genotype panel turned out to be withdrawn rather than merely unresolved, and nothing in the repository could have noticed.** `refs verify` hashes what is on disk, which cannot speak to a URL nothing has fetched; this is the same check pointed at the manifest's URLs instead. Catches a 404, a dead host, and a *pinned* file whose server-side size has moved — that last being a fetch already doomed to fail its digest after transferring every byte, which for gnomAD exomes is 63 GB spent to learn what a HEAD says in 90 ms. **Explicitly does not catch a 200 that has stopped meaning yes**, and says so in the module docstring rather than letting green read as healthy: cephb.fr answers 200 with every genotype removed behind GDPR, and the Reich Lab server answers 200 with a body saying `no access`. **The exit code splits on pinned rather than on drift** — the four rolling GWAS files and ClinVar's `variant_summary.txt.gz` are declared unpinnable *because* they move, so failing on them would make a scheduled probe permanently red, which is M0.3's cry-wolf lesson again; unreachability is non-fatal for the same reason, while 404 and pinned drift are not. **`Prober` is a separate protocol from `Transport`** so that a probe has no method capable of returning a body — the accidental-495 GB-download is unrepresentable rather than merely untested, and one test asserts the absence of `open`. **A one-byte fallback was needed and earns its round trip:** hosts that 405 a HEAD or answer 200 without `Content-Length` are re-asked with `Range: bytes=0-0`, and the total is read from `Content-Range` — reading that response's `Content-Length` instead would report every file in the corpus as one byte, which is `UrllibTransport.open`'s bug met on the way out. Tier B is probed on its instructions URL (where the surprise came from) and tool builds too (PLINK 2 is pinned to an alpha). **Live run against the real corpus: 75 URLs, 7.9 s, exit 0** — 73 unchanged, `variant_summary.txt.gz` drifted +447,052 bytes as designed, and OMIM's credential-gated API answered 403. Nothing pinned had moved. |
 | 2026-08-21 | M5.1–M5.3 review | Diff-driven self-pass over the session's changes. **Four findings, all fixed, each reproduced by execution before the fix and each new guard verified by neutering it.** **1362 tests + 5 skips** (6 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern was a refactor quietly removing something, and two of the four were mine from earlier in the same session.** (1) `is_snp_site` accepted a panel record whose ALT repeats its REF, and that survives every later check: the allele index keeps the last position for a repeated letter, `orient` returns a clean `AS_WRITTEN`, and the writer emits `1/1` at a site whose ALT *is* the reference — indistinguishable downstream from a real homozygous-alternate call. Now requires distinct alleles. (2) Moving the tool lookup out of `doctor._which` into `tools.find_executable` dropped the blanket `except Exception` around it. I could not reproduce a failure — Python 3.13's `is_file()` already swallows the realistic cases — but `doctor`'s documented contract is that it *describes* a broken environment rather than raising inside one, and a refactor should not narrow a promise silently. Restored, with a test that monkeypatches the lookup to raise; the first version of that test used a malformed state file and passed with the guard removed, which is the second placebo test this session and the second one the mutation run caught. (3) I dispatched `build_pca_marker_subset` *before* `run()`'s try/except, making it the one step whose unpredicted failure escaped as a traceback — `refs fetch` would have died on it rather than reporting it, after however many gigabytes had downloaded. Moved inside. (4) A dead `_PROBE_TIMEOUT_S` in the PLINK wrapper with a docstring claiming it matched the installer's probe; nothing used it. **Also ran the whole chain end to end against the real binary** — subset, PCA, harmonisation, projection — which is where the two M5.4 facts recorded above came from. |
 | 2026-08-21 | M5.3 (part) | `build_pca_marker_subset`. **1356 tests + 5 skips** (33 new); ruff, `ruff format` and `mypy --strict` clean. Run end to end against the real pinned PLINK over a synthetic 22-chromosome, 60-sample panel: **5,720 markers in, 971 out**, artifact accepted by `--pca 4 allele-wts` (PC1 eigenvalue 7.80 against 1.47 for PC2, which is the two planted groups) and read straight back by M5.2's `read_panel_sites` with no adapter. **The milestone's real decision was a privacy flag, and I reversed one.** The registry marked this step `output_is_genotype_derived=True`, which makes `run()` refuse it outright and demands a cache root outside the repository; the manifest entry beside it said the opposite, that 'writing a separate PCA subset beside it is not [forbidden]'. Both had been written months apart and neither was wrong on its own terms — the flag means 'this transform reads a genotype export', and the roadmap's phrase 'array-overlapping markers' makes that true, because an array's marker list comes from somebody's file. The resolution was to change what the step does rather than to argue about the flag: prune the panel and nothing else, and move the array intersection to the eigenvector build where an export is actually present. That keeps the artifact a function of public data, and it is also better engineering — a subset cut to one person's chip is wrong for the next person's. **The other decision worth recording is long-range LD.** Excluding LCT, MHC, 8p23 and 17q21.31 before pruning is not tidying: an inversion of that size supplies enough correlated markers to take a principal component on its own, and the axis it produces looks exactly like ancestry. I encoded the four regions I am certain of rather than reproducing Price et al.'s full table from memory, and said so in the constant — the alternative is a plausible-looking coordinate, which is the thing §6 exists to stop. **One test was a placebo and the mutation run caught it**: `test_a_failed_run_leaves_no_file_bearing_the_declared_name` failed PLINK at the prune step, before anything is promoted, so deleting the cleanup code changed nothing and the test still passed. Replaced with a run that prunes every marker away — the only failure that happens *after* the fileset is in place, and the reason the cleanup exists. 18 guards, each neutered in turn, each caught by a named test. |
 | 2026-08-21 | M5.1 + M5.2 | PLINK 2 wrapper and pgen conversion. **1323 tests + 5 skips** (81 new, 190 privacy-marked); ruff, `ruff format` and `mypy --strict` clean. PLINK 2 installed and every behaviour below verified against the real pinned build before it was written into a stub. **The milestone's real content was that a single sample cannot establish which allele is REF**, and everything else followed from taking that seriously. The obvious conversion path is PLINK 1 `.ped`/`.map`, which has no REF/ALT concept and lets PLINK infer them from allele frequency — with n=1 that is the sample's own genotype deciding its own reference, and since M5.4 projects by subtracting reference means, every such marker contributes a coordinate with its sign flipped. So the intermediate is a VCF carrying the panel's REF/ALT, and orientation is set membership rather than column order. **The decision that took the thinking was strand-ambiguous heterozygotes.** `AT` encodes identically on both strands, so keeping it costs nothing locally, and M3.2 keeps exactly these — but M3.2 answers a per-card question and this one is distributional: retain only the heterozygotes and every homozygote at that site becomes missing, so the surviving dosages are all 1 and `--score`'s mean-imputation drags the projection somewhere the data never went. Dropped whole. **Two facts fell out of that which are worth having before M5.3**: every surviving site is biallelic (any set of 3+ bases contains a complementary pair), and a homozygote can never be an allele mismatch (each surviving set unioned with its complement is all four bases) — the second found by a test failing, because the mismatch case I had written used a homozygote and was silently exercising the strand-flip branch instead. **The one bug I introduced and caught by running it** was in the M5.1 warning parser: I assumed PLINK separated messages with a blank line, and it does not, so the first version swallowed five lines of `Writing <absolute path> ... done.` into a single warning — leaking the machine's directory layout into anything that displayed one. Fixed by reading PLINK's fixed-width wrapping instead, biased toward truncation, with a cap. Errors avoid the problem entirely by being relayed from stderr verbatim. All 15 new guards verified by neutering each in turn and confirming a named test fails. |
