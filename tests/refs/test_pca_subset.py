@@ -176,6 +176,34 @@ def _provenance(directory: Path) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
+def test_an_artifact_from_an_older_transform_version_is_rebuilt(
+    tmp_path: Path, plink: Path
+) -> None:
+    """The bump is the only thing that invalidates an artifact when the *code* changes
+    rather than its inputs or settings, and until now nothing exercised it.
+
+    It matters concretely: version 2 synthesises variant IDs, and every subset built before
+    it carries `.` for every marker -- unusable by `--indep-pairwise` and silently useless
+    to M5.4's `--score`. An artifact that stale must not be reported as current.
+    """
+    files = [_chrom_file("1")]
+    directory = _payloads(tmp_path, files)
+    _run(_source(files), tmp_path)
+
+    sidecar = directory / f"{OUTPUT}.provenance.json"
+    recorded = json.loads(sidecar.read_text(encoding="utf-8"))
+    assert recorded["transform_version"] == 2
+    recorded["transform_version"] = 1
+    sidecar.write_text(json.dumps(recorded), encoding="utf-8")
+
+    before = len([c for c in commands(plink) if "--vcf" in c])
+    result = _run(_source(files), tmp_path)
+    after = len([c for c in commands(plink) if "--vcf" in c])
+
+    assert result.status is ProcessStatus.CREATED
+    assert after > before, "a stale version must rebuild, not be reported as present"
+
+
 def test_the_effective_settings_are_recorded_not_left_implicit(tmp_path: Path, plink: Path) -> None:
     """A default that changed would otherwise leave every existing artifact looking current.
 
@@ -322,6 +350,40 @@ def test_the_input_digest_covers_every_chromosome(tmp_path: Path, plink: Path) -
     assert before["filename"] == "2 autosomal genotype VCFs"
     assert stale.status is ProcessStatus.FAILED
     assert "stale" in stale.detail
+
+
+# ---------------------------------------------------------------------------
+# Variant IDs
+# ---------------------------------------------------------------------------
+
+
+def test_every_conversion_synthesises_variant_ids_from_the_site(
+    tmp_path: Path, plink: Path
+) -> None:
+    """**1000 Genomes phase 3 ships no variant IDs.** Not "some are missing" -- a full scan
+    of the real chromosome 1 VCF found zero non-`.` IDs in any record, and all 530,434
+    markers surviving this step's filters carried `.` likewise. Two later steps need them
+    and only one complains: `--indep-pairwise`
+    refuses a non-unique set outright (exit 7, which is how this was found), while M5.4's
+    `--score` joins the sample to the reference weights *by ID* and would match nothing at
+    all.
+
+    chrom:pos:ref:alt is unique by construction for the biallelic ACGT SNPs kept here, and
+    M5.2's harmonizer copies `panel_id` into the sample's VCF, so both sides of that join
+    carry the same synthesised IDs without anything having to coordinate them.
+    """
+    files = [_chrom_file("1"), _chrom_file("6")]
+    _payloads(tmp_path, files)
+
+    _run(_source(files), tmp_path)
+
+    conversions = [c for c in commands(plink) if "--vcf" in c]
+    assert len(conversions) == 2
+    for command in conversions:
+        assert command[command.index("--set-all-var-ids") + 1] == "@:#:$r:$a"
+        # Applied at load, before --snps-only filters anything, so a long indel allele would
+        # otherwise abort the conversion instead of being dropped a step later.
+        assert command[command.index("--new-id-max-allele-len") + 1 :][:2] == ["23", "missing"]
 
 
 # ---------------------------------------------------------------------------

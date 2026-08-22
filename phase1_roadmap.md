@@ -20,8 +20,17 @@ M0–M4 are done and the M4 slice checkpoint passed. M5 is open, and **the two t
 standing in front of it are not code.** Both are recorded in full under
 [M5.3](#m5--ancestry); repeated here because they are the reason M5 stalls if nobody acts.
 
-1. **Fetch 1000 Genomes.** `refs status` reports it `missing  A
-   thousand_genomes_phase3_grch37  0/25  16.75 GB`. Nothing downstream of M5.2 can run
+1. ~~**Fetch 1000 Genomes.**~~ **Done 2026-08-22: 25/25 fetched, marker subset built
+   (290,285 markers over 2,504 samples), M5.2→M5.3→M5.4 verified end to end against it.**
+   The lock gained 24 new digests. Took five passes: EBI truncated large transfers
+   repeatedly and the fetcher discards an unpinned partial rather than resuming it, so each
+   failure restarted from zero. That is correct for a *rolling* file and wrong for a frozen
+   release that merely publishes no checksum — `RemoteFile.unpinned_reason` is the field
+   that could tell them apart. **Worth fixing before gnomAD exomes**, which is 63 GB in a
+   single file where one truncation costs far more than a gigabyte. Original note follows.
+
+   <sub>`refs status` reported it `missing  A
+   thousand_genomes_phase3_grch37  0/25  16.75 GB`.</sub> Nothing downstream of M5.2 can run
    without it. One command — `genetics refs fetch --only thousand_genomes_phase3_grch37`
    (`--only` is required; the source is `required: false`) — then roughly 30–90 minutes of
    download and, on the same command, one to three hours of `build_pca_marker_subset`.
@@ -1610,8 +1619,30 @@ section, that proves every layer.*
         applies to its harmonized VCF one directory over.
       - **Verified against the real binary in the M5.4 review pass**: the array intersection
         came back at exactly the expected marker count, the artifact was accepted by
-        `--score`, and a second call reused the cache. The first run against the *real
-        1000 Genomes panel* is still outstanding — it is at 20/25.
+        `--score`, and a second call reused the cache.
+      - **[x] Run against the real 1000 Genomes panel, 2026-08-22 — and it failed first
+        time, on something no synthetic fixture could have shown.** `--indep-pairwise`
+        refused with exit 7: *"requires unique variant IDs"*. **1000 Genomes phase 3 ships
+        no variant IDs at all** — a full scan of the real chromosome 1 VCF found zero
+        non-`.` IDs in any record. The existing `--rm-dup exclude-all` did not help, because
+        it deduplicates by position and alleles rather than by ID, and its comment ("1000
+        Genomes carries repeated variant IDs") was simply wrong about the data.
+      - **Only half of that failure announced itself, which is the part worth remembering.**
+        `--indep-pairwise` stops. [M5.4](#m5--ancestry)'s `--score` joins the sample to the
+        reference weights *by ID* and would have matched nothing at all — returning
+        coordinates rather than an error. The `_check_ids` guard written into the eigenvector
+        build during the M5.4 review would have caught that silent half; the fix belongs
+        upstream, and is now here.
+      - **IDs are synthesised as `chrom:pos:ref:alt`** via `--set-all-var-ids`, with
+        `--new-id-max-allele-len 23 missing` because IDs are assigned at load, before
+        `--snps-only` filters, so one long indel allele would otherwise abort the whole
+        conversion. Unique by construction for the biallelic ACGT SNPs kept here, and
+        automatically shared with the sample because M5.2's harmonizer copies `panel_id`
+        into the sample's VCF. `transform_version` bumped to 2: every artifact built before
+        this carries `.` for every marker.
+      - **The real artifact: 290,285 markers over 2,504 samples**, all IDs unique, none
+        blank. Measured on chr22 alone before committing the fix: 1,055,454 biallelic ACGT
+        SNPs → 97,216 after MAF and missingness → 5,954 after LD pruning.
 - [x] **M5.4** Project the sample onto reference PCs via `--score`
       ([AGENTS.md §4.6](AGENTS.md) — PLINK 2, **not** ADMIXTURE).
       `ancestry/projection.py`.
@@ -1671,8 +1702,24 @@ section, that proves every layer.*
         markers → **95.0% coverage**, and the whole 60-sample panel pushed through the same
         `project()` at 100% — which is the path M5.5 depends on for comparable coordinates.
         The measured `.sscore` header is pinned in a test so neither fact can drift back.
-      - Seventeen guards, each verified by neutering it. **The first real 1000 Genomes run
-        is still outstanding** — the panel is at 20/25.
+      - Seventeen guards, each verified by neutering it.
+      - **[x] Run end to end against the real 1000 Genomes panel, 2026-08-22.** A synthetic
+        650,000-marker array whose positions are drawn from the real pruned subset (the
+        committed fixture's coordinates are invented and intersect nothing real):
+        intersection 50,018 markers, ten components over 2,504 samples, eigenvalues
+        202.0 / 85.3 / 26.2 / 19.5 — the steep first gap global human structure should give.
+        M5.2 harmonised 41,816 of the 50,018, and M5.4 projected them at **83.6% coverage**
+        with every panel site accounted for: 41,806 `as_written`, 10 `complemented`, 8,199
+        `ambiguous_site`, 1 `allele_mismatch`, 2 `duplicate_conflict`.
+      - **That 83.6% is a warning for [M5.5](#m5--ancestry), not a defect here.** The 16.4%
+        shortfall is almost entirely strand-ambiguous A/T and C/G sites, which M5.2 drops by
+        design and which are ~16% of common SNPs. So `coverage` has a **floor around 84%
+        that has nothing to do with call quality**, and a confidence model that reads it as
+        one would under-rate every sample by the same margin. Two ways out, and M5.5 has to
+        pick one deliberately: grade coverage against the markers M5.2 could *use* rather
+        than against every reference marker, or exclude ambiguous sites from the eigenvector
+        build so the loadings match what a sample can actually supply. The second is
+        tidier and costs a rebuild.
 - [ ] **M5.5** Continuous ancestry coordinates + nearest reference populations with
       distances. Prefer this over pie-chart percentages; if percentages are shown, show
       their uncertainty.
@@ -1956,6 +2003,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-22 | M5.3 real panel | 1000 Genomes fetched (25/25) and the marker subset built for real: **290,285 markers over 2,504 samples**. **1431 tests + 5 skips** (2 new); ruff, `ruff format` and `mypy --strict` clean. **The first real-panel run failed immediately, on something no synthetic fixture could have shown.** `--indep-pairwise` refused with exit 7, *requires unique variant IDs* -- because **1000 Genomes phase 3 ships no variant IDs at all**: a full scan of the real chromosome 1 VCF found zero non-`.` IDs in any record. The existing `--rm-dup exclude-all` was no help, since it deduplicates by position and alleles rather than by ID, and its comment claiming '1000 Genomes carries repeated variant IDs' was wrong about the data. **Only half that failure announces itself**, which is the part worth keeping: `--indep-pairwise` stops, while M5.4's `--score` joins by ID and would have matched nothing while still returning coordinates. The `_check_ids` guard added to the eigenvector build during the M5.4 review would have caught the silent half -- the fix belongs upstream and now is. IDs synthesised as `chrom:pos:ref:alt` with `--new-id-max-allele-len 23 missing` (they are assigned at load, before `--snps-only`, so one long indel allele would abort the conversion); `transform_version` bumped to 2, and **a pre-existing gap closed along the way -- nothing tested that a version bump actually invalidates a stale artifact**, the mechanism the bump depends on. **Then the whole chain end to end on the real panel**: 50,018-marker intersection, ten components, eigenvalues 202.0/85.3/26.2/19.5, M5.2 harmonising 41,816 of them and M5.4 projecting at 83.6% coverage with every site accounted for (8,199 `ambiguous_site`). **That 83.6% is a finding for M5.5**: the shortfall is strand-ambiguous A/T and C/G exclusion, ~16% of common SNPs, so `coverage` has a floor near 84% unrelated to call quality and a confidence model reading it as quality would under-rate every sample equally. Recorded on M5.5 with the two ways out. |
 | 2026-08-22 | M5.3–M5.4 review | Diff-driven self-pass over the session's changes. **Six findings, two of them real defects that every test had passed.** **1429 tests + 5 skips** (5 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern behind both defects is the finding worth keeping: a stub written from the same belief as the code under test verifies the belief, not the behaviour.** M5.4's PLINK stub emitted `SCORE1_AVG` columns and an `ALLELE_CT` equal to the marker count, because that is what I assumed the binary wrote; the code read the same way, so fifteen tests agreed with each other and none with PLINK. Running the pinned build over a synthetic 60-sample panel took about a minute and disproved both. (1) With `header-read`, PLINK names each output column after the score file's own, and a `.eigenvec.allele` names its columns `PC1..PCk` -- so the real header is `PC1_AVG`, and the reader would have found no components and raised on the first real projection. (2) `ALLELE_CT` counts *alleles*: a sample with 5 of 100 variants no-called reports 190, twice the 95 that scored. Read as a marker count it made `coverage` report **1.9 for a 95%-called sample** -- impossible rather than merely wrong, and it feeds M5.8's PRS confidence. Both fixed, the measured header pinned in a regression test, and `NAMED_ALLELE_DOSAGE_SUM` explicitly excluded since it ends in `_SUM` and a suffix-only pattern would have carried it in as an extra component. **The chain now runs end to end against the real binary in both directions**: 2,000-marker intersection, cache reuse, one sample at 3,800 alleles → 1,900 markers → 95.0% coverage, and the whole panel through the same `project()` at 100%, which is the path M5.5 needs for comparable coordinates. Four smaller findings: a missing `ALLELE_CT` silently became zero and would have been diagnosed as 'harmonized against a different panel' -- a confident diagnosis of the wrong problem; the `--extract` range file was left behind when PLINK failed; `refs probe --only <source>` dragged in the tool URLs; and the module docstring still described the score columns by the wrong name. All six fixes verified by neutering each in turn. |
 | 2026-08-22 | M5.4 | Projection onto the reference PCs, `genetics/ancestry/projection.py`. **1424 tests + 5 skips** (15 new); ruff, `ruff format` and `mypy --strict` clean. **`project()` takes any pgen rather than 'the sample's', and that is the milestone's one real design decision.** PLINK reports `SCORE1_AVG`-style averages whose absolute scale against the reference's own `.eigenvec` this module refuses to assert -- deriving that constant from memory is the fabrication AGENTS.md 6 forbids, and getting it subtly wrong would move every sample the same distance with no test able to see it. The scale does not need to be known: what M5.5 needs is that the sample and the reference populations are *comparable*, which holds by construction when both go through this same function, whatever the constant is. So M5.5 projects the panel through here too instead of reading `.eigenvec` and hoping the units agree. **`no-mean-imputation` is a stance rather than a default:** a no-call contributes nothing instead of the mean, because mean imputation pulls every sparsely-called sample toward the origin, which on an ancestry plot reads as 'averagely admixed' rather than 'we know less here' -- AGENTS.md 0.1B's euphemism ban expressed as a flag. Coverage is reported as a number for M5.5 to grade (confidence is computed, not authored) with a separate 50% floor for the structural failure, where genotypes harmonized against a different panel match almost nothing and still return coordinates that plot. **The `.sscore`'s component columns are located by name, not position** -- its leading columns vary with the flags in play, so counting from the left is a way to read a dosage total as a principal component, and neutering confirmed a positional reader passes every other test in the file. **A ragged `.sscore` is now refused rather than padded**, found by writing a test whose stub header and rows disagreed: padding put an empty string where a coordinate belongs and surfaced as a Polars cast error naming a column instead of a truncated file. Eleven guards, each verified by neutering. **Not yet run against the real panel** -- 1000 Genomes is at 19/25, with six chromosomes repeatedly truncated by EBI. |
 | 2026-08-22 | M5.3 (rest) | The eigenvector build, `genetics/ancestry/reference_pca.py`. **1409 tests + 5 skips** (27 new); ruff, `ruff format` and `mypy --strict` clean. **A new `genetics.ancestry` package rather than another `refs/postprocess` step, and the reason is where the array enters:** a post-process step runs at fetch time, before any export exists, and writes under `data/references/`; this takes the array's marker list, so it is a function of the user's file and belongs in `cache_dir()` (AGENTS.md 1.5). M5.4-M5.8 land beside it. **The intersection is deliberately not re-pruned, reversing this milestone's own earlier wording.** Intersecting cannot create linkage -- pruning guarantees no two retained markers exceed the r2 threshold and every subset of such a set still has that property -- so a second pass would spend a pass over the panel removing markers it has no reason to remove. **`--pca` and `--freq` are one invocation as a correctness requirement**, not a saved subprocess: M5.4 pairs the weights with these frequencies, and two invocations leave a flag able to drift between them and produce a pair that disagrees about which markers or samples they describe. Markers are selected by `--extract bed1` ranges (the same mechanism the subset step uses for `--exclude bed1`, and independent of panel IDs), but **IDs are still checked, because `--score` joins on them** -- a missing or duplicated ID does not fail the projection, it makes it match the wrong row or none, and the coordinates still plot. The sidecar covers all three outputs and records the panel list, both for reasons this repository has already paid for once. **The sharpest finding came from neutering rather than from writing:** the test for 'one person's chip is not reused for the next person's' asserted only that two different arrays produced different artifacts, which stays true through `n_markers` alone -- so it passed with the marker-set digest removed. Replaced with two arrays that intersect the panel at the *same* count and differ only in which markers, where nothing but the digest separates them. All ten guards verified by neutering each in turn. **Not yet run against the real panel:** 1000 Genomes is still downloading, and the tests run against a PLINK stub that holds the orchestration to account and claims nothing about what PLINK computes. |

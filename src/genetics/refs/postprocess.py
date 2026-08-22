@@ -115,6 +115,9 @@ _STEPS: tuple[Step, ...] = (
         optional_params=("maf", "max_missing", "window", "step", "r2"),
         implemented=True,
         milestone="M5.3",
+        # 2: variant IDs are synthesised as chrom:pos:ref:alt. Every artifact built before
+        # this carried `.` for every marker, which no downstream step can join on.
+        transform_version=2,
         # Was True until M5.3 implemented it, and the change is a decision rather than a
         # correction of a typo. The flag means "this transform reads a genotype export",
         # which is what forces an output outside the checkout. The roadmap's phrasing --
@@ -1638,9 +1641,33 @@ def _prune_one_chromosome(
             str(settings.maf),
             "--geno",
             str(settings.max_missing),
-            # 1000 Genomes carries repeated variant IDs. Excluding every copy rather than
-            # keeping the first is the same rule the matcher applies to duplicate probes:
-            # with nothing to choose between them, choosing is manufacturing an answer.
+            # **1000 Genomes phase 3 carries no variant IDs at all.** Not "some are
+            # missing": measured on the real release, a full scan of the chromosome 1 VCF
+            # found zero non-`.` IDs in any record, and all 530,434 markers surviving this
+            # step's filters carried `.` likewise. That breaks two later
+            # steps, and only one of them announces itself: `--indep-pairwise` refuses a
+            # panel with non-unique IDs outright (exit 7), while M5.4's `--score` joins the
+            # sample to the reference weights *by ID* and would simply match nothing.
+            #
+            # So IDs are synthesised deterministically from the site itself. chrom:pos:
+            # ref:alt is unique by construction for the biallelic ACGT SNPs this step
+            # keeps, reproducible from the panel alone, and -- because M5.2's harmonizer
+            # copies `panel_id` into the sample's VCF -- automatically shared by both sides
+            # of the join. `--set-all-var-ids` rather than `--set-missing-var-ids`: with
+            # every ID missing the two are equivalent here, and setting all of them keeps
+            # the artifact independent of whatever dbSNP build a future release might carry.
+            "--set-all-var-ids",
+            "@:#:$r:$a",
+            # Applied at load, before --snps-only has filtered anything, so an indel with a
+            # long allele would otherwise abort the whole conversion. Such sites get `.`
+            # and are dropped by the filters below regardless.
+            "--new-id-max-allele-len",
+            "23",
+            "missing",
+            # Duplicate *records* -- same position, same alleles -- survive the above with
+            # identical synthesised IDs. Excluding every copy rather than keeping the first
+            # is the same rule the matcher applies to duplicate probes: with nothing to
+            # choose between them, choosing is manufacturing an answer.
             "--rm-dup",
             "exclude-all",
             "--exclude",

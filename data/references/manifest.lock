@@ -103,6 +103,181 @@
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "17"
+    },
+    "thousand_genomes_phase3_grch37": {
+      "files": {
+        "ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "d259ae8ba408048e9b793dd70970fde5d426e8f165464d5e6bdee7963f27c4b9",
+          "size_bytes": 1165011543,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "b3d73ae3e6c3999ddc1fba4bf4322e07bdc225b54f5d4603eabc9f67ec10ff54",
+          "size_bytes": 741683063,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "64b9f63f6d3b5056f60cb297016d9da169e0668083620e4819c934259cd5b6d1",
+          "size_bytes": 734583405,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "05845d1e5b8720a27298ddebaf76234744d308916d97f54355cf98a1f9962fc5",
+          "size_bytes": 710187972,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "564ebefc96e4b5c795979eebc81d57aca11b1b61ddec8085772864e227824f8d",
+          "size_bytes": 533918831,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "e39a17eb5004440697f27678c8a67b80054d880bb20a58ccde341cb34a4b7378",
+          "size_bytes": 485261255,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "79c35fdbc2eb00ef8220c7825283851e2aed14a56704b5f9c7f9156f99e96ef0",
+          "size_bytes": 438397058,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "9c021e589e619c77d0efdfb3ad9bf89752d32cd9b3916d2efb88168dbeef6284",
+          "size_bytes": 473472094,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "dd7082883b50aac8126c6e9864158cd875c5a60780f1bff700ce9cb85d0383c1",
+          "size_bytes": 415901551,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "820017d0708a8beb856c997470ba06bd9e39e886b3818a6f398a6e6159cd1c2c",
+          "size_bytes": 418186091,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "26683a440906e6a789636ccff4b039e923a5c7d31bde50351a760e494c1bf0c3",
+          "size_bytes": 344793450,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "537f740d03c872933310523d8b06e896ef166b70d546b2cfeab1ceee0bc566dd",
+          "size_bytes": 1255861869,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "1bbddc1eac3b35d9408bdfb435632126614a7ac89d32d27aa30db6dc94600fec",
+          "size_bytes": 327135853,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "1942e0709625d77928b191e5a1bfbf523aad2fee1764994a599ae4623305cace",
+          "size_bytes": 209774472,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "a90c16c4ff2b3196476d506ae13cb3047fae8670163c7c932c4b0239aef3daf5",
+          "size_bytes": 205612353,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "8ad55cd4e47512c365431a36274f94ec5a6df0db6bf2e1a9b865692eb8c3270d",
+          "size_bytes": 1058895733,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "630228658cebc54f82716b9df511ee418ead88010487695d24553340ee8d950b",
+          "size_bytes": 1071020149,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "3b9341901d5aa42bc15c6cc87d683dac4f1e1591dd82a4bb7c78c5081ef85227",
+          "size_bytes": 946995712,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "f54a80c00fbfbe3e89a9e877d382e4f8afad4911597ad79bdcaa9db51f44c983",
+          "size_bytes": 959144250,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "f67f9531b34b278a25a450216bc2609251bbe15d91cc0a4b67dcb02e110631f8",
+          "size_bytes": 870098463,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "55e2ff63b4e67b816d4584f7f9775714beff63c6bf3bb3e614ed9402044ea4e8",
+          "size_bytes": 824304010,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "ada97534be62e5153822257bc17c2436eed16c3494c8e83bc7cd8be690b2afc1",
+          "size_bytes": 644258549,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "29ee72373faf78030d82779924e6d8f209d6ebd668ab7346c8b46675feb34d3d",
+          "size_bytes": 1908425030,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz"
+        },
+        "ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz": {
+          "first_seen": "2026-08-22",
+          "sha256": "971a7411ac67b413b221842e89c09eccf59d5ddb62a0b7f386725b2c40c4e4cf",
+          "size_bytes": 5656911,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz"
+        },
+        "integrated_call_samples_v3.20130502.ALL.panel": {
+          "first_seen": "2026-08-22",
+          "sha256": "b4023dc6ee2d62ee89c8d4d347db4d348e65518d66d346574cdae7a4bbd76858",
+          "size_bytes": 55156,
+          "url": "https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-Fort-Lauderdale",
+        "name": "Fort Lauderdale / Toronto community resource terms",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": false,
+        "standing": "needs-review",
+        "terms_url": "https://www.internationalgenome.org/IGSR_disclaimer"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "20130502"
     }
   }
 }
