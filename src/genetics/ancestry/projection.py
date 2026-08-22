@@ -13,8 +13,8 @@ emits an ``.afreq`` precisely so this step can pass it, and :class:`ReferencePCA
 its path rather than leaving the pairing to a caller.
 
 **This takes any pgen, not "the sample's" pgen, and that is the whole design.** PLINK's
-``--score`` reports ``SCORE1_AVG``-style averages whose absolute scale relative to the
-reference's own ``.eigenvec`` this module does not assert -- deriving that constant from
+``--score`` reports per-component averages (``PC1_AVG``..) whose absolute scale relative to
+the reference's own ``.eigenvec`` this module does not assert -- deriving that constant from
 memory is exactly the plausible-looking fabrication AGENTS.md 6 forbids, and getting it
 subtly wrong would move every sample the same distance in a way no test would catch. The
 scale does not have to be known. What M5.5 needs is that the sample and the reference
@@ -47,13 +47,39 @@ from genetics.privacy import NoGenotypeRepr
 
 __all__ = ["Projection", "ProjectionError", "project"]
 
-_SCORE_COLUMN: Final[re.Pattern[str]] = re.compile(r"^SCORE(\d+)_(?:AVG|SUM)$")
+_SCORE_COLUMN: Final[re.Pattern[str]] = re.compile(r"^(?:PC|SCORE)(\d+)_(?:AVG|SUM)$")
 """Which ``.sscore`` columns carry the components.
 
+**``PC`` and not only ``SCORE``, and that was measured rather than assumed.** With
+``header-read`` PLINK names each output column after the corresponding column in the score
+file, and the score file here is a ``.eigenvec.allele`` whose columns are ``PC1``..``PCk``.
+So the real output is ``PC1_AVG``, not ``SCORE1_AVG``. Run against the pinned build
+(v2.0.0-a.7.3) over a synthetic 60-sample panel::
+
+    #IID  ALLELE_CT  NAMED_ALLELE_DOSAGE_SUM  PC1_AVG  PC2_AVG  PC3_AVG  PC4_AVG
+
+``SCORE`` is kept for the case where the score file carries no header and PLINK falls back
+to numbering.
+
 Matched by pattern and ordered by the captured number rather than taken positionally: the
-leading columns of a ``.sscore`` vary with the flags in play (``ALLELE_CT``,
-``NAMED_ALLELE_DOSAGE_SUM`` and friends appear conditionally), so counting from the left is
-a way to silently read a dosage total as a principal component.
+leading columns vary with the flags in play (``ALLELE_CT``, ``NAMED_ALLELE_DOSAGE_SUM`` and
+friends appear conditionally), so counting from the left is a way to silently read a dosage
+total as a principal component. Note that ``NAMED_ALLELE_DOSAGE_SUM`` ends in ``_SUM``,
+which is why the pattern is anchored on the prefix as well as the suffix.
+"""
+
+_ALLELES_PER_MARKER: Final = 2
+"""``ALLELE_CT`` counts alleles, not markers, and this pipeline is diploid throughout.
+
+Measured against the pinned build: a sample with 5 of 100 variants no-called reported
+``ALLELE_CT`` 190 -- twice the 95 markers that actually scored, because
+``no-mean-imputation`` drops the missing ones and each remaining call contributes two
+alleles. Dividing is safe here specifically because everything upstream is autosomal:
+:func:`genetics.ancestry.reference_pca.array_marker_positions` filters to
+:data:`~genetics.ingest.schema.AUTOSOMES` and the marker subset is built from the autosomes
+alone, so there is no haploid region in play. **Reading ``ALLELE_CT`` as a marker count
+directly is what this constant exists to prevent** -- it made ``coverage`` report 1.9 for a
+95%-called sample, a number that is both wrong and impossible.
 """
 
 _MIN_COVERAGE: Final = 0.5
@@ -86,9 +112,11 @@ class Projection(NoGenotypeRepr):
     coordinates: pl.DataFrame
     """One row per sample: ``sample_id`` plus ``PC1``..``PCk`` as floats."""
 
-    n_scored: int
-    """Reference markers that contributed. Below :data:`_MIN_COVERAGE` of the reference's
-    marker count this raises instead of returning."""
+    n_scored_alleles: int
+    """PLINK's ``ALLELE_CT``: *alleles*, not markers, and the minimum across samples.
+
+    Kept in PLINK's own units so the name cannot be misread. Use :attr:`n_scored_markers`
+    for a marker count."""
 
     n_reference_markers: int
     n_components: int
@@ -100,6 +128,15 @@ class Projection(NoGenotypeRepr):
         return self.coordinates.height
 
     @property
+    def n_scored_markers(self) -> int:
+        """Reference markers that contributed, for the worst-covered sample.
+
+        ``ALLELE_CT`` halved -- see :data:`_ALLELES_PER_MARKER` for the measurement and for
+        why halving is valid here.
+        """
+        return self.n_scored_alleles // _ALLELES_PER_MARKER
+
+    @property
     def coverage(self) -> float:
         """Fraction of the reference's markers this projection actually used.
 
@@ -109,7 +146,7 @@ class Projection(NoGenotypeRepr):
         """
         if self.n_reference_markers == 0:
             return 0.0
-        return self.n_scored / self.n_reference_markers
+        return self.n_scored_markers / self.n_reference_markers
 
 
 def _score_columns(frame: pl.DataFrame) -> list[str]:
@@ -165,11 +202,29 @@ def _read_sscore(path: Path, *, n_components: int) -> tuple[pl.DataFrame, int]:
             "the reference PCA."
         )
 
-    allele_ct = 0
-    for candidate in ("ALLELE_CT", "NAMED_ALLELE_DOSAGE_SUM"):
-        if candidate in frame.columns:
-            allele_ct = int(float(frame.get_column(candidate)[0]))
-            break
+    # ALLELE_CT only. NAMED_ALLELE_DOSAGE_SUM is a dosage total that happens to equal it on
+    # some inputs and is not a count of anything scored, so falling back to it would put a
+    # different quantity behind the same name whenever the first column were absent.
+    #
+    # The minimum across samples, not the first row's: for a single sample they are the
+    # same, and for the whole reference panel -- which M5.5 projects through this function
+    # too -- the coverage floor below should be judged on the worst-covered sample rather
+    # than on whichever one PLINK happened to write first.
+    #
+    # Its absence is an error rather than a zero. Defaulting to zero would make coverage 0%
+    # and trip the mismatch floor below, reporting "harmonized against a different panel"
+    # for a file that is merely missing a column -- a confident diagnosis of the wrong
+    # problem, which is worse than no diagnosis.
+    if "ALLELE_CT" not in frame.columns:
+        raise ProjectionError(
+            f"{path.name} has no ALLELE_CT column, so how many markers were scored cannot be "
+            f"determined. Columns present: {', '.join(frame.columns)}."
+        )
+    counts = frame.get_column("ALLELE_CT").cast(pl.Float64, strict=False)
+    smallest = counts.min()
+    if not isinstance(smallest, (int, float)):
+        raise ProjectionError(f"{path.name}: ALLELE_CT holds no readable number.")
+    scored_alleles = int(smallest)
 
     coordinates = frame.select(
         pl.col("IID").alias("sample_id"),
@@ -178,7 +233,7 @@ def _read_sscore(path: Path, *, n_components: int) -> tuple[pl.DataFrame, int]:
             for index, name in enumerate(score_columns)
         ],
     )
-    return coordinates, allele_ct
+    return coordinates, scored_alleles
 
 
 def project(
@@ -248,19 +303,20 @@ def project(
             f"{result.log_path.name}."
         )
 
-    coordinates, n_scored = _read_sscore(sscore, n_components=pca.n_components)
-    coverage = n_scored / pca.n_markers if pca.n_markers else 0.0
+    coordinates, scored_alleles = _read_sscore(sscore, n_components=pca.n_components)
+    scored_markers = scored_alleles // _ALLELES_PER_MARKER
+    coverage = scored_markers / pca.n_markers if pca.n_markers else 0.0
     if coverage < _MIN_COVERAGE:
         raise ProjectionError(
-            f"only {n_scored:,} of the reference's {pca.n_markers:,} markers were scored "
-            f"({coverage:.1%}). That is a mismatch rather than a poorly-called sample: the "
+            f"only {scored_markers:,} of the reference's {pca.n_markers:,} markers were "
+            f"scored ({coverage:.1%}). That is a mismatch rather than a poorly-called sample: the "
             "genotypes were most likely harmonized against a different panel, so their "
             "variant IDs do not match the reference's and `--score` matched almost nothing."
         )
 
     return Projection(
         coordinates=coordinates,
-        n_scored=n_scored,
+        n_scored_alleles=scored_alleles,
         n_reference_markers=pca.n_markers,
         n_components=pca.n_components,
         sscore=sscore,

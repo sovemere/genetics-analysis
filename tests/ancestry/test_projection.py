@@ -17,9 +17,16 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
+import polars as pl
 import pytest
 
-from genetics.ancestry.projection import Projection, ProjectionError, _read_sscore, project
+from genetics.ancestry.projection import (
+    Projection,
+    ProjectionError,
+    _read_sscore,
+    _score_columns,
+    project,
+)
 from genetics.ancestry.reference_pca import EigenSettings, ReferencePCA
 from genetics.external.plink2 import Plink2
 
@@ -49,12 +56,15 @@ if "--read-freq" not in argv:
 
 lo, hi = (int(x) for x in argv[argv.index("--score-col-nums") + 1].split("-"))
 k = hi - lo + 1
-scored = int(os.environ.get("STUB_SCORED", "1400"))
+# ALLELE_CT is alleles, not markers: twice the scored marker count for diploid calls.
+scored = int(os.environ.get("STUB_SCORED", "1400")) * 2
 n_samples = int(os.environ.get("STUB_SAMPLES", "1"))
 
 header = os.environ.get("STUB_HEADER")
 if header is None:
-    header = "#IID\\tALLELE_CT\\t" + "\\t".join(f"SCORE{i+1}_AVG" for i in range(k))
+    header = "#IID\\tALLELE_CT\\tNAMED_ALLELE_DOSAGE_SUM\\t" + "\\t".join(
+        f"PC{i+1}_AVG" for i in range(k)
+    )
 
 # Rows are built from the header so a custom layout stays internally consistent.
 names = [c.lstrip("#") for c in header.split("\\t")]
@@ -67,7 +77,7 @@ for s in range(n_samples):
             cells.append(f"S{s}")
         elif name == "FID":
             cells.append("0")
-        elif name.startswith("SCORE"):
+        elif name.startswith("PC") or name.startswith("SCORE"):
             n_score += 1
             cells.append(f"0.0{n_score}{s}")
         else:
@@ -220,6 +230,19 @@ def test_a_truncated_sscore_is_refused_with_its_own_message(tmp_path: Path) -> N
         _read_sscore(sscore, n_components=2)
 
 
+def test_a_missing_allele_ct_is_named_rather_than_reported_as_a_mismatch(
+    tmp_path: Path,
+) -> None:
+    """Defaulting to zero would make coverage 0% and trip the mismatch floor, diagnosing
+    'harmonized against a different panel' for a file that is merely missing a column -- a
+    confident diagnosis of the wrong problem, which is worse than no diagnosis."""
+    path = tmp_path / "no_ct.sscore"
+    path.write_text("#IID\tPC1_AVG\nS0\t0.1\n", encoding="utf-8")
+
+    with pytest.raises(ProjectionError, match="no ALLELE_CT column"):
+        _read_sscore(path, n_components=1)
+
+
 def test_a_header_only_sscore_is_refused(
     tmp_path: Path, plink: Plink2, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -242,6 +265,48 @@ def test_many_samples_project_in_one_call_which_is_how_m5_5_gets_its_reference(
 
 
 # ---------------------------------------------------------------------------
+# What the real binary actually writes
+# ---------------------------------------------------------------------------
+
+
+def test_the_real_sscore_header_is_pinned_here(tmp_path: Path) -> None:
+    """A transcript, so the two facts below cannot drift back into assumptions.
+
+    Both were wrong in the first version of this module and both passed every test in this
+    file, because the stub encoded the same assumption the code did. They were found by
+    running the pinned build (v2.0.0-a.7.3) over a synthetic 60-sample panel and reading the
+    output, and the fix is only as durable as this test.
+
+    1. The component columns are ``PC1_AVG``, not ``SCORE1_AVG``. ``header-read`` makes
+       PLINK name each output column after the score file's own, and a ``.eigenvec.allele``
+       names its columns ``PC1``..``PCk``. A reader looking for ``SCORE`` finds nothing.
+    2. ``ALLELE_CT`` counts *alleles*. The sample below had 5 of 100 variants no-called and
+       reported 190 -- twice the 95 markers that scored. Read as a marker count it makes
+       ``coverage`` 1.9 for a 95%-called sample.
+    """
+    measured = (
+        "#IID\tALLELE_CT\tNAMED_ALLELE_DOSAGE_SUM\tPC1_AVG\tPC2_AVG\tPC3_AVG\tPC4_AVG\n"
+        "SAMPLE\t190\t190\t0.00826054\t-0.0203888\t-0.0336347\t-2.28904e-05\n"
+    )
+    path = tmp_path / "measured.sscore"
+    path.write_text(measured, encoding="utf-8")
+
+    coordinates, scored_alleles = _read_sscore(path, n_components=4)
+    assert coordinates.columns == ["sample_id", "PC1", "PC2", "PC3", "PC4"]
+    assert scored_alleles == 190
+    assert scored_alleles // 2 == 95, "95 of 100 variants scored; the other 5 were no-calls"
+
+
+def test_named_allele_dosage_sum_is_not_mistaken_for_a_component() -> None:
+    """It ends in ``_SUM``, so a suffix-only pattern would pull it in as a component and
+    every projection would carry one extra 'PC' holding a dosage total."""
+    frame = pl.DataFrame(
+        {"IID": ["S0"], "ALLELE_CT": [190], "NAMED_ALLELE_DOSAGE_SUM": [190], "PC1_AVG": [0.1]}
+    )
+    assert _score_columns(frame) == ["PC1_AVG"]
+
+
+# ---------------------------------------------------------------------------
 # Coverage
 # ---------------------------------------------------------------------------
 
@@ -255,7 +320,8 @@ def test_coverage_is_reported_as_a_number_rather_than_a_verdict(
     pca = make_pca(tmp_path / "ref", n_markers=1500)
     result = project(make_pgen(tmp_path / "s"), pca, plink=plink, workspace=tmp_path / "out")
 
-    assert result.n_scored == 1200
+    assert result.n_scored_alleles == 2400, "PLINK reports alleles, not markers"
+    assert result.n_scored_markers == 1200
     assert result.coverage == pytest.approx(0.8)
 
 
