@@ -27,7 +27,7 @@ from genetics.ancestry.reference_pca import (
     array_marker_positions,
     build_reference_pca,
 )
-from genetics.external.plink2 import Plink2
+from genetics.external.plink2 import Plink2, Plink2RunError
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 
 PLINK_STUB = """
@@ -466,6 +466,22 @@ def test_the_range_file_is_not_left_behind(tmp_path: Path, plink: Plink2) -> Non
         make_table(panel), subset, plink=plink, workspace=tmp_path / "cache"
     )
     assert not result.prefix.with_name(result.prefix.name + ".extract.bed").exists()
+
+
+def test_the_range_file_is_removed_even_when_plink_fails(
+    tmp_path: Path, plink: Plink2, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A failed run is exactly when scratch gets left behind and forgotten, and this file
+    is a line per marker -- the reasoning `to_pgen` applies to its harmonized VCF."""
+    monkeypatch.setenv("STUB_FAIL_ON", "--pca")
+    panel = panel_positions(1500)
+    subset = make_subset(tmp_path / "ref", panel)
+    cache = tmp_path / "cache"
+
+    with pytest.raises(Plink2RunError):
+        build_reference_pca(make_table(panel), subset, plink=plink, workspace=cache)
+
+    assert list(cache.glob("*.extract.bed")) == []
 
 
 def test_the_result_repr_carries_no_paths(tmp_path: Path, plink: Plink2) -> None:

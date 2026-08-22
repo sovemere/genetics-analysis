@@ -1015,7 +1015,10 @@ def probe_targets(
         if source.manual is not None:
             targets.append((source.id, "<manual instructions>", source.manual.url, None, False))
 
-    if include_tools:
+    # `only` narrows to named *sources*, so the tool binaries drop out with it. Returning
+    # plink2 and beagle rows from `refs probe --only clinvar_grch37` would be answering a
+    # question nobody asked, and the report is read by eye.
+    if include_tools and only is None:
         from genetics.refs import tools as tools_mod
 
         key = platform_key or tools_mod.current_platform()

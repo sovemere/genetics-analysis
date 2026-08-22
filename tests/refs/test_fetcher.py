@@ -1229,6 +1229,14 @@ def test_a_manual_source_contributes_its_instructions_url() -> None:
     assert targets[0][4] is False  # never treated as pinned: there is nothing to pin
 
 
+def test_narrowing_to_one_source_drops_the_tool_urls() -> None:
+    """`--only` names sources. Reporting plink2 and beagle alongside one source answers a
+    question nobody asked, in a report meant to be read by eye."""
+    parsed = manifest.Manifest(schema_version=1, sources=(make_source(source_id="one"),))
+    targets = fetcher.probe_targets(parsed, only=["one"], include_tools=True)
+    assert [t[0] for t in targets] == ["one"]
+
+
 def test_probe_reports_every_target_and_orders_findings_worst_first() -> None:
     gone = make_source(source_id="gone")
     fine = make_source(source_id="fine")

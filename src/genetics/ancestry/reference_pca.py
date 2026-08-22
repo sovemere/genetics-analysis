@@ -339,6 +339,29 @@ def _write_extract_ranges(path: Path, sites: PanelSites) -> None:
     path.write_text("\n".join(lines) + "\n", encoding="utf-8", newline="\n")
 
 
+def _run_pca(
+    plink: Plink2, pgen: Path, ranges: Path, prefix: Path, settings: EigenSettings
+) -> Plink2ResultInfo:
+    """The single invocation. Split out so the range file can be cleaned up around it."""
+    return plink.run(
+        [
+            "--pfile",
+            str(pgen.with_suffix("")),
+            "--extract",
+            "bed1",
+            str(ranges),
+            # One invocation, deliberately: see the module docstring. The weights and the
+            # frequencies M5.4 pairs them with are computed over the same markers and the
+            # same samples because there is only one pass in which they could differ.
+            "--pca",
+            str(settings.n_components),
+            "allele-wts",
+            "--freq",
+        ],
+        out=prefix,
+    )
+
+
 def build_reference_pca(
     table: GenotypeTable,
     subset_pgen: Path,
@@ -416,23 +439,13 @@ def build_reference_pca(
     ranges = prefix.with_name(prefix.name + ".extract.bed")
     _write_extract_ranges(ranges, sites)
 
-    result = plink.run(
-        [
-            "--pfile",
-            str(pgen.with_suffix("")),
-            "--extract",
-            "bed1",
-            str(ranges),
-            # One invocation, deliberately: see the module docstring. The weights and the
-            # frequencies M5.4 pairs them with are computed over the same markers and the
-            # same samples because there is only one pass in which they could differ.
-            "--pca",
-            str(settings.n_components),
-            "allele-wts",
-            "--freq",
-        ],
-        out=prefix,
-    )
+    try:
+        result = _run_pca(plink, pgen, ranges, prefix, settings)
+    finally:
+        # Removed even when PLINK failed. It is a line per marker and a failed run is
+        # exactly the situation where scratch gets left behind and forgotten -- the same
+        # reasoning `to_pgen` applies to its harmonized VCF, one directory over.
+        ranges.unlink(missing_ok=True)
 
     files = _outputs(prefix)
     for name, path in files.items():
@@ -446,7 +459,6 @@ def build_reference_pca(
     _provenance_path(prefix).write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
     )
-    ranges.unlink(missing_ok=True)
 
     return ReferencePCA(
         allele_weights=files["eigenvec_allele"],
