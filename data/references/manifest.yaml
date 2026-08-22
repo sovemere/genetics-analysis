@@ -611,11 +611,25 @@ sources:
   #
   # The three ancestry panels below are tier B for an honest reason rather than a
   # licensing one: their payload URLs could not be resolved programmatically on
-  # 2026-08-15. Harvard Dataverse answered every API request for the AADR dataset with a
-  # bare 202, and the HGDP collection on the 1000 Genomes FTP holds GRCh38 high-coverage
-  # alignments rather than the GRCh37 genotype panel M5 needs. Writing a plausible URL
-  # from memory would be the same failure as inventing a coordinate (AGENTS.md 6), so
-  # they carry instructions and no invented file list. M5 resolves them.
+  # 2026-08-15. Writing a plausible URL from memory would be the same failure as
+  # inventing a coordinate (AGENTS.md 6), so they carried instructions and no invented
+  # file list, and M5 was told to resolve them.
+  #
+  # M5.3 resolved them on 2026-08-22, and for two of the three the answer was not the one
+  # the wording above anticipated. Every claim below was checked against the live server
+  # on that date; see each entry.
+  #
+  #   hgdp_grch37  cannot be resolved at all. The panel was WITHDRAWN, not mislaid.
+  #   sgdp         is obtainable, is GRCh37, and is only 80% usable without a signed
+  #                letter -- which makes selecting it a licensing decision, not a URL.
+  #   aadr         is still unresolved, and is now the likeliest next hgdp: Harvard
+  #                Dataverse answers 202, and reichdata.hms.harvard.edu answers 200 with
+  #                a body reading "no access (s:code104)" (checked 2026-08-22).
+  #
+  # `genetics refs probe` (M2.8) exists because of hgdp and watches these URLs weekly. It
+  # reads status codes, not meaning, so it would not have caught the withdrawal below --
+  # cephb.fr still answers 200. Read the note in that entry before trusting a green probe
+  # on a tier B source.
   # --------------------------------------------------------------------------
   - id: aadr
     name: Allen Ancient DNA Resource
@@ -639,44 +653,95 @@ sources:
     notes: >-
       Affinity to ancient populations is not descent, and M5.6 must label it that way.
 
+  # WITHDRAWN BY THE PUBLISHER. Kept as an entry rather than deleted, because a source
+  # that silently vanishes from the manifest is one the next person researches from
+  # scratch -- and this one costs a day to research.
   - id: hgdp_grch37
     name: Human Genome Diversity Project genotypes (GRCh37)
     tier: B
-    version: unresolved
-    homepage: https://cephb.fr/en/hgdp_panel.php
+    version: withdrawn-by-publisher
+    homepage: https://cephb.fr/en/hgdp_database.php
     license: LicenseRef-Fort-Lauderdale
     enables:
-      - reference populations for PCA projection beyond 1000 Genomes (M5.3)
+      - nothing reachable. M5.3 ships 1000G-only; see notes.
     manual:
       instructions: >-
-        Obtain the HGDP-CEPH genotype panel on GRCh37 and place it in this source's
-        directory. The HGDP collection published on the 1000 Genomes FTP is GRCh38
-        high-coverage sequence, not the GRCh37 genotype panel, so it is not a substitute.
-        Resolve the exact distribution when M5.3 is built.
-      url: https://cephb.fr/en/hgdp_panel.php
+        Do not spend time looking for this. The GRCh37 HGDP-CEPH genotype panel is no
+        longer distributed by anyone, and the four routes a search will suggest were each
+        checked against the live server on 2026-08-22 (see notes). If you believe you have
+        found it, confirm it is sample-level genotypes on GRCh37, and that it is none of
+        those four, before doing anything else.
+      url: https://cephb.fr/en/hgdp_database.php
       expected_files:
         - hgdp_grch37.bed
         - hgdp_grch37.bim
         - hgdp_grch37.fam
+    notes: >-
+      Checked 2026-08-22; four routes, all closed. (1) cephb.fr/en/hgdp_database.php says
+      it outright: to comply with GDPR the Fondation Jean Dausset - CEPH no longer provides
+      individual genotypes from the HGDP-CEPH panel. It serves allele frequencies for 52
+      populations instead, which cannot back a PCA -- projection needs sample-level
+      genotypes. (2) hagsc.org/hgdp/files.html, the Li et al. 2008 Illumina 650Y download
+      cited across the literature, is 404; the site root still answers 200, so it is the
+      dataset that went and not the host. (3) rosenberglab.stanford.edu serves only
+      2,810 / 1,195 / 517-marker subsets from 2006-2011 papers -- three orders of magnitude
+      short of a PCA panel. (4) cephb.fr/en/hgdp_panel.php distributes DNA *samples* under
+      a purchase order and an agreement to type all H952 DNAs and publish within six
+      months: a research collaboration, not a download, and so never a tier B one-time
+      human step in the first place. The surviving HGDP data is Bergstrom et al. 2020
+      high-coverage sequence on the 1000 Genomes FTP, which is GRCh38 and therefore not a
+      substitute here. Note also Nature Genetics 2025 (doi:10.1038/s41588-025-02412-x),
+      which reviewed HGDP-derived data use 2010-2024, found it possibly inconsistent with
+      the original consent understandings, and urges caution with these data -- relevant to
+      AGENTS.md 0.1 independently of whether a file could be found. THIS ENTRY IS ALSO WHY
+      A GREEN `refs probe` IS NOT PROOF A TIER B SOURCE IS FINE: cephb.fr answers 200
+      today, with every genotype removed.
 
+  # Resolved 2026-08-22: the release is identified and the build is measured, so what is
+  # left is a licensing decision rather than a missing URL. Still tier B, and now for the
+  # real reason -- a fifth of the samples in the ready-made file are not public.
   - id: sgdp
-    name: Simons Genome Diversity Project
+    name: Simons Genome Diversity Project (cteam_extended v4)
     tier: B
-    version: unresolved
+    version: cteam_extended.v4.maf0.1perc
     homepage: https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/
     license: LicenseRef-Fort-Lauderdale
     enables:
-      - additional reference populations for PCA projection (M5.3)
+      - reference populations 1000 Genomes lacks entirely -- Oceania, Siberia,
+        unadmixed America, MENA (a later widening of M5.3, not on its critical path)
     manual:
       instructions: >-
-        Select and download the SGDP variant set appropriate for PCA projection from the
-        Reich Lab share host, then place it in this source's directory. The share host
-        publishes several differently-processed releases -- one of them named
-        "knownbugs.not_recommended" -- so choosing between them is a decision for M5.3
-        rather than something to hard-code now.
-      url: https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/
+        Download all three of cteam_extended.v4.maf0.1perc.{bed,bim.zip,fam} from
+        variant_set/ on the Reich Lab share host (2.8 GB, 200 MB, 8.1 KB), unzip the .bim,
+        and place them here. THEN SUBSET THE SAMPLES BEFORE USING THEM: the .fam carries
+        345 samples and only 275 are fully public. Cross-reference it against
+        SGDP_metadata.279public.21signedLetter.44Fan.samples.txt in the parent directory,
+        whose last column is the access category (X=FullyPublic, Y=SignedLetterNoDelay,
+        Z=SignedLetterDelay, DO_NOT_USE); keep X only, unless a signed letter is actually
+        in hand. Measured on 2026-08-22 the .fam is 275 X, 21 Y, 43 Z, and 6 samples
+        absent from the metadata altogether (Dinka DNK5, Sandawe TZSW131, Naxi HGDP01344,
+        Australian IHW9195, Kusunda K-2, Kusunda K-15) -- treat those six as not-public
+        too, since an ID that cannot be resolved to a category cannot be cleared. The host
+        publishes no checksums, so pin your own digests on first fetch.
+      url: https://sharehost.hms.harvard.edu/genetics/reich_lab/sgdp/variant_set/
       expected_files:
-        - sgdp_variants.vcf.gz
+        - cteam_extended.v4.maf0.1perc.bed
+        - cteam_extended.v4.maf0.1perc.bim
+        - cteam_extended.v4.maf0.1perc.fam
+    notes: >-
+      Build measured, not assumed: the first 400 KB of the .bim was range-fetched and
+      inflated, and all 67,726 chromosome-1 records checked against the local dbSNP b157
+      GRCh37 index -- 99.6% of positions present, 99.5% matching on position AND allele
+      pair. It is GRCh37. Variant IDs are chrom_pos with no rsIDs, which is fine: M5.2
+      harmonises on position against the .pvar already. The knownbugs.not_recommended
+      directory that the M2.3 note worried about sits under phased_data*, a different
+      product from variant_set/, and is not implicated in this choice; docs/ holds only
+      EGA Data Access Agreements (2016/2018/2022), with no README, build statement or
+      recommended-release note. WHY THIS IS NOT ON THE M5.3 CRITICAL PATH: the 279 public
+      samples span 130 populations, about 2 samples each -- 16 populations have 1 and 95
+      have 2. That is real breadth in PCA space and useless as a nearest-reference-
+      population centroid, which is what M5.5 actually wants. HGDP was the right tool for
+      that job at ~1,050 samples over 52 populations, and it is gone.
 
   - id: omim
     name: OMIM (user-supplied API key)
