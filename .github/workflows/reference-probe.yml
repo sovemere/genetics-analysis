@@ -1,0 +1,64 @@
+name: Reference probe
+
+# Separate from ci.yml on purpose. That workflow states plainly that it never touches the
+# network for reference data, and it should keep saying so: it runs on every push, and a
+# publisher's outage must never be able to redden a code change.
+#
+# This one is the opposite by design -- it exists to ask the publishers whether the corpus
+# is still where the manifest says. It transfers no payload (HEAD, with a one-byte ranged
+# fallback for hosts that refuse the method), so "CI never downloads reference databases"
+# stays true.
+#
+# It is scheduled rather than triggered because the failure it catches is silent and has
+# no commit attached to it. The HGDP-CEPH genotype panel was withdrawn from its host with
+# nothing in the repository able to notice, and it was found by hand, months later, by
+# someone who happened to go looking.
+
+on:
+  schedule:
+    # Mondays, 07:00 UTC. Weekly because publishers move on the scale of releases, not
+    # commits, and a daily job is one whose result nobody reads.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    name: manifest URLs still resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install project
+        run: |
+          uv venv --python 3.13
+          uv pip install -e ".[dev]"
+
+      # Exits non-zero only for a URL that has gone 404 and for a *pinned* file whose size
+      # has changed -- the two findings that mean a future fetch is already broken. Drift
+      # on a file the manifest declares unpinnable, and a host that simply did not answer,
+      # are printed and pass: a job that goes red on a mirror hiccup is a job whose red
+      # gets ignored (M0.3).
+      - name: Probe every declared URL
+        run: uv run genetics refs probe
+
+      # Runs even when the step above failed, so the finding is attached to the run as an
+      # artifact rather than living only in a log that ages out.
+      - name: Full JSON report
+        if: always()
+        run: uv run genetics refs probe --json > probe.json || true
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reference-probe
+          path: probe.json
+          retention-days: 90

@@ -10,6 +10,7 @@ The commands split along what a person actually needs to know:
 * ``fetch``    -- get it, resumably. ``--dry-run`` first, because the required set is
                   92 GB and finding that out afterwards is not useful.
 * ``verify``   -- check what is on disk against the manifest and the lock, no network.
+* ``probe``    -- the reverse: check the manifest's URLs are still there, no payload.
 * ``licenses`` -- the obligations, and which sources the gate will refuse.
 """
 
@@ -378,6 +379,59 @@ def _render_report(report: fetcher.FetchReport, *, as_json: bool) -> None:
     for warning in report.warnings:
         typer.echo("")
         typer.secho(f"  ! {warning}", fg=typer.colors.YELLOW)
+
+
+# ---------------------------------------------------------------------------
+# refs probe
+# ---------------------------------------------------------------------------
+
+
+@refs_app.command("probe")
+def refs_probe(
+    only: Annotated[
+        list[str] | None, typer.Option("--only", help="Probe just this source id.")
+    ] = None,
+    no_tools: Annotated[
+        bool, typer.Option("--no-tools", help="Skip the PLINK 2 and Beagle download URLs.")
+    ] = False,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Check every declared URL is still there and still the size we recorded.
+
+    The counterpart to ``verify``, pointed the other way: ``verify`` checks bytes already
+    on disk, this checks URLs nothing has fetched yet. It transfers no payload, so it is
+    cheap enough to run on a schedule -- which is the point, because the corpus's one real
+    failure so far was a dataset withdrawn from its host with nothing in the repository
+    able to notice.
+
+    Exits non-zero for a URL that has gone 404 and for a *pinned* file whose size has
+    changed, since that pin is now wrong and the next fetch of it is already doomed. Drift
+    on an unpinned file and a host that simply did not answer are reported but do not fail
+    the command; see ``ProbeResult.fatal``.
+    """
+    with _clean_errors():
+        parsed = manifest_mod.load()
+        fetcher.select_sources(parsed, only, include_optional=True)
+    report = fetcher.probe(parsed, only=only, include_tools=not no_tools)
+
+    if as_json:
+        _emit(report.to_dict())
+        raise typer.Exit(code=0 if report.ok else 1)
+
+    findings = report.findings
+    clean = len(report.results) - len(findings)
+    typer.echo(f"  probed {len(report.results)} URL(s); {clean} unchanged")
+    for result in findings:
+        colour = typer.colors.RED if result.fatal else typer.colors.YELLOW
+        typer.secho(f"  {result.status!s:<14}", fg=colour, nl=False)
+        name = f"{result.label}/{result.filename}" if result.filename else result.label
+        typer.echo(name)
+        if result.detail:
+            typer.echo(f"      {result.detail}")
+        typer.echo(f"      {result.url}")
+    if not findings:
+        typer.secho("  every declared URL answered and matched its size.", fg=typer.colors.GREEN)
+    raise typer.Exit(code=0 if report.ok else 1)
 
 
 # ---------------------------------------------------------------------------

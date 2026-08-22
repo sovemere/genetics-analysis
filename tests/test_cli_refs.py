@@ -223,6 +223,57 @@ def test_human_report_prints_successful_postprocess_detail(
     assert "23,340 unresolvable merge record(s)" in capsys.readouterr().out
 
 
+class _StubProber:
+    """Answers every URL the same way. Installed in place of :class:`UrllibProber` so the
+    CLI test exercises the real command wiring without a socket."""
+
+    answer = fetcher.HeadResult(200, None)
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        pass
+
+    def head(self, url: str) -> fetcher.HeadResult:
+        return type(self).answer
+
+
+def test_refs_probe_reports_every_declared_url(monkeypatch: pytest.MonkeyPatch) -> None:
+    """``probe`` is the counterpart to ``verify``: it checks URLs nothing has fetched yet,
+    which is the gap the withdrawn HGDP panel fell straight through."""
+    monkeypatch.setattr(_StubProber, "answer", fetcher.HeadResult(200, None))
+    monkeypatch.setattr(fetcher, "UrllibProber", _StubProber)
+    payload = run_json("refs", "probe")
+
+    assert payload["ok"] is True
+    assert payload["probed"] > 60, "the committed manifest declares 68 files"
+    urls = {row["url"] for row in payload["results"]}
+    assert any("1000genomes" in u for u in urls)
+    # Tier B contributes its instructions URL, and the tools their download URLs.
+    assert any(row["filename"] == "<manual instructions>" for row in payload["results"])
+    assert any(row["label"] == "plink2" for row in payload["results"])
+
+
+def test_refs_probe_exits_non_zero_when_a_url_is_withdrawn(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(_StubProber, "answer", fetcher.HeadResult(404, None))
+    monkeypatch.setattr(fetcher, "UrllibProber", _StubProber)
+    result = runner.invoke(app, ["refs", "probe", "--json"])
+
+    assert result.exit_code == 1
+    payload = json.loads(result.stdout)
+    assert payload["ok"] is False
+    assert {row["status"] for row in payload["results"]} == {"gone"}
+
+
+def test_refs_probe_can_be_narrowed_to_one_source(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(_StubProber, "answer", fetcher.HeadResult(200, None))
+    monkeypatch.setattr(fetcher, "UrllibProber", _StubProber)
+    payload = run_json("refs", "probe", "--only", "phylotree_17", "--no-tools")
+
+    assert payload["probed"] == 1
+    assert payload["results"][0]["label"] == "phylotree_17"
+
+
 # ---------------------------------------------------------------------------
 # tools (M2.5)
 # ---------------------------------------------------------------------------

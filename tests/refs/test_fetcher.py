@@ -11,7 +11,11 @@ from __future__ import annotations
 import gzip
 import hashlib
 import io
+import urllib.error
+import urllib.request
+from email.message import Message
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -997,3 +1001,271 @@ def test_the_report_serialises_to_json(tmp_path: Path) -> None:
     payload = json.loads(json.dumps(report.to_dict()))
     assert payload["ok"] is True
     assert payload["sources"][0]["status"] == "complete"
+
+
+# ---------------------------------------------------------------------------
+# Remote probe
+# ---------------------------------------------------------------------------
+
+
+class FakeProber:
+    """A server whose *metadata* answers the test chooses.
+
+    The counterpart to :class:`FakeTransport`, and it exists for the same reason: none of
+    these tests may touch the network, and the behaviours worth reproducing -- a withdrawn
+    dataset, a pinned file that changed size -- are ones a real host will not perform on
+    request.
+    """
+
+    def __init__(
+        self,
+        answers: dict[str, fetcher.HeadResult] | None = None,
+        *,
+        raises: dict[str, Exception] | None = None,
+    ) -> None:
+        self.answers = answers or {}
+        self.raises = raises or {}
+        self.asked: list[str] = []
+
+    def head(self, url: str) -> fetcher.HeadResult:
+        self.asked.append(url)
+        if url in self.raises:
+            raise self.raises[url]
+        return self.answers.get(url, fetcher.HeadResult(200, len(PAYLOAD)))
+
+
+def probe_one(
+    *,
+    head: fetcher.HeadResult | None = None,
+    raises: Exception | None = None,
+    declared: int | None = len(PAYLOAD),
+    pinned: bool = True,
+) -> fetcher.ProbeResult:
+    prober = FakeProber(
+        {URL: head} if head is not None else None,
+        raises={URL: raises} if raises is not None else None,
+    )
+    return fetcher.probe_url(
+        "example", URL, filename="ref.txt", declared_bytes=declared, pinned=pinned, prober=prober
+    )
+
+
+def test_a_url_that_is_there_and_the_right_size_is_ok() -> None:
+    result = probe_one(head=fetcher.HeadResult(200, len(PAYLOAD)))
+    assert result.status is fetcher.ProbeStatus.OK
+    assert result.ok and not result.fatal
+
+
+def test_a_withdrawn_url_is_gone_and_fails_the_command() -> None:
+    """The HGDP case. The canonical genotype download became a 404 and no command in the
+    repository was capable of noticing, because noticing needed a network request."""
+    result = probe_one(head=fetcher.HeadResult(404, None))
+    assert result.status is fetcher.ProbeStatus.GONE
+    assert result.fatal
+    assert "no longer serves" in result.detail
+
+
+def test_drift_on_a_pinned_file_fails_because_the_pin_is_now_wrong() -> None:
+    """A pinned file whose size moved will fail its digest -- after transferring every
+    byte. For gnomAD exomes that is 63 GB spent to learn something a HEAD just said."""
+    result = probe_one(head=fetcher.HeadResult(200, len(PAYLOAD) + 17), pinned=True)
+    assert result.status is fetcher.ProbeStatus.SIZE_DRIFT
+    assert result.fatal
+    assert "+17" in result.detail
+
+
+def test_drift_on_an_unpinned_file_is_reported_but_not_a_failure() -> None:
+    """ClinVar's ``variant_summary.txt.gz`` and the four rolling GWAS Catalog files are
+    declared unpinnable *because* they move. Failing on them would make a scheduled probe
+    permanently red, which is the same as having no probe."""
+    result = probe_one(head=fetcher.HeadResult(200, len(PAYLOAD) + 17), pinned=False)
+    assert result.status is fetcher.ProbeStatus.SIZE_DRIFT
+    assert not result.fatal
+
+
+def test_a_host_that_will_not_state_a_size_is_unsized_rather_than_ok() -> None:
+    result = probe_one(head=fetcher.HeadResult(200, None))
+    assert result.status is fetcher.ProbeStatus.UNSIZED
+    assert not result.fatal
+
+
+def test_no_declared_size_means_reachability_is_all_that_was_claimed() -> None:
+    """Tool builds carry a sha256 and no size, so there is nothing for a probe to
+    contradict. Saying OK is honest; saying 'verified' would not be."""
+    result = probe_one(head=fetcher.HeadResult(200, 12345), declared=None)
+    assert result.status is fetcher.ProbeStatus.OK
+
+
+def test_an_unreachable_host_does_not_fail_the_command() -> None:
+    """A weekly job that goes red when a public mirror hiccups is a job whose red gets
+    ignored -- the M0.3 lesson, applied before it has to be learned twice."""
+    result = probe_one(raises=urllib.error.URLError("connection reset"))
+    assert result.status is fetcher.ProbeStatus.UNREACHABLE
+    assert not result.fatal
+    assert "URLError" in result.detail
+
+
+def test_a_server_error_is_unreachable_not_gone() -> None:
+    """502 is 'ask again later'; 404 is 'this is not coming back'. Collapsing the two
+    would either cry wolf or bury the finding this command exists for."""
+    assert probe_one(head=fetcher.HeadResult(502, None)).status is fetcher.ProbeStatus.UNREACHABLE
+    assert probe_one(head=fetcher.HeadResult(410, None)).status is fetcher.ProbeStatus.GONE
+
+
+# ---------------------------------------------------------------------------
+# The ranged fallback
+# ---------------------------------------------------------------------------
+
+
+class _FakeResponse:
+    def __init__(self, status: int, headers: dict[str, str]) -> None:
+        self.status = status
+        self.headers = Message()
+        for key, value in headers.items():
+            self.headers[key] = value
+
+    def __enter__(self) -> _FakeResponse:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        return None
+
+    def getcode(self) -> int:
+        return self.status
+
+
+def _urlopen_stub(
+    monkeypatch: pytest.MonkeyPatch, responses: dict[str, _FakeResponse | Exception]
+) -> list[tuple[str, str | None]]:
+    """Record (method, Range) per call and answer by method."""
+    seen: list[tuple[str, str | None]] = []
+
+    def fake_urlopen(request: Any, timeout: int = 0) -> _FakeResponse:
+        method = request.get_method()
+        seen.append((method, request.get_header("Range")))
+        answer = responses[method]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    monkeypatch.setattr(urllib.request, "urlopen", fake_urlopen)
+    return seen
+
+
+def test_a_host_that_refuses_head_is_asked_for_one_byte_instead(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Some hosts answer 405 to HEAD and serve GET perfectly well. Taking the 405 at face
+    value would report a healthy file as unreachable."""
+    seen = _urlopen_stub(
+        monkeypatch,
+        {
+            "HEAD": urllib.error.HTTPError(URL, 405, "Method Not Allowed", None, None),  # type: ignore[arg-type]
+            "GET": _FakeResponse(206, {"Content-Range": "bytes 0-0/9999", "Content-Length": "1"}),
+        },
+    )
+    result = fetcher.UrllibProber().head(URL)
+    assert result == fetcher.HeadResult(206, 9999)
+    assert seen == [("HEAD", None), ("GET", "bytes=0-0")]
+
+
+def test_the_ranged_fallback_reads_the_total_not_the_one_byte(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """``Content-Length`` on a 206 describes the range, not the resource. Reading it as
+    the total would report every file in the corpus as having shrunk to a single byte --
+    the same confusion :meth:`UrllibTransport.open` exists to prevent on the way in."""
+    _urlopen_stub(
+        monkeypatch,
+        {
+            "HEAD": _FakeResponse(200, {}),  # 200, but no Content-Length
+            "GET": _FakeResponse(206, {"Content-Range": "bytes 0-0/443", "Content-Length": "1"}),
+        },
+    )
+    assert fetcher.UrllibProber().head(URL) == fetcher.HeadResult(206, 443)
+
+
+def test_a_plain_head_is_not_followed_by_a_second_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The fallback costs a round trip, so it must fire only when HEAD came back useless."""
+    seen = _urlopen_stub(monkeypatch, {"HEAD": _FakeResponse(200, {"Content-Length": "443"})})
+    assert fetcher.UrllibProber().head(URL) == fetcher.HeadResult(200, 443)
+    assert seen == [("HEAD", None)]
+
+
+def test_a_404_is_returned_as_a_status_not_raised(monkeypatch: pytest.MonkeyPatch) -> None:
+    """An HTTP error is an answer. Only a transport failure is unreachability."""
+    _urlopen_stub(
+        monkeypatch,
+        {"HEAD": urllib.error.HTTPError(URL, 404, "Not Found", None, None)},  # type: ignore[arg-type]
+    )
+    assert fetcher.UrllibProber().head(URL) == fetcher.HeadResult(404, None)
+
+
+# ---------------------------------------------------------------------------
+# Whole-manifest probing
+# ---------------------------------------------------------------------------
+
+
+def test_a_manual_source_contributes_its_instructions_url() -> None:
+    """Tier B is where the corpus's one real surprise came from, so it is the last place
+    that should go unprobed."""
+    manual = manifest.Source(
+        id="tier_b",
+        name="Manual",
+        tier=manifest.Tier.B,
+        version="unresolved",
+        homepage="https://example.org/",
+        license_id="CC0-1.0",
+        files=(),
+        manual=manifest.ManualStep(
+            instructions="Fetch it by hand.", url="https://example.org/instructions"
+        ),
+    )
+    parsed = manifest.Manifest(schema_version=1, sources=(manual,))
+    targets = fetcher.probe_targets(parsed, include_tools=False)
+    assert [t[2] for t in targets] == ["https://example.org/instructions"]
+    assert targets[0][4] is False  # never treated as pinned: there is nothing to pin
+
+
+def test_probe_reports_every_target_and_orders_findings_worst_first() -> None:
+    gone = make_source(source_id="gone")
+    fine = make_source(source_id="fine")
+    parsed = manifest.Manifest(schema_version=1, sources=(gone, fine))
+    # Both sources point at the same URL, so drive the verdict per source instead.
+    prober = FakeProber({URL: fetcher.HeadResult(404, None)})
+    report = fetcher.probe(parsed, prober=prober, include_tools=False, workers=1)
+
+    assert len(report.results) == 2
+    assert not report.ok
+    assert [r.status for r in report.findings] == [fetcher.ProbeStatus.GONE] * 2
+
+
+def test_a_clean_probe_is_ok_and_has_no_findings() -> None:
+    parsed = manifest.Manifest(schema_version=1, sources=(make_source(),))
+    report = fetcher.probe(parsed, prober=FakeProber(), include_tools=False, workers=1)
+    assert report.ok
+    assert report.findings == ()
+
+
+def test_the_probe_never_asks_for_a_body() -> None:
+    """Structural, not disciplinary: :class:`fetcher.Prober` has no method that returns
+    bytes, so a probe that downloads 495 GB of gnomAD is not a reachable state. This
+    asserts the wiring actually goes through it."""
+    parsed = manifest.Manifest(schema_version=1, sources=(make_source(),))
+    prober = FakeProber()
+    fetcher.probe(parsed, prober=prober, include_tools=False, workers=1)
+    assert prober.asked == [URL]
+    assert not hasattr(prober, "open")
+
+
+def test_the_probe_report_serialises_to_json() -> None:
+    import json
+
+    parsed = manifest.Manifest(schema_version=1, sources=(make_source(),))
+    report = fetcher.probe(parsed, prober=FakeProber(), include_tools=False, workers=1)
+    payload = json.loads(json.dumps(report.to_dict()))
+    assert payload["ok"] is True
+    assert payload["probed"] == 1
+    assert payload["results"][0]["status"] == "ok"
