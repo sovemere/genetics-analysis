@@ -16,9 +16,33 @@ the source of truth for build state.
 
 ## Next up
 
-M0–M4 are done and the M4 slice checkpoint passed. M5 is open, and **the two things
-standing in front of it are not code.** Both are recorded in full under
-[M5.3](#m5--ancestry); repeated here because they are the reason M5 stalls if nobody acts.
+M0–M4 are done and the M4 slice checkpoint passed. **M5.1–M5.4 are done and verified
+against the real 1000 Genomes panel** (2026-08-22): the panel is fetched, the LD-pruned
+subset is built (290,285 markers over 2,504 samples), and the M5.2 → M5.3 → M5.4 chain runs
+end to end on it.
+
+**Next is [M5.5](#m5--ancestry), and it opens with a decision rather than with code.**
+`Projection.coverage` came back at 83.6% on the real panel, and the shortfall is *not* call
+quality — it is strand-ambiguous A/T and C/G sites, which M5.2 drops by design and which are
+about 16% of common SNPs. So coverage has a floor near 84% that means nothing about the
+sample, and a confidence model reading it as quality under-rates every sample equally.
+Choose one before building the card: grade coverage against the markers M5.2 could *use*,
+or exclude ambiguous sites from the eigenvector build so the loadings match what a sample
+can actually supply. **The second is tidier and costs a rebuild of the cached artifact**,
+which is why it is a decision and not a detail.
+
+M5.5's other requirement is already written into its entry and is the load-bearing one:
+with 1000G alone there is no correct answer for Middle Eastern, North African, Oceanian,
+Central Asian, Siberian or unadmixed Indigenous American ancestry, so the card must be able
+to **decline to name a population** rather than return the least-bad label with a distance
+attached.
+
+After that, [M5.6](#m5--ancestry) needs AADR, which is the next tier B source likely to turn
+out like HGDP — Harvard Dataverse answers 202 and `reichdata.hms.harvard.edu` answers 200
+with a body reading `no access`. Resolving it early is cheaper than discovering it at M5.6.
+
+<details><summary>Settled: the two things that used to stand in front of M5 (both resolved
+2026-08-22)</summary>
 
 1. ~~**Fetch 1000 Genomes.**~~ **Done 2026-08-22: 25/25 fetched, marker subset built
    (290,285 markers over 2,504 samples), M5.2→M5.3→M5.4 verified end to end against it.**
@@ -69,7 +93,14 @@ standing in front of it are not code.** Both are recorded in full under
    silently inflates confidence downstream. M5.5 must be able to decline to name a
    population; see its entry.
 
-Everything else in M5 is ordinary work behind the download.
+</details>
+
+One piece of debt worth carrying forward from the fetch: **the fetcher discards an unpinned
+partial rather than resuming it**, which is correct for a rolling file and wrong for a
+frozen release that merely publishes no checksum. It cost five passes on 1000 Genomes.
+`RemoteFile.unpinned_reason` is the field that could tell the two apart, and the next place
+this bites is **gnomAD exomes — 63 GB in a single file**, where one truncation costs far
+more than a gigabyte.
 
 ---
 
@@ -1515,7 +1546,7 @@ section, that proves every layer.*
       - `.gitignore` gained `*.pvar.zst` and `*-temporary.*`: PLINK's conversion
         intermediates are zstd-compressed, so `*.pvar` does not see them, and they survive
         a crash.
-- [~] **M5.3** Build reference PCA from **1000 Genomes** on array-overlapping markers;
+- [x] **M5.3** Build reference PCA from **1000 Genomes** on array-overlapping markers;
       LD-prune first. Cache the eigenvectors as a fetched-reference artifact.
       - **Scoped to 1000G-only on 2026-08-22, on evidence rather than convenience.** HGDP
         is withdrawn and SGDP is ~2 samples per population; see [Next up](#next-up) and the
