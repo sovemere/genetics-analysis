@@ -28,6 +28,7 @@ from genetics.ancestry.projection import (
     project,
 )
 from genetics.ancestry.reference_pca import EigenSettings, ReferencePCA
+from genetics.external.harmonize import SiteOutcome
 from genetics.external.plink2 import Plink2
 
 PLINK_STUB = """
@@ -131,6 +132,13 @@ def make_pca(directory: Path, *, n_components: int = 10, n_markers: int = 1500) 
         n_components=n_components,
         n_panel_samples=2504,
         panel_source="pca_markers_ldpruned.pvar",
+        # A tenth of the intersection excluded as strand-ambiguous, roughly what the real
+        # panel gives. Present so the stand-in cannot claim `n_markers` is the whole
+        # overlap -- the reading that made coverage mean the wrong thing before M5.5.
+        n_intersected=n_markers + n_markers // 10,
+        marker_positions=tuple(("1", 1000 * (i + 1)) for i in range(n_markers)),
+        excluded_sites={SiteOutcome.AMBIGUOUS_SITE: n_markers // 10},
+        space="array",
         settings=EigenSettings(n_components=n_components),
         reused=False,
         plink=None,

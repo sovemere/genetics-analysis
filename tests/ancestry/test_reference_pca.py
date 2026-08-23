@@ -27,6 +27,7 @@ from genetics.ancestry.reference_pca import (
     array_marker_positions,
     build_reference_pca,
 )
+from genetics.external.harmonize import SiteOutcome
 from genetics.external.plink2 import Plink2, Plink2RunError
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 
@@ -127,13 +128,21 @@ def make_subset(
     *,
     n_samples: int = 2504,
     ids: list[str] | None = None,
+    alleles: list[tuple[str, str]] | None = None,
 ) -> Path:
-    """A pgen trio standing in for M5.3's LD-pruned marker subset."""
+    """A pgen trio standing in for M5.3's LD-pruned marker subset.
+
+    ``alleles`` gives ``(REF, ALT)`` per position. The default A/G is unambiguous and a
+    well-formed SNP, so a test that says nothing about alleles gets a panel every marker of
+    which survives the exclusion M5.5 added.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     prefix = directory / "pca_markers_ldpruned"
     names = ids if ids is not None else [f"v{c}_{p}" for c, p in positions]
+    pairs = alleles if alleles is not None else [("A", "G")] * len(positions)
     rows = "".join(
-        f"{c}\t{p}\t{name}\tA\tG\n" for (c, p), name in zip(positions, names, strict=True)
+        f"{c}\t{p}\t{name}\t{ref}\t{alt}\n"
+        for (c, p), name, (ref, alt) in zip(positions, names, pairs, strict=True)
     )
     prefix.with_suffix(".pvar").write_text("#CHROM\tPOS\tID\tREF\tALT\n" + rows, encoding="utf-8")
     prefix.with_suffix(".psam").write_text(
@@ -182,6 +191,252 @@ def test_only_markers_on_both_the_array_and_the_panel_are_scored(
         make_table(array), subset, plink=plink, workspace=tmp_path / "cache"
     )
     assert result.n_markers == 1500
+
+
+# ---------------------------------------------------------------------------
+# The panel-only exclusion (M5.5's half of the M5.4 coverage finding)
+# ---------------------------------------------------------------------------
+
+
+def ambiguous_alleles(n: int, *, every: int) -> list[tuple[str, str]]:
+    """A/G everywhere except every ``every``-th marker, which is A/T."""
+    return [("A", "T") if i % every == 0 else ("A", "G") for i in range(n)]
+
+
+def test_strand_ambiguous_panel_sites_get_no_loading(tmp_path: Path, plink: Plink2) -> None:
+    """The whole point of the change: M5.2 cannot supply these markers for any sample, so a
+    reference that carries weights for them measures the chip's strand problem and calls it
+    the sample's coverage."""
+    panel = panel_positions(2000)
+    subset = make_subset(tmp_path / "ref", panel, alleles=ambiguous_alleles(2000, every=5))
+
+    result = build_reference_pca(
+        make_table(panel), subset, plink=plink, workspace=tmp_path / "cache"
+    )
+
+    assert result.n_intersected == 2000
+    assert result.n_markers == 1600
+    assert result.excluded_sites == {SiteOutcome.AMBIGUOUS_SITE: 400}
+    assert result.n_excluded == 400
+
+
+def test_the_excluded_markers_never_reach_the_extract_file(tmp_path: Path, plink: Plink2) -> None:
+    """The range file is the mechanism, so the assertion belongs on the file PLINK reads --
+    a filtered frame that still wrote every range would leave the loadings unchanged."""
+    panel = panel_positions(2000)
+    subset = make_subset(tmp_path / "ref", panel, alleles=ambiguous_alleles(2000, every=5))
+    ranges: list[str] = []
+
+    real = reference_pca._write_extract_ranges
+
+    def capture(path: Path, sites: object) -> None:
+        real(path, sites)  # type: ignore[arg-type]
+        ranges.extend(path.read_text(encoding="utf-8").splitlines())
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(reference_pca, "_write_extract_ranges", capture)
+        build_reference_pca(make_table(panel), subset, plink=plink, workspace=tmp_path / "cache")
+
+    assert len(ranges) == 1600
+    excluded = {str(pos) for (_c, pos) in panel[::5]}
+    assert not [line for line in ranges if line.split("\t")[1] in excluded]
+
+
+def test_panel_records_that_are_not_snps_are_excluded_under_their_own_name(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """Counted separately from ambiguity because they are a different fact about the panel:
+    an indel record is one the subset step should not have kept at all."""
+    panel = panel_positions(2000)
+    alleles: list[tuple[str, str]] = [("A", "G")] * 2000
+    alleles[3] = ("AT", "G")
+    alleles[4] = ("A", "A")
+    alleles[5] = ("C", "G")
+    subset = make_subset(tmp_path / "ref", panel, alleles=alleles)
+
+    result = build_reference_pca(
+        make_table(panel), subset, plink=plink, workspace=tmp_path / "cache"
+    )
+    assert result.excluded_sites == {
+        SiteOutcome.PANEL_NOT_SNP: 2,
+        SiteOutcome.AMBIGUOUS_SITE: 1,
+    }
+    assert result.n_markers == 1997
+
+
+def test_the_id_check_ignores_markers_that_are_on_their_way_out(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """A duplicated ID at a site no sample can score is not a fact about this run, and
+    refusing on it would block a build for a marker that never reaches ``--score``."""
+    panel = panel_positions(2000)
+    alleles: list[tuple[str, str]] = [("A", "G")] * 2000
+    alleles[8] = alleles[9] = ("C", "G")
+    ids = [f"v{c}_{p}" for c, p in panel]
+    ids[9] = ids[8] = "."
+
+    subset = make_subset(tmp_path / "ref", panel, ids=ids, alleles=alleles)
+    result = build_reference_pca(
+        make_table(panel), subset, plink=plink, workspace=tmp_path / "cache"
+    )
+    assert result.n_markers == 1998
+
+
+def test_the_exclusion_counts_survive_a_cache_hit(tmp_path: Path, plink: Plink2) -> None:
+    """Otherwise the same field holds enum keys after a build and nothing after a reuse,
+    which is a difference a caller only meets on the second run."""
+    panel = panel_positions(2000)
+    subset = make_subset(tmp_path / "ref", panel, alleles=ambiguous_alleles(2000, every=5))
+    table, cache = make_table(panel), tmp_path / "cache"
+
+    first = build_reference_pca(table, subset, plink=plink, workspace=cache)
+    second = build_reference_pca(table, subset, plink=plink, workspace=cache)
+
+    assert second.reused is True
+    assert second.excluded_sites == first.excluded_sites == {SiteOutcome.AMBIGUOUS_SITE: 400}
+    assert second.n_intersected == first.n_intersected == 2000
+
+
+def test_the_marker_floor_counts_usable_markers_not_the_whole_intersection(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """1,100 markers that score 900 is the case this ordering exists for."""
+    panel = panel_positions(1100)
+    alleles: list[tuple[str, str]] = [("A", "T")] * 200 + [("A", "G")] * 900
+    subset = make_subset(tmp_path / "ref", panel, alleles=alleles)
+
+    with pytest.raises(ReferencePcaError, match="900 of the panel's markers"):
+        build_reference_pca(make_table(panel), subset, plink=plink, workspace=tmp_path / "cache")
+
+
+def test_the_refusal_says_how_many_markers_the_exclusion_took(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """A bare "only 900 usable" reads as a broken chip until the message says 200 of the
+    1,100 were strand-ambiguous."""
+    panel = panel_positions(1100)
+    alleles: list[tuple[str, str]] = [("A", "T")] * 200 + [("A", "G")] * 900
+    subset = make_subset(tmp_path / "ref", panel, alleles=alleles)
+
+    with pytest.raises(ReferencePcaError) as caught:
+        build_reference_pca(make_table(panel), subset, plink=plink, workspace=tmp_path / "cache")
+    assert "200 of those were strand-ambiguous" in str(caught.value)
+
+
+def test_the_refusal_does_not_name_a_restriction_that_was_never_applied(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """Unconditionally, the message reads "the export offered 1,100 autosomal positions
+    (1,100 after the 'array' restriction)" -- naming a restriction nobody passed, with two
+    identical numbers standing as its apparent evidence, and ``array`` is the name of the
+    *unrestricted* space. The reader is left looking for a bug in their own call."""
+    panel = panel_positions(1100)
+    alleles: list[tuple[str, str]] = [("A", "T")] * 200 + [("A", "G")] * 900
+    subset = make_subset(tmp_path / "ref", panel, alleles=alleles)
+
+    with pytest.raises(ReferencePcaError) as caught:
+        build_reference_pca(make_table(panel), subset, plink=plink, workspace=tmp_path / "cache")
+
+    assert "restriction" not in str(caught.value)
+    assert "1,100 autosomal positions," in str(caught.value)
+
+
+def test_the_refusal_does_name_the_restriction_when_there_was_one(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """The other half: a restriction that ate the intersection is the first thing to say."""
+    panel = panel_positions(1100)
+    subset = make_subset(tmp_path / "ref", panel)
+
+    with pytest.raises(ReferencePcaError) as caught:
+        build_reference_pca(
+            make_table(panel),
+            subset,
+            plink=plink,
+            workspace=tmp_path / "cache",
+            restrict_to=panel[:900],
+            space="aadr_v66p1_ho",
+        )
+
+    assert "900 after the 'aadr_v66p1_ho' restriction" in str(caught.value)
+
+
+def test_a_restriction_disjoint_from_the_array_is_refused_before_plink(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    panel = panel_positions(2000)
+    subset = make_subset(tmp_path / "ref", panel)
+
+    with pytest.raises(ReferencePcaError, match="share no autosomal position"):
+        build_reference_pca(
+            make_table(panel),
+            subset,
+            plink=plink,
+            workspace=tmp_path / "cache",
+            restrict_to=[("1", 7_000_000)],
+            space="aadr_v66p1_ho",
+        )
+    assert commands(tmp_path) == []
+
+
+def test_a_restriction_narrows_the_space_and_is_recorded_in_the_sidecar(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """M5.6's shared space: the array, the panel and AADR all carry these markers, and two
+    artifacts over the same chip differing only in restriction must be tellable apart by
+    somebody reading the sidecar rather than only by their marker counts."""
+    panel = panel_positions(2000)
+    subset = make_subset(tmp_path / "ref", panel)
+
+    result = build_reference_pca(
+        make_table(panel),
+        subset,
+        plink=plink,
+        workspace=tmp_path / "cache",
+        restrict_to=panel[:1500],
+        space="aadr_v66p1_ho",
+    )
+
+    assert result.n_markers == 1500
+    assert result.space == "aadr_v66p1_ho"
+    sidecar = json.loads(
+        result.prefix.with_name(result.prefix.name + ".provenance.json").read_text(encoding="utf-8")
+    )
+    assert sidecar["space"] == "aadr_v66p1_ho"
+
+
+def test_the_marker_positions_are_sorted_whatever_order_the_panel_file_used(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """The field promises sorted and M5.6 is invited to line another source up against it,
+    which is exactly the caller who would bisect or merge on that promise. 1000 Genomes
+    ships a position-ordered .pvar, so the two agree by luck until the panel widens."""
+    panel = panel_positions(1500)
+    shuffled = panel[750:] + panel[:750]
+    subset = make_subset(tmp_path / "ref", shuffled)
+
+    result = build_reference_pca(
+        make_table(panel), subset, plink=plink, workspace=tmp_path / "cache"
+    )
+
+    assert list(result.marker_positions) == sorted(panel, key=lambda p: (p[0], p[1]))
+    assert len(result.marker_positions) == result.n_markers
+
+
+def test_the_marker_positions_survive_a_cache_hit(tmp_path: Path, plink: Plink2) -> None:
+    """Computed on both paths, because the intersection is read before the cache is
+    consulted -- and a reused artifact that returned an empty tuple would silently narrow
+    M5.6's shared space to nothing."""
+    panel = panel_positions(1500)
+    subset = make_subset(tmp_path / "ref", panel)
+    table, cache = make_table(panel), tmp_path / "cache"
+
+    first = build_reference_pca(table, subset, plink=plink, workspace=cache)
+    second = build_reference_pca(table, subset, plink=plink, workspace=cache)
+
+    assert second.reused is True
+    assert second.marker_positions == first.marker_positions
+    assert len(second.marker_positions) == 1500
 
 
 # ---------------------------------------------------------------------------

@@ -23,6 +23,12 @@ through this same function: whatever the constant is, it is the same one on both
 M5.5 projects the reference panel through here too, rather than reading coordinates out of
 ``.eigenvec`` and hoping the units agree.
 
+**The coordinates carry the identity of the reference they came from.** M5.5 compares a
+sample against population centroids built from the panel's own projection, and two
+projections against *different* eigenvector sets are coordinates in different spaces that
+look identical: same columns, same count, same magnitude, and both plot. :attr:`Projection.
+reference` is what lets that comparison be refused rather than silently made.
+
 **Coverage is reported, not silently absorbed.** ``no-mean-imputation`` means a no-call
 contributes nothing rather than contributing the mean, which is the honest choice -- mean
 imputation pulls every sparse sample toward the origin, i.e. toward looking "averagely
@@ -120,6 +126,17 @@ class Projection(NoGenotypeRepr):
 
     n_reference_markers: int
     n_components: int
+    reference: str
+    """Which reference PCA produced these coordinates -- the artifact prefix's *name*.
+
+    Carried so M5.5 can refuse to compare a sample against population centroids built from
+    a different eigenvector set. Two projections against different loadings are coordinates
+    in different spaces, and nothing about them looks wrong: they have the same column
+    names, the same component count and the same order of magnitude, and they plot. The
+    name is the cache key's own (``refpca-<digest>``), so it identifies the artifact without
+    carrying the path -- a ``cache_dir()`` path begins with the account name on Windows.
+    """
+
     sscore: Path
     plink: Plink2ResultInfo
 
@@ -243,6 +260,7 @@ def project(
     plink: Plink2,
     workspace: Path | None = None,
     stem: str = "projection",
+    min_coverage: float = _MIN_COVERAGE,
 ) -> Projection:
     """Score ``pgen`` against ``pca``'s allele weights and return the coordinates.
 
@@ -250,6 +268,12 @@ def project(
     :func:`genetics.external.pgen.to_pgen`, or the reference panel's when M5.5 needs the
     populations on the same scale. It must have been harmonized against the same panel the
     reference PCA was built from, because ``--score`` joins on variant ID.
+
+    ``min_coverage`` is the structural tripwire described at :data:`_MIN_COVERAGE`, and it is
+    a parameter rather than a constant only because M5.6 has a cohort the default is wrong
+    for: ancient individuals are published with real missingness, so the *worst* of nine
+    thousand of them legitimately sits below half. Lowering it is a statement that sparse
+    coverage is expected here; leaving it alone is what every other caller should do.
     """
     for suffix in (".pgen", ".pvar", ".psam"):
         companion = pgen.with_suffix(suffix)
@@ -306,12 +330,16 @@ def project(
     coordinates, scored_alleles = _read_sscore(sscore, n_components=pca.n_components)
     scored_markers = scored_alleles // _ALLELES_PER_MARKER
     coverage = scored_markers / pca.n_markers if pca.n_markers else 0.0
-    if coverage < _MIN_COVERAGE:
+    if coverage < min_coverage:
         raise ProjectionError(
-            f"only {scored_markers:,} of the reference's {pca.n_markers:,} markers were "
-            f"scored ({coverage:.1%}). That is a mismatch rather than a poorly-called sample: the "
-            "genotypes were most likely harmonized against a different panel, so their "
-            "variant IDs do not match the reference's and `--score` matched almost nothing."
+            f"the worst-covered sample scored only {scored_markers:,} of the reference's "
+            f"{pca.n_markers:,} markers ({coverage:.1%}, floor {min_coverage:.1%}). At the "
+            "default floor the realistic cause is a mismatch rather than a poorly-called "
+            "sample: genotypes harmonized against a different panel carry variant IDs the "
+            "reference lacks, so `--score` matches almost nothing and still returns "
+            "coordinates that plot. A genuinely sparse cohort -- M5.6 projects pseudo-haploid "
+            "ancient individuals whose missingness is a property of the archive -- should "
+            "lower `min_coverage` deliberately rather than meet this by accident."
         )
 
     return Projection(
@@ -319,6 +347,7 @@ def project(
         n_scored_alleles=scored_alleles,
         n_reference_markers=pca.n_markers,
         n_components=pca.n_components,
+        reference=pca.prefix.name,
         sscore=sscore,
         plink=result,
     )
