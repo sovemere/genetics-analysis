@@ -406,6 +406,24 @@ shotgun a subset of mtDNA rather than sequencing it. Report the clade *with the 
 supporting markers*, and state the ceiling on the card. Do not imply FTDNA-level
 resolution.
 
+**Measured at M5.7 (2026-08-23), against the real export and the trees in §5.1.** Only
+about half of each lineage's markers land on a site that defines a branch at all:
+
+| | Array markers | On a defining site | Haplogroups reachable |
+|---|---|---|---|
+| mtDNA | 262 distinct positions | **139 (53%)** | 700 |
+| chrY | 1,665 | **1,141 (68.5%)** | 629 |
+
+These are properties of the *array*, not of the trees — PhyloTree carries 11,529 mutations
+and the ISOGG table 74,569. So the number a card must show is the supporting-marker count
+for the call it made, alongside this ceiling, and the two are different claims: the ceiling
+is identical for every sample run on this chip, while the support count is not.
+
+One consequence for the caller itself, learned the expensive way: **a branch with no typed
+marker is silence, not evidence against.** Requiring a derived marker at every branch —
+correct for a sequenced genome — halts three steps below the root on an array, because most
+branches are defined by markers no chip carries.
+
 ### 4.8 Source licenses are heterogeneous — three specific traps
 
 Full corpus map, availability tiers, and per-section coverage assessment live in **§5**.
@@ -488,8 +506,9 @@ vendored). This tier alone supports the great majority of planned cards.
 | **1000 Genomes** | Reference panel, GRCh37, 2,504 samples / 26 populations | Open (Fort Lauderdale) |
 | **HGDP** | ~~Reference panel~~ **withdrawn by CEPH for GDPR; no GRCh37 genotype distribution survives** (checked 2026-08-22) | n/a |
 | **SGDP** | Reference panel, GRCh37 (measured), but 70 of 345 samples need a signed letter and the public 279 span 130 populations | Open (Fort Lauderdale) + per-sample gate |
-| **AADR (Allen Ancient DNA)** | >10,000 ancient individuals at ~1.2M SNPs | Freely available, CC BY 4.0 |
-| **PhyloTree 17 / Haplogrep 3 trees** | mtDNA phylogeny, 6,380 haplogroups | Public GitHub repos |
+| **AADR (Allen Ancient DNA)** | v66.p1, fetched 2026-08-23. Human Origins set on disk: **584,131 markers over 27,594 individuals in 4,266 populations**, GRCh37. The 1240K set (~1.2M SNPs) is the same record if M5.6 wants it, but HO is the panel that matches an array | **CC0-1.0** (the record's own licence; this file said CC BY 4.0 until 2026-08-23) |
+| **PhyloTree 17** | mtDNA phylogeny. Parsed at M5.7 to **5,154 nodes over 4,058 rCRS positions**; frozen since 2016-02-18 | Academic use with attribution |
+| **ISOGG Y tree via Y-LineageTracker** | Y phylogeny, **74,569 markers over 10,205 haplogroups with GRCh37 positions**. The only redistributable copy found — see §5.3 | **MIT** (the redistributor's grant; see the manifest entry for the caveat) |
 | **Europe PMC OA subset** | Full text for agent-side citation checking | CC or similar, per-article |
 
 **gnomAD is load-bearing**, not optional: the frequency-based confidence inversion in
@@ -519,6 +538,16 @@ gracefully when absent, and prompt the user once.
   verified by fetching both the manifest and a 755 MB endpoint file. Individual-level data
   remains restricted, which is presumably what the form covers. The manifest lists FinnGen
   as tier A accordingly.
+- ~~**AADR** — Harvard Dataverse returns 202 to API requests, so the genotype set has to
+  be downloaded by hand.~~ **Corrected at M5.7 (2026-08-23): it was never gated, and the
+  202 was misread.** That status comes from the *DOI redirector* at doi.org; the archive's
+  own API (`/api/datasets/:persistentId/`) answers 200 with full metadata, the file listing
+  answers likewise, and all 25 files report `restricted: false`. The manifest lists AADR as
+  tier A accordingly. **The reason this went unnoticed for a year is worth more than the
+  correction**: the entry declared only a homepage URL, so `refs probe` had exactly one
+  thing to check and it answered 200 every time. A tier assignment nothing can re-verify
+  decays quietly — compare HGDP in §5.1, where the same green probe covered a source with
+  every genotype removed.
 - **OMIM** — requires a registered API key. Its terms forbid building a derivative
   database or redistributing data without a Johns Hopkins license, and require weekly
   refresh. Therefore: **user-supplied key only, never vendored, never cached long-term.**
@@ -541,27 +570,53 @@ gracefully when absent, and prompt the user once.
 - **SNPedia** — CC BY-NC-SA 3.0 US. The most convenient trait-annotation corpus and the
   one that most constrains a public, permissively-licensed project. Optional, clearly
   labelled, opt-in fetch; prefer writing the knowledge pack from primary literature.
-- **Y-chromosome phylogeny** — the open ISOGG tree is frozen at v15.73 (11 July 2020).
-  The actively-maintained trees (YFull, FTDNA Block Tree) are consortium/customer
-  resources, not bulk-redistributable. `yhaplo` (23andMe) is **non-commercial licence
-  only** and ships an ISOGG-2016-era tree; its own README warns that arrays with few Y
-  probes violate its assumptions — and this file has 1,665 Y markers. Compounds §4.7.
+- **Y-chromosome phylogeny — resolved at M5.7 (2026-08-23), and the answer was a
+  licence rather than a URL.** Three routes were chased to the live server:
+  - **isogg.org is unfetchable.** Not withdrawn like HGDP — it sits behind a Cloudflare
+    managed challenge that returns 403 with a "Just a moment…" interstitial to every
+    client, browser user-agent included. Nothing there can be pinned.
+  - **`yhaplo` (23andMe) cannot ship in a public checkout under any reading.** §3(b) *No
+    Redistribution or Sharing* says the Licensed Materials "may not be used for
+    redistribution purposes"; §3(a)(i) permits sharing only "internally"; §2(a) limits use
+    to "internal Non-Commercial Research"; and §1(a) defines a Derivative Work to include
+    an "abridgement, condensation", so extracting a marker subset does not escape it. Its
+    snapshot is also 2016-01-04.
+  - **Yleaf** was the top performer in the 2023 classifier benchmark (PMC10560978, CC BY)
+    but is GPL-3.0 — incompatible with this MIT tree — and its data directory bundles YFull
+    and FTDNA trees, two commercial sources with terms of their own.
+
+  What ships is the **ISOGG table as redistributed under MIT by Y-LineageTracker**, pinned
+  to a commit. The honest caveat, recorded in the manifest rather than buried: the MIT
+  grant is the redistributor's over ISOGG's compilation, and whether they had standing to
+  make it is the same question `yhaplo` raises — but pointed the opposite way, and what is
+  taken is factual (a position, an allele pair, the branch a SNP defines). The actively
+  maintained trees (YFull, FTDNA Block Tree) remain consortium/customer resources and are
+  still not bulk-redistributable.
 - Paywalled *papers* are a minor issue: the summary statistics are open even when the
   publication is not, and Europe PMC's OA subset covers agent-side citation checking.
 
 ### 5.4 Coverage assessment by section
 
 - **Ancestry — good, and downgraded from "excellent" on 2026-08-22.** PLINK 2 PCA
-  projection is a strong, fully free stack and 1000G is a solid panel. But **HGDP is gone**
-  (withdrawn for GDPR), **SGDP is ~2 samples per population** in its public subset, and
-  **AADR is still unresolved** — Harvard Dataverse answers 202 and the Reich Lab server
-  answers 200 with a body reading `no access`. So the panel is 1000G, and 1000G has no
-  MENA, Oceanian, Central Asian, Siberian or unadmixed Indigenous American populations.
-  **The weak spot is no longer haplogroup resolution; it is that whole regions of the world
-  have no reference population, and a nearest-neighbour report over an incomplete panel
-  names the least-bad match rather than declining.** That is a correctness requirement on
-  M5.5, and it reaches PRS confidence through §4.4. Haplogroup resolution (§4.7, §5.3)
-  remains a marker-count and tree-freshness problem, not a paywall.
+  projection is a strong, fully free stack and 1000G is a solid panel. **HGDP is gone**
+  (withdrawn for GDPR) and **SGDP is ~2 samples per population** in its public subset, so
+  the modern reference panel is 1000G alone — and 1000G has no MENA, Oceanian, Central
+  Asian, Siberian or unadmixed Indigenous American populations. **The weak spot is not
+  haplogroup resolution; it is that whole regions of the world have no reference
+  population, and a nearest-neighbour report over an incomplete panel names the least-bad
+  match rather than declining.** That is a correctness requirement on M5.5, and it reaches
+  PRS confidence through §4.4.
+
+  **AADR is resolved as of 2026-08-23 and this entry said otherwise for a day.** It read
+  "still unresolved — Harvard Dataverse answers 202". The 202 is real but comes from the
+  *DOI redirector*, not the archive: the Dataverse API answers 200, every file is public,
+  and the set is now fetched (§5.1). Worth keeping as a caution rather than deleting —
+  the belief that a source was gated survived in this file because nothing re-checked it,
+  and `refs probe` could not, since the entry declared only a homepage. HGDP is the same
+  failure in the other direction: a green probe over a source with every genotype removed.
+
+  Haplogroup resolution (§4.7, §5.3) is now a marker-count problem only; the tree-freshness
+  half is closed.
 - **Physical health — very good.** ClinVar + GWAS Catalog + PGS Catalog + gnomAD cover
   it. **Pharmacogenomics is the strongest and most genuinely actionable area available,
   and is completely free** (PharmGKB + CPIC) — prioritise it. Monogenic findings are
