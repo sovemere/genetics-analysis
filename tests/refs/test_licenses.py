@@ -104,6 +104,7 @@ SPDX_LIST_IDS = {
     "CC-BY-NC-SA-3.0-US",
     "CC-BY-NC-ND-4.0",
     "GPL-3.0-or-later",
+    "MIT",
 }
 
 

@@ -553,6 +553,80 @@ sources:
         size_bytes: 421842
         sha256: 3fe8cf00a15e1ccb09235091016eef1af3a68f44dd9355dd2b7666f8f767b146
 
+  # The Y counterpart to phylotree_17 above, and the licence is the whole reason this
+  # particular copy is the one named. See notes.
+  - id: y_tree_isogg_grch37
+    name: ISOGG Y-DNA haplogroup marker table (via Y-LineageTracker)
+    tier: A
+    required: false
+    version: 82b14c74be95ef2d4d929ce20bf7436869f163ea
+    homepage: https://github.com/Shuhua-Group/Y-LineageTracker
+    license: MIT
+    enables:
+      - Y haplogroup assignment from the array's 1,665 chrY markers (M5.7)
+    notes: >-
+      ISOGG's Y tree is the marker table every Y haplogroup caller is built on, and
+      obtaining it under terms this project can ship took three attempts. Recorded in full
+      because the next person will otherwise repeat them.
+
+      isogg.org itself cannot be fetched: it sits behind a Cloudflare managed challenge
+      that returns 403 with a "Just a moment..." interstitial to every client, browser
+      user-agent included. Not withdrawn like hgdp_grch37 -- unreachable, which for a
+      fetcher is the same thing, since nothing there can be pinned.
+
+      yhaplo (github.com/23andMe/yhaplo) vendors an ISOGG snapshot and is the tool the
+      literature cites, but its licence forbids exactly this use. Section 3(b), "No
+      Redistribution or Sharing", says the Licensed Materials "may not be used for
+      redistribution purposes"; section 3(a)(i) permits sharing only "internally"; and
+      section 2(a) limits use and derivative works to "internal Non-Commercial Research".
+      Section 1(a) defines a Derivative Work to include an "abridgement, condensation",
+      so extracting a marker subset does not escape it either. A public checkout cannot
+      carry it under any of those readings. Its snapshot is also 2016-01-04, older than
+      the one taken here.
+
+      Yleaf (github.com/genid/Yleaf) is GPL-3.0 and was the best performer in the 2023
+      classifier benchmark (PMC10560978, CC BY), but GPL-3.0 cannot be vendored into this
+      MIT tree without relicensing the whole work, and its data directory bundles YFull
+      and FTDNA trees alongside ISOGG -- two commercial sources whose terms are separate
+      from the repository's.
+
+      Y-LineageTracker is MIT, and MIT is what makes this entry possible. One honest
+      caveat, stated here rather than discovered later: the MIT grant is the Shuhua
+      Group's, over a table compiled from ISOGG's data, and whether they had standing to
+      relicense ISOGG's compilation is a question this project cannot answer any more than
+      it could for yhaplo. The difference is the direction of the grant -- an affirmative
+      MIT permission from the redistributor, against a licence that refuses redistribution
+      in terms -- and that what is taken is factual: a position, an allele pair, and the
+      branch a SNP defines. Facts do not attract copyright; a compilation of them can.
+      Recorded so the judgement is visible and revisable, not so it looks settled.
+
+      Pinned to a commit rather than a branch: the repository's last push was 2021, so
+      this is a frozen table in practice, but a raw.githubusercontent URL bearing a branch
+      name is not immutable and this one bears a commit.
+
+      Measured against the real export on 2026-08-23: of the array's 1,665 chrY markers,
+      1,141 (68.5%) carry an ISOGG-defining SNP, reaching 629 distinct haplogroups. That
+      is the resolution ceiling AGENTS.md 4.7 requires the card to state, and it is a
+      property of the array rather than of this table -- the table itself carries 74,569
+      markers over 10,205 haplogroups.
+    files:
+      - url: https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/ISOGG_haplogroup_info.csv
+        filename: ISOGG_haplogroup_info.csv
+        size_bytes: 4571406
+        sha256: a3b6c82bd61588c12d01e77aba6c13015ff1a83e627a8d140c80f63c16217ace
+      - url: https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/base_tree.nw
+        filename: base_tree.nw
+        size_bytes: 221
+        sha256: b69285d01a77a73a882b84384ff01a2d30d3577cf3f199e8361922724c210b03
+      - url: https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/haplogroup_tree_2018.txt
+        filename: haplogroup_tree_2018.txt
+        size_bytes: 1168
+        sha256: 6d074890d2bb04ac44ef75637c6a997b4d33e5e3647fcda22fd46092d05db241
+      - url: https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LICENSE
+        filename: LICENSE
+        size_bytes: 1069
+        sha256: 0fa0127734439baa05f618262a97e3d46ea83f194cb58dca33a436bdae5602ee
+
   - id: panukbb_manifest
     name: Pan-UK Biobank phenotype manifest
     tier: A
@@ -633,25 +707,72 @@ sources:
   # --------------------------------------------------------------------------
   - id: aadr
     name: Allen Ancient DNA Resource
-    tier: B
-    version: "54.1"
+    # Tier A, and the reclassification is the finding rather than a tidy-up. This was
+    # tier B -- "free but gated behind a one-time human step" -- on the belief that
+    # Dataverse could not be fetched programmatically. It can: every file is public and
+    # the access API serves them directly, so there is no human step left to describe and
+    # the entry no longer satisfies (or needs) the manual-step invariant tier B enforces.
+    tier: A
+    required: false
+    version: v66.p1
     homepage: https://doi.org/10.7910/DVN/FFIDCW
-    license: CC-BY-4.0
+    license: CC0-1.0
     enables:
       - ancient-population affinity projection (M5.6)
-    manual:
-      instructions: >-
-        Download the AADR 1240K genotype set from the Harvard Dataverse record and place
-        the .geno, .snp and .ind files in this source's directory. Programmatic access was
-        not available at authoring time -- Dataverse returns 202 to API requests -- so the
-        exact filenames are deliberately not guessed here.
-      url: https://doi.org/10.7910/DVN/FFIDCW
-      expected_files:
-        - v54.1_1240K_public.geno
-        - v54.1_1240K_public.snp
-        - v54.1_1240K_public.ind
     notes: >-
       Affinity to ancient populations is not descent, and M5.6 must label it that way.
+
+      Resolved 2026-08-23, and the previous entry was wrong in every particular that
+      mattered. It declared version 54.1, guessed filenames of the form
+      `v54.1_1240K_public.geno`, recorded CC-BY-4.0, and said programmatic access was
+      unavailable because "Dataverse returns 202". The 202 is real but it is the *DOI
+      redirector* at doi.org, not the archive: `GET
+      /api/datasets/:persistentId/?persistentId=doi:10.7910/DVN/FFIDCW` answers 200 with
+      full metadata, and the file listing beneath it answers likewise. The live record is
+      v66.p1 (version 14, released 2026-06-08), the licence on the record is CC0 1.0, none
+      of the guessed filenames exist, and all 25 files report `restricted: false` -- there
+      is no access request and no signed letter. THE LESSON IS THE ONE hgdp_grch37 ALREADY
+      TEACHES, POINTED THE OTHER WAY: a probe that reads status codes called this source
+      green while every declared fact about it was stale, because the single URL it had to
+      probe was the homepage. A tier B entry carrying only a homepage cannot be probed
+      into truth.
+
+      Four files are taken, not twenty-five. The Human Origins set is the ~600k-SNP
+      panel and is the right one to project a consumer array against; the 1240K set is
+      7.1 GB of mostly capture sites an array does not carry, and the 2M sets are larger
+      again for the same reason. If M5.6 ever wants deeper coverage the other sets are in
+      the same record under the same terms.
+
+      Every file is md5-pinned from the digests Dataverse publishes per file, so this
+      source costs no lock review on first fetch -- unlike thousand_genomes_phase3_grch37,
+      where 24 unpinned files had to be reviewed after the fact. The access API redirects
+      to presigned S3 URLs which honour Range: a byte range one gigabyte into the 4 GB
+      .geno returned 206. A HEAD against those URLs returns 403 because the presigned
+      signature is computed for GET; that is a property of the probe, not of the file.
+
+      `v66.p1__files.md5sum` is fetched alongside the payload. It is the publisher's own
+      digest list and is what a future version bump should be diffed against.
+    files:
+      - url: https://dataverse.harvard.edu/api/access/datafile/13994808
+        filename: v66.p1_HO.aadr.patch.PUB.geno
+        size_bytes: 4029634650
+        md5: 9f9f0629f803835985bc38856e989995
+      - url: https://dataverse.harvard.edu/api/access/datafile/13994526
+        filename: v66.p1_HO.aadr.patch.PUB.ind
+        size_bytes: 1176253
+        md5: a14985ffae6dd33a00f4fd5bfefe58c5
+      - url: https://dataverse.harvard.edu/api/access/datafile/13994527
+        filename: v66.p1_HO.aadr.patch.PUB.snp
+        size_bytes: 36800253
+        md5: fbd2cfe09ec6bad794f7607768b57a3a
+      - url: https://dataverse.harvard.edu/api/access/datafile/13994528
+        filename: v66.p1_HO.aadr.PUB.anno
+        size_bytes: 15465906
+        md5: 548b011b4adbcd46f0ff66b957c59c3f
+      - url: https://dataverse.harvard.edu/api/access/datafile/13995422
+        filename: v66.p1__files.md5sum
+        size_bytes: 1769
+        md5: ef9e9d78750808e28d33b4074098c5e8
 
   # WITHDRAWN BY THE PUBLISHER. Kept as an entry rather than deleted, because a source
   # that silently vanishes from the manifest is one the next person researches from
