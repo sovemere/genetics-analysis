@@ -23,10 +23,13 @@ from genetics.external.harmonize import (
     SAMPLE_ID,
     PanelError,
     SiteOutcome,
+    harmonizable_sites,
     is_ambiguous_site,
     is_snp_site,
     orient,
+    panel_exclusion,
     read_panel_sites,
+    site_alleles,
     write_harmonized_vcf,
 )
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, Chrom, GenotypeTable
@@ -330,6 +333,118 @@ def test_a_repeated_panel_position_is_dropped_and_counted(tmp_path: Path) -> Non
 
     assert panel.n_sites == 1
     assert panel.n_duplicate_positions == 1
+
+
+# ---------------------------------------------------------------------------
+# The panel-only exclusion, which the eigenvector build shares
+# ---------------------------------------------------------------------------
+
+
+def test_site_alleles_drops_the_missing_alt_marker() -> None:
+    assert site_alleles("A", "G") == ["A", "G"]
+    assert site_alleles("A", "G,T") == ["A", "G", "T"]
+    assert site_alleles("A", ".") == ["A"]
+
+
+@pytest.mark.parametrize(
+    ("ref", "alt", "expected"),
+    [
+        ("A", "G", None),
+        ("C", "T", None),
+        ("A", "T", SiteOutcome.AMBIGUOUS_SITE),
+        ("C", "G", SiteOutcome.AMBIGUOUS_SITE),
+        ("A", "C,T", SiteOutcome.AMBIGUOUS_SITE),
+        ("AT", "G", SiteOutcome.PANEL_NOT_SNP),
+        ("A", ".", SiteOutcome.PANEL_NOT_SNP),
+        ("A", "A", SiteOutcome.PANEL_NOT_SNP),
+    ],
+)
+def test_panel_exclusion_answers_from_the_panels_alleles_alone(
+    ref: str, alt: str, expected: SiteOutcome | None
+) -> None:
+    """Both answers are properties of the reference, identical for every export -- which is
+    what lets M5.3's eigenvector build apply them before any genotype exists."""
+    assert panel_exclusion(site_alleles(ref, alt)) is expected
+
+
+def test_an_unusable_site_is_named_before_an_ambiguous_one() -> None:
+    """``A``/``A,T`` is both. The writer reports the unusable record, because that reason
+    holds whatever the strand question would have said."""
+    assert panel_exclusion(site_alleles("A", "A,T")) is SiteOutcome.PANEL_NOT_SNP
+
+
+def test_harmonizable_sites_removes_the_excluded_rows_and_says_why(tmp_path: Path) -> None:
+    path = _panel(
+        tmp_path,
+        [
+            ("1", 100, "rs1", "A", "G"),
+            ("1", 200, "rs2", "A", "T"),
+            ("1", 300, "rs3", "C", "G"),
+            ("1", 400, "rs4", "AT", "G"),
+            ("1", 500, "rs5", "C", "T"),
+        ],
+    )
+
+    kept, counts = harmonizable_sites(read_panel_sites(path))
+
+    assert kept.n_sites == 2
+    assert kept.frame.get_column("pos").to_list() == [100, 500]
+    assert counts == {SiteOutcome.AMBIGUOUS_SITE: 2, SiteOutcome.PANEL_NOT_SNP: 1}
+
+
+def test_harmonizable_sites_carries_the_read_counts_through_unchanged(tmp_path: Path) -> None:
+    """They describe the read rather than the filter. Recomputing them here would make
+    "sites the panel offered" mean something different depending on who asked."""
+    path = _panel(
+        tmp_path,
+        [("1", 100, "rs1", "A", "T"), ("1", 100, "rs1b", "A", "G"), ("1", 200, "rs2", "A", "G")],
+    )
+
+    read = read_panel_sites(path)
+    kept, _counts = harmonizable_sites(read)
+
+    assert (read.n_read, read.n_duplicate_positions) == (3, 1)
+    assert (kept.n_read, kept.n_duplicate_positions) == (3, 1)
+    assert kept.source == read.source
+
+
+def test_an_empty_panel_filters_to_an_empty_one_rather_than_raising(tmp_path: Path) -> None:
+    """An export whose chromosomes do not match the panel's reaches here with nothing, and
+    it must arrive at the marker-count refusal downstream rather than at a Polars error."""
+    path = _panel(tmp_path, [("1", 100, "rs1", "A", "G")])
+
+    kept, counts = harmonizable_sites(read_panel_sites(path, wanted={("1", 999)}))
+
+    assert kept.n_sites == 0
+    assert counts == {}
+
+
+def test_the_writer_and_the_exclusion_agree_on_every_outcome_the_latter_can_return(
+    tmp_path: Path,
+) -> None:
+    """The reason the two share a function: a site the exclusion keeps must be one the
+    writer will place, and a site it drops must be one the writer drops for the same
+    stated reason. Two copies of that rule drifting apart is the 83.6% coverage gap."""
+    panel_rows = [
+        ("1", 100, "rs1", "A", "G"),
+        ("1", 200, "rs2", "A", "T"),
+        ("1", 300, "rs3", "AT", "G"),
+    ]
+    calls = [
+        _row("rs1", Chrom.CHR1, 100, "AG"),
+        _row("rs2", Chrom.CHR1, 200, "AT"),
+        _row("rs3", Chrom.CHR1, 300, "AG"),
+    ]
+    expected = {SiteOutcome.AMBIGUOUS_SITE: 1, SiteOutcome.PANEL_NOT_SNP: 1}
+
+    records, counts = _harmonize(tmp_path, calls, panel_rows)
+    kept, excluded = harmonizable_sites(
+        read_panel_sites(_panel(tmp_path, panel_rows, name="again.pvar"))
+    )
+
+    assert len(records) == kept.n_sites == 1
+    assert expected.items() <= counts.items()
+    assert excluded == expected
 
 
 # ---------------------------------------------------------------------------

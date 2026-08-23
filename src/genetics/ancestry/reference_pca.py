@@ -40,18 +40,47 @@ mechanism the subset step already uses for ``--exclude bed1``. IDs are still *ch
 because M5.4's ``--score`` joins on them: a panel whose IDs are absent or duplicated
 produces a projection that is silently wrong rather than one that fails, so it is refused
 here where the message can say so.
+
+**The intersection is narrowed again, to the sites a sample could actually supply, and
+that is the M5.4 finding turned into code.** M5.2 drops strand-ambiguous A/T and C/G sites
+whole, because with one sample nothing can decide which strand the letters were read on.
+Those sites are about a sixth of common SNPs, so an eigenvector build that kept them
+carried loadings no export could ever score: the first real-panel run projected at **83.6%
+coverage** with 8,199 sites reported ``ambiguous_site``, and every sample on this chip would
+have come back at the same 83.6% whatever its call rate. A confidence model reading that as
+call quality under-rates everyone by an identical, meaningless margin.
+
+So the same panel-only predicate the harmonizer applies -- :func:`~genetics.external.
+harmonize.panel_exclusion`, imported rather than restated -- runs here too, and the
+markers with loadings are the markers a sample can bring. ``coverage`` then measures the
+sample again. The alternative considered and rejected was to leave the build alone and
+grade coverage against a second, smaller denominator: that keeps a number in the artifact
+that no consumer of the artifact should use, and the first person to divide by
+``n_markers`` gets the wrong answer with nothing to warn them.
+
+**Only panel-only reasons are applied.** Whether a site is ambiguous or is a well-formed
+biallelic SNP is a fact about the reference's alleles, identical for every export, so it can
+narrow a reference artifact without keying it to a person. A no-call, a duplicate probe
+conflict or an allele mismatch is a fact about one sample or one chip's probe set, and
+excluding on those would make the eigenvectors themselves depend on who ran the pipeline.
+Those stay in the projection's coverage, where they belong.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Final
 
-from genetics.external.harmonize import PanelSites, read_panel_sites
+from genetics.external.harmonize import (
+    PanelSites,
+    SiteOutcome,
+    harmonizable_sites,
+    read_panel_sites,
+)
 from genetics.external.plink2 import Plink2, Plink2ResultInfo
 from genetics.ingest.schema import AUTOSOMES, Chrom, GenotypeTable
 from genetics.paths import cache_dir
@@ -66,12 +95,20 @@ __all__ = [
     "build_reference_pca",
 ]
 
-ARTIFACT_VERSION: Final = 1
+ARTIFACT_VERSION: Final = 2
 """Bumped when the *shape* of what this writes changes.
 
 Distinct from :attr:`EigenSettings`, which is recorded separately: a settings change and a
 format change invalidate a cached artifact for different reasons, and collapsing them into
 one number means a reader cannot tell which happened.
+
+**2 (M5.5): strand-ambiguous and non-SNP sites are excluded from the build.** The file
+layout is unchanged, so this is the looser sense of "shape" -- but ``n_markers`` now means
+"markers a sample can score" rather than "markers in the intersection", and
+:attr:`~genetics.ancestry.projection.Projection.coverage` divides by it. A version 1
+artifact reused under version 2 semantics would report a coverage near 84% and call it a
+property of the sample. The marker count moves too, so the cache key would separate them
+anyway; this states the reason rather than relying on a side effect to enforce it.
 """
 
 _MIN_PANEL_SAMPLES: Final = 50
@@ -86,12 +123,16 @@ the reason.
 """
 
 _MIN_MARKERS: Final = 1_000
-"""A floor on the intersection, below which the coordinates are not worth computing.
+"""A floor on the *usable* intersection, below which the coordinates are not worth computing.
 
 Not a statistical threshold -- there is no clean one -- but a guard against the failure that
 actually happens: a build mismatch or a chromosome-naming disagreement between the panel and
 the array intersects to almost nothing, and a PCA over two hundred markers still returns
 numbers. It returns them with error bars nobody sees.
+
+Counted after the ambiguity exclusion rather than before, because the excluded markers are
+exactly the ones that cannot reach ``--score``. Checking the wider count would let a build
+that intersects at 1,100 markers and can score 900 of them through.
 """
 
 
@@ -153,10 +194,49 @@ class ReferencePCA(NoGenotypeRepr):
     structure the plotted axes actually carry."""
 
     n_markers: int
+    """Markers the loadings cover -- the intersection *after* the panel-only exclusions.
+
+    The denominator :attr:`~genetics.ancestry.projection.Projection.coverage` divides by,
+    and it is a count of markers a harmonized sample can actually bring. See
+    :data:`ARTIFACT_VERSION` for why that distinction earned a version bump.
+    """
+
     n_components: int
     n_panel_samples: int
     panel_source: str
     """The subset fileset's *name*, never its path (the harmonize.PanelSites rule)."""
+
+    n_intersected: int
+    """Markers on both the array and the panel, before the exclusions below.
+
+    Kept because ``n_intersected - n_markers`` is a fact about the *chip and panel* worth
+    reporting -- how much of the overlap is unreadable by construction -- and because a
+    reader comparing this artifact against M5.2's report needs both numbers to reconcile
+    them.
+    """
+
+    marker_positions: tuple[tuple[str, int], ...]
+    """The ``(chrom, pos)`` pairs the loadings cover, sorted.
+
+    Carried because a consumer that has to line another source up against *these* markers
+    otherwise has to re-derive them, and re-deriving them is where M5.6 first went wrong:
+    the ancient coverage floor was applied over the AADR-and-array overlap (129,840
+    positions) rather than over the markers this artifact actually holds (11,128), so
+    individuals passed the floor and then projected below it. Computed on both the fresh and
+    the reused path, because the intersection is read before the cache is consulted.
+    """
+
+    excluded_sites: Mapping[SiteOutcome, int]
+    """Why the difference: strand-ambiguous sites, and panel records that are not SNPs.
+
+    Only the outcomes :func:`~genetics.external.harmonize.panel_exclusion` can return ever
+    appear here. Zeros are omitted, matching
+    :attr:`~genetics.external.harmonize.HarmonizationReport.counts`.
+    """
+
+    space: str
+    """Which marker space this artifact is over -- ``"array"`` for the full chip
+    intersection, or a name M5.6 gives the narrower one it shares with AADR."""
 
     settings: EigenSettings
     reused: bool
@@ -164,6 +244,11 @@ class ReferencePCA(NoGenotypeRepr):
 
     plink: Plink2ResultInfo | None
     """``None`` on reuse."""
+
+    @property
+    def n_excluded(self) -> int:
+        """Intersected markers no sample could have scored. ``n_intersected - n_markers``."""
+        return sum(self.excluded_sites.values())
 
     @property
     def prefix(self) -> Path:
@@ -264,21 +349,62 @@ def _expected_provenance(
     array_digest: str,
     settings: EigenSettings,
     n_markers: int,
+    n_intersected: int,
+    excluded: Mapping[SiteOutcome, int],
     n_panel_samples: int,
+    space: str,
 ) -> dict[str, Any]:
     return {
         "artifact": "reference_pca",
         "artifact_version": ARTIFACT_VERSION,
+        # In the key as well as the record. Two spaces over the same chip differ in their
+        # marker digest already, so this adds no separation -- what it adds is that a
+        # sidecar says which of them a directory holds.
+        "space": space,
         "panel_pvar_sha256": panel_digest,
         "array_markers_sha256": array_digest,
         "settings": settings.as_dict(),
         "n_markers": n_markers,
+        # Both recorded, and both compared: they are determined by the two digests above,
+        # so they add no entropy to the key -- what they add is that a cached artifact
+        # built when the exclusion rule said something else stops matching instead of
+        # being reused under the new rule's reading of `n_markers`.
+        "n_intersected": n_intersected,
+        "excluded_sites": {outcome.value: count for outcome, count in sorted(excluded.items())},
         "n_panel_samples": n_panel_samples,
         # Recorded even though the panel set is currently fixed, because widening it later
         # produces a different artifact and without this field it would look current. The
         # same failure the r2 setting fix prevents for the marker subset.
         "reference_panels": ["thousand_genomes_phase3_grch37"],
     }
+
+
+def _marker_positions(sites: PanelSites) -> tuple[tuple[str, int], ...]:
+    """The surviving intersection as ``(chrom, pos)`` pairs, sorted.
+
+    Sorted here rather than left in the panel's file order, because the field promises it
+    and a consumer lining another source up against these markers is exactly who would
+    bisect or merge on that promise. 1000 Genomes phase 3 ships a position-ordered ``.pvar``,
+    so today the two agree by luck -- which is the kind of agreement that holds until the
+    panel widens. ``chrom`` is a :class:`polars.Enum` over
+    :data:`~genetics.ingest.schema.CHROM_ORDER`, so this sorts 1..22 rather than
+    lexicographically putting chromosome 10 before chromosome 2.
+    """
+    frame = sites.frame.select("chrom", "pos").sort("chrom", "pos")
+    return tuple((str(chrom), int(pos)) for chrom, pos in frame.iter_rows())
+
+
+def _read_excluded(recorded: Mapping[str, Any]) -> dict[SiteOutcome, int]:
+    """The exclusion counts back out of a sidecar, as the enum the fresh path returns.
+
+    A cached result whose ``excluded_sites`` came back as bare strings would be the same
+    dataclass field holding two different key types depending on whether PLINK had run,
+    which is the kind of difference a caller only discovers in production.
+    """
+    raw = recorded.get("excluded_sites")
+    if not isinstance(raw, dict):
+        return {}
+    return {SiteOutcome(name): int(count) for name, count in raw.items()}
 
 
 def _outputs(prefix: Path) -> dict[str, Path]:
@@ -370,6 +496,8 @@ def build_reference_pca(
     settings: EigenSettings | None = None,
     workspace: Path | None = None,
     chroms: Sequence[Chrom] = AUTOSOMES,
+    restrict_to: Iterable[tuple[str, int]] | None = None,
+    space: str = "array",
 ) -> ReferencePCA:
     """Compute (or reuse) the reference PCA over the markers ``table``'s array carries.
 
@@ -377,6 +505,20 @@ def build_reference_pca(
     ``.psam`` must sit beside it. The result is cached under ``cache_dir()`` keyed by the
     panel, the array's marker set and the settings together, so re-running for the same chip
     is free and re-running for a different one does not overwrite it.
+
+    ``restrict_to`` narrows the array's positions further, and exists for
+    [M5.6](../../phase1_roadmap.md). Affinity to ancient populations needs the sample, the
+    modern panel and the ancient individuals in **one** space, and the AADR Human Origins
+    array shares only 11,128 of this chip's 52,411 reference markers -- an Affymetrix design
+    against an Illumina one. Projecting ancients onto axes computed from markers most of
+    them lack would compare coordinates resting on systematically different marker subsets,
+    which the ``_AVG`` normalisation does not fix because the overlap is not a random draw.
+    So M5.6 builds a second, smaller space on what all three carry.
+
+    ``space`` names the resulting space in the provenance sidecar. It is not decoration:
+    two artifacts over the same chip differing only in restriction would otherwise be
+    distinguishable in the cache (their marker counts differ) but indistinguishable to
+    somebody reading the sidecar to find out what they are looking at.
     """
     settings = settings or EigenSettings()
     pgen, pvar, psam = _subset_paths(subset_pgen)
@@ -395,15 +537,41 @@ def build_reference_pca(
             "the export carries no autosomal markers, so there is nothing to intersect "
             "the reference panel with."
         )
+    n_array_positions = len(positions)
+    if restrict_to is not None:
+        allowed = frozenset(restrict_to)
+        positions = [position for position in positions if position in allowed]
+        if not positions:
+            raise ReferencePcaError(
+                f"the {space!r} restriction and this array share no autosomal position. The "
+                f"export offered {n_array_positions:,} and the restriction named "
+                f"{len(allowed):,}; a disjoint pair is usually a build or chromosome-naming "
+                "disagreement rather than two genuinely unrelated marker sets."
+            )
 
-    sites = read_panel_sites(pvar, chroms=chroms, wanted=positions)
+    # Only when a restriction was actually applied. Unconditionally, a default-mode failure
+    # reads "the export offered 1,100 autosomal positions (1,100 after the 'array'
+    # restriction)" -- naming a restriction nobody passed, with two identical numbers as
+    # apparent evidence of it, and `array` is the name of the *unrestricted* space.
+    narrowed = (
+        f" ({len(positions):,} after the {space!r} restriction)" if restrict_to is not None else ""
+    )
+
+    intersected = read_panel_sites(pvar, chroms=chroms, wanted=positions)
+    # The ambiguity exclusion runs before the floor and before the ID check, because both
+    # ask about the markers that will carry a loading and neither should be answered about
+    # markers that are on their way out. See the module docstring.
+    sites, excluded = harmonizable_sites(intersected)
     if sites.n_sites < _MIN_MARKERS:
         raise ReferencePcaError(
-            f"only {sites.n_sites:,} of the panel's markers are carried by this array "
-            f"(minimum {_MIN_MARKERS:,}). That is usually a build or chromosome-naming "
-            "disagreement between the export and the panel rather than a sparse chip: the "
-            f"export offered {len(positions):,} autosomal positions and the panel read "
-            f"{sites.n_read:,} sites on those chromosomes."
+            f"only {sites.n_sites:,} of the panel's markers are carried by this array and "
+            f"usable (minimum {_MIN_MARKERS:,}). That is usually a build or "
+            "chromosome-naming disagreement between the export and the panel rather than a "
+            f"sparse chip: the export offered {n_array_positions:,} autosomal "
+            f"positions{narrowed}, the "
+            f"panel read {intersected.n_read:,} sites on those chromosomes, "
+            f"{intersected.n_sites:,} of them intersected, and {sum(excluded.values()):,} "
+            "of those were strand-ambiguous or not biallelic SNPs."
         )
     _check_ids(sites)
 
@@ -412,7 +580,10 @@ def build_reference_pca(
         array_digest=_positions_digest(positions),
         settings=settings,
         n_markers=sites.n_sites,
+        n_intersected=intersected.n_sites,
+        excluded=excluded,
         n_panel_samples=n_panel_samples,
+        space=space,
     )
 
     root = workspace if workspace is not None else cache_dir() / "ancestry"
@@ -430,6 +601,10 @@ def build_reference_pca(
             n_components=settings.n_components,
             n_panel_samples=int(recorded["n_panel_samples"]),
             panel_source=sites.source,
+            n_intersected=int(recorded["n_intersected"]),
+            marker_positions=_marker_positions(sites),
+            excluded_sites=_read_excluded(recorded),
+            space=space,
             settings=settings,
             reused=True,
             plink=None,
@@ -468,6 +643,10 @@ def build_reference_pca(
         n_components=settings.n_components,
         n_panel_samples=n_panel_samples,
         panel_source=sites.source,
+        n_intersected=intersected.n_sites,
+        marker_positions=_marker_positions(sites),
+        excluded_sites=excluded,
+        space=space,
         settings=settings,
         reused=False,
         plink=result,

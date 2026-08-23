@@ -75,10 +75,13 @@ __all__ = [
     "PanelError",
     "PanelSites",
     "SiteOutcome",
+    "harmonizable_sites",
     "is_ambiguous_site",
     "is_snp_site",
     "orient",
+    "panel_exclusion",
     "read_panel_sites",
+    "site_alleles",
     "write_harmonized_vcf",
 ]
 
@@ -392,6 +395,70 @@ def is_ambiguous_site(alleles: Sequence[str]) -> bool:
     return bool(present & {complement(a) for a in present})
 
 
+def site_alleles(ref: str, alt: str) -> list[str]:
+    """A panel record's alleles: REF, then each ALT that is not the missing marker.
+
+    One line, and a function anyway, because the two callers that need it -- the writer
+    below and :mod:`genetics.ancestry.reference_pca` -- must agree exactly on what a site's
+    alleles *are* before they can agree on which sites to exclude. A second inline split
+    that forgot the ``.`` would make the eigenvector build keep a site the writer drops.
+    """
+    return [ref, *(a for a in alt.split(",") if a != _MISSING_ALT)]
+
+
+def panel_exclusion(alleles: Sequence[str]) -> SiteOutcome | None:
+    """Why no sample can be harmonized here, or ``None`` if one can.
+
+    **Panel-only.** Both answers depend on the reference's alleles and on nothing else, so
+    they are the same for every export run against this panel and can be decided before any
+    genotype is in hand. That is what makes them safe to apply to the *eigenvector build*
+    (M5.3): dropping a site here removes a loading no sample could ever have scored, while
+    dropping a site for a sample-dependent reason -- a no-call, a duplicate conflict --
+    would key the reference PCA to one person.
+
+    The order matters and is the writer's: an unusable site is unusable whatever the
+    strand question would have said, so :attr:`SiteOutcome.PANEL_NOT_SNP` supersedes.
+    """
+    if not is_snp_site(alleles):
+        return SiteOutcome.PANEL_NOT_SNP
+    if is_ambiguous_site(alleles):
+        return SiteOutcome.AMBIGUOUS_SITE
+    return None
+
+
+def harmonizable_sites(sites: PanelSites) -> tuple[PanelSites, dict[SiteOutcome, int]]:
+    """Drop the sites :func:`panel_exclusion` rules out, and say how many and why.
+
+    Returns a :class:`PanelSites` over the survivors plus the counts, which the caller
+    reports rather than discards: on a real panel the strand-ambiguous share is about a
+    sixth of common SNPs, and a marker count that shrank by a sixth with no explanation
+    attached is the kind of number somebody later reads as a coverage failure.
+
+    ``n_read`` and ``n_duplicate_positions`` are carried through unchanged. They describe
+    the *read*, not the filter, and recomputing them here would make "sites the panel
+    offered on these chromosomes" mean something different depending on who asked.
+    """
+    frame = sites.frame
+    counts: dict[SiteOutcome, int] = {}
+    keep: list[bool] = []
+    for ref, alt in frame.select("ref", "alt").iter_rows():
+        outcome = panel_exclusion(site_alleles(ref, alt))
+        keep.append(outcome is None)
+        if outcome is not None:
+            counts[outcome] = counts.get(outcome, 0) + 1
+    filtered = PanelSites(
+        # dtype named rather than inferred: an empty ``keep`` infers Null, and Polars
+        # refuses a Null series as a filter predicate. An empty intersection is a real
+        # input here -- an export whose chromosomes do not match the panel's -- and it must
+        # reach the marker-count refusal downstream rather than raise a Polars TypeError.
+        frame=frame.filter(pl.Series(keep, dtype=pl.Boolean)),
+        source=sites.source,
+        n_read=sites.n_read,
+        n_duplicate_positions=sites.n_duplicate_positions,
+    )
+    return filtered, counts
+
+
 def orient(genotype: str, alleles: Sequence[str]) -> tuple[tuple[int, ...] | None, SiteOutcome]:
     """Code ``genotype`` as panel allele indices, flipping strand if that is what fits.
 
@@ -517,12 +584,17 @@ def _decide(site: _Site) -> tuple[str | None, SiteOutcome]:
     problems come first because they hold whatever the array did: an unusable or ambiguous
     site is excluded even when the call is clean, so reporting it as a duplicate conflict
     would name the lesser of the two reasons.
+
+    Those panel-only checks live in :func:`panel_exclusion` rather than inline, because
+    :mod:`genetics.ancestry.reference_pca` applies exactly the same two to decide which
+    loadings to compute. Two copies of that rule drifting apart would put weights in the
+    reference for markers this function silently declines to write, which is precisely the
+    coverage gap M5.4 measured at 83.6%.
     """
-    alleles = [site.ref, *(a for a in site.alt.split(",") if a != _MISSING_ALT)]
-    if not is_snp_site(alleles):
-        return None, SiteOutcome.PANEL_NOT_SNP
-    if is_ambiguous_site(alleles):
-        return None, SiteOutcome.AMBIGUOUS_SITE
+    alleles = site_alleles(site.ref, site.alt)
+    excluded = panel_exclusion(alleles)
+    if excluded is not None:
+        return None, excluded
 
     if any(status in _SINGLE_COPY_STATUSES for status in site.statuses):
         return None, SiteOutcome.PLOIDY_CONFLICT

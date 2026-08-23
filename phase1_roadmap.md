@@ -16,30 +16,29 @@ the source of truth for build state.
 
 ## Next up
 
-M0-M4 are done and the M4 slice checkpoint passed. **M5.1-M5.4 and M5.7 are done and
-verified against real data.** The panel is fetched, the LD-pruned subset is built (290,285
-markers over 2,504 samples), the M5.2 -> M5.3 -> M5.4 chain runs end to end on it, and both
-haplogroup callers are validated against 1000 Genomes.
+M0-M4 are done and the M4 slice checkpoint passed. **M5 is complete except M5.8.** M5.1-M5.7
+are all done and every one of them is verified against real data rather than fixtures: the
+panel is fetched, the LD-pruned subset is built (290,285 markers over 2,504 samples), the
+M5.2 -> M5.3 -> M5.4 chain runs end to end, both haplogroup callers are validated against
+1000 Genomes chrY, M5.5 places a sample among the modern populations and refuses when none
+fits, and M5.6 places it against 442 ancient groups from the AADR.
 
-**Next is [M5.5](#m5--ancestry), and it still opens with the decision it opened with
-before -- nothing this session touched it.** `Projection.coverage` came back at 83.6% on the
-real panel, and the shortfall is *not* call quality: it is strand-ambiguous A/T and C/G
-sites, which M5.2 drops by design and which are about 16% of common SNPs. So coverage has a
-floor near 84% that means nothing about the sample, and a confidence model reading it as
-quality under-rates every sample equally. Choose one before building the card: grade
-coverage against the markers M5.2 could *use*, or exclude ambiguous sites from the
-eigenvector build so the loadings match what a sample can actually supply. **The second is
-tidier and costs a rebuild of the cached artifact**, which is why it is a decision and not
-a detail.
+**Next is [M5.8](#m5--ancestry), and it is small but load-bearing**: the ancestry output has
+to reach the shared context object, because PRS confidence depends on it
+([AGENTS.md §4.4](AGENTS.md)). Everything it needs now exists and is typed; what it needs
+deciding is how a *declined* placement is represented downstream. "No population named" is
+not a missing value — it is a positive finding that every PRS on this run should be
+discounted, and a context object that stores `None` there will be read as "not computed yet"
+by the first thing that touches it.
 
-M5.5's other requirement is the load-bearing one: with 1000G alone there is no correct
-answer for Middle Eastern, North African, Oceanian, Central Asian, Siberian or unadmixed
-Indigenous American ancestry, so the card must be able to **decline to name a population**
-rather than return the least-bad label with a distance attached.
-
-After M5.5, [M5.6](#m5--ancestry) is unblocked and waiting: **AADR v66.p1 Human Origins is
-on disk** (27,594 samples, 4,266 populations, 584,131 markers), so that milestone is
-projection work rather than a sourcing problem.
+Also worth knowing before M5.8: **M5.5's coverage gap may be closable, and the source is
+already on disk.** AADR Human Origins carries **8,474 present-day individuals in 620
+groups**, and they cover precisely the regions [AGENTS.md §4.6](AGENTS.md) records 1000
+Genomes as lacking -- Middle East, North Africa, Oceania, Central Asia, Siberia. M5.6 reads
+and ignores them by design, since its question is ancient. Widening the *modern* reference
+panel with them would change M5.3's panel decision, M5.5's calibration and its coverage
+statement together, so it is a milestone rather than a tweak -- but it is the difference
+between declining for a Lebanese sample and answering.
 
 <details><summary>Settled: the sources that used to stand in front of M5 (2026-08-22 and
 2026-08-23)</summary>
@@ -1539,7 +1538,12 @@ section, that proves every layer.*
       - **Scoped to 1000G-only on 2026-08-22, on evidence rather than convenience.** HGDP
         is withdrawn and SGDP is ~2 samples per population; see [Next up](#next-up) and the
         manifest entries. The panel set is not a placeholder to revisit later — it is the
-        answer, and M5.5 carries the cost.
+        answer, and M5.5 carries the cost. **M5.5 measured what that cost is**: hold an
+        entire super-population out of the panel and it correctly refuses to name anything
+        for 100% of South Asians, 100% of East Asians and 99.7% of Africans — which is the
+        behaviour the gap requires, not a fix for it. **M5.6 then put a candidate fix on
+        disk without meaning to**: AADR Human Origins carries 8,474 present-day individuals
+        across the regions 1000G lacks. See [Next up](#next-up).
       - **Done: the marker subset.** `build_pca_marker_subset` is implemented and no longer
         the registry's only lie — it was marked `implemented=False` while the manifest
         declared it, so `refs fetch` reported it PENDING forever. Per autosome: convert to
@@ -1730,37 +1734,197 @@ section, that proves every layer.*
         M5.2 harmonised 41,816 of the 50,018, and M5.4 projected them at **83.6% coverage**
         with every panel site accounted for: 41,806 `as_written`, 10 `complemented`, 8,199
         `ambiguous_site`, 1 `allele_mismatch`, 2 `duplicate_conflict`.
-      - **That 83.6% is a warning for [M5.5](#m5--ancestry), not a defect here.** The 16.4%
-        shortfall is almost entirely strand-ambiguous A/T and C/G sites, which M5.2 drops by
-        design and which are ~16% of common SNPs. So `coverage` has a **floor around 84%
-        that has nothing to do with call quality**, and a confidence model that reads it as
-        one would under-rate every sample by the same margin. Two ways out, and M5.5 has to
-        pick one deliberately: grade coverage against the markers M5.2 could *use* rather
-        than against every reference marker, or exclude ambiguous sites from the eigenvector
-        build so the loadings match what a sample can actually supply. The second is
-        tidier and costs a rebuild.
-- [ ] **M5.5** Continuous ancestry coordinates + nearest reference populations with
-      distances. Prefer this over pie-chart percentages; if percentages are shown, show
-      their uncertainty.
-      - **It must be able to refuse to name a population, and that is now the load-bearing
-        requirement in this milestone.** With 1000G alone (M5.3) there is no correct answer
-        for Middle Eastern, North African, Oceanian, Central Asian, Siberian, unadmixed
-        Indigenous American, or Khoisan/Mbuti ancestry — those populations are simply
-        absent. A nearest-neighbour report over an incomplete panel does not return "no
-        match"; it returns the least-bad label with a distance attached, which reads as an
-        answer. Lebanese comes back as Tuscan. So: a distance threshold beyond which the
-        card reports *"this sample sits far from every reference population, nearest is X
-        at distance d"* and names nothing.
+      - **That 83.6% was a warning for [M5.5](#m5--ancestry), not a defect here — and M5.5
+        took the second of the two ways out.** The shortfall is strand-ambiguous A/T and C/G
+        sites, which M5.2 drops by design, so `coverage` had a floor unrelated to call
+        quality and a confidence model reading it as quality would under-rate every sample
+        by the same margin. The options were to grade coverage against the markers M5.2
+        could *use*, or to exclude ambiguous sites from the eigenvector build. **The second
+        shipped**: it costs a rebuild of the cached artifact and leaves no second denominator
+        in the artifact for somebody to divide by wrongly. Real-export coverage went
+        **83.6% → 99.91%**.
+      - **The "~16% of common SNPs" in the paragraph above was right about SNPs and wrong
+        about this chip**, which is the lasting lesson. The real array lost only **4.2%** to
+        ambiguity, because a consumer array avoids A/T and C/G probes by design. The 16%
+        came from *this milestone's own synthetic array*, whose positions were drawn
+        uniformly from the panel — so it had the panel's ascertainment rather than a chip's.
+        A synthetic fixture sampled uniformly from a reference does not inherit the
+        reference's design properties, and a number measured on one is a number about the
+        fixture.
+- [x] **M5.5** Continuous ancestry coordinates + nearest reference populations with
+      distances. `ancestry/populations.py`. **No percentages at all** — a pie chart implies
+      an admixture decomposition this module does not compute.
+      - **It must be able to refuse to name a population, and that was the load-bearing
+        requirement.** With 1000G alone (M5.3) there is no correct answer for Middle
+        Eastern, North African, Oceanian, Central Asian, Siberian, unadmixed Indigenous
+        American, or Khoisan/Mbuti ancestry — those populations are simply absent. A
+        nearest-neighbour report over an incomplete panel does not return "no match"; it
+        returns the least-bad label with a distance attached, which reads as an answer.
+        Lebanese comes back as Tuscan.
       - **The reason this is not cosmetic is [M5.8](#m5--ancestry).** Ancestry feeds PRS
         confidence ([AGENTS.md §4.4](AGENTS.md)), so a Middle Eastern sample quietly
         labelled European gets PRS confidence that is *too high*. A wrong ancestry call does
         not stay on the ancestry card.
-      - Pairs with a **coverage-honesty card** in the spirit of [M7.6](#m7--monogenic-health--frequency-gating):
-        which regions the reference panel covers and which it does not. Someone of Lebanese
-        descent should read that we have no reference population near them, not be told
-        they are Tuscan.
-- [ ] **M5.6** AADR projection: affinity to ancient populations. Label clearly as
-      *affinity*, not descent.
+      - **The M5.4 coverage decision was taken the tidy way: strand-ambiguous sites are now
+        excluded from the eigenvector build**, so `coverage` measures the sample again. The
+        same panel-only predicate the harmonizer applies (`harmonize.panel_exclusion`) is
+        imported rather than restated, because two copies of that rule drifting apart *is*
+        the gap. `ARTIFACT_VERSION` 1 → 2. Measured on the real export: intersection
+        **54,725 → 52,411** usable, and **coverage 83.6% → 99.91%**.
+      - **The 16% estimate was wrong about this chip, and the reason is worth keeping.**
+        Only **2,314 markers (4.2%)** were strand-ambiguous, not ~16%. The 16% figure came
+        from the M5.4 run's *synthetic* array, whose positions were a uniform draw from the
+        panel; a real consumer array avoids A/T and C/G probes by design. **A synthetic
+        fixture drawn uniformly from a reference does not have the reference's ascertainment
+        properties**, which is the same shape of error as the M5.4 stub lesson.
+      - **Distances are in pooled within-population standard deviations, and that removes a
+        constant this project refuses to assert.** M5.4 will not claim the scale relating
+        PLINK's `--score` averages to the reference's own `.eigenvec`; dividing every axis by
+        the panel's own within-population spread cancels it, whatever it is. *Within*, not
+        total: total spread on an axis is mostly the separation between populations, so
+        dividing by it would shrink precisely the axes that separate. Diagonal, not a
+        covariance matrix — the smallest 1000G population is 61 samples.
+      - **Ranked by distance, admitted by fit — two numbers on purpose.** `fit` is distance
+        over that population's own median member distance, so 1 is a typical member. It is
+        right for *"could this sample be from there"* and wrong for *"what is nearest"*,
+        because a diffuse population has a large radius and attracts anything unusual:
+        ranked on fit, a held-out **Finnish sample's nearest population comes back as MXL**.
+        Ranked on distance it comes back as CEU. So the list is ordered by distance and the
+        call is the **closest population that fits** — not "the closest one, if it fits",
+        which measured worse: it refused 17% of held-out ACB, 23% of PJL and 19% of CHS,
+        each with a good sibling one step down, while refusing nothing extra where refusing
+        is the point.
+      - **The threshold is measured from the panel, not chosen.** It is the 99.5th
+        percentile of the panel's own members' fit to their nearest population, computed at
+        build time with a closed-form leave-one-out correction, so it is a sentence rather
+        than a constant — *decline when this sample sits farther from every reference
+        population than 99.5% of the panel's own members sit from theirs* — and it moves on
+        its own when the panel widens. **On the real panel it is 2.65.** `n_beyond_threshold`
+        reports how many members sit above it (11 of 2,504), because on a small panel the
+        same quantile lands on the maximum and the bar becomes "farther than the single most
+        extreme member we happen to have".
+      - **Validated by holding populations out, which is the Lebanese case reproduced inside
+        the panel.** Of 2,504 members, 9 are declined (0.36%); of those named, 82.0% get
+        their own population and **99.3% their own region**.
+
+        | Held out | Declined | Nearest named |
+        |---|---|---|
+        | ACB, BEB, CEU, CLM, GBR, IBS, ITU, MXL, PJL, PUR, STU, TSI, YRI | 0% | correct sibling |
+        | CHS 5%, ESN 5%, CDX 6%, ASW 10% | low | correct sibling |
+        | **GIH 65%, CHB 63%, GWD 97%, JPT 99%, FIN 100%, LWK 100%, MSL 100%** | high | *refuses* |
+        | **whole region: SAS 100%, EAS 100%, AFR 99.7%, AMR 96.8%, EUR 85.3%** | | *refuses* |
+
+        The whole-region rows are the closest this panel offers to the Oceanian, Central
+        Asian or MENA case. EUR is the weak one at 85.3%, for an honest reason: held-out
+        Europeans land nearest PUR, which genuinely carries substantial European ancestry.
+      - **Ten components, not four, and the eigenvalues are not a reason to truncate.** They
+        fall 192.6 / 101.6 / 29.4 / 23.3 / 4.6 / 4.1, which reads as an invitation to keep
+        four. Measured, four breaks the refusal outright: **held-out JPT, LWK, MSL, GWD and
+        GIH are all named anyway at 0% declined**, at a fit near 1 — the Lebanese failure
+        reproduced — and naming the right population drops from 82.0% to 69.4%. The small
+        eigenvalues are small because within-continent structure is a small share of
+        *global* variance, and within-continent is the whole question.
+      - **The region rides with the population call rather than getting a looser rule, and
+        that was measured too.** "We cannot name a population, but this is broadly European"
+        is exactly the over-call §4.4 warns about. A held-out FIN sample — a European whose
+        population is genuinely absent — sits at fit **9.0** from CEU, while held-out
+        *whole-region* samples with no representation at all reach their nearest population
+        at **5.3** (South Asian) and **9.1** (East Asian). Any bar loose enough to keep the
+        Finn admits every one of them, so no threshold separates the two cases.
+      - **The coverage-honesty statement is attached to the population set it describes, and
+        detaches when that changes.** `PanelCoverage` names all 26 phase-3 codes and
+        `coverage_for` returns it only on an exact match; a widened panel returns `None`,
+        which callers must render as "nobody has written down what this panel cannot answer
+        for" and **not** as "no gaps". That is [AGENTS.md §5.2](AGENTS.md)'s `refs probe`
+        lesson pointed at a different declared fact: a claim nothing re-verifies stays green
+        while going stale.
+      - `Projection` gained `reference` — the artifact prefix's name — so a sample projected
+        against one eigenvector set cannot be placed against centroids built from another.
+        Two such coordinate sets have the same columns, the same count and the same order of
+        magnitude, and they plot.
+- [x] **M5.6** AADR projection: affinity to ancient populations, labelled *affinity* and
+      not descent. `ancestry/eigenstrat.py` reads the archive; `ancestry/aadr.py` is the
+      milestone.
+      - **Four facts had to be measured off the 4 GB archive, and two of them would have
+        been wrong from the format description.**
+        1. **The genotype file is `TGENO`, not `GENO` — a transpose.** Records run one per
+           *individual*, not one per SNP. Measured layout, and it divides exactly:
+           `48-byte header + 27,594 × 146,033 = 4,029,634,650 bytes`, record length
+           `ceil(n_snps / 4)`. That shape is lucky here: selecting a few thousand ancient
+           individuals costs a seek each rather than a pass over four gigabytes. **`GENO` is
+           refused rather than guessed at** — its layout is documented and would be a dozen
+           lines, but no `GENO` file is pinned, so those lines would be untested code
+           standing between an archive and an ancestry claim.
+        2. **Codes are 0/1/2 = copies of the `.snp` row's first allele, 3 = no call.** Not
+           EIGENSTRAT's textual `9`; two bits cannot spell it.
+        3. **The ancient genotypes are pseudo-haploid, and the file says so if you count.**
+           Of 13,832 well-covered ancient individuals, **13,757 carry no heterozygous call
+           at all** (99.2%) — capture data is published as one randomly drawn read per site,
+           doubled. Loschbour decodes to 273,929 twos, 93,902 zeros and **zero ones**. So an
+           ancient *group centroid* is meaningful and an ancient *individual's* position is
+           not, which is why nothing reports a per-individual match. Counted per individual
+           rather than read off the `.DG`/`.SG` suffix, because those shotgun genomes
+           genuinely are diploid.
+        4. **Present-day individuals are marked by a date of 0**, not by a missing one:
+           8,474 living Human Origins samples against 19,119 ancient. Collapsing "sampled
+           today" into "date unresolved" would put the living ones in an ancient panel.
+      - **It needs its own PC space, and that is the milestone's one real design decision.**
+        AADR Human Origins is an Affymetrix design and the export is Illumina: they share
+        **11,128 of the 52,411** markers M5.5's reference PCA covers. Projecting ancients
+        onto axes computed from markers most of them lack would put ancient and modern
+        coordinates on systematically different marker subsets, and the overlap is not a
+        random draw of the whole, so `--score`'s `_AVG` normalisation does not rescue it.
+        `build_reference_pca` gained `restrict_to` and `space`; the shared space is built on
+        what the array, 1000G and AADR all carry. **Its eigenvalues are 196.7 / 100.0 / 29.3
+        / 23.3 against the full space's 192.6 / 101.6 / 29.4 / 23.3** — the structure
+        survives the cut. It is also what ancient-DNA practice does for an unrelated reason:
+        axes come from modern diploid samples and ancients are projected, never allowed to
+        define the axes they are placed on.
+      - **Zero of those 11,128 markers are strand-ambiguous**, which is not luck: an aDNA
+        capture panel excludes A/T and C/G sites because C→T deamination makes them
+        undecidable. The M5.5 exclusion therefore costs nothing here and the flip in
+        `write_ancient_vcf` is decidable with no tie-break.
+      - **Distances are scaled by the modern panel, not the ancient one.** The metric is
+        M5.5's `PopulationModel` fitted in this same space — diploid samples with
+        essentially complete data. Scaling by the ancients instead would let pseudo-haploid
+        noise and missingness set the ruler, shrinking every axis on which ancient data is
+        noisiest, which is backwards.
+      - **Two floors, both measured.** An ancient individual must call **half** the shared
+        markers (median is 7,444 of 11,128; lower quartile 4,985), which keeps **9,700 of
+        13,832**. A group needs **5** individuals — not M5.5's 20, because nothing here
+        estimates a spread or names anything, only places a centre. AADR's group labels are
+        archaeological contexts with a **median size of two**: of 2,311 groups with a
+        well-covered member, 442 reach five and 92 reach twenty. Twenty would drop most of
+        the archaeological record; five keeps 442 groups over 6,672 individuals and reports
+        the count beside every distance.
+      - **Validated against modern samples of known ancestry, and the validation also
+        measures the method's own limit.** Ten samples from each of fifteen 1000 Genomes
+        populations. Unadmixed populations land where they should: GBR → Denmark_Viking /
+        Germany (d=1.53), TSI → Italy / Spain (1.83), **CHB → China 10/10** (2.36), **JPT →
+        RepublicofKorea_ThreeKingdoms 10/10** (4.30), CDX → Taiwan_IA 9/10, **LWK →
+        Cameroon_ShumLaka 10/10**, STU → Pakistan_Historic 10/10. And the recently admixed
+        ones fail exactly as a nearest-centroid report must: **MXL, roughly half European
+        and half Indigenous American, comes back nearest to medieval Germany and
+        Avar-period Hungary** — groups it descends from not at all, because the midpoint of
+        its two sources lands there. That is not a bug to fix; it is what the method *is*,
+        and it is the measured reason the output says affinity. `AncientAffinity` has no
+        `nearest_group` accessor for the same reason: a single accessor is how a ranked list
+        quietly becomes a claim.
+      - **No ancestry model, deliberately.** Proportions need f-statistics or qpAdm over
+        outgroups this project does not fetch, and deriving them from distances is the
+        fabrication [AGENTS.md §6](AGENTS.md) forbids. What ships is a distance, in units,
+        ranked, with `spread` (nearest to median) so a card can say whether the ranking
+        separates anything — on the real export it is 22.7, against a nearest of 2.5.
+      - **Two defects found by running it, both now guarded.** (1) `project()`'s 50%
+        coverage floor rejected the ancient panel with a *confidently wrong* diagnosis —
+        "harmonized against a different panel" — for a cohort whose missingness is a
+        property of the archive; it now takes `min_coverage` and its message says what a
+        lowered floor means. (2) The ancient coverage floor was counted over the wrong
+        marker set (the 129,840-position AADR∩array overlap instead of the space's 11,128),
+        so individuals passed selection and then projected below the floor two steps later,
+        surfacing as a panel-mismatch error naming the wrong cause. `ReferencePCA.
+        marker_positions` and a refusal in `write_ancient_vcf` make that ordering mistake
+        impossible to repeat.
       - **The source is fetched and no longer a question (2026-08-23).** The entry was
         wrong in every particular: it declared v54.1, guessed filenames that do not exist,
         recorded CC-BY-4.0, and called the source manual-only because "Dataverse returns
@@ -2077,6 +2241,9 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-23 | M5.5-M5.6 review | Compliance pass over the two new milestones, after `/code-review ultra` had covered only the six *tracked* files and missed ~3,500 lines of new module. **Five findings, and the two that matter are the same defect twice.** **1572 tests + 5 skips**; ruff, `ruff format` and `mypy --strict` clean. **`PopulationFit` and `GroupAffinity` published the exact call their own docstrings said they withheld.** Both inherit `NoGenotypeRepr`; `Placement` and `AncientAffinity` correctly hide the result and show only `named`/`n_groups`. Then both hand out objects whose `_repr_fields` listed `population`/`group` -- and since `fits` and `groups` are ordered nearest-first, `repr(placement.nearest)` in a log line *is* the ancestry call, having taken one attribute access to get around the guard. The existing privacy tests passed because they asserted on `repr(placement)` and never on what it returns. **The lesson is that a genotype-safe repr is a property of a reachable object graph, not of one class**: withholding a field on the container while its accessors publish it is a guard that looks present and is not. **A blank line in a `.snp` file would have shifted every ancient genotype onto a different marker.** `read_snp` appended the `enumerate` line number as the index that locates a site in the packed record, but that record carries one 2-bit code per SNP *row*. Latent on the pinned file, and silent if it ever fired: `open_packed`'s size check reads `n_read`, which is blank-insensitive, so it would have agreed while every marker past the blank read somebody else's call -- the precise failure that check exists to catch. `read_ind` counts data rows on the same file family, so the two readers disagreed with each other. **The coverage statement was keyed to the wrong population set** -- the label file's rather than the one surviving `MIN_POPULATION_SAMPLES` -- so a dropped population would leave the 26-population gap list attached to a panel it was no longer true of, which is the quiet decay `coverage_for`'s identity check exists to prevent, reintroduced one line above it. Also: three new `except OSError` handlers interpolated the whole exception, putting an absolute path (account name included, on Windows) into the message where every `source` field in this project deliberately keeps a name and drops a path; and `.gitignore` gained `*.geno`/`*.snp`/`*.ind`, since section 2 covers inputs and the route these arrive by is a hand copy rather than the fetcher. `.anno` is left out on purpose -- it is a metadata sheet with no genotypes. **One arithmetic correction worth keeping**: 8,474 present-day + 19,119 ancient is 27,593, not 27,594. The missing individual is `Khwit.SG` at **-4 BP** -- a 20th-century Georgian sampled after 1950, which is what "before present" makes negative. `is_ancient` tests `> 0` and puts him on the right side; a `!= 0` test would not have. |
+| 2026-08-23 | M5.6 | Affinity to ancient populations. `ancestry/eigenstrat.py` + `ancestry/aadr.py`. **1567 tests + 5 skips** (46 new); ruff, `ruff format` and `mypy --strict` clean. **Four facts had to be measured off the 4 GB archive and two would have been wrong from the format description.** The genotype file is **`TGENO`, not `GENO`** -- records run one per *individual*, and the layout divides exactly: `48 + 27,594 x 146,033 = 4,029,634,650` bytes. That transpose is what makes the milestone cheap: selecting a few thousand ancient individuals costs a seek each rather than a pass over four gigabytes. `GENO` is **refused rather than guessed at**, because no `GENO` file is pinned and a dozen lines of untested reader between an archive and an ancestry claim is the wrong trade. **The ancient genotypes are pseudo-haploid** -- 13,757 of 13,832 candidates carry no heterozygous call at all; Loschbour decodes to 273,929 twos, 93,902 zeros and zero ones -- so a group *centroid* is meaningful and an individual's position is not, and nothing reports a per-individual match. **It needs its own PC space**: AADR Human Origins is Affymetrix and the export is Illumina, sharing **11,128 of 52,411** markers, and projecting ancients onto axes built from markers most of them lack compares coordinates resting on systematically different subsets -- which `_AVG` does not fix, because the overlap is not a random draw. `build_reference_pca` gained `restrict_to`/`space`; the resulting eigenvalues (196.7/100.0/29.3/23.3) match the full space's (192.6/101.6/29.4/23.3), so the structure survives the cut. **Zero of the 11,128 are strand-ambiguous**, which is not luck -- an aDNA capture panel excludes A/T and C/G because C->T deamination makes them undecidable. **Validated against modern samples of known ancestry, and the validation also measures the method's own limit**: CHB -> China 10/10, JPT -> Korea_ThreeKingdoms 10/10, LWK -> Cameroon_ShumLaka 10/10, GBR -> Denmark_Viking, STU -> Pakistan_Historic 10/10 -- and **MXL, half European and half Indigenous American, comes back nearest to medieval Germany and Avar Hungary**, groups it descends from not at all, because the midpoint of two sources lands there. That is not a bug to fix; it is what a nearest-centroid report is, and it is the measured reason the output says *affinity*. `AncientAffinity` has no `nearest_group` accessor for the same reason. **Two defects found by running it, both now guarded**: `project()`'s 50% floor rejected the ancient panel with a confidently *wrong* diagnosis ("harmonized against a different panel") for a cohort whose missingness is a property of the archive -- it now takes `min_coverage`; and the ancient coverage floor was counted over the AADR-and-array overlap (129,840) instead of the space's 11,128, so individuals passed selection and failed projection two steps later under the wrong error. `ReferencePCA.marker_positions` plus a refusal in `write_ancient_vcf` make that ordering impossible to repeat. |
+| 2026-08-23 | M5.5 | Continuous ancestry coordinates, nearest reference populations, and the refusal to name one. `ancestry/populations.py`. **1515 tests + 5 skips** (38 new); ruff, `ruff format` and `mypy --strict` clean. **The M5.4 coverage decision was taken the tidy way**: strand-ambiguous sites are excluded from the eigenvector build, sharing the harmonizer's own predicate rather than restating it, so `coverage` measures the sample again -- **83.6% -> 99.91%** on the real export. **The "~16% of common SNPs" estimate was wrong about this chip and the reason is the keeper**: only **4.2%** were ambiguous, because a consumer array avoids A/T and C/G probes by design. The 16% came from M5.4's *synthetic* array, whose positions were drawn uniformly from the panel -- so it carried the panel's ascertainment rather than a chip's. **A synthetic fixture sampled uniformly from a reference does not inherit that reference's design properties**, which is the M5.4 stub lesson in a new costume. **Four design choices, all settled by measurement rather than argument.** (1) Distances in pooled *within*-population SD, which cancels the `--score` scale constant M5.4 refuses to assert; total spread would shrink the very axes that separate. (2) **Ten components, not four** -- the eigenvalues invite truncation and truncating breaks the refusal outright: at four, held-out JPT, LWK, MSL, GWD and GIH are all named anyway at 0% declined, and naming the right population drops 82.0% -> 69.4%. (3) **Rank by distance, admit by fit** -- ranked on fit a held-out Finn's nearest population is *MXL*, because a diffuse admixed cloud has a large radius and attracts anything unusual; ranked on distance it is CEU. And the call is the closest population that *fits*, not "the closest, if it fits", which refused 17% of held-out ACB, 23% of PJL and 19% of CHS while refusing nothing extra where refusing is the point. (4) **The threshold is read off the panel** -- the 99.5th percentile of its own members' fit to their nearest population, with a closed-form leave-one-out correction -- so it is a sentence rather than a constant and moves when the panel widens. On the real panel: **2.65**. **Validated by holding populations out, which is the Lebanese case reproduced inside the panel**: 9 of 2,504 members declined (0.36%), 99.3% of those named get their own region, siblings are found where they exist (CEU/GBR/STU/ITU/BEB/TSI/YRI/MXL all 0%), and the populations with no substitute refuse -- FIN 100%, LWK 100%, MSL 100%, JPT 99%, GWD 97%. Hold out an entire super-population -- the closest this panel offers to the Oceanian or MENA case -- and it refuses 100% of South Asians, 100% of East Asians, 99.7% of Africans. **The region rides with the population call rather than getting a looser rule**, and that too was measured: a held-out Finn sits at fit 9.0 from CEU while held-out whole regions reach their nearest at 5.3 and 9.1, so any bar loose enough to keep the Finn as European admits every unrepresented sample. `Projection` gained `reference` so two eigenvector sets cannot be silently compared. |
 | 2026-08-23 | M5.7 + AADR/Y-tree sourcing | **Two sources resolved and one milestone shipped.** **AADR was never gated**: the 202 that made it tier B comes from the DOI redirector, not the archive -- the Dataverse API answers 200, the live record is **v66.p1** (not the declared 54.1), the licence is **CC0-1.0** (not CC-BY-4.0), none of the guessed filenames exist, and all 25 files are `restricted: false`. Reclassified **tier B -> A**; Human Origins fetched (**584,131 markers, 27,594 samples, 4,266 populations**, 4.03 GB, GRCh37 confirmed by inspection), md5-pinned from Dataverse's per-file digests so it cost **no lock review** -- unlike 1000 Genomes' 24. **A green `refs probe` had been calling it healthy the whole time**, because its only declared URL was the homepage: the hgdp_grch37 lesson pointed the other way. **The Y tree was a licence problem, not a sourcing one.** `yhaplo` &sect;3(b) forbids redistribution in terms and &sect;1(a) catches an extracted subset as an "abridgement"; isogg.org is behind a Cloudflare challenge; Yleaf is GPL-3.0 over YFull/FTDNA data. The ISOGG table **redistributed under MIT by Y-LineageTracker** (pinned to `82b14c7`) is what unblocked it -- 74,569 markers, 10,205 haplogroups, GRCh37 positions already in a column. **M5.7 done**: one caller over both lineages. **The bug worth remembering is that greedy root-to-tip descent is wrong for an array and every synthetic test passed while it was wrong** -- requiring a derived marker at every branch is right for a sequenced genome, but on a chip most branches are defined by absent markers, so it stopped three steps down for mtDNA and at the root for chrY *with 1,126 markers called*. Silence is not evidence against. Now takes the best-corroborated node, ranked on **total path support with depth only as tie-break** -- depth alone lets one erroneous deep call outrank eighty concordant markers. Ceilings measured (AGENTS.md &sect;4.7): **139/262 MT** and **1,141/1,665 chrY (68.5%)**. **Validated against the 1000 Genomes chrY panel already on disk** -- all ten populations match the literature, including the two diagnostic cases: **JPT splitting D1a2/O1b2** and **FIN's N1a1**. Real export: mtDNA **G2b1a2** (9/1), chrY **O2a2b2a1** (85/0), mutually consistent. **1456 tests + 5 skips** (25 new); ruff and `mypy --strict` clean. |
 | 2026-08-22 | M5.3 real panel | 1000 Genomes fetched (25/25) and the marker subset built for real: **290,285 markers over 2,504 samples**. **1431 tests + 5 skips** (2 new); ruff, `ruff format` and `mypy --strict` clean. **The first real-panel run failed immediately, on something no synthetic fixture could have shown.** `--indep-pairwise` refused with exit 7, *requires unique variant IDs* -- because **1000 Genomes phase 3 ships no variant IDs at all**: a full scan of the real chromosome 1 VCF found zero non-`.` IDs in any record. The existing `--rm-dup exclude-all` was no help, since it deduplicates by position and alleles rather than by ID, and its comment claiming '1000 Genomes carries repeated variant IDs' was wrong about the data. **Only half that failure announces itself**, which is the part worth keeping: `--indep-pairwise` stops, while M5.4's `--score` joins by ID and would have matched nothing while still returning coordinates. The `_check_ids` guard added to the eigenvector build during the M5.4 review would have caught the silent half -- the fix belongs upstream and now is. IDs synthesised as `chrom:pos:ref:alt` with `--new-id-max-allele-len 23 missing` (they are assigned at load, before `--snps-only`, so one long indel allele would abort the conversion); `transform_version` bumped to 2, and **a pre-existing gap closed along the way -- nothing tested that a version bump actually invalidates a stale artifact**, the mechanism the bump depends on. **Then the whole chain end to end on the real panel**: 50,018-marker intersection, ten components, eigenvalues 202.0/85.3/26.2/19.5, M5.2 harmonising 41,816 of them and M5.4 projecting at 83.6% coverage with every site accounted for (8,199 `ambiguous_site`). **That 83.6% is a finding for M5.5**: the shortfall is strand-ambiguous A/T and C/G exclusion, ~16% of common SNPs, so `coverage` has a floor near 84% unrelated to call quality and a confidence model reading it as quality would under-rate every sample equally. Recorded on M5.5 with the two ways out. |
 | 2026-08-22 | M5.3–M5.4 review | Diff-driven self-pass over the session's changes. **Six findings, two of them real defects that every test had passed.** **1429 tests + 5 skips** (5 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern behind both defects is the finding worth keeping: a stub written from the same belief as the code under test verifies the belief, not the behaviour.** M5.4's PLINK stub emitted `SCORE1_AVG` columns and an `ALLELE_CT` equal to the marker count, because that is what I assumed the binary wrote; the code read the same way, so fifteen tests agreed with each other and none with PLINK. Running the pinned build over a synthetic 60-sample panel took about a minute and disproved both. (1) With `header-read`, PLINK names each output column after the score file's own, and a `.eigenvec.allele` names its columns `PC1..PCk` -- so the real header is `PC1_AVG`, and the reader would have found no components and raised on the first real projection. (2) `ALLELE_CT` counts *alleles*: a sample with 5 of 100 variants no-called reports 190, twice the 95 that scored. Read as a marker count it made `coverage` report **1.9 for a 95%-called sample** -- impossible rather than merely wrong, and it feeds M5.8's PRS confidence. Both fixed, the measured header pinned in a regression test, and `NAMED_ALLELE_DOSAGE_SUM` explicitly excluded since it ends in `_SUM` and a suffix-only pattern would have carried it in as an extra component. **The chain now runs end to end against the real binary in both directions**: 2,000-marker intersection, cache reuse, one sample at 3,800 alleles → 1,900 markers → 95.0% coverage, and the whole panel through the same `project()` at 100%, which is the path M5.5 needs for comparable coordinates. Four smaller findings: a missing `ALLELE_CT` silently became zero and would have been diagnosed as 'harmonized against a different panel' -- a confident diagnosis of the wrong problem; the `--extract` range file was left behind when PLINK failed; `refs probe --only <source>` dragged in the tool URLs; and the module docstring still described the score columns by the wrong name. All six fixes verified by neutering each in turn. |

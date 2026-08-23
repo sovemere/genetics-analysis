@@ -66,6 +66,15 @@ incoming/
 # when nobody is looking. Added at M5.2 with the conversion that produces them.
 *.pvar.zst
 *-temporary.*
+
+# EIGENSTRAT / packedancestrymap -- the AADR's format, read at M5.6. Listed even though
+# nothing in this project *writes* one, for the reason the VCF and BGEN rules above are:
+# section 2 covers inputs as well as outputs, and the route these actually arrive by is a
+# hand copy into the checkout rather than a fetcher. The .geno is 4 GB of real calls.
+# .anno is a metadata sheet with no genotypes and is deliberately not listed.
+*.geno
+*.snp
+*.ind
 *.ped
 *.map
 *.tped
