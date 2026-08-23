@@ -16,91 +16,79 @@ the source of truth for build state.
 
 ## Next up
 
-M0–M4 are done and the M4 slice checkpoint passed. **M5.1–M5.4 are done and verified
-against the real 1000 Genomes panel** (2026-08-22): the panel is fetched, the LD-pruned
-subset is built (290,285 markers over 2,504 samples), and the M5.2 → M5.3 → M5.4 chain runs
-end to end on it.
+M0-M4 are done and the M4 slice checkpoint passed. **M5.1-M5.4 and M5.7 are done and
+verified against real data.** The panel is fetched, the LD-pruned subset is built (290,285
+markers over 2,504 samples), the M5.2 -> M5.3 -> M5.4 chain runs end to end on it, and both
+haplogroup callers are validated against 1000 Genomes.
 
-**Next is [M5.5](#m5--ancestry), and it opens with a decision rather than with code.**
-`Projection.coverage` came back at 83.6% on the real panel, and the shortfall is *not* call
-quality — it is strand-ambiguous A/T and C/G sites, which M5.2 drops by design and which are
-about 16% of common SNPs. So coverage has a floor near 84% that means nothing about the
-sample, and a confidence model reading it as quality under-rates every sample equally.
-Choose one before building the card: grade coverage against the markers M5.2 could *use*,
-or exclude ambiguous sites from the eigenvector build so the loadings match what a sample
-can actually supply. **The second is tidier and costs a rebuild of the cached artifact**,
-which is why it is a decision and not a detail.
+**Next is [M5.5](#m5--ancestry), and it still opens with the decision it opened with
+before -- nothing this session touched it.** `Projection.coverage` came back at 83.6% on the
+real panel, and the shortfall is *not* call quality: it is strand-ambiguous A/T and C/G
+sites, which M5.2 drops by design and which are about 16% of common SNPs. So coverage has a
+floor near 84% that means nothing about the sample, and a confidence model reading it as
+quality under-rates every sample equally. Choose one before building the card: grade
+coverage against the markers M5.2 could *use*, or exclude ambiguous sites from the
+eigenvector build so the loadings match what a sample can actually supply. **The second is
+tidier and costs a rebuild of the cached artifact**, which is why it is a decision and not
+a detail.
 
-M5.5's other requirement is already written into its entry and is the load-bearing one:
-with 1000G alone there is no correct answer for Middle Eastern, North African, Oceanian,
-Central Asian, Siberian or unadmixed Indigenous American ancestry, so the card must be able
-to **decline to name a population** rather than return the least-bad label with a distance
-attached.
+M5.5's other requirement is the load-bearing one: with 1000G alone there is no correct
+answer for Middle Eastern, North African, Oceanian, Central Asian, Siberian or unadmixed
+Indigenous American ancestry, so the card must be able to **decline to name a population**
+rather than return the least-bad label with a distance attached.
 
-After that, [M5.6](#m5--ancestry) needs AADR, which is the next tier B source likely to turn
-out like HGDP — Harvard Dataverse answers 202 and `reichdata.hms.harvard.edu` answers 200
-with a body reading `no access`. Resolving it early is cheaper than discovering it at M5.6.
+After M5.5, [M5.6](#m5--ancestry) is unblocked and waiting: **AADR v66.p1 Human Origins is
+on disk** (27,594 samples, 4,266 populations, 584,131 markers), so that milestone is
+projection work rather than a sourcing problem.
 
-<details><summary>Settled: the two things that used to stand in front of M5 (both resolved
-2026-08-22)</summary>
+<details><summary>Settled: the sources that used to stand in front of M5 (2026-08-22 and
+2026-08-23)</summary>
 
 1. ~~**Fetch 1000 Genomes.**~~ **Done 2026-08-22: 25/25 fetched, marker subset built
-   (290,285 markers over 2,504 samples), M5.2→M5.3→M5.4 verified end to end against it.**
+   (290,285 markers over 2,504 samples), M5.2->M5.3->M5.4 verified end to end against it.**
    The lock gained 24 new digests. Took five passes: EBI truncated large transfers
    repeatedly and the fetcher discards an unpinned partial rather than resuming it, so each
    failure restarted from zero. That is correct for a *rolling* file and wrong for a frozen
-   release that merely publishes no checksum — `RemoteFile.unpinned_reason` is the field
+   release that merely publishes no checksum -- `RemoteFile.unpinned_reason` is the field
    that could tell them apart. **Worth fixing before gnomAD exomes**, which is 63 GB in a
-   single file where one truncation costs far more than a gigabyte. Original note follows.
-
-   <sub>`refs status` reported it `missing  A
-   thousand_genomes_phase3_grch37  0/25  16.75 GB`.</sub> Nothing downstream of M5.2 can run
-   without it. One command — `genetics refs fetch --only thousand_genomes_phase3_grch37`
-   (`--only` is required; the source is `required: false`) — then roughly 30–90 minutes of
-   download and, on the same command, one to three hours of `build_pca_marker_subset`.
-   ~33.5 GB peak disk. **PLINK 2 must be installed first** or the transform fails after the
-   whole download completes. Two consequences worth knowing before starting: **24 of the 25
-   files are unpinned**, so the first fetch defines their digests and `data/references/
-   manifest.lock` — which *is* committed — comes back with 24 new entries to review; and the
-   post-process runs inside `refs fetch` with no flag to skip it.
+   single file where one truncation costs far more than a gigabyte.
 
 2. ~~**Resolve HGDP, and decide whether M5.3 waits for it.**~~ **Settled 2026-08-22:
-   M5.3 ships 1000G-only, and it is not waiting for anything.** Both panels were chased to
-   the live server and the answer for HGDP was not "unresolved", it was *gone*:
+   M5.3 ships 1000G-only.** HGDP **cannot** be resolved -- CEPH withdrew individual
+   genotypes for GDPR and serves only allele frequencies, `hagsc.org/hgdp/files.html` is
+   404 while the site root still answers 200, the Rosenberg lab has only 517-2,810-marker
+   subsets, and the CEPH panel page distributes *DNA samples* under a purchase order. The
+   entry is marked `withdrawn-by-publisher` rather than left as a to-do nobody can
+   complete. **SGDP is resolvable and deliberately deferred**: live, PLINK-format, measured
+   to be GRCh37 -- but 70 of 345 samples need a signed letter and the 279 public ones span
+   130 populations, about two samples each. Breadth in PCA space, useless as a centroid.
 
-   - **HGDP cannot be resolved.** CEPH withdrew individual genotypes for GDPR and now
-     serves only allele frequencies, which cannot back a PCA; `hagsc.org/hgdp/files.html`
-     — the Li et al. 2008 650Y download the literature cites — is 404 while the site root
-     still answers 200; the Rosenberg lab has only 517–2,810-marker subsets; and the CEPH
-     panel page distributes *DNA samples* under a purchase order, which was never a tier B
-     one-time step. The full evidence is in the manifest entry, which is now marked
-     `withdrawn-by-publisher` rather than left as a to-do nobody can complete.
-   - **SGDP is resolvable and deliberately deferred.** `cteam_extended.v4.maf0.1perc` is
-     live, is PLINK-format, and was *measured* to be GRCh37 (99.5% of 67,726 chr1 records
-     match dbSNP b157 on position and allele pair). But 70 of its 345 samples need a signed
-     letter, and the 279 public ones span 130 populations — about two samples each. That is
-     breadth in PCA space and useless as a population centroid, which is what
-     [M5.5](#m5--ancestry) wants. It is a later widening, not a blocker.
+3. ~~**Resolve AADR.**~~ **Done 2026-08-23: fetched, and it was never gone.** The belief
+   that it needed a human step rested on a 202 from the *DOI redirector*; the Dataverse API
+   answers 200. v66.p1, CC0-1.0, all files public. Reclassified **tier B -> A**. See
+   [M5.6](#m5--ancestry).
 
-   **The consequence that matters is not the panel, it is [M5.5](#m5--ancestry).** 1000G
-   covers West/Central Africa, Europe, East Asia, the Indian subcontinent and admixed
-   Latin America. It has *nothing* for the Middle East and North Africa, Oceania, Central
-   Asia and Siberia, unadmixed Indigenous America, or deep-lineage Africa. So "nearest
-   reference population" has no right answer for those users and will return the least-bad
-   one — reporting a Lebanese or Iranian sample as Tuscan, an Indigenous American one as
-   Peruvian. That is a plausible-looking wrong answer with a number attached, and it feeds
-   PRS confidence through [M5.8](#m5--ancestry) ([AGENTS.md §4.4](AGENTS.md)), so the error
-   silently inflates confidence downstream. M5.5 must be able to decline to name a
-   population; see its entry.
+4. ~~**Resolve the Y tree.**~~ **Done 2026-08-23, and the answer was a licence rather than
+   a URL.** `yhaplo` forbids redistribution outright, isogg.org sits behind a Cloudflare
+   challenge, and Yleaf is GPL-3.0 over YFull/FTDNA data. The ISOGG table as redistributed
+   under **MIT** by Y-LineageTracker is what made [M5.7](#m5--ancestry) shippable.
 
 </details>
 
-One piece of debt worth carrying forward from the fetch: **the fetcher discards an unpinned
-partial rather than resuming it**, which is correct for a rolling file and wrong for a
-frozen release that merely publishes no checksum. It cost five passes on 1000 Genomes.
-`RemoteFile.unpinned_reason` is the field that could tell the two apart, and the next place
-this bites is **gnomAD exomes — 63 GB in a single file**, where one truncation costs far
-more than a gigabyte.
+Two pieces of debt worth carrying forward:
+
+- **The fetcher discards an unpinned partial rather than resuming it**, which is correct
+  for a rolling file and wrong for a frozen release that merely publishes no checksum. It
+  cost five passes on 1000 Genomes. `RemoteFile.unpinned_reason` is the field that could
+  tell the two apart, and the next place this bites is **gnomAD exomes -- 63 GB in a single
+  file**. Worth knowing: **Harvard Dataverse honours `Range`** (a byte range 1 GB into the
+  4 GB AADR `.geno` returned 206), so a resuming fetcher would have somewhere to resume to.
+
+- **`refs probe` reads status codes, not meaning, and an entry carrying only a homepage
+  cannot be probed into truth.** hgdp_grch37 showed the false green on a withdrawn source;
+  aadr showed it on a source that was *fine* while every declared fact about it had gone
+  stale. Neither is a bug in `probe` -- it is a limit on what a URL check can know, and
+  both entries now say so.
 
 ---
 
@@ -1773,11 +1761,66 @@ section, that proves every layer.*
         they are Tuscan.
 - [ ] **M5.6** AADR projection: affinity to ancient populations. Label clearly as
       *affinity*, not descent.
-- [ ] **M5.7** Y haplogroup from 1,665 markers and mtDNA haplogroup from 263 markers via
+      - **The source is fetched and no longer a question (2026-08-23).** The entry was
+        wrong in every particular: it declared v54.1, guessed filenames that do not exist,
+        recorded CC-BY-4.0, and called the source manual-only because "Dataverse returns
+        202". The 202 is the *DOI redirector*; the Dataverse API answers 200 with full
+        metadata. Live record is **v66.p1** (released 2026-06-08), licence **CC0-1.0**,
+        and all 25 files are `restricted: false` — no form, no signed letter. Reclassified
+        **tier B → A**, since there is no human step left to describe.
+      - On disk now: the **Human Origins** set — 584,131 markers over **27,594 samples in
+        4,266 populations**, GRCh37 confirmed by inspection (`rs3094315` at chr1:752566),
+        4.03 GB, md5-pinned from the digests Dataverse publishes per file, so it cost no
+        lock review. The 1240K set (7.1 GB) is the same record if M5.6 ever wants it, but
+        HO is the panel that matches what an array carries.
+      - **A green `refs probe` had been calling this source healthy** while every declared
+        fact about it was stale, because the one URL it had to probe was the homepage.
+        That is the hgdp_grch37 lesson pointed the other way, and it is now written into
+        the manifest entry.
+- [x] **M5.7** Y haplogroup from 1,665 markers and mtDNA haplogroup from 263 markers via
       PhyloTree 17. **Report the supporting marker count and state the resolution
-      ceiling on the card** ([AGENTS.md §4.7](AGENTS.md)). Note the open ISOGG Y-tree is
-      frozen at v15.73 (2020); `yhaplo` is non-commercial-licensed — if used at all, keep
-      it optional and label the licence.
+      ceiling on the card** ([AGENTS.md §4.7](AGENTS.md)).
+      - **The licence note in the original entry was the whole difficulty, and `yhaplo` is
+        not usable here.** Its §3(b) *No Redistribution or Sharing* says the Licensed
+        Materials "may not be used for redistribution purposes"; §3(a)(i) permits sharing
+        only "internally"; §2(a) limits use to "internal Non-Commercial Research"; and
+        §1(a) defines a Derivative Work to include an "abridgement, condensation", so
+        extracting a marker subset does not escape it. A public checkout cannot carry it
+        under any reading. **isogg.org itself is unfetchable** — a Cloudflare managed
+        challenge, 403 to every client. **Yleaf** is GPL-3.0 (incompatible with this MIT
+        tree) and bundles YFull and FTDNA trees besides.
+      - **Resolved with `y_tree_isogg_grch37`: the ISOGG table as redistributed under MIT
+        by Y-LineageTracker**, pinned to commit `82b14c7`. 74,569 markers over 10,205
+        haplogroups **with GRCh37 positions already in a column** — no lifting. The one
+        honest caveat, recorded in the manifest rather than buried: the MIT grant is the
+        redistributor's over ISOGG's compilation, which is the same standing question
+        `yhaplo` raises — but pointed the opposite way, and what is taken is factual.
+      - `ancestry/haplogroup.py` holds the tree model and the caller; `phylotree.py` and
+        `ytree.py` are the two loaders. **One algorithm, both lineages** — they are haploid
+        and non-recombining, so a sample's history is a single root-to-tip path.
+      - **Measured ceilings (AGENTS.md §4.7), and they are properties of the array rather
+        than of the trees**: mtDNA **139 of 262** MT markers land on a defining site,
+        reaching 700 haplogroups; chrY **1,141 of 1,665 (68.5%)**, reaching 629. PhyloTree
+        parses to 5,154 nodes over 4,058 positions in 0.6 s; the Y tree to 9,699 nodes over
+        72,893 positions in 0.3 s. Both cached per process rather than given a
+        post-process artifact — a few tenths of a second did not justify the machinery.
+      - **The defect worth carrying forward: greedy root-to-tip descent is wrong for an
+        array, and every synthetic test passed while it was wrong.** The first
+        implementation required a derived marker at every branch it crossed — correct for a
+        sequenced genome. On a chip most branches are defined by markers that are simply
+        absent, so an unbroken supported chain does not exist: it stopped at `L2'3'4'6` for
+        mtDNA and at the root for chrY *with 1,126 markers called*. A branch with no typed
+        marker is silence, not evidence against. The caller now takes the best-corroborated
+        node and reads the path off the tree. Ranking is **total support along the path,
+        depth as tie-break** — depth alone lets one erroneous deep call in an unrelated
+        clade beat a call resting on eighty concordant markers.
+      - **Validated against 1000 Genomes, which was already on disk**: 1,233 chrY samples,
+        restricted to array positions. Every population lands where the literature puts it
+        — R1b1 dominant in GBR/CEU/IBS, E1b1 in YRI/LWK, Q1b1 in PEL, and the two
+        diagnostic cases a broken caller would miss: **JPT splitting D1a2 (20) / O1b2 (18)**
+        and **FIN's N1a1 (23)** separating it from every other European panel.
+      - Real export: mtDNA **G2b1a2** (9 supporting / 1 contradicting) and chrY
+        **O2a2b2a1** (85 / 0). Two independent lineages, mutually consistent.
 - [ ] **M5.8** Ancestry output feeds the shared context object — **PRS confidence depends
       on it** ([AGENTS.md §4.4](AGENTS.md)). This ordering dependency is load-bearing.
 
@@ -2034,6 +2077,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-08-23 | M5.7 + AADR/Y-tree sourcing | **Two sources resolved and one milestone shipped.** **AADR was never gated**: the 202 that made it tier B comes from the DOI redirector, not the archive -- the Dataverse API answers 200, the live record is **v66.p1** (not the declared 54.1), the licence is **CC0-1.0** (not CC-BY-4.0), none of the guessed filenames exist, and all 25 files are `restricted: false`. Reclassified **tier B -> A**; Human Origins fetched (**584,131 markers, 27,594 samples, 4,266 populations**, 4.03 GB, GRCh37 confirmed by inspection), md5-pinned from Dataverse's per-file digests so it cost **no lock review** -- unlike 1000 Genomes' 24. **A green `refs probe` had been calling it healthy the whole time**, because its only declared URL was the homepage: the hgdp_grch37 lesson pointed the other way. **The Y tree was a licence problem, not a sourcing one.** `yhaplo` &sect;3(b) forbids redistribution in terms and &sect;1(a) catches an extracted subset as an "abridgement"; isogg.org is behind a Cloudflare challenge; Yleaf is GPL-3.0 over YFull/FTDNA data. The ISOGG table **redistributed under MIT by Y-LineageTracker** (pinned to `82b14c7`) is what unblocked it -- 74,569 markers, 10,205 haplogroups, GRCh37 positions already in a column. **M5.7 done**: one caller over both lineages. **The bug worth remembering is that greedy root-to-tip descent is wrong for an array and every synthetic test passed while it was wrong** -- requiring a derived marker at every branch is right for a sequenced genome, but on a chip most branches are defined by absent markers, so it stopped three steps down for mtDNA and at the root for chrY *with 1,126 markers called*. Silence is not evidence against. Now takes the best-corroborated node, ranked on **total path support with depth only as tie-break** -- depth alone lets one erroneous deep call outrank eighty concordant markers. Ceilings measured (AGENTS.md &sect;4.7): **139/262 MT** and **1,141/1,665 chrY (68.5%)**. **Validated against the 1000 Genomes chrY panel already on disk** -- all ten populations match the literature, including the two diagnostic cases: **JPT splitting D1a2/O1b2** and **FIN's N1a1**. Real export: mtDNA **G2b1a2** (9/1), chrY **O2a2b2a1** (85/0), mutually consistent. **1456 tests + 5 skips** (25 new); ruff and `mypy --strict` clean. |
 | 2026-08-22 | M5.3 real panel | 1000 Genomes fetched (25/25) and the marker subset built for real: **290,285 markers over 2,504 samples**. **1431 tests + 5 skips** (2 new); ruff, `ruff format` and `mypy --strict` clean. **The first real-panel run failed immediately, on something no synthetic fixture could have shown.** `--indep-pairwise` refused with exit 7, *requires unique variant IDs* -- because **1000 Genomes phase 3 ships no variant IDs at all**: a full scan of the real chromosome 1 VCF found zero non-`.` IDs in any record. The existing `--rm-dup exclude-all` was no help, since it deduplicates by position and alleles rather than by ID, and its comment claiming '1000 Genomes carries repeated variant IDs' was wrong about the data. **Only half that failure announces itself**, which is the part worth keeping: `--indep-pairwise` stops, while M5.4's `--score` joins by ID and would have matched nothing while still returning coordinates. The `_check_ids` guard added to the eigenvector build during the M5.4 review would have caught the silent half -- the fix belongs upstream and now is. IDs synthesised as `chrom:pos:ref:alt` with `--new-id-max-allele-len 23 missing` (they are assigned at load, before `--snps-only`, so one long indel allele would abort the conversion); `transform_version` bumped to 2, and **a pre-existing gap closed along the way -- nothing tested that a version bump actually invalidates a stale artifact**, the mechanism the bump depends on. **Then the whole chain end to end on the real panel**: 50,018-marker intersection, ten components, eigenvalues 202.0/85.3/26.2/19.5, M5.2 harmonising 41,816 of them and M5.4 projecting at 83.6% coverage with every site accounted for (8,199 `ambiguous_site`). **That 83.6% is a finding for M5.5**: the shortfall is strand-ambiguous A/T and C/G exclusion, ~16% of common SNPs, so `coverage` has a floor near 84% unrelated to call quality and a confidence model reading it as quality would under-rate every sample equally. Recorded on M5.5 with the two ways out. |
 | 2026-08-22 | M5.3–M5.4 review | Diff-driven self-pass over the session's changes. **Six findings, two of them real defects that every test had passed.** **1429 tests + 5 skips** (5 more); ruff, `ruff format` and `mypy --strict` clean. **The pattern behind both defects is the finding worth keeping: a stub written from the same belief as the code under test verifies the belief, not the behaviour.** M5.4's PLINK stub emitted `SCORE1_AVG` columns and an `ALLELE_CT` equal to the marker count, because that is what I assumed the binary wrote; the code read the same way, so fifteen tests agreed with each other and none with PLINK. Running the pinned build over a synthetic 60-sample panel took about a minute and disproved both. (1) With `header-read`, PLINK names each output column after the score file's own, and a `.eigenvec.allele` names its columns `PC1..PCk` -- so the real header is `PC1_AVG`, and the reader would have found no components and raised on the first real projection. (2) `ALLELE_CT` counts *alleles*: a sample with 5 of 100 variants no-called reports 190, twice the 95 that scored. Read as a marker count it made `coverage` report **1.9 for a 95%-called sample** -- impossible rather than merely wrong, and it feeds M5.8's PRS confidence. Both fixed, the measured header pinned in a regression test, and `NAMED_ALLELE_DOSAGE_SUM` explicitly excluded since it ends in `_SUM` and a suffix-only pattern would have carried it in as an extra component. **The chain now runs end to end against the real binary in both directions**: 2,000-marker intersection, cache reuse, one sample at 3,800 alleles → 1,900 markers → 95.0% coverage, and the whole panel through the same `project()` at 100%, which is the path M5.5 needs for comparable coordinates. Four smaller findings: a missing `ALLELE_CT` silently became zero and would have been diagnosed as 'harmonized against a different panel' -- a confident diagnosis of the wrong problem; the `--extract` range file was left behind when PLINK failed; `refs probe --only <source>` dragged in the tool URLs; and the module docstring still described the score columns by the wrong name. All six fixes verified by neutering each in turn. |
 | 2026-08-22 | M5.4 | Projection onto the reference PCs, `genetics/ancestry/projection.py`. **1424 tests + 5 skips** (15 new); ruff, `ruff format` and `mypy --strict` clean. **`project()` takes any pgen rather than 'the sample's', and that is the milestone's one real design decision.** PLINK reports `SCORE1_AVG`-style averages whose absolute scale against the reference's own `.eigenvec` this module refuses to assert -- deriving that constant from memory is the fabrication AGENTS.md 6 forbids, and getting it subtly wrong would move every sample the same distance with no test able to see it. The scale does not need to be known: what M5.5 needs is that the sample and the reference populations are *comparable*, which holds by construction when both go through this same function, whatever the constant is. So M5.5 projects the panel through here too instead of reading `.eigenvec` and hoping the units agree. **`no-mean-imputation` is a stance rather than a default:** a no-call contributes nothing instead of the mean, because mean imputation pulls every sparsely-called sample toward the origin, which on an ancestry plot reads as 'averagely admixed' rather than 'we know less here' -- AGENTS.md 0.1B's euphemism ban expressed as a flag. Coverage is reported as a number for M5.5 to grade (confidence is computed, not authored) with a separate 50% floor for the structural failure, where genotypes harmonized against a different panel match almost nothing and still return coordinates that plot. **The `.sscore`'s component columns are located by name, not position** -- its leading columns vary with the flags in play, so counting from the left is a way to read a dosage total as a principal component, and neutering confirmed a positional reader passes every other test in the file. **A ragged `.sscore` is now refused rather than padded**, found by writing a test whose stub header and rows disagreed: padding put an empty string where a coordinate belongs and surfaced as a Polars cast error naming a column instead of a truncated file. Eleven guards, each verified by neutering. **Not yet run against the real panel** -- 1000 Genomes is at 19/25, with six chromosomes repeatedly truncated by EBI. |

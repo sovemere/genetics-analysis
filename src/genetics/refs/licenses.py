@@ -147,6 +147,23 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         notes="Attribution only. Cards sourced from CC-BY data must name the source.",
     ),
     LicenseTerms(
+        id="MIT",
+        name="MIT License",
+        terms_url="https://spdx.org/licenses/MIT.html",
+        commercial_ok=True,
+        derivative_ok=True,
+        redistribution_ok=True,
+        share_alike=False,
+        attribution_required=True,
+        review_status="confirmed",
+        notes=(
+            "Permissive; the only condition is that the notice travels with the copy. "
+            "Arrives with y_tree_isogg_grch37 (M5.7), where the grant is what makes the "
+            "marker table usable in a public checkout at all -- see that manifest entry "
+            "for why the alternative was not."
+        ),
+    ),
+    LicenseTerms(
         id="CC-BY-SA-4.0",
         name="Creative Commons Attribution-ShareAlike 4.0 International",
         terms_url="https://creativecommons.org/licenses/by-sa/4.0/",

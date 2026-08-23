@@ -1,6 +1,58 @@
 {
   "schema_version": 1,
   "sources": {
+    "aadr": {
+      "files": {
+        "v66.p1_HO.aadr.PUB.anno": {
+          "first_seen": "2026-08-23",
+          "sha256": "57f93730b0e408d2c29e0e3a1bd53b0c3c618fcbac22f498154de6335e5e415e",
+          "size_bytes": 15465906,
+          "url": "https://dataverse.harvard.edu/api/access/datafile/13994528"
+        },
+        "v66.p1_HO.aadr.patch.PUB.geno": {
+          "first_seen": "2026-08-23",
+          "sha256": "7af8c2f5cf0db612e39257e59f20aba87906de90c79f409771c3b3145a253ec3",
+          "size_bytes": 4029634650,
+          "url": "https://dataverse.harvard.edu/api/access/datafile/13994808"
+        },
+        "v66.p1_HO.aadr.patch.PUB.ind": {
+          "first_seen": "2026-08-23",
+          "sha256": "51f99bee3667b5c3a97b663cc12fd3e25486cf64049782657d99db347b65509e",
+          "size_bytes": 1176253,
+          "url": "https://dataverse.harvard.edu/api/access/datafile/13994526"
+        },
+        "v66.p1_HO.aadr.patch.PUB.snp": {
+          "first_seen": "2026-08-23",
+          "sha256": "c0d565ee9e6a6edf30c2063430ee4f828e5db45f26d4747fd76f19eee650a5de",
+          "size_bytes": 36800253,
+          "url": "https://dataverse.harvard.edu/api/access/datafile/13994527"
+        },
+        "v66.p1__files.md5sum": {
+          "first_seen": "2026-08-23",
+          "sha256": "e1825584d17612f6b16e12c4e096355f0d9eb12351b6ea5991a32cb8353777c8",
+          "size_bytes": 1769,
+          "url": "https://dataverse.harvard.edu/api/access/datafile/13995422"
+        }
+      },
+      "license": {
+        "attribution_required": false,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "CC0-1.0",
+        "name": "Creative Commons Zero v1.0 Universal",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "permissive",
+        "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      },
+      "manual_step_pending": false,
+      "obligations": [],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "v66.p1"
+    },
     "clinvar_grch37": {
       "files": {
         "clinvar_20260804.vcf.gz": {
