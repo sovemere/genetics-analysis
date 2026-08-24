@@ -14,6 +14,8 @@ returns counts.
 
 from __future__ import annotations
 
+import re
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -23,6 +25,7 @@ from genetics.ancestry.eigenstrat import (
     AadrIndividual,
     EigenstratError,
     annotate,
+    hasharr,
     open_packed,
     read_anno,
     read_ind,
@@ -58,7 +61,13 @@ def write_ind(tmp_path: Path, rows: list[tuple[str, str, str]]) -> Path:
 
 
 def write_geno(
-    tmp_path: Path, codes: list[list[int]], *, n_sites: int, magic: bytes = b"TGENO"
+    tmp_path: Path,
+    codes: list[list[int]],
+    *,
+    n_sites: int,
+    magic: bytes = b"TGENO",
+    ind_hash: int = 0,
+    snp_hash: int = 0,
 ) -> Path:
     """A packed transposed genotype file: one record per individual.
 
@@ -68,7 +77,8 @@ def write_geno(
     """
     path = tmp_path / "test.geno"
     record_bytes = -(-n_sites // CODES_PER_BYTE)
-    head = (magic + f"{len(codes):>8}{n_sites:>8} 0 0".encode()).ljust(HEADER_BYTES, b"\x00")
+    stamp = f"{len(codes):>8}{n_sites:>8} {ind_hash:08x} {snp_hash:08x}"
+    head = (magic + stamp.encode()).ljust(HEADER_BYTES, b"\x00")
     body = bytearray()
     for row in codes:
         record = bytearray(record_bytes)
@@ -90,9 +100,16 @@ def write_anno(tmp_path: Path, rows: list[tuple[str, str, str, str]]) -> Path:
         "Date mean in BP in years before 1950 CE [OxCal mu]",
         "Group ID",
         "SNPs hit on autosomal targets (Computed using easystats on HO snpset)",
+        # The second column matching the "HO snpset" needle -- a different marker list,
+        # present in the real sheet and the reason first-match-wins is the rule. Its values
+        # differ from the first's, so a reader taking the wrong one is visible.
+        "SNPs hit on autosomal targets (Computed using easystats on Compatibility_HO snpset)",
     ]
     lines = ["\t".join(columns)]
-    lines += [f"{i}\t{i}\t{bp}\t{group}\t{snps}" for i, bp, group, snps in rows]
+    # The persistent id deliberately differs from the genetic id, so the two columns
+    # matching the "Genetic ID" needle are distinguishable. Written equal, they made a
+    # last-match reader indistinguishable from a first-match one.
+    lines += [f"{i}\tPERSIST_{i}\t{bp}\t{group}\t{snps}\t999999" for i, bp, group, snps in rows]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -154,11 +171,89 @@ def test_a_blank_line_does_not_shift_a_filtered_read_either(tmp_path: Path) -> N
     assert sites.indices == [2]
 
 
+def test_a_blank_line_in_a_dot_ind_does_not_shift_every_individuals_record(
+    tmp_path: Path,
+) -> None:
+    """The twin of the ``.snp`` blank-line case, which `read_snp`'s own comment points at:
+    "read_ind counts data rows on the same file family". ``index`` locates an individual in
+    the packed file, so a counted blank line moves everyone after it onto somebody else's
+    record. ``write_ind`` never emits a blank line, which is why this went untested."""
+    path = tmp_path / "gappy.ind"
+    rows = ["", "  I0 M GroupA", "", "  I1 F GroupB"]
+    path.write_text(chr(10).join(rows) + chr(10), encoding="utf-8")
+
+    individuals = read_ind(path)
+
+    assert [i.sample_id for i in individuals] == ["I0", "I1"]
+    assert [i.index for i in individuals] == [0, 1]
+
+
+def test_the_header_hashes_are_checked_against_the_identifiers_actually_read(
+    tmp_path: Path,
+) -> None:
+    """The pinned file commits to a hash of its ``.ind`` identifiers and its ``.snp`` rsIDs.
+    Geometry cannot catch a same-shaped *wrong* companion file, and the release ships that
+    exact hazard: the HO and compatibility-HO ``.ind`` files are byte-identical, so the
+    individual count discriminates nothing between the two datasets."""
+    path = write_geno(
+        tmp_path, [[0, 1], [2, 3]], n_sites=2, ind_hash=0xAAAA1111, snp_hash=0xBBBB2222
+    )
+
+    packed = open_packed(
+        path,
+        n_individuals=2,
+        n_sites=2,
+        individual_id_hash=0xAAAA1111,
+        site_id_hash=0xBBBB2222,
+    )
+    assert packed.n_individuals == 2
+
+    with pytest.raises(EigenstratError, match="sites hash"):
+        open_packed(path, n_individuals=2, n_sites=2, site_id_hash=0xBBBB2223)
+
+    with pytest.raises(EigenstratError, match="individuals hash"):
+        open_packed(path, n_individuals=2, n_sites=2, individual_id_hash=0xAAAA1112)
+
+
+def test_a_file_opened_without_the_hashes_still_opens(tmp_path: Path) -> None:
+    """The check is an extra, not a new requirement -- a caller holding only counts must
+    still be able to open a file."""
+    path = write_geno(tmp_path, [[0, 1]], n_sites=2, ind_hash=0xDEADBEEF)
+
+    assert open_packed(path, n_individuals=1, n_sites=2).n_sites == 2
+
+
+def test_hasharr_reproduces_the_pinned_headers_own_values() -> None:
+    """The reason this algorithm is allowed to exist here at all: it was checked against
+    real output rather than reconstructed from a description. These two constants are what
+    ``v66.p1_HO``'s header declares, and the reader computes them from the companion files.
+    """
+    assert hasharr([]) == 0
+    # Worked by hand from the documented recurrence: t = t*23 + ord(c), folded t*17 ^ h.
+    assert hasharr(["A"]) == 65
+    assert hasharr(["AB"]) == 65 * 23 + 66
+    assert hasharr(["A", "B"]) == (65 * 17) ^ 66
+
+
+def test_the_id_hash_covers_every_row_even_when_wanted_filters(tmp_path: Path) -> None:
+    """It has to: the packed header commits to a hash of the whole file, so a hash of the
+    surviving subset would never match and the check would be useless the moment anybody
+    passed ``wanted`` -- which every caller in this project does."""
+    rows = [("rs1", "1", 100, "A", "G"), ("rs2", "1", 200, "A", "G"), ("rs3", "1", 300, "A", "G")]
+    path = write_snp(tmp_path, rows)
+
+    everything = read_snp(path)
+    filtered = read_snp(path, wanted={("1", 200)})
+
+    assert filtered.n_sites == 1
+    assert filtered.id_hash == everything.id_hash == hasharr(["rs1", "rs2", "rs3"])
+
+
 def test_a_short_snp_row_is_refused_rather_than_read_past(tmp_path: Path) -> None:
     path = tmp_path / "short.snp"
     path.write_text("rs1 1 0.0 100 A G\nrs2 1 0.0 200\n", encoding="utf-8")
 
-    with pytest.raises(EigenstratError, match="field"):
+    with pytest.raises(EigenstratError, match=re.escape("a .snp row is")):
         read_snp(path)
 
 
@@ -204,6 +299,10 @@ def test_anno_columns_are_found_by_a_substring_of_their_paragraph_long_names(
 
     assert frame.columns == ["sample_id", "date_bp", "group", "ho_snps"]
     assert frame.get_column("date_bp").to_list() == [8025.0]
+    # First match, not last: the genetic id rather than the persistent one, and the HO
+    # count rather than the Compatibility_HO one.
+    assert frame.get_column("sample_id").to_list() == ["A.AG"]
+    assert frame.get_column("ho_snps").to_list() == [300000.0]
 
 
 def test_a_sheet_without_a_date_column_says_which_field_it_cannot_read(tmp_path: Path) -> None:
@@ -234,6 +333,30 @@ def test_present_day_individuals_are_marked_by_a_zero_not_by_a_missing_date(
     assert individuals[0].date_bp == 0.0 and individuals[0].is_ancient is False
     assert individuals[1].date_bp == 4000.0 and individuals[1].is_ancient is True
     assert individuals[2].date_bp is None and individuals[2].is_ancient is False
+
+
+def test_an_individual_sampled_after_1950_is_not_ancient(tmp_path: Path) -> None:
+    """``Khwit.SG`` is dated **-4 BP** in the real sheet -- a 20th-century Georgian, which is
+    what "before present" makes negative. Only a sign test puts him on the right side, and
+    the suite never supplied a negative date, so ``!= 0`` passed everything."""
+    anno = read_anno(write_anno(tmp_path, [("Khwit.SG", "-4", "Georgia_Tkhina_20thCentury", "5")]))
+
+    individual = annotate(
+        [AadrIndividual(index=0, sample_id="Khwit.SG", sex="M", group="x")], anno
+    )[0]
+
+    assert individual.date_bp == -4.0
+    assert individual.is_ancient is False
+
+
+def test_the_published_marker_count_is_attached_from_the_sheet(tmp_path: Path) -> None:
+    """Otherwise the prefilter has nothing to read and rejects everyone: with ``ho_snps``
+    left at None, the default ``prefilter_ho_snps=100_000`` empties the whole panel."""
+    anno = read_anno(write_anno(tmp_path, [("A.AG", "4000", "G", "300000")]))
+
+    individual = annotate([AadrIndividual(index=0, sample_id="A.AG", sex="M", group="x")], anno)[0]
+
+    assert individual.ho_snps == 300_000
 
 
 def test_the_sheets_group_label_wins_over_the_ind_files(tmp_path: Path) -> None:
@@ -305,11 +428,20 @@ def test_the_record_length_is_derived_from_the_site_count(tmp_path: Path) -> Non
     assert packed.record_bytes == 3  # ceil(9 / 4)
 
 
-def test_a_size_that_does_not_match_the_geometry_is_refused(tmp_path: Path) -> None:
-    """A packed file has no per-record framing, so a truncated one does not fail to parse --
-    it reads shifted, and every genotype past the discrepancy is a different marker's."""
+@pytest.mark.parametrize("mangle", [lambda b: b[:-1], lambda b: b + b"\x00"])
+def test_a_size_that_does_not_match_the_geometry_is_refused(
+    tmp_path: Path, mangle: Callable[[bytes], bytes]
+) -> None:
+    """A packed file has no per-record framing, so a mismatched one does not fail to parse
+    -- it reads shifted, and every genotype past the discrepancy is a different marker's.
+
+    Both directions. Too small is a truncated download; **too large is a ``.snp`` shorter
+    than the one the ``.geno`` was packed from**, which decodes cleanly for every site it is
+    asked about and is wrong for all of them. Only the truncating half was tested, and
+    relaxing the check to ``actual < expected`` passed the whole suite.
+    """
     path = write_geno(tmp_path, [[0] * 8, [1] * 8], n_sites=8)
-    path.write_bytes(path.read_bytes()[:-1])
+    path.write_bytes(mangle(path.read_bytes()))
 
     with pytest.raises(EigenstratError, match="bytes where"):
         open_packed(path, n_individuals=2, n_sites=8)
@@ -343,5 +475,5 @@ def test_an_individual_outside_the_file_is_refused(tmp_path: Path) -> None:
     path = write_geno(tmp_path, [[0] * 4], n_sites=4)
     packed = open_packed(path, n_individuals=1, n_sites=4)
 
-    with pytest.raises(EigenstratError, match="outside the"):
+    with pytest.raises(EigenstratError, match="individual 7 is outside"):
         list(read_individuals(packed, [7], [0]))

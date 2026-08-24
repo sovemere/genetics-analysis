@@ -66,6 +66,7 @@ __all__ = [
     "EigenstratSites",
     "PackedGenotypes",
     "annotate",
+    "hasharr",
     "open_packed",
     "read_anno",
     "read_ind",
@@ -83,6 +84,29 @@ _HEADER_BYTES: Final = 48
 """Measured. ``48 + n_individuals * record_length`` is the pinned file's size exactly."""
 
 _CODES_PER_BYTE: Final = 4
+
+_HASH_MULTIPLIER: Final = 23
+_FOLD_MULTIPLIER: Final = 17
+_MASK32: Final = 0xFFFFFFFF
+
+
+def hasharr(values: Iterable[str]) -> int:
+    """EIGENSOFT's ``hasharr`` over a list of identifiers, as a 32-bit unsigned int.
+
+    **Not reconstructed from a description -- checked against the pinned file's own header.**
+    ``v66.p1_HO``'s header reads ``TGENO   27594  584131 8c17d6d1 80974215``, and those two
+    trailing values are exactly this function over the ``.ind``'s identifiers and the
+    ``.snp``'s rsIDs respectively. Both reproduce bit for bit, which is what makes it safe
+    to rely on: an algorithm derived from memory and never checked against real output is
+    the fabrication AGENTS.md 6 forbids, and this one had a way to be checked.
+    """
+    folded = 0
+    for value in values:
+        digest = 0
+        for char in value:
+            digest = (digest * _HASH_MULTIPLIER + ord(char)) & _MASK32
+        folded = ((folded * _FOLD_MULTIPLIER) ^ digest) & _MASK32
+    return folded
 
 
 class EigenstratError(RuntimeError):
@@ -121,6 +145,15 @@ class EigenstratSites:
     """Rows in the file, before ``wanted``. The packed record length is derived from this,
     so a filtered ``frame`` cannot be used to compute it."""
 
+    id_hash: int
+    """:func:`hasharr` over **every** rsID in the file, including the ones ``wanted``
+    filtered out.
+
+    Over all of them because that is what the packed file's header commits to. Computed
+    during the read rather than afterwards, since the discarded rows are gone by then and
+    re-reading an 18 MB file to hash it would make the check cost what it is meant to save.
+    """
+
     @property
     def n_sites(self) -> int:
         return self.frame.height
@@ -142,6 +175,7 @@ def read_snp(path: Path, *, wanted: Iterable[tuple[str, int]] | None = None) -> 
     and a caller typically wants ten thousand of them.
     """
     keep = frozenset(wanted) if wanted is not None else None
+    all_ids: list[str] = []
     indices: list[int] = []
     rsids: list[str] = []
     chroms: list[str] = []
@@ -171,6 +205,7 @@ def read_snp(path: Path, *, wanted: Iterable[tuple[str, int]] | None = None) -> 
                     "rsid, chromosome, genetic position, physical position and two alleles."
                 )
             n_read += 1
+            all_ids.append(fields[0])
             chrom = fields[1]
             try:
                 position = int(fields[3])
@@ -204,7 +239,7 @@ def read_snp(path: Path, *, wanted: Iterable[tuple[str, int]] | None = None) -> 
         },
         schema=SITE_SCHEMA,
     )
-    return EigenstratSites(frame=frame, source=path.name, n_read=n_read)
+    return EigenstratSites(frame=frame, source=path.name, n_read=n_read, id_hash=hasharr(all_ids))
 
 
 # ---------------------------------------------------------------------------
@@ -256,6 +291,9 @@ def read_ind(path: Path) -> list[AadrIndividual]:
     for index, line in enumerate(text.splitlines()):
         fields = line.split()
         if not fields:
+            # Skipped and not counted, for the reason `read_snp` gives at length: `index`
+            # below is used only in the error message, and what locates an individual in
+            # the packed file is its position among the data rows. `len(out)` is that.
             continue
         if len(fields) < 3:
             raise EigenstratError(
@@ -382,6 +420,42 @@ class PackedGenotypes:
         return _HEADER_BYTES + individual * self.record_bytes
 
 
+def _check_hashes(
+    head: bytes,
+    path: Path,
+    *,
+    individual_id_hash: int | None,
+    site_id_hash: int | None,
+) -> None:
+    """Compare the header's declared hashes against what the companion files actually hold.
+
+    Silent when a caller passes neither. A header field that does not parse as hex is also
+    passed over rather than raised on: the check is an extra, and refusing a file because a
+    field this project only recently learned to read looks unfamiliar would be a regression
+    dressed as rigour.
+    """
+    fields = head[len(_MAGIC_TRANSPOSED) :].split()
+    wanted = (("individuals", 2, individual_id_hash), ("sites", 3, site_id_hash))
+    for label, position, computed in wanted:
+        if computed is None or len(fields) <= position:
+            continue
+        # The real header pads with NULs, which `split()` does not treat as whitespace, so
+        # the last field arrives with them attached.
+        raw = fields[position].rstrip(b"\x00").decode("ascii", errors="replace")
+        try:
+            declared = int(raw, 16)
+        except ValueError:
+            continue
+        if declared != computed:
+            raise EigenstratError(
+                f"{path.name}'s header commits to {label} hash {declared:08x} and the "
+                f"companion file hashes to {computed:08x}. These files are the right shape "
+                "for each other and are not the same dataset -- a size or count check "
+                "cannot see this, which is what the hash is for. Check that the .geno, "
+                ".snp and .ind all come from one release and one patch level."
+            )
+
+
 def _parse_header(head: bytes, path: Path) -> tuple[int, int]:
     if head.startswith(_MAGIC_PLAIN) and not head.startswith(_MAGIC_TRANSPOSED):
         raise EigenstratError(
@@ -408,15 +482,36 @@ def _parse_header(head: bytes, path: Path) -> tuple[int, int]:
         ) from exc
 
 
-def open_packed(path: Path, *, n_individuals: int, n_sites: int) -> PackedGenotypes:
+def open_packed(
+    path: Path,
+    *,
+    n_individuals: int,
+    n_sites: int,
+    individual_id_hash: int | None = None,
+    site_id_hash: int | None = None,
+) -> PackedGenotypes:
     """Validate a packed genotype file against the ``.ind`` and ``.snp`` beside it.
 
-    Three checks, and the third is the one that earns its place: the header's own counts are
-    compared against the companion files, the record length is derived from the site count,
-    and **the file's size must equal header plus records exactly**. A packed file has no
-    per-record framing, so a truncated or mismatched one does not fail to parse -- it reads
-    shifted, and every genotype after the shift is a different marker's. Comparing the size
-    is the only cheap way to notice.
+    Four checks. The counts in the header are compared against the companion files, the
+    record length is derived from the site count, **the file's size must equal header plus
+    records exactly** -- a packed file has no per-record framing, so a mismatched one does
+    not fail to parse, it reads shifted and every genotype after the shift is a different
+    marker's -- and, when the caller supplies them, **the header's own two hashes must match
+    the identifiers actually read**.
+
+    That fourth check is the only one with any power over the case that matters. Geometry
+    catches a *truncated* file; it cannot catch a **same-shaped wrong** one, and the pinned
+    release contains that exact hazard: ``v66.p1_HO...ind`` and
+    ``v66.p1_compatibility_HO...ind`` are byte-identical (one md5 in the publisher's own
+    checksum list), so between the two HO datasets the individual count discriminates
+    nothing at all and only the site count separates them. Any ``.patch`` revision that
+    corrects rsIDs without changing the row count is the same shape. The hashes are already
+    sitting in bytes 5-48, already being parsed, and cost one pass over identifiers the
+    caller has just read anyway.
+
+    The two hash arguments are optional so that a caller holding only counts can still open
+    a file, but every caller in this project passes them -- see
+    :attr:`EigenstratSites.id_hash`.
     """
     try:
         with path.open("rb") as handle:
@@ -439,9 +534,19 @@ def open_packed(path: Path, *, n_individuals: int, n_sites: int) -> PackedGenoty
             f"{n_sites:,}. These three files are not one dataset."
         )
 
+    _check_hashes(
+        head,
+        path,
+        individual_id_hash=individual_id_hash,
+        site_id_hash=site_id_hash,
+    )
+
     record_bytes = -(-n_sites // _CODES_PER_BYTE)
     expected = _HEADER_BYTES + n_individuals * record_bytes
     actual = path.stat().st_size
+    # Both directions. Too small is a truncated download; too large is a .snp shorter than
+    # the one the .geno was packed from, which is the same "not one dataset" case and is the
+    # one that still decodes cleanly for every site it is asked about.
     if actual != expected:
         raise EigenstratError(
             f"{path.name} is {actual:,} bytes where {n_individuals:,} individuals over "

@@ -15,8 +15,10 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from dataclasses import replace
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
+from typing import cast
 
 import polars as pl
 import pytest
@@ -32,7 +34,11 @@ from genetics.ancestry.aadr import (
     write_ancient_vcf,
 )
 from genetics.ancestry.eigenstrat import CODE_MISSING, AadrIndividual, EigenstratSites, open_packed
-from genetics.ancestry.populations import PopulationLabels, build_population_model
+from genetics.ancestry.populations import (
+    PopulationLabels,
+    PopulationModel,
+    build_population_model,
+)
 from genetics.ancestry.projection import Projection
 from genetics.external.harmonize import read_panel_sites
 
@@ -136,6 +142,33 @@ def modern_model(reference: str = "refpca-shared"):  # type: ignore[no-untyped-d
             ids.append(f"{name}{i:03d}")
             pops.append(name)
             rows.append(tuple(c + math.sin((i + 1) * (a + 1.7)) for a, c in enumerate(centre)))
+    coordinates = pl.DataFrame(
+        {"sample_id": ids, **{pc: [r[i] for r in rows] for i, pc in enumerate(PCS)}}
+    )
+    labels = PopulationLabels(
+        frame=pl.DataFrame({"sample_id": ids, "population": pops, "region": ["REG"] * len(ids)}),
+        source="test.panel",
+    )
+    return build_population_model(projection(coordinates, reference=reference), labels)
+
+
+def anisotropic_modern_model(reference: str = "refpca-shared") -> PopulationModel:
+    """A modern panel whose within-population spread differs sharply between axes.
+
+    ``modern_model``'s scale is uniform to within 0.8%, which makes rescaling a similarity
+    transform and hides whether it happened at all.
+    """
+    ids: list[str] = []
+    pops: list[str] = []
+    rows: list[tuple[float, ...]] = []
+    widths = (2.0, 0.2, 1.0, 0.5)
+    for name, centre in {"AAA": (0.0, 0.0, 0.0, 0.0), "BBB": (40.0, 0.0, 0.0, 0.0)}.items():
+        for i in range(60):
+            ids.append(f"{name}{i:03d}")
+            pops.append(name)
+            rows.append(
+                tuple(c + widths[a] * math.sin((i + 1) * (a + 1.7)) for a, c in enumerate(centre))
+            )
     coordinates = pl.DataFrame(
         {"sample_id": ids, **{pc: [r[i] for r in rows] for i, pc in enumerate(PCS)}}
     )
@@ -253,7 +286,9 @@ def test_pseudo_haploidy_is_counted_rather_than_read_off_the_identifier(tmp_path
 
 def test_an_empty_shared_marker_set_is_refused(tmp_path: Path) -> None:
     sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
-    empty = EigenstratSites(frame=sites.frame.head(0), source=sites.source, n_read=1)
+    empty = EigenstratSites(
+        frame=sites.frame.head(0), source=sites.source, n_read=1, id_hash=sites.id_hash
+    )
     geno = write_geno(tmp_path, [[2]], n_sites=1)
     packed = open_packed(geno, n_individuals=1, n_sites=1)
 
@@ -281,6 +316,30 @@ def test_a_code_is_written_as_copies_of_aadrs_first_allele(tmp_path: Path) -> No
     assert counts["written"] == 1
     # REF=A is index 0 and AADR's first allele is A, so code 2 is two copies of A.
     assert only_record(out)[9:] == ["0/0", "0/1", "1/1"]
+
+
+def test_an_aadr_row_whose_first_allele_is_the_panels_alt_is_not_inverted(
+    tmp_path: Path,
+) -> None:
+    """Every other VCF test has AADR ``a1`` == panel REF, so the correct answer is always
+    ``(0, 1)`` and the index recovery this function exists for is never tested in the
+    direction where it matters -- discarding the alleles entirely and returning ``(0, 1)``
+    passed the whole suite.
+
+    Here AADR writes ``G A`` against a panel of ``REF=A ALT=G``, so a code of 2 means two
+    copies of **G**, which is ALT: ``1/1``. Getting this backwards mirrors every ancient
+    individual through the origin while still plotting.
+    """
+    sites = sites_from([("rs1", "1", 100, "G", "A")], tmp_path)
+    panel = read_panel_sites(panel_pvar(tmp_path, [("1", 100, "1:100:A:G", "A", "G")]))
+    ancient = ancient_panel(
+        [individual(0, "g"), individual(1, "g"), individual(2, "g")], [[2], [1], [0]], sites
+    )
+
+    out = tmp_path / "ancient.vcf"
+    write_ancient_vcf(panel, ancient, out)
+
+    assert only_record(out)[9:] == ["1/1", "0/1", "0/0"]
 
 
 def test_a_no_call_is_written_as_missing(tmp_path: Path) -> None:
@@ -380,6 +439,83 @@ def test_groups_become_centroids_on_the_modern_panels_scale(tmp_path: Path) -> N
     assert model.n_individuals_used == 12
 
 
+def test_the_modern_scale_is_applied_and_not_merely_carried(tmp_path: Path) -> None:
+    """The previous test asserts the scale is *carried*; nothing asserted it was *used*.
+    Two independent neuterings survived because of it -- skipping the divide on the sample
+    and skipping it on the ancient coordinates -- helped by two fixture artefacts: every
+    affinity call placed the sample at the **origin**, where dividing changes nothing, and
+    the modern panel's scale was uniform to within 0.8%, where rescaling is a similarity
+    transform that preserves rank order.
+
+    This panel is deliberately anisotropic and the sample is deliberately off-origin, so
+    the distance is only right if both divisions happen.
+    """
+    modern = anisotropic_modern_model()
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    groups = {"ONE": (6.0, 0.0, 0.0, 0.0), "TWO": (0.0, 6.0, 0.0, 0.0)}
+    ancient = ancient_for(groups, 6, sites)
+    model = build_ancient_model(projection(ancient_coordinates(groups, 6)), ancient, modern)
+
+    result = affinity(projection(at(3.0, 0.0, 0.0, 0.0)), model)
+
+    scale = modern.scale
+    by_name = {group.group: group for group in model.groups}
+    expected = {
+        name: math.sqrt(
+            sum(
+                ((3.0 if axis == 0 else 0.0) / scale[axis] - by_name[name].centroid[axis]) ** 2
+                for axis in range(K)
+            )
+        )
+        for name in groups
+    }
+    got = {group.group: group.distance for group in result.groups}
+
+    assert max(scale) / min(scale) > 3, "the fixture must be anisotropic or this proves nothing"
+    assert got["ONE"] == pytest.approx(expected["ONE"], rel=1e-9)
+    assert got["TWO"] == pytest.approx(expected["TWO"], rel=1e-9)
+
+
+def test_a_group_centroid_is_the_mean_of_its_members(tmp_path: Path) -> None:
+    """Replacing the mean with ``first()`` passed the suite: members sit within 0.3 of their
+    centre while the groups are 36 apart, so nothing that only checks ordering can see it."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    groups = {"NEAR": (2.0, 0.0, 0.0, 0.0), "FAR": (38.0, 0.0, 0.0, 0.0)}
+    coordinates = ancient_coordinates(groups, 6)
+    modern = modern_model()
+    model = build_ancient_model(projection(coordinates), ancient_for(groups, 6, sites), modern)
+
+    members = coordinates.filter(pl.col("sample_id").str.starts_with("NEAR"))
+    expected = tuple(
+        float(cast("float", members.get_column(pc).mean())) / modern.scale[i]
+        for i, pc in enumerate(PCS)
+    )
+    near = next(group for group in model.groups if group.group == "NEAR")
+
+    assert near.centroid == pytest.approx(expected, rel=1e-9)
+
+
+def test_the_distance_is_euclidean_and_not_merely_monotone(tmp_path: Path) -> None:
+    """``GROUPS`` separate almost purely along PC1, where Manhattan and Euclidean agree --
+    swapping one for the other passed everything. This offsets a group diagonally, where
+    they do not, and asserts the value rather than the order."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    groups = {"DIAG": (3.0, 3.0, 0.0, 0.0), "AXIS": (30.0, 0.0, 0.0, 0.0)}
+    ancient = ancient_for(groups, 6, sites)
+    modern = modern_model()
+    model = build_ancient_model(projection(ancient_coordinates(groups, 6)), ancient, modern)
+
+    result = affinity(projection(at()), model)
+
+    diag = next(group for group in model.groups if group.group == "DIAG")
+    expected = math.sqrt(sum(value**2 for value in diag.centroid))
+    got = next(group for group in result.groups if group.group == "DIAG").distance
+
+    assert got == pytest.approx(expected, rel=1e-9)
+    # Manhattan over the same centroid would be strictly larger on a diagonal offset.
+    assert got < sum(abs(value) for value in diag.centroid) * 0.99
+
+
 def test_a_group_below_the_floor_is_dropped_and_counted(tmp_path: Path) -> None:
     """AADR group labels are archaeological contexts with a median of two individuals. A
     centroid of two pseudo-haploid people has error bars wider than the distances reported,
@@ -433,15 +569,24 @@ def test_each_group_carries_its_size_and_dates_beside_its_distance(tmp_path: Pat
     assert nearest.mean_called > 0
 
 
-def test_the_spread_says_whether_the_ranking_separates_anything(tmp_path: Path) -> None:
+def test_the_spread_is_nearest_to_median_not_nearest_to_farthest(tmp_path: Path) -> None:
     """If the closest group is a hair nearer than the median one, the order is noise, and a
-    card that printed a leaderboard would be printing noise."""
-    model, _coords = built(tmp_path)
+    card printing a leaderboard would be printing noise. Every affinity test had exactly two
+    groups, where the median *is* the last element -- so ``ordered[-1]`` passed."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    groups = {
+        name: (float(4 * i + 2), 0.0, 0.0, 0.0)
+        for i, name in enumerate(["G0", "G1", "G2", "G3", "G4"])
+    }
+    ancient = ancient_for(groups, 6, sites)
+    model = build_ancient_model(projection(ancient_coordinates(groups, 6)), ancient, modern_model())
 
     result = affinity(projection(at()), model)
+    distances = [group.distance for group in result.groups]
 
-    assert result.spread > 0
-    assert result.spread == pytest.approx(result.groups[1].distance - result.groups[0].distance)
+    assert len(distances) == 5
+    assert result.spread == pytest.approx(distances[2] - distances[0])
+    assert result.spread != pytest.approx(distances[-1] - distances[0])
 
 
 def test_the_pseudo_haploid_fraction_reaches_the_result(tmp_path: Path) -> None:
@@ -451,6 +596,20 @@ def test_the_pseudo_haploid_fraction_reaches_the_result(tmp_path: Path) -> None:
 
     assert result.pseudo_haploid_fraction == pytest.approx(1.0)
     assert result.n_ancient_individuals == 12
+    # The marker basis a card quotes as what the comparison rests on.
+    assert result.n_shared_markers == 1
+
+
+@pytest.mark.parametrize("coverage", [-0.1, 1.5])
+def test_an_impossible_coverage_floor_is_refused(tmp_path: Path, coverage: float) -> None:
+    """The analogous quantile guard in populations.py is tested; this one was unreachable
+    code -- replacing the condition with `if False` passed the suite."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    geno = write_geno(tmp_path, [[2]], n_sites=1)
+    packed = open_packed(geno, n_individuals=1, n_sites=1)
+
+    with pytest.raises(AadrError, match="min_coverage must lie"):
+        select_ancient_individuals(packed, [individual(0, "g")], sites, min_coverage=coverage)
 
 
 # ---------------------------------------------------------------------------
@@ -488,6 +647,33 @@ def test_affinity_takes_one_sample(tmp_path: Path) -> None:
 
     with pytest.raises(AadrError, match="single sample"):
         affinity(projection(coords), model)
+
+
+def test_an_individual_named_twice_is_refused(tmp_path: Path) -> None:
+    """The inner join emits one row per pair, so the height check that follows it is
+    structurally blind: the count still matches while one person is counted into two group
+    centroids and pulls both."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    groups = {"NEAR": (2.0, 0.0, 0.0, 0.0), "FAR": (38.0, 0.0, 0.0, 0.0)}
+    ancient = ancient_for(groups, 6, sites)
+    clashing = list(ancient.individuals)
+    clashing[0] = replace(clashing[0], sample_id=clashing[6].sample_id)
+    duplicated = replace(ancient, individuals=tuple(clashing))
+
+    with pytest.raises(AadrError, match="more than once"):
+        build_ancient_model(projection(ancient_coordinates(groups, 6)), duplicated, modern_model())
+
+
+def test_an_empty_ancient_panel_is_refused_where_it_is_created(tmp_path: Path) -> None:
+    """Written anyway it produced a header and data rows with no sample columns at all, and
+    returned a success dict saying so. The usual cause is individuals that never went
+    through ``annotate``, leaving every ``date_bp`` None."""
+    sites = sites_from([("rs1", "1", 100, "A", "G")], tmp_path)
+    panel = read_panel_sites(panel_pvar(tmp_path, [("1", 100, "1:100:A:G", "A", "G")]))
+    empty = ancient_panel([], [], sites)
+
+    with pytest.raises(AadrError, match="no individuals"):
+        write_ancient_vcf(panel, empty, tmp_path / "ancient.vcf")
 
 
 def test_an_individual_missing_from_the_projection_is_refused(tmp_path: Path) -> None:

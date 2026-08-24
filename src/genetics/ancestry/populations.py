@@ -373,6 +373,12 @@ def read_population_labels(path: Path) -> PopulationLabels:
             f"{list(_LABEL_COLUMNS)}; this is not a 1000 Genomes sample panel file."
         ) from exc
 
+    if len(lines) < 2:
+        raise PopulationsError(
+            f"{path.name} carries a header and no samples, so no reference sample has a "
+            "population. A truncated download looks exactly like this."
+        )
+
     rows = [line.split("\t") for line in lines[1:]]
     ragged = next((i for i, row in enumerate(rows) if len(row) <= max(indices)), None)
     if ragged is not None:
@@ -440,6 +446,16 @@ class PopulationModel:
     decline_threshold: float
     """The fit beyond which no population is named. See :data:`DECLINE_QUANTILE`."""
 
+    quantile: float
+    """The quantile :attr:`decline_threshold` was taken at.
+
+    Stored rather than assumed to be :data:`DECLINE_QUANTILE`, because
+    :func:`build_population_model` takes it as an argument and the refusal sentence quotes
+    it back to the reader. Reading the module constant there produced a sentence that was
+    false for any model built with a different one -- "the bar is 1.00, measured as the
+    99.5% point" for a model built at the median.
+    """
+
     n_beyond_threshold: int
     """How many of the panel's own members sit above :attr:`decline_threshold`.
 
@@ -489,6 +505,26 @@ class PopulationModel:
         return bisect.bisect_left(distances, distance) / len(distances)
 
 
+def _check_unique_ids(frame: pl.DataFrame, what: str) -> None:
+    """Refuse repeated sample ids, which otherwise lose a person without failing.
+
+    The mirror of the guard :func:`read_population_labels` already applies to the label
+    file, and it belongs on this side too: a ``.sscore`` reports ``IID`` alone and PLINK
+    permits a repeated IID under distinct FIDs. Two individuals sharing one produce a
+    *single* :class:`Placement` whose ``fits`` lists every population twice and whose
+    coordinates are whichever row the dict happened to keep -- the other person silently
+    gone. On the build side the same repetition pulls a centroid toward the duplicated
+    sample and inflates ``n``, shrinking that population's leave-one-out correction.
+    """
+    repeated = frame.height - frame.get_column("sample_id").n_unique()
+    if repeated:
+        raise PopulationsError(
+            f"{what} names {repeated:,} sample id(s) more than once. A repeated id does not "
+            "fail anything downstream; it drops one of the samples and doubles the other's "
+            "weight."
+        )
+
+
 def _pc_names(k: int) -> list[str]:
     return [f"PC{i + 1}" for i in range(k)]
 
@@ -514,11 +550,17 @@ def _pooled_within_sd(
     for name in pcs:
         total = joined.select(((pl.col(name) - pl.col(f"{name}_c")) ** 2).sum()).item()
         sd = math.sqrt(float(total) / degrees)
-        if sd <= 0.0:
+        # `not sd > 0` rather than `sd <= 0`, because every comparison against NaN is false
+        # and NaN is the likeliest form an unscalable axis takes. Written the other way, one
+        # NaN coordinate anywhere in the panel makes this scale NaN, then the threshold NaN,
+        # then every radius NaN -- and the model builds without an error and refuses 100% of
+        # samples forever, reporting "nan standard deviations" on every card.
+        if not sd > 0.0:
             raise PopulationsError(
-                f"component {name} has no within-population variation in this panel, so a "
-                "distance along it cannot be scaled. The projection is most likely constant "
-                "on that axis, which means the reference PCA and the panel disagree."
+                f"component {name} has no usable within-population variation in this panel "
+                f"(computed spread {sd}), so a distance along it cannot be scaled. Either "
+                "the projection is constant on that axis -- which means the reference PCA "
+                "and the panel disagree -- or it carries a NaN."
             )
         out.append(sd)
     return out
@@ -538,12 +580,18 @@ def build_population_model(
     labels: PopulationLabels,
     *,
     quantile: float = DECLINE_QUANTILE,
+    min_population_samples: int = MIN_POPULATION_SAMPLES,
 ) -> PopulationModel:
     """Fit centroids, spreads and the naming threshold from the projected reference panel.
 
     ``panel`` must be the *reference panel itself* pushed through
     :func:`~genetics.ancestry.projection.project` -- see this module's docstring for why
     reading ``.eigenvec`` instead would silently mis-scale everything.
+
+    ``min_population_samples`` is a parameter for the same reason ``min_individuals`` is one
+    on :func:`~genetics.ancestry.aadr.build_ancient_model`: the floor is a property of the
+    panel being fitted, and a test that wants to assert the arithmetic on a hand-built
+    three-member population should not have to manufacture twenty of them to do it.
     """
     if not 0.0 < quantile < 1.0:
         raise PopulationsError(f"quantile must lie strictly between 0 and 1, got {quantile}")
@@ -557,6 +605,7 @@ def build_population_model(
             f"{', '.join(coordinates.columns)}."
         )
 
+    _check_unique_ids(coordinates, "the panel projection")
     frame = coordinates.select("sample_id", *pcs).join(labels.frame, on="sample_id", how="left")
     unlabelled = int(frame.get_column("population").is_null().sum())
     if unlabelled:
@@ -569,7 +618,7 @@ def build_population_model(
     sizes = frame.group_by("population").len()
     small = {
         str(row["population"]): int(row["len"])
-        for row in sizes.filter(pl.col("len") < MIN_POPULATION_SAMPLES).iter_rows(named=True)
+        for row in sizes.filter(pl.col("len") < min_population_samples).iter_rows(named=True)
     }
     frame = frame.filter(~pl.col("population").is_in(list(small)))
     if frame.is_empty():
@@ -621,6 +670,7 @@ def build_population_model(
         # which needs the distances above. Replaced below, once those exist, by the only
         # value the rest of this function could have used anyway.
         decline_threshold=math.inf,
+        quantile=quantile,
         n_beyond_threshold=0,
         labels_source=labels.source,
         n_panel_samples=frame.height,
@@ -646,6 +696,7 @@ def build_population_model(
         centroids=model.centroids,
         own_distances=model.own_distances,
         decline_threshold=threshold,
+        quantile=model.quantile,
         n_beyond_threshold=sum(1 for value in fits if value > threshold),
         labels_source=model.labels_source,
         n_panel_samples=model.n_panel_samples,
@@ -828,6 +879,7 @@ def place_many(
             f"{', '.join(coordinates.columns)}."
         )
 
+    _check_unique_ids(coordinates, "the coordinates")
     raw = {
         str(row[0]): tuple(float(value) for value in row[1:])
         for row in coordinates.select("sample_id", *pcs).iter_rows()
@@ -900,7 +952,7 @@ def _decline_reason(nearest: PopulationFit, model: PopulationModel) -> str:
         f"{nearest.fit:.1f} times as far as a typical {nearest.population} sample sits from "
         f"that population's centre, and farther out than {nearest.percentile:.1%} of them. "
         f"No other population in the panel fits either. The bar is "
-        f"{model.decline_threshold:.2f}, measured as the {DECLINE_QUANTILE:.1%} point of "
+        f"{model.decline_threshold:.2f}, measured as the {model.quantile:.1%} point of "
         f"this panel's own {model.n_panel_samples:,} members against their nearest "
         "population. No population is named, and no region either."
     )
