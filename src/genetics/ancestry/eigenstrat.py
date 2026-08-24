@@ -71,6 +71,7 @@ __all__ = [
     "read_anno",
     "read_ind",
     "read_individuals",
+    "read_records",
     "read_snp",
 ]
 
@@ -600,3 +601,37 @@ def read_individuals(
                 individual,
                 [(record[byte] >> shift) & 3 for byte, shift in zip(bytes_at, shifts, strict=True)],
             )
+
+
+def read_records(packed: PackedGenotypes, indices: Sequence[int]) -> Iterator[tuple[int, bytes]]:
+    """Yield ``(individual index, raw packed record)`` for the requested people.
+
+    The bulk counterpart to :func:`read_individuals`, and it exists because that function's
+    per-marker list comprehension is the wrong shape for a whole-panel pass. Selecting a few
+    thousand markers for a few thousand ancients costs a list of a few thousand ints;
+    :mod:`genetics.ancestry.modern_panel` wants **every** autosomal marker for every
+    present-day individual, and building 579,720 Python ints per person, 5,553 times over,
+    is three billion interpreter steps to produce something that then has to be packed back
+    into two bits apiece.
+
+    So this hands back the record as it sits on disk and leaves the decoding to a caller
+    that can do it in bulk. Two bits per marker, four per byte, marker ``4b + s`` in the
+    ``6 - 2s`` shift of byte ``b`` -- the same layout :func:`read_individuals` reads one
+    marker at a time. The record is validated for length; nothing else about it is
+    interpreted here.
+    """
+    with _reader(packed) as handle:
+        for individual in indices:
+            if not 0 <= individual < packed.n_individuals:
+                raise EigenstratError(
+                    f"individual {individual} is outside the {packed.n_individuals:,} in "
+                    f"{packed.path.name}."
+                )
+            handle.seek(packed.offset(individual))
+            record = handle.read(packed.record_bytes)
+            if len(record) != packed.record_bytes:
+                raise EigenstratError(
+                    f"{packed.path.name} ended {packed.record_bytes - len(record):,} bytes "
+                    f"into individual {individual}'s record."
+                )
+            yield individual, record

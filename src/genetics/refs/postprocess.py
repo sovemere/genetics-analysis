@@ -140,6 +140,24 @@ _STEPS: tuple[Step, ...] = (
         workspace_multiplier=1.0,
     ),
     Step(
+        name="build_modern_reference_panel",
+        summary="Select AADR's present-day individuals and LD-prune them into a PCA panel.",
+        required_params=("output",),
+        optional_params=("maf", "max_missing", "window", "step", "r2", "min_group"),
+        implemented=True,
+        milestone="M5.9",
+        transform_version=1,
+        # Same reasoning as `build_pca_marker_subset`, and it has to be re-argued rather
+        # than inherited: this reads an *archive* of public present-day genotypes and no
+        # user export at all. The array intersection stays where it belongs, in the
+        # eigenvector build, so what lands under `data/references/` is a function of AADR
+        # and of the settings recorded beside it.
+        output_is_genotype_derived=False,
+        # The .bed the selection writes is ~800 MB and the pruned pgen is smaller again;
+        # both live in the work directory at once, beside the archive they came from.
+        workspace_multiplier=0.5,
+    ),
+    Step(
         name="convert_to_bref3",
         summary="Convert an imputation reference panel to Beagle's bref3 format.",
         required_params=("output",),
@@ -1882,6 +1900,301 @@ def _validate_companions(output: Path, recorded: Mapping[str, Any]) -> None:
             raise ProcessError(f"{path.name} does not match the digest recorded for it")
 
 
+# ---------------------------------------------------------------------------
+# build_modern_reference_panel (M5.9)
+# ---------------------------------------------------------------------------
+#
+# The second step here that shells out, and a near-twin of `build_pca_marker_subset` from
+# `--maf` onward: the same filters, the same long-range LD exclusions, the same
+# `--indep-pairwise`. What differs is where the genotypes come from. 1000 Genomes ships
+# VCFs that PLINK reads directly; AADR ships David Reich's lab format, which PLINK does not
+# read at all, so `genetics.ancestry.modern_panel` does the selection and the transpose and
+# hands PLINK a binary fileset.
+#
+# The settings are shared rather than copied. Two panels pruned at different r^2 produce
+# coordinates that are not comparable in the one way that matters -- a marker retained in
+# one space and dropped in the other changes what a component means -- and a second copy of
+# the defaults is how that starts.
+
+_MODERN_PANEL_MIN_GROUP: Final = 20
+"""Default floor on a population's size, and the same number as
+:data:`~genetics.ancestry.populations.MIN_POPULATION_SAMPLES`.
+
+It has to be. A group admitted here and then dropped by the model is work done to no
+purpose; a group the model would admit that this step never wrote is a population it looks
+for and does not find. `test_panel_floor_matches_the_model` holds the two equal.
+
+**This is the binding constraint on which regions the panel can name, and it is worth
+knowing which way.** The Levant sits just under it -- Lebanese_Muslim at 11,
+Lebanese_Christian at 9, Jordanian at 12, Egyptian at 18, Assyrian and Armenian at 15 -- so
+a Lebanese sample is named a neighbour (Druze, Turkish) rather than itself. Lowering it to
+15 admits 133 groups over 6,221 individuals and to 10 admits 221 over 7,194. The floor
+exists because a population's radius is a median over its own members' distances and the
+fit statistic divides by it: a radius fitted to nine points is a tight, arbitrary target,
+and a confident population call from nothing is the failure M5.5 was built to avoid.
+"""
+
+_AADR_SUFFIXES: Final[tuple[str, ...]] = (".snp", ".ind", ".geno", ".anno")
+"""The EIGENSTRAT trio plus the annotation sheet, located by extension.
+
+By extension rather than by full name because the release version is in every filename and
+the manifest already pins them: `v66.p1_HO.aadr.patch.PUB.geno` names its release, its
+patch level and its snpset, and a step matching that string would need editing for a
+version bump that changes nothing it depends on. What it does depend on -- that there is
+exactly one of each -- is checked.
+"""
+
+
+def _aadr_inputs(
+    source: Source, source_dir: Path, input_digests: Mapping[str, str] | None
+) -> tuple[dict[str, Path], str]:
+    """The four AADR files and one digest over the set.
+
+    Digested in :data:`_AADR_SUFFIXES` order rather than the manifest's, so reordering the
+    manifest does not invalidate a built artifact -- the same reason
+    :func:`_panel_input_digest` sorts by chromosome.
+    """
+    found: dict[str, tuple[Path, str]] = {}
+    for item in source.files:
+        suffix = Path(item.filename).suffix.lower()
+        if suffix not in _AADR_SUFFIXES:
+            continue
+        if suffix in found:
+            raise ProcessError(
+                f"this source names more than one {suffix} file ({found[suffix][0].name} and "
+                f"{item.filename}); the modern panel cannot choose between them."
+            )
+        path = _inside(source_dir, item.filename, label="input")
+        if not path.is_file():
+            raise ProcessError(f"panel input {item.filename} is missing; fetch this source first")
+        found[suffix] = (path, (input_digests or {}).get(item.filename) or _sha256(path))
+    missing = [suffix for suffix in _AADR_SUFFIXES if suffix not in found]
+    if missing:
+        raise ProcessError(
+            f"this source has no {', '.join(missing)} file. The modern panel needs the "
+            "EIGENSTRAT trio and the annotation sheet; a source carrying only some of them "
+            "is a partial fetch rather than a different layout."
+        )
+    joined = "\n".join(f"{found[s][0].name} {found[s][1]}" for s in _AADR_SUFFIXES)
+    digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()
+    return {suffix: found[suffix][0] for suffix in _AADR_SUFFIXES}, digest
+
+
+def _resolve_min_group(params: Mapping[str, Any]) -> int:
+    raw = params.get("min_group", _MODERN_PANEL_MIN_GROUP)
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        raise ProcessError(f"min_group must be a whole number, got {raw!r}") from None
+    if value < 2:
+        raise ProcessError(
+            f"min_group must be at least 2, got {value}; a population of one has a radius of "
+            "zero, and every sample that came near it would fit perfectly."
+        )
+    return value
+
+
+def _prune_modern_panel(
+    plink: Plink2, prefix: Path, *, work: Path, exclusions: Path, settings: _PcaSettings
+) -> Path:
+    """Filter and prune the written fileset. Returns the pruned pgen's prefix.
+
+    One pass rather than the per-chromosome loop `build_pca_marker_subset` runs. That loop
+    exists to make a multi-hour job restartable; this one is minutes, because the whole
+    panel is 5,553 samples over 579,720 markers where 1000 Genomes is 2,504 samples over
+    eighty million sites.
+    """
+    filtered = work / "filtered"
+    plink.run(
+        [
+            "--bfile",
+            str(prefix),
+            "--snps-only",
+            "just-acgt",
+            "--min-alleles",
+            "2",
+            "--max-alleles",
+            "2",
+            "--maf",
+            str(settings.maf),
+            "--geno",
+            str(settings.max_missing),
+            # Unlike 1000 Genomes, the Human Origins .snp carries a real rsID for every
+            # marker -- 579,720 autosomal rows, all unique, none `.` -- so nothing is
+            # synthesised here and `--set-all-var-ids` would only replace good identifiers
+            # with worse ones. `--rm-dup` stays: uniqueness in the source is not uniqueness
+            # after `--snps-only` has finished, and a duplicated ID is what makes M5.4's
+            # `--score` join the wrong row rather than fail.
+            "--rm-dup",
+            "exclude-all",
+            "--exclude",
+            "bed1",
+            str(exclusions),
+            "--make-pgen",
+            "--sort-vars",
+        ],
+        out=filtered,
+    )
+    plink.run(
+        [
+            "--pfile",
+            str(filtered),
+            "--indep-pairwise",
+            settings.window,
+            str(settings.step),
+            str(settings.r2),
+        ],
+        out=filtered,
+    )
+    pruned = work / "pruned"
+    plink.run(
+        [
+            "--pfile",
+            str(filtered),
+            "--extract",
+            str(filtered.with_suffix(".prune.in")),
+            "--make-pgen",
+        ],
+        out=pruned,
+    )
+    return pruned
+
+
+def _run_modern_panel(
+    declared: PostProcess,
+    source: Source,
+    source_dir: Path,
+    *,
+    verify_only: bool,
+    progress: ProcessProgressCallback | None,
+    input_digests: Mapping[str, str] | None,
+) -> ProcessResult:
+    from genetics.ancestry.eigenstrat import EigenstratError
+    from genetics.ancestry.modern_panel import (
+        ModernPanelError,
+        open_panel_genotypes,
+        select_modern_panel,
+        write_plink_fileset,
+    )
+    from genetics.external.plink2 import Plink2, Plink2Error
+
+    output_name = str(declared.params["output"])
+    output = _inside(source_dir, output_name, label="output")
+    if output.suffix != ".pgen":
+        return ProcessResult(
+            declared.step,
+            ProcessStatus.FAILED,
+            output_name,
+            detail=f"output must name a .pgen fileset, got {output_name!r}",
+        )
+
+    try:
+        settings = _PcaSettings.resolve(declared.params)
+        min_group = _resolve_min_group(declared.params)
+        inputs, combined = _aadr_inputs(source, source_dir, input_digests)
+    except ProcessError as exc:
+        if verify_only and not output.is_file():
+            return ProcessResult(declared.step, ProcessStatus.PENDING, output_name, detail=str(exc))
+        return ProcessResult(declared.step, ProcessStatus.FAILED, output_name, detail=str(exc))
+
+    expected = {
+        **_expected_provenance(
+            declared,
+            inputs[".geno"],
+            combined,
+            input_filename="AADR EIGENSTRAT trio and annotation sheet",
+        ),
+        "settings": {**settings.as_dict(), "min_group": min_group},
+    }
+
+    if output.is_file():
+        try:
+            recorded = validate_provenance(
+                output,
+                expected=expected,
+                expected_step=declared.step,
+                expected_transform_version=declared.definition.transform_version,
+            )
+            _validate_companions(output, recorded)
+        except ProcessError as exc:
+            if verify_only:
+                return ProcessResult(
+                    declared.step, ProcessStatus.FAILED, output_name, detail=str(exc)
+                )
+        else:
+            status = ProcessStatus.VERIFIED if verify_only else ProcessStatus.ALREADY_PRESENT
+            return ProcessResult(declared.step, status, output_name, int(recorded["rows"]))
+
+    if verify_only:
+        return ProcessResult(
+            declared.step,
+            ProcessStatus.PENDING,
+            output_name,
+            detail="not built yet; run `genetics refs fetch` for this source",
+        )
+
+    work = _pca_work_dir(output)
+    try:
+        plink = Plink2.discover()
+        work.mkdir(parents=True, exist_ok=True)
+        panel = select_modern_panel(
+            inputs[".snp"], inputs[".ind"], inputs[".geno"], inputs[".anno"], min_group=min_group
+        )
+        selection: dict[str, Any] = {
+            "n_present_day": panel.n_present_day,
+            "n_flagged_label": panel.n_flagged_label,
+            "n_pseudo_haploid": panel.n_pseudo_haploid,
+            "n_small_group": panel.n_small_group,
+            "n_individuals": panel.n_individuals,
+            "n_groups": panel.n_groups,
+            "min_heterozygosity": round(panel.min_heterozygosity, 6),
+            # The membership itself, not only its size. A release that renamed a group or
+            # dropped one would otherwise leave an artifact whose sample count matched and
+            # whose populations did not -- and the population set is the key
+            # `genetics.ancestry.populations.coverage_for` looks a coverage statement up by.
+            "groups": list(panel.groups),
+        }
+        if progress is not None:
+            progress(ProcessProgressEvent(declared.step, panel.n_individuals))
+        packed = open_panel_genotypes(panel, inputs[".ind"], inputs[".geno"])
+        bed, _, _ = write_plink_fileset(panel, packed, work / "selected")
+        exclusions = work / "long-range-ld.bed"
+        _write_long_range_ld_bed(exclusions)
+        pruned = _prune_modern_panel(
+            plink, bed.with_suffix(""), work=work, exclusions=exclusions, settings=settings
+        )
+        _promote_fileset(pruned, output)
+        rows = _pvar_variants(_companion(output, ".pvar"))
+        if rows == 0:
+            raise ProcessError(f"{output.name}: pruning left no markers")
+        _write_provenance(
+            output,
+            {**expected, "selection": selection, "companions": _companion_digests(output)},
+            rows,
+        )
+        validate_provenance(output, expected=expected, actual_rows=rows)
+    except (
+        OSError,
+        EigenstratError,
+        ModernPanelError,
+        Plink2Error,
+        ProcessError,
+        ValueError,
+    ) as exc:
+        # Leave nothing bearing the declared name, for the reason `_run_pca_subset` gives:
+        # a half-promoted fileset satisfies every "is it there?" check while being
+        # unreadable, and the sidecar that would catch it is the part not written.
+        for suffix in (".pgen", *_PGEN_COMPANIONS):
+            _companion(output, suffix).unlink(missing_ok=True)
+        provenance_path(output).unlink(missing_ok=True)
+        return ProcessResult(declared.step, ProcessStatus.FAILED, output_name, detail=str(exc))
+
+    # Holds the ~800 MB selected fileset, so it goes on success only -- a failed run keeps
+    # it, which is what makes the failure diagnosable.
+    shutil.rmtree(work, ignore_errors=True)
+    return ProcessResult(declared.step, ProcessStatus.CREATED, output_name, rows)
+
+
 def run(
     source: Source,
     *,
@@ -1927,6 +2240,22 @@ def run(
                 # than reporting it.
                 results.append(
                     _run_pca_subset(
+                        declared,
+                        source,
+                        source_dir,
+                        verify_only=verify_only,
+                        progress=progress,
+                        input_digests=input_digests,
+                    )
+                )
+                if results[-1].status is ProcessStatus.FAILED:
+                    break
+                continue
+            if declared.step == "build_modern_reference_panel":
+                # Routed here for the reason the step above is: four named inputs rather
+                # than one, and a provenance digest taken over the set.
+                results.append(
+                    _run_modern_panel(
                         declared,
                         source,
                         source_dir,
@@ -2005,6 +2334,7 @@ def assert_registry_is_honest() -> None:
         "extract_dbsnp_variant_index",
         "extract_build_anchors",
         "build_pca_marker_subset",
+        "build_modern_reference_panel",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:

@@ -98,8 +98,10 @@ distances, and those are reported as themselves.
 from __future__ import annotations
 
 import bisect
+import csv
 import math
 from collections.abc import Mapping, Sequence
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Final
@@ -111,6 +113,7 @@ from genetics.privacy import NoGenotypeRepr
 
 __all__ = [
     "DECLINE_QUANTILE",
+    "HUMAN_ORIGINS_COVERAGE",
     "MIN_POPULATION_SAMPLES",
     "THOUSAND_GENOMES_COVERAGE",
     "CoverageGap",
@@ -124,6 +127,7 @@ __all__ = [
     "coverage_for",
     "place",
     "place_many",
+    "read_aadr_population_labels",
     "read_population_labels",
 ]
 
@@ -154,6 +158,35 @@ Lowering it to 2.0 would decline 2.5% of genuine panel members and start rejecti
 defensible calls (CDX for a held-out KHV, and the reverse); raising it to 3.0 would let two
 thirds of held-out CHB samples be named CHS. 0.995 is where the cost stays well under one
 percent while the populations that should refuse still do.
+
+**Re-measured against the widened panel (M5.9), and the quantile survived while two things
+it implies did not.** On the AADR Human Origins panel -- 5,553 present-day individuals in
+100 groups, projected onto the same chip at 44,872 markers -- the same 0.995 produces a
+threshold of **2.56** and puts **27 of 5,553 panel members (0.49%)** beyond it, so the cost
+side is where it was. What changed:
+
+* **Populations the 1000 Genomes panel had to refuse are now named.** Placing the same
+  people against the 26 1000 Genomes populations and then against all 100 -- one space, one
+  metric, only the reference set differing -- takes the refusal rate from **32.1% to 0.2%**.
+* **The refusal still works where it should.** Held out of the panel entirely, a population
+  with no substitute is refused rather than approximated: Nganasan, Kalash, Pima, Mbuti,
+  Biaka and Nasioi at 100%, Papuan 98%, Mozabite and Karitiana at 96%, BedouinB 80%. And
+  from outside the archive's floor, all 11 Khomani and all 10 Aboriginal Australians.
+* **Held out with a sibling present, the sibling is named and it is the right one**:
+  Palestinian -> BedouinA and Druze (0% declined), Yemeni_Highlands -> Yemeni_Northwest
+  (0%), Iranian -> Iranian_Zoroastrian (3%), Ket -> Selkup (4%), Kazakh -> Uyghur (0%),
+  CEU -> GBR (0%), FIN -> Russian (0%), JPT -> Japanese (0%), YRI -> ESN and Yoruba (0%).
+* **"Named its own population" stopped being the right measure, and it is the measure that
+  fell.** It goes from 82.0% to **68.8%**, because 100 populations include near-siblings the
+  26 did not -- Palestinian and Druze and BedouinA, Ket and Selkup, Yakut and Tofalar -- and
+  being wrong between those is not the error the old number counted. Measured instead
+  against AADR's own sampling coordinates, the 90th-percentile distance between a sample's
+  population and the one it was named fell from **3,778 km to 1,212 km**, and the share
+  named within 1,000 km rose from 78% to 89%.
+
+The threshold moving from 2.65 to 2.56 is not a tightening: it is a different panel's own
+distribution computed the same way, which is the property this quantile has and a
+hard-coded number would not.
 """
 
 MIN_POPULATION_SAMPLES: Final = 20
@@ -168,6 +201,23 @@ target that produces a confident population call from nothing.
 exists for SGDP, whose public subset averages about two samples per population across 130
 of them (AGENTS.md 5.1) -- a panel that would otherwise turn 130 near-singleton clusters
 into 130 nameable populations.
+
+**On the widened panel (M5.9) it stops being slack and becomes the binding constraint, and
+it binds exactly where the old panel was weakest.** AADR's present-day groups have a median
+size in single figures, so this floor takes 2,310 individuals in 520 groups and keeps 5,553
+in 100. The ones it takes include the Levant proper: Lebanese_Muslim at 11,
+Lebanese_Christian at 9, Jordanian at 12, Egyptian at 18, Assyrian and Armenian at 15,
+Moroccan at 10, Tunisian at 8. Those samples are still *placed* -- held out of the panel
+entirely they come back as Druze, Palestinian, BedouinA, Georgian and Mozabite rather than
+declined -- but they are named a neighbour rather than themselves, and the reason is this
+number rather than anything about the archive.
+
+Lowering it would name more of them: 15 admits 133 groups over 6,221 individuals, 10 admits
+221 over 7,194. It is not lowered, because :attr:`PopulationModel.own_distances` is a median
+over a population's own members and :attr:`PopulationFit.fit` divides by it. A radius fitted
+to nine points is a tight, arbitrary target, and a tight target is what turns "we have no
+population for this person" into a confident call. The floor stays where the statistic it
+feeds can bear it, and what that costs is written down here rather than discovered later.
 """
 
 _MIN_POPULATIONS: Final = 2
@@ -283,10 +333,190 @@ THOUSAND_GENOMES_COVERAGE: Final = PanelCoverage(
 
 HGDP covered four of these five and was withdrawn by CEPH for GDPR; SGDP covers them at
 about two samples per population, which is breadth in PCA space and useless as a centroid.
-So this is a list of things that stay unanswerable rather than a to-do.
+
+**That last sentence used to end "so this is a list of things that stay unanswerable rather
+than a to-do", and it was wrong (M5.9, 2026-08-24).** Four of the five are answerable, and
+the resource was already on disk: AADR Human Origins carries 8,474 present-day individuals
+alongside the ancients M5.6 fetched it for, covering the Middle East, Central Asia, Siberia,
+Oceania and unadmixed Indigenous American populations. See
+:data:`HUMAN_ORIGINS_COVERAGE` for what the widened panel answers for and what it still
+does not. This statement stays attached to the 1000 Genomes population set, which is still
+a real panel with these real gaps -- it is the *conclusion* that was wrong, not the list.
 """
 
-_KNOWN_PANELS: Final[tuple[PanelCoverage, ...]] = (THOUSAND_GENOMES_COVERAGE,)
+HUMAN_ORIGINS_COVERAGE: Final = PanelCoverage(
+    name="AADR Human Origins present-day panel",
+    # The 100 group labels that reach MIN_POPULATION_SAMPLES in v66.p1_HO. Written out for
+    # the reason the 1000 Genomes list is: `coverage_for` matches on this set, and deriving
+    # it from whatever the artifact happens to hold would make the match tautological -- a
+    # release that dropped a population would silently keep the coverage statement that
+    # named the regions it covered.
+    populations=frozenset(
+        {
+            "ACB",
+            "ASW",
+            "Adygei",
+            "Akha",
+            "Altaian",
+            "BEB",
+            "Balochi",
+            "Bashkir",
+            "Basque",
+            "BedouinA",
+            "BedouinB",
+            "Biaka",
+            "Brahui",
+            "Burusho",
+            "Buryat",
+            "CDX",
+            "CEU",
+            "CHB",
+            "CHS",
+            "CLM",
+            "Chukchi",
+            "Dai",
+            "Dong",
+            "Druze",
+            "ESN",
+            "English",
+            "FIN",
+            "Faza_Bajun",
+            "French",
+            "GBR",
+            "GIH",
+            "GWD",
+            "Georgian",
+            "Han",
+            "Hazara",
+            "Hungarian",
+            "IBS",
+            "ITU",
+            "Iranian",
+            "Iranian_Zoroastrian",
+            "Italian_North",
+            "Italian_South",
+            "JPT",
+            "Japanese",
+            "KHV",
+            "Kalash",
+            "Karitiana",
+            "Kazakh",
+            "Ket",
+            "Kinh_Vietnamese",
+            "LWK",
+            "MSL",
+            "MXL",
+            "Makrani",
+            "Mandenka",
+            "Mayan",
+            "Mbuti",
+            "Miao",
+            "Mongol",
+            "Mordovian",
+            "Mozabite",
+            "Nasioi",
+            "Naxi",
+            "Nganasan",
+            "Orcadian",
+            "Oroqen",
+            "PEL",
+            "PJL",
+            "PUR",
+            "Palestinian",
+            "Papuan",
+            "Pathan",
+            "Pima",
+            "Punjabi",
+            "Qiang",
+            "Russian",
+            "STU",
+            "Sardinian",
+            "Selkup",
+            "She",
+            "Sindhi_Pakistan",
+            "Spanish",
+            "TSI",
+            "Tajik",
+            "Tibetan",
+            "Tofalar",
+            "Tu",
+            "Tubalar",
+            "Tujia",
+            "Turkish",
+            "Tuvinian",
+            "Ulchi",
+            "Uyghur",
+            "Uzbek",
+            "YRI",
+            "Yakut",
+            "Yemeni_Highlands",
+            "Yemeni_Northwest",
+            "Yi",
+            "Yoruba",
+        }
+    ),
+    gaps=(
+        CoverageGap(
+            "The Maghreb east of Algeria, and the Nile valley",
+            "Mozabite -- Berber-speaking, from the Algerian M'zab -- is the only North "
+            "African population here, and how far it reaches was measured rather than "
+            "assumed. It covers the western Maghreb: Algerian (7/7), Berber (5/5) and "
+            "Moroccan (8/10) samples are named for it. It does not reach further. Half of "
+            "the Tunisians are declined, and Libyan and Egyptian samples come back as "
+            "BedouinA -- Arabian, across the Red Sea, a plausible-looking answer for people "
+            "whose own populations are in this archive and under the floor.",
+        ),
+        CoverageGap(
+            "Aboriginal Australia",
+            "Papuan and Nasioi cover Near Oceania, and Denisovan-related ancestry now has a "
+            "reference here where the 1000 Genomes panel had none. Aboriginal Australian "
+            "does not: the archive holds 10 individuals, below the floor. All ten are "
+            "declined against this panel, which is correct and is also the whole of what "
+            "the panel can do for them -- Papuan is the nearest thing it holds, and the "
+            "split between those lineages is tens of thousands of years old.",
+        ),
+        CoverageGap(
+            "Khoisan",
+            "Mbuti and Biaka close the Central African hunter-gatherer half of what the "
+            "1000 Genomes panel lacked. The Khoisan half stays open: Ju_hoan_North (15), "
+            "Khomani (11), Khomani_San (2) and Hadza (4) are all under the floor. Khomani "
+            "samples are declined, all eleven of them, which is the right answer. "
+            "Ju_hoan_North is the one that is not: 10 of 15 come back as Biaka, a Central "
+            "African hunter-gatherer population they are about as distant from as any two "
+            "human populations are. Biaka's radius is wide enough to admit them, and the "
+            "fit statistic has no way to know that the space between them is the deepest "
+            "split in human ancestry rather than ordinary distance.",
+        ),
+        CoverageGap(
+            "The Levant, named as itself",
+            "Palestinian, Druze, BedouinA and BedouinB place a Levantine sample among "
+            "Levantine references, which is what the 1000 Genomes panel could not do at "
+            "all. But Lebanese (8 individuals plus 11 Muslim and 9 Christian), Syrian (7) "
+            "and Jordanian (12) sit under the floor, so those samples are named a "
+            "neighbour rather than their own population: Lebanese_Christian comes back "
+            "Druze 9 times out of 9, Jordanian comes back Palestinian 11 times out of 12, "
+            "Armenian and Assyrian come back Georgian. Those are good neighbours and they "
+            "are not the answer. That is a floor, not an absence: see "
+            "MIN_POPULATION_SAMPLES.",
+        ),
+    ),
+)
+"""What the widened panel does and does not answer for, measured the same way as the list
+above it.
+
+The four regions here are what survives of the five gaps
+:data:`THOUSAND_GENOMES_COVERAGE` records. Middle East, Central Asia, Siberia and unadmixed
+Indigenous American close outright; Oceania, North Africa and deep-branching Africa close
+in part, and the part that stays open is named rather than rounded off. Two of the four are
+a floor rather than an archive: the Levant and much of the Maghreb are *present* in AADR and
+under :data:`MIN_POPULATION_SAMPLES`, which is a different thing from unobtainable and is
+worth a reader knowing, because it moves if the floor ever does.
+"""
+
+_KNOWN_PANELS: Final[tuple[PanelCoverage, ...]] = (
+    THOUSAND_GENOMES_COVERAGE,
+    HUMAN_ORIGINS_COVERAGE,
+)
 
 
 def coverage_for(populations: frozenset[str]) -> PanelCoverage | None:
@@ -401,6 +631,152 @@ def read_population_labels(path: Path) -> PopulationLabels:
             "centroid would be weighted by whichever rows were repeated."
         )
     return PopulationLabels(frame=frame, source=path.name)
+
+
+_AADR_LOCALITY_UNKNOWN: Final = ".."
+"""What the AADR annotation sheet writes where a field does not apply or is unresolved."""
+
+
+def read_aadr_population_labels(psam: Path, anno: Path) -> PopulationLabels:
+    """Read the modern panel's own ``.psam`` as labels, with regions from the AADR sheet.
+
+    The 1000 Genomes reader above takes a separate published panel file. This one does not
+    need to: ``build_modern_reference_panel`` writes each individual's curated group label
+    into the family column, so ``--make-pgen`` carries it into the ``.psam`` and the
+    population membership travels *with* the genotypes it describes. There is no second file
+    to fall out of step with the first, which is the failure mode a sample-panel file has.
+
+    **The region is the sampling locality's country, and it is AADR's own field rather than
+    a taxonomy invented here.** 1000 Genomes ships a super-population code (EUR, AFR, EAS,
+    SAS, AMR) and AADR ships nothing of the kind, so the choice was between a continental
+    grouping written from memory and the ``Political Entity`` the archive records. Writing
+    one is the plausible-looking fabrication [AGENTS.md 6](../../AGENTS.md) forbids -- there
+    is no agreed answer for where Turkey or the Caucasus or Central Asia belongs, and
+    picking one silently would put an editorial judgement inside a data field.
+
+    So a card reading this says "Druze, Israel" where the old panel said "TSI, EUR". That is
+    narrower than a region and it is **where these people were sampled, not where their
+    population is from**: 45 of the 54 Basques were sampled in France, 6 of 24 Georgians in
+    Turkey, 61 of 67 Kazakhs in Kazakhstan and 6 in Russia. The modal country wins, ties
+    broken alphabetically so the artifact is reproducible; anything reporting this to a
+    reader owes them the distinction.
+    """
+    try:
+        lines = [
+            line
+            for line in psam.read_text(encoding="utf-8", errors="replace").splitlines()
+            if line.strip()
+        ]
+    except OSError as exc:
+        raise PopulationsError(
+            f"could not read the panel sample table at {psam.name}: "
+            f"{exc.strerror or exc.__class__.__name__}"
+        ) from exc
+
+    header = next((line for line in lines if line.startswith("#")), None)
+    if header is None:
+        raise PopulationsError(
+            f"{psam.name} carries no header line, so its columns cannot be located. A .psam "
+            "names them on a line beginning with '#'."
+        )
+    columns = header.lstrip("#").split()
+    try:
+        fid, iid = columns.index("FID"), columns.index("IID")
+    except ValueError as exc:
+        raise PopulationsError(
+            f"{psam.name} names columns {columns[:6]}, and the modern panel needs FID (the "
+            "population) and IID. A .psam written without family IDs has lost the labels, "
+            "which are not recoverable from the genotypes."
+        ) from exc
+
+    rows = [line.split() for line in lines if not line.startswith("#")]
+    if not rows:
+        raise PopulationsError(
+            f"{psam.name} carries a header and no samples. A truncated build looks exactly "
+            "like this."
+        )
+    ragged = next((i for i, row in enumerate(rows) if len(row) <= max(fid, iid)), None)
+    if ragged is not None:
+        raise PopulationsError(
+            f"{psam.name} is malformed: data row {ragged + 1} has {len(rows[ragged])} "
+            f"field(s) where the columns this reads are at {[fid, iid]}."
+        )
+
+    wanted = {row[fid] for row in rows}
+    regions, n_rows = _modal_localities(anno, wanted)
+    unplaced = sorted(wanted - regions.keys())
+    if unplaced:
+        raise PopulationsError(
+            f"{anno.name} records no sampling locality for {len(unplaced)} of the panel's "
+            f"{len(wanted)} populations ({', '.join(unplaced[:5])}). Every group in "
+            "v66.p1_HO that reaches the panel floor has one, so this is the .psam and the "
+            "sheet coming from different releases rather than a gap in the archive; the "
+            f"sheet carried {n_rows:,} rows."
+        )
+
+    frame = pl.DataFrame(
+        {
+            "sample_id": [row[iid] for row in rows],
+            "population": [row[fid] for row in rows],
+            "region": [regions[row[fid]] for row in rows],
+        }
+    )
+    duplicated = frame.height - frame.get_column("sample_id").n_unique()
+    if duplicated:
+        raise PopulationsError(
+            f"{psam.name} names {duplicated:,} sample(s) more than once, so a population "
+            "centroid would be weighted by whichever rows were repeated."
+        )
+    return PopulationLabels(frame=frame, source=psam.name)
+
+
+def _modal_localities(anno: Path, wanted: AbstractSet[str]) -> tuple[dict[str, str], int]:
+    """Each wanted group's most common ``Political Entity``, and the rows scanned.
+
+    Read straight from the sheet rather than through
+    :func:`~genetics.ancestry.eigenstrat.read_anno`, which narrows to the four columns M5.6
+    needs. Widening that function for one caller would put a column in every reader's way,
+    and this is the one place a locality is wanted.
+
+    The row count comes back because the only thing it is for is the caller's error message
+    when a group has no locality -- and reading a 15 MB sheet a second time to produce a
+    number for an error is the kind of cost that gets paid on the happy path forever.
+    """
+    counts: dict[str, dict[str, int]] = {}
+    n_rows = 0
+    try:
+        with anno.open("r", encoding="utf-8", errors="replace", newline="") as handle:
+            reader = csv.reader(handle, delimiter="\t")
+            header = next(reader, None)
+            if header is None:
+                raise PopulationsError(f"{anno.name} is empty.")
+            try:
+                group = next(i for i, name in enumerate(header) if "Group ID" in name)
+                entity = next(i for i, name in enumerate(header) if "Political Entity" in name)
+            except StopIteration:
+                raise PopulationsError(
+                    f"{anno.name} has no 'Group ID' or 'Political Entity' column, so the "
+                    "panel's populations cannot be given a sampling locality."
+                ) from None
+            for row in reader:
+                n_rows += 1
+                if len(row) <= max(group, entity) or row[group] not in wanted:
+                    continue
+                place = row[entity].strip()
+                if not place or place == _AADR_LOCALITY_UNKNOWN:
+                    continue
+                counts.setdefault(row[group], {})
+                counts[row[group]][place] = counts[row[group]].get(place, 0) + 1
+    except OSError as exc:
+        raise PopulationsError(
+            f"could not read {anno.name}: {exc.strerror or exc.__class__.__name__}"
+        ) from exc
+    resolved = {
+        name: min(places.items(), key=lambda item: (-item[1], item[0]))[0]
+        for name, places in counts.items()
+        if places
+    }
+    return resolved, n_rows
 
 
 # ---------------------------------------------------------------------------

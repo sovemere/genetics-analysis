@@ -387,8 +387,10 @@ repo and a non-starter on Windows.
 
 **Use PLINK 2.0 instead** — GPLv3, actively maintained, native Windows builds, and
 supports PCA projection of a sample onto reference eigenvectors via `--score`. Project
-onto **1000 Genomes phase 3**. This yields continuous ancestry coordinates, which are more
-honest than percentage pie charts anyway.
+onto the **present-day, diploid Human Origins individuals in AADR**, selected and pruned by
+`build_modern_reference_panel`; 1000 Genomes phase 3 remains the measured baseline. This
+yields continuous ancestry coordinates, which are more honest than percentage pie charts
+anyway.
 
 **Corrected 2026-08-22: this used to say "1000 Genomes phase 3 + HGDP (both open, GRCh37
 available)", and the HGDP half is no longer true.** CEPH withdrew individual genotypes to
@@ -396,8 +398,10 @@ comply with GDPR and now publishes only allele frequencies; the Illumina 650Y do
 literature cites is 404. See the `hgdp_grch37` manifest entry for the four routes checked.
 The consequence is not that ancestry gets a little coarser — it is that **1000 Genomes has
 no Middle Eastern, North African, Oceanian, Central Asian, Siberian or unadmixed Indigenous
-American populations at all**, so "nearest reference population" has no right answer for
-those users and will confidently return a wrong one unless M5.5 is built to decline.
+American populations at all**. M5.5 was therefore built to decline; M5.9 then widened its
+modern panel with AADR Human Origins' 5,553 usable present-day individuals in 100 groups.
+The decline remains load-bearing for groups the widened panel still lacks or holds below
+its 20-member floor, including Aboriginal Australian and Khoisan populations.
 
 ### 4.7 Haplogroup resolution is capped by the array
 
@@ -597,15 +601,16 @@ gracefully when absent, and prompt the user once.
 
 ### 5.4 Coverage assessment by section
 
-- **Ancestry — good, and downgraded from "excellent" on 2026-08-22.** PLINK 2 PCA
-  projection is a strong, fully free stack and 1000G is a solid panel. **HGDP is gone**
-  (withdrawn for GDPR) and **SGDP is ~2 samples per population** in its public subset, so
-  the modern reference panel is 1000G alone — and 1000G has no MENA, Oceanian, Central
-  Asian, Siberian or unadmixed Indigenous American populations. **The weak spot is not
-  haplogroup resolution; it is that whole regions of the world have no reference
-  population, and a nearest-neighbour report over an incomplete panel names the least-bad
-  match rather than declining.** That is a correctness requirement on M5.5, and it reaches
-  PRS confidence through §4.4.
+- **Ancestry — very good after M5.9, with explicit residual gaps.** PLINK 2 PCA projection
+  is a strong, fully free stack. **HGDP is gone** (withdrawn for GDPR) and **SGDP is ~2
+  samples per population** in its public subset, but AADR Human Origins already carried the
+  missing modern panel: 5,553 usable present-day individuals in 100 groups after diploidy,
+  QC and population-size filters. It covers MENA, Oceania, Central Asia, Siberia, unadmixed
+  Indigenous American and deep-branching African populations that 1000G lacks. **The weak
+  spot is now explicit rather than continental:** Aboriginal Australian and Khoisan groups
+  remain below the 20-member floor, and parts of the Maghreb/Nile valley and Levant are
+  represented by neighbours rather than themselves. M5.5's refusal remains a correctness
+  requirement for those users and reaches PRS confidence through §4.4.
 
   **AADR is resolved as of 2026-08-23 and this entry said otherwise for a day.** It read
   "still unresolved — Harvard Dataverse answers 202". The 202 is real but comes from the

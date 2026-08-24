@@ -100,6 +100,15 @@ far above what a mismatch produces.
 """
 
 
+_PC_NAME: Final = re.compile(r"PC[0-9]+")
+"""A component column in ``--pca allele-wts`` output: ``PC1``, ``PC2``, ...
+
+Anchored by ``fullmatch`` so it cannot pick up a suffixed name. The ``.sscore`` side has
+the mirror-image problem and solves it the same way -- see the note there on
+``NAMED_ALLELE_DOSAGE_SUM``, which a suffix-only pattern carried in as an extra component.
+"""
+
+
 class ProjectionError(RuntimeError):
     """The sample could not be projected onto the reference PCs."""
 
@@ -253,6 +262,82 @@ def _read_sscore(path: Path, *, n_components: int) -> tuple[pl.DataFrame, int]:
     return coordinates, scored_alleles
 
 
+_WEIGHT_ID_COLUMN: Final = "ID"
+_WEIGHT_ALLELE_COLUMN: Final = "A1"
+
+
+def _weight_columns(pca: ReferencePCA) -> tuple[int, int, int]:
+    """``(id, effect allele, first component)`` as 1-based columns of the weight file.
+
+    **Read from the header rather than counted, because the header is not the same width
+    for every panel, and the failure when it moves is silent.** ``--pca allele-wts`` writes
+    ``#CHROM ID REF ALT A1 PC1..`` when the panel's REF allele is known -- which is what
+    1000 Genomes phase 3 gives, since it was called against the reference -- and
+    ``#CHROM ID REF ALT PROVISIONAL_REF? A1 PC1..`` when it is not. M5.9's Human Origins
+    panel is the second kind: it arrives as an EIGENSTRAT ``.snp``, which records the two
+    alleles of each marker and does not say which of them the reference carries, so PLINK
+    marks REF provisional and emits the extra column to say so.
+
+    That one column is the whole bug. With the positions hard-coded at 2 and 5, the effect
+    allele read as ``PROVISIONAL_REF?`` -- whose value is the letter ``Y`` -- so **all
+    89,744 entries mismatched and PLINK refused the run**. It failed loudly here only
+    because *every* entry mismatched; a file where the shifted column happened to hold
+    plausible allele letters would have scored a subset and returned coordinates.
+
+    Locating by name is what :func:`~genetics.external.harmonize.read_panel_sites` and
+    :func:`~genetics.ancestry.eigenstrat.read_anno` already do, and for this reason.
+    ``--score`` takes numbers, so the numbers are derived from the names rather than
+    assumed alongside them.
+    """
+    path = pca.allele_weights
+    try:
+        with path.open("r", encoding="utf-8", errors="replace") as handle:
+            header = handle.readline()
+    except OSError as exc:
+        raise ProjectionError(
+            f"could not read {path.name}: {exc.strerror or exc.__class__.__name__}"
+        ) from exc
+    columns = header.lstrip("#").split()
+    if not columns:
+        raise ProjectionError(
+            f"{path.name} is empty, so the reference PCA has no allele weights to score "
+            "against. Rebuild it with `build_reference_pca`."
+        )
+    try:
+        # 1-based: PLINK counts columns from one.
+        id_column = columns.index(_WEIGHT_ID_COLUMN) + 1
+        allele_column = columns.index(_WEIGHT_ALLELE_COLUMN) + 1
+    except ValueError as exc:
+        raise ProjectionError(
+            f"{path.name} names columns {columns[:8]}, which is missing "
+            f"{_WEIGHT_ID_COLUMN!r} or {_WEIGHT_ALLELE_COLUMN!r}. `--score` joins on the "
+            "first and weights the second, so neither can be guessed at."
+        ) from exc
+
+    components = [name for name in columns if _PC_NAME.fullmatch(name)]
+    if len(components) < pca.n_components:
+        raise ProjectionError(
+            f"{path.name} carries {len(components)} component column(s) and the artifact "
+            f"claims {pca.n_components}. One of the two is from a different build."
+        )
+    wanted_components = [f"PC{i + 1}" for i in range(pca.n_components)]
+    if components[: pca.n_components] != wanted_components:
+        raise ProjectionError(
+            f"{path.name}'s first component columns are {components[:4]}, expected "
+            f"{wanted_components[:4]} beginning at PC1. The weight file and artifact are "
+            "from different builds."
+        )
+    first_pc = columns.index(components[0]) + 1
+    expected = list(range(first_pc, first_pc + pca.n_components))
+    actual = [columns.index(name) + 1 for name in components[: pca.n_components]]
+    if actual != expected:
+        raise ProjectionError(
+            f"{path.name}'s component columns are not contiguous ({actual[:4]}...); "
+            "`--score-col-nums` takes a range, so a gap would weight the wrong column."
+        )
+    return id_column, allele_column, first_pc
+
+
 def project(
     pgen: Path,
     pca: ReferencePCA,
@@ -292,7 +377,8 @@ def project(
     root.mkdir(parents=True, exist_ok=True)
     out = root / stem
 
-    last_column = 5 + pca.n_components
+    id_column, allele_column, first_pc = _weight_columns(pca)
+    last_column = first_pc + pca.n_components - 1
     result = plink.run(
         [
             "--pfile",
@@ -303,10 +389,8 @@ def project(
             str(pca.frequencies),
             "--score",
             str(pca.allele_weights),
-            # Column 2 is the variant ID, column 5 the effect allele: the layout PLINK
-            # itself writes for `--pca allele-wts`, confirmed in the M5.3 trial run.
-            "2",
-            "5",
+            str(id_column),
+            str(allele_column),
             "header-read",
             # A no-call contributes nothing rather than contributing the mean. Mean
             # imputation would pull every sparsely-called sample toward the origin, which
@@ -315,7 +399,7 @@ def project(
             "no-mean-imputation",
             "variance-standardize",
             "--score-col-nums",
-            f"6-{last_column}",
+            f"{first_pc}-{last_column}",
         ],
         out=out,
     )
