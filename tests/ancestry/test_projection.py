@@ -115,13 +115,38 @@ def make_pgen(directory: Path, stem: str = "sample") -> Path:
     return prefix.with_suffix(".pgen")
 
 
-def make_pca(directory: Path, *, n_components: int = 10, n_markers: int = 1500) -> ReferencePCA:
+def make_pca(
+    directory: Path,
+    *,
+    n_components: int = 10,
+    n_markers: int = 1500,
+    provisional_ref: bool = False,
+) -> ReferencePCA:
+    """A stand-in reference PCA whose ``.eigenvec.allele`` header is the real one.
+
+    **The header used to read ``#CHROM ID REF ALT A1 PC1`` whatever ``n_components`` said,
+    and that was the stub agreeing with the code rather than with PLINK.** Nothing read it:
+    `project` took the columns as fixed numbers, so a stub header that named one component
+    for a ten-component artifact passed every test. When M5.9 made the reader locate the
+    columns by name, the stub was the thing that had to become true first.
+
+    ``provisional_ref`` writes the **other** real shape. ``--pca allele-wts`` inserts a
+    ``PROVISIONAL_REF?`` column when the panel's REF allele is not established, which is
+    what M5.9's Human Origins panel gives: it arrives as an EIGENSTRAT ``.snp``, which names
+    each marker's two alleles without saying which the reference carries. One extra column,
+    and with the positions hard-coded it shifted the effect allele onto ``PROVISIONAL_REF?``
+    -- whose value is the letter ``Y`` -- so every entry mismatched and the run died.
+    """
     directory.mkdir(parents=True, exist_ok=True)
     prefix = directory / "refpca-abc"
     weights = prefix.with_name(prefix.name + ".eigenvec.allele")
     freq = prefix.with_name(prefix.name + ".afreq")
     eigenval = prefix.with_name(prefix.name + ".eigenval")
-    weights.write_text("#CHROM\tID\tREF\tALT\tA1\tPC1\n", encoding="utf-8")
+    leading = ["#CHROM", "ID", "REF", "ALT"]
+    if provisional_ref:
+        leading.append("PROVISIONAL_REF?")
+    columns = [*leading, "A1", *(f"PC{i + 1}" for i in range(n_components))]
+    weights.write_text("\t".join(columns) + "\n", encoding="utf-8")
     freq.write_text("#CHROM\tID\tREF\tALT\tALT_FREQS\tOBS_CT\n", encoding="utf-8")
     eigenval.write_text("10\n", encoding="utf-8")
     return ReferencePCA(
@@ -174,6 +199,68 @@ def test_the_score_columns_are_the_ones_plink_writes_for_allele_wts(
     argv = commands(tmp_path)[0]
     start = argv.index("--score")
     assert argv[start + 1 : start + 5] == [str(pca.allele_weights), "2", "5", "header-read"]
+
+
+def test_a_provisional_ref_column_moves_the_effect_allele_and_is_followed(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """The M5.9 defect, as a test.
+
+    ``--pca allele-wts`` emits ``PROVISIONAL_REF?`` when the panel's REF allele is not
+    established, which the Human Origins panel's is not -- an EIGENSTRAT ``.snp`` names two
+    alleles per marker and does not say which one the reference carries. That column shifts
+    A1 from 5 to 6 and PC1 from 6 to 7.
+
+    Hard-coded, this scored ``PROVISIONAL_REF?`` as the effect allele. Its value is ``Y``,
+    so **all 89,744 entries mismatched and PLINK refused the run** -- which is the lucky
+    version. A file whose shifted column held plausible allele letters would have scored a
+    subset and returned coordinates that plot.
+    """
+    pca = make_pca(tmp_path / "ref", n_components=4, provisional_ref=True)
+    project(make_pgen(tmp_path / "s"), pca, plink=plink, workspace=tmp_path / "out")
+
+    argv = commands(tmp_path)[0]
+    start = argv.index("--score")
+    assert argv[start + 1 : start + 5] == [str(pca.allele_weights), "2", "6", "header-read"]
+    assert argv[argv.index("--score-col-nums") + 1] == "7-10"
+
+
+def test_a_weight_file_missing_its_allele_column_is_refused(tmp_path: Path, plink: Plink2) -> None:
+    """Refused rather than fallen back to position 5, which is what made this a defect.
+
+    A fallback would restore exactly the behaviour that broke: scoring whichever column
+    happened to sit there. There is no safe guess about which letters are the effect
+    allele, so there is no fallback.
+    """
+    pca = make_pca(tmp_path / "ref")
+    pca.allele_weights.write_text("#CHROM\tID\tREF\tALT\tPC1\n", encoding="utf-8")
+    with pytest.raises(ProjectionError, match="A1"):
+        project(make_pgen(tmp_path / "s"), pca, plink=plink, workspace=tmp_path / "out")
+
+
+def test_a_weight_file_with_too_few_components_is_refused(tmp_path: Path, plink: Plink2) -> None:
+    """The artifact and its weight file disagreeing means one is from another build.
+
+    This is the shape the stub itself had before M5.9 -- one ``PC1`` column standing in for
+    ten -- so it is worth a test that the real reader will not accept it.
+    """
+    pca = make_pca(tmp_path / "ref", n_components=10)
+    pca.allele_weights.write_text("#CHROM\tID\tREF\tALT\tA1\tPC1\n", encoding="utf-8")
+    with pytest.raises(ProjectionError, match="different build"):
+        project(make_pgen(tmp_path / "s"), pca, plink=plink, workspace=tmp_path / "out")
+
+
+def test_component_names_must_start_at_pc1_not_merely_be_contiguous(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """PC2..PC11 are ten adjacent component columns, but they are not the ten components
+    the artifact claims. A position-only contiguity check would silently omit PC1."""
+    pca = make_pca(tmp_path / "ref", n_components=10)
+    columns = ["#CHROM", "ID", "REF", "ALT", "A1", *(f"PC{i}" for i in range(2, 12))]
+    pca.allele_weights.write_text("\t".join(columns) + "\n", encoding="utf-8")
+
+    with pytest.raises(ProjectionError, match="PC1"):
+        project(make_pgen(tmp_path / "s"), pca, plink=plink, workspace=tmp_path / "out")
 
 
 def test_the_component_column_range_follows_the_reference(tmp_path: Path, plink: Plink2) -> None:

@@ -701,6 +701,34 @@ def test_the_sidecar_records_which_panels_went_into_it(tmp_path: Path, plink: Pl
     assert sidecar["artifact_version"] == reference_pca.ARTIFACT_VERSION
 
 
+def test_a_widened_panel_gets_its_own_provenance_and_cache_entry(
+    tmp_path: Path, plink: Plink2
+) -> None:
+    """The Human Origins panel may intersect this chip at the same count as 1000G. Its
+    identity still changes the fitted axes, so a marker count cannot be the cache key."""
+    panel = panel_positions(1500)
+    subset = make_subset(tmp_path / "ref", panel)
+    table, cache = make_table(panel), tmp_path / "cache"
+
+    widened = build_reference_pca(
+        table,
+        subset,
+        plink=plink,
+        workspace=cache,
+        reference_panels=("aadr",),
+    )
+    baseline = build_reference_pca(table, subset, plink=plink, workspace=cache)
+
+    sidecar = json.loads(
+        widened.prefix.with_name(widened.prefix.name + ".provenance.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert sidecar["reference_panels"] == ["aadr"]
+    assert baseline.prefix != widened.prefix
+    assert not baseline.reused
+
+
 def test_a_corrupt_sidecar_rebuilds_rather_than_raising(tmp_path: Path, plink: Plink2) -> None:
     """A cache miss is not an error. Failing would turn a changed default into a crash."""
     panel = panel_positions(1500)

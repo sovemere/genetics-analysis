@@ -299,7 +299,8 @@ def _subset_paths(subset_pgen: Path) -> tuple[Path, Path, Path]:
         if not path.is_file():
             raise ReferencePcaError(
                 f"the PCA marker subset is incomplete: {path.name} is missing. Build it with "
-                "`genetics refs fetch --only thousand_genomes_phase3_grch37`."
+                "`genetics refs fetch --only thousand_genomes_phase3_grch37` for the 1000 "
+                "Genomes subset, or `--only aadr` for the Human Origins modern panel."
             )
     return subset_pgen, pvar, psam
 
@@ -353,6 +354,7 @@ def _expected_provenance(
     excluded: Mapping[SiteOutcome, int],
     n_panel_samples: int,
     space: str,
+    reference_panels: Sequence[str],
 ) -> dict[str, Any]:
     return {
         "artifact": "reference_pca",
@@ -372,10 +374,14 @@ def _expected_provenance(
         "n_intersected": n_intersected,
         "excluded_sites": {outcome.value: count for outcome, count in sorted(excluded.items())},
         "n_panel_samples": n_panel_samples,
-        # Recorded even though the panel set is currently fixed, because widening it later
-        # produces a different artifact and without this field it would look current. The
-        # same failure the r2 setting fix prevents for the marker subset.
-        "reference_panels": ["thousand_genomes_phase3_grch37"],
+        # **This field is what M5.9 needed and the reason it was written down early.** It
+        # was recorded when the panel set was fixed, on the grounds that widening it later
+        # produces a different artifact that would otherwise look current. Widening it
+        # later is exactly what happened, and because this was in the cache key a
+        # 1000 Genomes artifact and a Human Origins one over the same chip cannot be
+        # confused for one another -- their marker counts differ too, but a count is a
+        # coincidence and a name is a statement.
+        "reference_panels": list(reference_panels),
     }
 
 
@@ -498,6 +504,7 @@ def build_reference_pca(
     chroms: Sequence[Chrom] = AUTOSOMES,
     restrict_to: Iterable[tuple[str, int]] | None = None,
     space: str = "array",
+    reference_panels: Sequence[str] = ("thousand_genomes_phase3_grch37",),
 ) -> ReferencePCA:
     """Compute (or reuse) the reference PCA over the markers ``table``'s array carries.
 
@@ -519,6 +526,13 @@ def build_reference_pca(
     two artifacts over the same chip differing only in restriction would otherwise be
     distinguishable in the cache (their marker counts differ) but indistinguishable to
     somebody reading the sidecar to find out what they are looking at.
+
+    ``reference_panels`` names the source (or sources) ``subset_pgen`` was built from, and
+    it goes into the cache key. The default is the 1000 Genomes subset M5.3 built;
+    [M5.9](../../phase1_roadmap.md) passes ``("aadr",)`` for the widened Human Origins
+    panel. This is not derivable from ``subset_pgen`` -- a path is a location, not a
+    provenance -- and it is what stops two panels over the same chip from sharing a cache
+    entry on the strength of having intersected to the same number of markers.
     """
     settings = settings or EigenSettings()
     pgen, pvar, psam = _subset_paths(subset_pgen)
@@ -584,6 +598,7 @@ def build_reference_pca(
         excluded=excluded,
         n_panel_samples=n_panel_samples,
         space=space,
+        reference_panels=reference_panels,
     )
 
     root = workspace if workspace is not None else cache_dir() / "ancestry"

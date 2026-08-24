@@ -719,6 +719,11 @@ sources:
     license: CC0-1.0
     enables:
       - ancient-population affinity projection (M5.6)
+      - the modern reference panel M5.5 places a sample against (M5.9)
+    post_process:
+      - step: build_modern_reference_panel
+        params:
+          output: modern_panel_ldpruned.pgen
     notes: >-
       Affinity to ancient populations is not descent, and M5.6 must label it that way.
 
@@ -736,6 +741,19 @@ sources:
       green while every declared fact about it was stale, because the single URL it had to
       probe was the homepage. A tier B entry carrying only a homepage cannot be probed
       into truth.
+
+      **This source carries the modern panel as well as the ancient one, which is not
+      what it was fetched for (M5.9, 2026-08-24).** Alongside 19,119 ancient individuals
+      the Human Origins set holds **8,474 dated to the present**, in the regions
+      `thousand_genomes_phase3_grch37` has none for -- Middle East, North Africa, Oceania,
+      Central Asia, Siberia, unadmixed Indigenous American, and the deepest-branching
+      African populations. 100 groups reach twenty usable members. Measured on this chip,
+      swapping the reference set and changing nothing else takes M5.5's refusal rate over
+      the panel's own members from **32.1% to 0.2%** and the 90th-percentile geographic
+      error of a name from **3,778 km to 1,212 km**. `build_modern_reference_panel` is what
+      selects them; `genetics.ancestry.modern_panel` documents what had to be measured to
+      do it safely, including that AADR dates a chimpanzee, a gorilla and the hg19
+      reference to the present alongside people.
 
       Four files are taken, not twenty-five. The Human Origins set is the ~600k-SNP
       panel and is the right one to project a consumer array against; the 1240K set is
