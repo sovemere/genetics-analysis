@@ -242,7 +242,7 @@ def test_a_scale_of_zero_on_some_axis_is_refused_rather_than_dividing_by_it() ->
     reference disagree about, and it would otherwise be a division by zero."""
     coordinates, labels = panel(FOUR_CORNERS, spread=0.0)
 
-    with pytest.raises(PopulationsError, match="no within-population variation"):
+    with pytest.raises(PopulationsError, match="no usable within-population variation"):
         build_population_model(projection(coordinates), labels)
 
 
@@ -260,6 +260,65 @@ def test_the_threshold_is_read_off_the_panel_rather_than_set() -> None:
     assert 1.0 < loose.decline_threshold < 6.0
 
 
+def test_the_calibration_ranks_on_distance_not_on_fit() -> None:
+    """``place_many``'s copy of the rank-by-distance rule is covered; the calibration path's
+    copy was not, because four equal-radius clusters cannot express the failure. Ranked on
+    fit, a diffuse population attracts anything unusual -- which is how a held-out Finn's
+    nearest population comes back as MXL on the real panel.
+
+    The panel here is built so the two rankings give thresholds an order of magnitude apart.
+    ``WIDE`` is diffuse and sits close to the very tight ``TIGHT``, so most ``WIDE`` members
+    are nearest ``TIGHT`` *by distance* while fitting ``WIDE`` far better. Ranked on
+    distance they are scored against ``TIGHT``'s tiny radius and the bar lands around 33;
+    ranked on fit they would be scored against ``WIDE``'s own radius and it would collapse
+    toward 1. Either way the suite stayed green before, because nothing asserted the value.
+    """
+    rows = (
+        cluster("TIGHT", (0.0, 0.0, 0.0, 0.0), n=40, spread=0.3, seed=1)
+        + cluster("WIDE", (6.0, 0.0, 0.0, 0.0), n=40, spread=8.0, seed=2)
+        + cluster("FAR", (60.0, 0.0, 0.0, 0.0), n=40, spread=1.0, seed=3)
+    )
+    coordinates = pl.DataFrame(
+        {
+            "sample_id": [name for name, _ in rows],
+            **{pc: [point[i] for _n, point in rows] for i, pc in enumerate(PCS)},
+        }
+    )
+    labels = PopulationLabels(
+        frame=pl.DataFrame(
+            {
+                "sample_id": [name for name, _ in rows],
+                "population": [name[:-3] for name, _ in rows],
+                "region": ["REG"] * len(rows),
+            }
+        ),
+        source="test.panel",
+    )
+
+    model = build_population_model(projection(coordinates), labels, min_population_samples=20)
+
+    assert model.radius("WIDE") > model.radius("TIGHT") * 10
+    # Distance-ranked. Fit-ranked calibration puts this near 1.
+    assert model.decline_threshold > 10.0
+
+
+def test_a_nan_coordinate_is_refused_rather_than_scaled_by() -> None:
+    """``sd <= 0`` is false for NaN, because every comparison against NaN is. Written that
+    way, one NaN anywhere in the panel makes the scale NaN, then the threshold NaN, then
+    every radius NaN -- and the model builds without an error and refuses 100% of samples
+    forever, reporting "nan standard deviations" on every card it touches."""
+    coordinates, labels = panel(FOUR_CORNERS, n=25)
+    poisoned = coordinates.with_columns(
+        pl.when(pl.int_range(pl.len()) == 3)
+        .then(float("nan"))
+        .otherwise(pl.col("PC1"))
+        .alias("PC1")
+    )
+
+    with pytest.raises(PopulationsError, match="no usable within-population variation"):
+        build_population_model(projection(poisoned), labels)
+
+
 def test_the_declared_quantile_is_what_the_threshold_is_taken_at() -> None:
     """Neutering check: a threshold taken at a different quantile passes every other test in
     this file, because they all place samples far outside the panel or well inside it."""
@@ -269,6 +328,34 @@ def test_the_declared_quantile_is_what_the_threshold_is_taken_at() -> None:
 
     assert strict.decline_threshold < default.decline_threshold
     assert DECLINE_QUANTILE == 0.995
+
+
+def test_the_refusal_quotes_the_bar_this_model_was_actually_built_with() -> None:
+    """The sentence read the module constant rather than the model's own quantile, so a
+    model built at the median announced "the bar is 1.00, measured as the 99.5% point" --
+    a number and a provenance that never went together."""
+    coordinates, labels = panel(FOUR_CORNERS, n=200)
+    model = build_population_model(projection(coordinates), labels, quantile=0.5)
+
+    placement = place(projection(sample_at((13.0, 13.0, 13.0, 0.0))), model)
+
+    assert model.quantile == 0.5
+    assert "50.0% point" in placement.declined_because
+    assert "99.5%" not in placement.declined_because
+
+
+def test_the_number_of_members_beyond_the_bar_is_reported() -> None:
+    """It says how well-determined the bar is: on a small panel the same quantile lands on
+    the largest observed fit and this reads 0, meaning the bar is one unusual sample away
+    from moving. Replacing the count with a constant 0 passed the whole suite."""
+    coordinates, labels = panel(FOUR_CORNERS, n=200)
+    model = build_population_model(projection(coordinates), labels)
+
+    placed = place_many(model, coordinates)
+    beyond = sum(1 for p in placed if p.nearest.fit > model.decline_threshold)
+
+    assert model.n_beyond_threshold > 0
+    assert model.n_beyond_threshold == pytest.approx(beyond, abs=2)
 
 
 @pytest.mark.parametrize("quantile", [0.0, 1.0, -0.1, 1.5])
@@ -347,18 +434,70 @@ def test_the_radius_is_the_median_of_the_populations_own_members() -> None:
         assert model.radius(population) == pytest.approx((distances[29] + distances[30]) / 2)
 
 
-def test_the_leave_one_out_correction_is_applied_to_a_populations_own_members() -> None:
+def test_the_leave_one_out_correction_is_computed_against_hand_arithmetic() -> None:
     """A member helped define its own centroid, so its raw distance to it is biased low by
-    exactly n/(n-1). Without the correction a small population looks tighter than it is, and
-    every threshold read off it is too strict."""
-    small, _ = built(n=25)
-    large, _ = built(n=200)
+    exactly n/(n-1). Asserted against a hand-computed value rather than against a ratio
+    between two panels: the ratio version tested a 3.65% signal against a 15% tolerance,
+    with the fixture's own scatter already larger than the effect, and deleting the
+    correction outright passed it.
 
-    # The clusters have the same shape at both sizes, so any systematic difference in the
-    # median radius is the correction. 25/24 = 1.042, 200/199 = 1.005.
-    assert small.radius("AAA") / large.radius("AAA") == pytest.approx(
-        (25 / 24) / (200 / 199), rel=0.15
+    Nothing else can see the correction either -- it cancels in ``fit = distance / radius``
+    for a sample's own population, so the threshold is identical with and without it. Its
+    only observable effect is on ``own_distances``, which is what this reads.
+    """
+    members = {
+        "AAA": [(0.0, 0.0, 0.0, 0.0), (3.0, 1.0, 2.0, 1.0), (6.0, 2.0, 1.0, 3.0)],
+        "BBB": [(40.0, 0.0, 1.0, 0.0), (43.0, 2.0, 0.0, 2.0), (46.0, 1.0, 2.0, 1.0)],
+    }
+    names = [f"{pop}{i}" for pop in members for i in range(3)]
+    points = [point for pop in members for point in members[pop]]
+    coordinates = pl.DataFrame(
+        {"sample_id": names, **{pc: [p[i] for p in points] for i, pc in enumerate(PCS)}}
     )
+    labels = PopulationLabels(
+        frame=pl.DataFrame(
+            {
+                "sample_id": names,
+                "population": [pop for pop in members for _ in range(3)],
+                "region": ["REG"] * len(names),
+            }
+        ),
+        source="test.panel",
+    )
+    model = build_population_model(
+        projection(coordinates), labels, min_population_samples=3, quantile=0.9
+    )
+
+    own = members["AAA"]
+    centroid = [sum(point[axis] for point in own) / len(own) for axis in range(K)]
+    # The uncorrected distance, then the factor the correction is defined to be: with three
+    # members, a member pulled its own centroid by a third, so n/(n-1) = 3/2.
+    raw = [
+        math.sqrt(
+            sum(((point[axis] - centroid[axis]) / model.scale[axis]) ** 2 for axis in range(K))
+        )
+        for point in own
+    ]
+    corrected = sorted(value * 3 / 2 for value in raw)
+
+    assert list(model.own_distances["AAA"]) == pytest.approx(corrected, rel=1e-9)
+    assert model.radius("AAA") == pytest.approx(corrected[1], rel=1e-9)
+
+
+def test_the_correction_is_not_applied_to_a_population_the_sample_is_not_from() -> None:
+    """The other twenty-five centroids owe this sample nothing, so correcting against them
+    too would inflate every distance and move the threshold for no reason. An unconditional
+    correction in the calibration path passed the entire suite."""
+    small, _ = built(n=25)
+
+    placement = place(projection(sample_at((0.0, 0.0, 0.0, 0.0))), small)
+    far = next(fit for fit in placement.fits if fit.population == "BBB")
+
+    # A placed sample belongs to no population, so every distance it reports is uncorrected.
+    # Recompute BBB's by hand from the stored centroid and confirm no n/(n-1) crept in.
+    centroid = small.centroids.filter(pl.col("population") == "BBB")
+    expected = math.sqrt(sum(float(centroid.get_column(pc)[0]) ** 2 for pc in PCS))
+    assert far.distance == pytest.approx(expected, rel=1e-9)
 
 
 # ---------------------------------------------------------------------------
@@ -374,6 +513,9 @@ def test_a_sample_inside_a_cluster_is_named_that_population() -> None:
     assert placement.population == "AAA"
     assert placement.region == "REG"
     assert placement.named is True
+    # The raw projection coordinates, not the scaled ones a distance is measured in. A card
+    # printing these beside a distance would otherwise be mixing two unit systems.
+    assert placement.coordinates == pytest.approx((0.2, 0.1, 0.0, 0.0))
     assert placement.declined_because == ""
     assert placement.nearest.population == "AAA"
 
@@ -517,14 +659,14 @@ def test_a_sample_projected_against_a_different_reference_pca_is_refused() -> No
     This is the M5.4 variant-ID join's failure mode moved up one milestone."""
     model, _coords = built()
 
-    with pytest.raises(PopulationsError, match="different"):
+    with pytest.raises(PopulationsError, match="different eigenvector sets"):
         place(projection(sample_at((0.2, 0.1, 0.0, 0.0)), reference="refpca-other"), model)
 
 
 def test_a_component_count_mismatch_is_refused() -> None:
     model, _coords = built()
 
-    with pytest.raises(PopulationsError, match="component"):
+    with pytest.raises(PopulationsError, match="component\\(s\\) and the model"):
         place(projection(sample_at((0.2, 0.1, 0.0, 0.0)), n_components=K + 1), model)
 
 
@@ -533,6 +675,47 @@ def test_place_takes_one_sample_and_says_so_when_given_more() -> None:
 
     with pytest.raises(PopulationsError, match="single sample"):
         place(projection(coordinates), model)
+
+
+def test_a_repeated_sample_id_is_refused_when_placing() -> None:
+    """A ``.sscore`` reports IID alone and PLINK permits a repeated IID under distinct FIDs.
+    Two individuals sharing one collapse into a single ``Placement`` whose ``fits`` lists
+    every population twice and whose coordinates are whichever row survived -- the other
+    person gone, with nothing raised. The label side has guarded this since M5.5; this is
+    the same guard on the projection side."""
+    model, _coords = built()
+    duplicated = pl.DataFrame(
+        {
+            "sample_id": ["dup", "dup"],
+            **{pc: [0.0, 40.0] if pc == "PC1" else [0.0, 0.0] for pc in PCS},
+        }
+    )
+
+    with pytest.raises(PopulationsError, match="more than once"):
+        place_many(model, duplicated)
+
+
+def test_a_repeated_sample_id_is_refused_when_building_the_model() -> None:
+    """On this side the repetition pulls a centroid toward the duplicated sample and
+    inflates ``n``, which shrinks that population's leave-one-out correction."""
+    coordinates, labels = panel(FOUR_CORNERS)
+    doubled = pl.concat([coordinates, coordinates.head(1)])
+    frame = pl.concat([labels.frame, labels.frame.head(1)])
+
+    with pytest.raises(PopulationsError, match="more than once"):
+        build_population_model(
+            projection(doubled), PopulationLabels(frame=frame, source=labels.source)
+        )
+
+
+def test_a_header_only_label_file_is_refused_by_name(tmp_path: Path) -> None:
+    """A truncated download looks exactly like this. Left alone it reached a raw polars
+    ``SchemaError`` about null join-key dtypes, three frames away from the cause."""
+    path = tmp_path / "truncated.panel"
+    path.write_text("sample\tpop\tsuper_pop\tgender\n", encoding="utf-8")
+
+    with pytest.raises(PopulationsError, match="header and no samples"):
+        read_population_labels(path)
 
 
 def test_place_many_names_the_missing_coordinate_column() -> None:

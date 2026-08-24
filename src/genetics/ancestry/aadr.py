@@ -146,13 +146,6 @@ record this milestone exists to reach; five leaves 442 and keeps the claim hones
 reporting the count beside every distance.
 """
 
-_UNKNOWN_ALLELES: Final[frozenset[str]] = frozenset({"0", "X", "N", ".", ""})
-"""What AADR writes at a site whose second allele is not observed in the resource.
-
-Such a row is monomorphic as far as this file is concerned, so it cannot be oriented against
-the panel: there is no allele pair to compare. Counted, not silently skipped.
-"""
-
 
 class AadrError(RuntimeError):
     """The ancient panel could not be built, or a sample could not be compared to it."""
@@ -279,9 +272,15 @@ _VCF_FIXED: Final[str] = "\t".join(
 
 
 def _aadr_alleles(a1: str, a2: str) -> tuple[str, str] | None:
-    """AADR's allele pair, or ``None`` when the row does not carry two real bases."""
-    if a1 in _UNKNOWN_ALLELES or a2 in _UNKNOWN_ALLELES:
-        return None
+    """AADR's allele pair, or ``None`` when the row does not carry two real bases.
+
+    A single check, not two. An earlier version tested a set of placeholder spellings
+    (``0``, ``X``, ``N``, ``.``, empty) before this one, which read as thorough and was
+    dead: :func:`~genetics.external.harmonize.is_snp_site` already rejects every string
+    that is not one of A/C/G/T, so the placeholder test could never be the one that fired.
+    Dead code beside a live check is worse than no code, because it invites a reader to
+    believe the two cases are distinguished when only one of them is.
+    """
     if not is_snp_site([a1, a2]):
         return None
     return a1, a2
@@ -327,6 +326,13 @@ def write_ancient_vcf(
     ``ALLELE_CT``, which feeds coverage. The doubling is a property of the archive and it is
     reported by :attr:`AncientPanel.pseudo_haploid_fraction` rather than hidden here.
     """
+    if not ancient.individuals:
+        raise AadrError(
+            "the ancient panel holds no individuals, so there is nothing to write. The "
+            "usual cause is individuals that never went through `annotate`, leaving every "
+            "`date_bp` as None so `is_ancient` is uniformly false. Written anyway, the file "
+            "would carry a header and data rows with no sample columns at all."
+        )
     panel = panel_sites.frame.select("chrom", "pos", "panel_id", "ref", "alt")
     lookup = {
         (str(chrom), int(pos)): (str(panel_id), str(ref), str(alt))
@@ -544,6 +550,14 @@ def build_ancient_model(
             "called": [float(value) for value in ancient.called],
         }
     )
+    repeated = metadata.height - metadata.get_column("sample_id").n_unique()
+    if repeated:
+        raise AadrError(
+            f"the ancient panel names {repeated:,} individual(s) more than once. The join "
+            "below is an inner one and its height check cannot see this: a duplicate emits "
+            "one row per pair, so the count still matches while one person is counted into "
+            "two group centroids."
+        )
     frame = ancient_projection.coordinates.select("sample_id", *pcs).join(
         metadata, on="sample_id", how="inner"
     )
