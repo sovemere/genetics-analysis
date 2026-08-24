@@ -729,6 +729,36 @@ def test_a_widened_panel_gets_its_own_provenance_and_cache_entry(
     assert not baseline.reused
 
 
+@pytest.mark.parametrize(
+    "panels, message",
+    [
+        ((), "names no source"),
+        (("aadr", "aadr"), "repeats"),
+        (("aadr", ""), "blank or padded"),
+    ],
+)
+def test_reference_panel_provenance_requires_distinct_nonempty_names(
+    tmp_path: Path, panels: tuple[str, ...], message: str
+) -> None:
+    with pytest.raises(ReferencePcaError, match=message):
+        build_reference_pca(
+            make_table(panel_positions(1500)),
+            tmp_path / "missing.pgen",
+            plink=None,  # type: ignore[arg-type]
+            reference_panels=panels,
+        )
+
+
+def test_a_bare_reference_panel_name_is_not_split_into_characters(tmp_path: Path) -> None:
+    with pytest.raises(ReferencePcaError, match="bare string"):
+        build_reference_pca(
+            make_table(panel_positions(1500)),
+            tmp_path / "missing.pgen",
+            plink=None,  # type: ignore[arg-type]
+            reference_panels="aadr",
+        )
+
+
 def test_a_corrupt_sidecar_rebuilds_rather_than_raising(tmp_path: Path, plink: Plink2) -> None:
     """A cache miss is not an error. Failing would turn a changed default into a crash."""
     panel = panel_positions(1500)

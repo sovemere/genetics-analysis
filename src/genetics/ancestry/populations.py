@@ -101,7 +101,6 @@ import bisect
 import csv
 import math
 from collections.abc import Mapping, Sequence
-from collections.abc import Set as AbstractSet
 from dataclasses import dataclass
 from pathlib import Path
 from typing import ClassVar, Final
@@ -643,8 +642,11 @@ def read_aadr_population_labels(psam: Path, anno: Path) -> PopulationLabels:
     The 1000 Genomes reader above takes a separate published panel file. This one does not
     need to: ``build_modern_reference_panel`` writes each individual's curated group label
     into the family column, so ``--make-pgen`` carries it into the ``.psam`` and the
-    population membership travels *with* the genotypes it describes. There is no second file
-    to fall out of step with the first, which is the failure mode a sample-panel file has.
+    population membership travels *with* the genotypes it describes. There is no second
+    *membership* file to fall out of step with the first, which is the failure mode a sample
+    panel file has. The annotation sheet is still needed for locality; every sample ID and
+    group is checked against it before that field is joined, so matching group names from a
+    different release are not accepted as identity.
 
     **The region is the sampling locality's country, and it is AADR's own field rather than
     a taxonomy invented here.** 1000 Genomes ships a super-population code (EUR, AFR, EAS,
@@ -702,8 +704,16 @@ def read_aadr_population_labels(psam: Path, anno: Path) -> PopulationLabels:
             f"field(s) where the columns this reads are at {[fid, iid]}."
         )
 
-    wanted = {row[fid] for row in rows}
-    regions, n_rows = _modal_localities(anno, wanted)
+    sample_groups = {row[iid]: row[fid] for row in rows}
+    duplicated = len(rows) - len(sample_groups)
+    if duplicated:
+        raise PopulationsError(
+            f"{psam.name} names {duplicated:,} sample(s) more than once, so a population "
+            "centroid would be weighted by whichever rows were repeated."
+        )
+
+    wanted = set(sample_groups.values())
+    regions, n_rows = _modal_localities(anno, sample_groups)
     unplaced = sorted(wanted - regions.keys())
     if unplaced:
         raise PopulationsError(
@@ -721,17 +731,11 @@ def read_aadr_population_labels(psam: Path, anno: Path) -> PopulationLabels:
             "region": [regions[row[fid]] for row in rows],
         }
     )
-    duplicated = frame.height - frame.get_column("sample_id").n_unique()
-    if duplicated:
-        raise PopulationsError(
-            f"{psam.name} names {duplicated:,} sample(s) more than once, so a population "
-            "centroid would be weighted by whichever rows were repeated."
-        )
     return PopulationLabels(frame=frame, source=psam.name)
 
 
-def _modal_localities(anno: Path, wanted: AbstractSet[str]) -> tuple[dict[str, str], int]:
-    """Each wanted group's most common ``Political Entity``, and the rows scanned.
+def _modal_localities(anno: Path, sample_groups: Mapping[str, str]) -> tuple[dict[str, str], int]:
+    """Each panel group's most common ``Political Entity``, and the rows scanned.
 
     Read straight from the sheet rather than through
     :func:`~genetics.ancestry.eigenstrat.read_anno`, which narrows to the four columns M5.6
@@ -743,6 +747,7 @@ def _modal_localities(anno: Path, wanted: AbstractSet[str]) -> tuple[dict[str, s
     number for an error is the kind of cost that gets paid on the happy path forever.
     """
     counts: dict[str, dict[str, int]] = {}
+    seen: set[str] = set()
     n_rows = 0
     try:
         with anno.open("r", encoding="utf-8", errors="replace", newline="") as handle:
@@ -751,26 +756,52 @@ def _modal_localities(anno: Path, wanted: AbstractSet[str]) -> tuple[dict[str, s
             if header is None:
                 raise PopulationsError(f"{anno.name} is empty.")
             try:
+                sample = next(i for i, name in enumerate(header) if "Genetic ID" in name)
                 group = next(i for i, name in enumerate(header) if "Group ID" in name)
                 entity = next(i for i, name in enumerate(header) if "Political Entity" in name)
             except StopIteration:
                 raise PopulationsError(
-                    f"{anno.name} has no 'Group ID' or 'Political Entity' column, so the "
-                    "panel's populations cannot be given a sampling locality."
+                    f"{anno.name} has no 'Genetic ID', 'Group ID' or 'Political Entity' "
+                    "column, so the panel's samples cannot be joined to a sampling locality."
                 ) from None
             for row in reader:
                 n_rows += 1
-                if len(row) <= max(group, entity) or row[group] not in wanted:
+                if len(row) <= max(sample, group, entity):
                     continue
+                sample_id = row[sample].strip()
+                expected_group = sample_groups.get(sample_id)
+                if expected_group is None:
+                    continue
+                if sample_id in seen:
+                    raise PopulationsError(
+                        f"{anno.name} names panel sample {sample_id!r} more than once; a "
+                        "modal locality would count that person more than once."
+                    )
+                seen.add(sample_id)
+                actual_group = row[group].strip()
+                if actual_group != expected_group:
+                    raise PopulationsError(
+                        f"panel sample {sample_id!r} belongs to {expected_group!r} in the "
+                        f".psam and {actual_group!r} in {anno.name}. The files describe "
+                        "different panel builds."
+                    )
                 place = row[entity].strip()
                 if not place or place == _AADR_LOCALITY_UNKNOWN:
                     continue
-                counts.setdefault(row[group], {})
-                counts[row[group]][place] = counts[row[group]].get(place, 0) + 1
+                counts.setdefault(expected_group, {})
+                counts[expected_group][place] = counts[expected_group].get(place, 0) + 1
     except OSError as exc:
         raise PopulationsError(
             f"could not read {anno.name}: {exc.strerror or exc.__class__.__name__}"
         ) from exc
+    missing = sorted(sample_groups.keys() - seen)
+    if missing:
+        raise PopulationsError(
+            f"{anno.name} does not name {len(missing):,} of the panel's "
+            f"{len(sample_groups):,} samples ({', '.join(missing[:5])}). Group names alone "
+            "are not enough to join releases; the .psam and annotation sheet must describe "
+            "the same individuals."
+        )
     resolved = {
         name: min(places.items(), key=lambda item: (-item[1], item[0]))[0]
         for name, places in counts.items()

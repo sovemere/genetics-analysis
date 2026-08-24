@@ -385,6 +385,40 @@ def _expected_provenance(
     }
 
 
+def _reference_panel_names(reference_panels: Sequence[str]) -> tuple[str, ...]:
+    """Validate and freeze the panel identities that enter provenance and the cache key.
+
+    A bare string is itself a sequence, so without the explicit check ``"aadr"`` becomes
+    four panel names. Empty and repeated names are no better: both let a sidecar appear to
+    describe its inputs without identifying one distinct source per entry.
+    """
+    if isinstance(reference_panels, (str, bytes)):
+        raise ReferencePcaError(
+            "reference_panels must be a sequence of panel names, not one bare string"
+        )
+    names = tuple(reference_panels)
+    if not names:
+        raise ReferencePcaError(
+            "reference_panels names no source. A pgen path is a location, not provenance, "
+            "so the reference PCA must record which panel produced it."
+        )
+    malformed = [
+        name for name in names if not isinstance(name, str) or name != name.strip() or not name
+    ]
+    if malformed:
+        raise ReferencePcaError(
+            f"reference_panels contains blank or padded names: {malformed!r}. Panel "
+            "identities are recorded exactly and must be non-empty."
+        )
+    repeated = sorted({name for name in names if names.count(name) > 1})
+    if repeated:
+        raise ReferencePcaError(
+            f"reference_panels repeats {', '.join(repeated)}. Each source must be named "
+            "once so equivalent builds have one cache identity."
+        )
+    return names
+
+
 def _marker_positions(sites: PanelSites) -> tuple[tuple[str, int], ...]:
     """The surviving intersection as ``(chrom, pos)`` pairs, sorted.
 
@@ -528,13 +562,14 @@ def build_reference_pca(
     somebody reading the sidecar to find out what they are looking at.
 
     ``reference_panels`` names the source (or sources) ``subset_pgen`` was built from, and
-    it goes into the cache key. The default is the 1000 Genomes subset M5.3 built;
-    [M5.9](../../phase1_roadmap.md) passes ``("aadr",)`` for the widened Human Origins
-    panel. This is not derivable from ``subset_pgen`` -- a path is a location, not a
-    provenance -- and it is what stops two panels over the same chip from sharing a cache
-    entry on the strength of having intersected to the same number of markers.
+    it goes into the cache key. The default is the 1000 Genomes subset M5.3 built; callers
+    using [M5.9](../../phase1_roadmap.md)'s widened Human Origins artifact pass ``("aadr",)``.
+    This is not derivable from ``subset_pgen`` -- a path is a location, not a provenance --
+    and it is what stops two panels over the same chip from sharing a cache entry on the
+    strength of having intersected to the same number of markers.
     """
     settings = settings or EigenSettings()
+    reference_panels = _reference_panel_names(reference_panels)
     pgen, pvar, psam = _subset_paths(subset_pgen)
 
     n_panel_samples = _count_panel_samples(psam)

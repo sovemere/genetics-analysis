@@ -27,7 +27,7 @@ from pathlib import Path
 import pytest
 from test_eigenstrat import write_anno, write_geno, write_ind, write_snp
 
-from genetics.ancestry.eigenstrat import PackedGenotypes, hasharr, read_snp
+from genetics.ancestry.eigenstrat import EigenstratError, PackedGenotypes, hasharr, read_snp
 from genetics.ancestry.modern_panel import (
     DIPLOID_MIN_HETEROZYGOSITY,
     ModernPanelError,
@@ -46,7 +46,7 @@ from genetics.ancestry.populations import (
 )
 from genetics.external.plink2 import Plink2
 from genetics.refs import manifest, postprocess
-from genetics.refs.postprocess import _MODERN_PANEL_MIN_GROUP, ProcessStatus
+from genetics.refs.postprocess import _MODERN_PANEL_MIN_GROUP, ProcessStatus, _resolve_min_group
 
 # ---------------------------------------------------------------------------
 # Builders
@@ -93,7 +93,11 @@ def build(
     snp = sites(tmp_path)
     ind = write_ind(tmp_path, [(sample, "M", group) for sample, _, group in people])
     geno = write_geno(
-        tmp_path, codes, n_sites=N_SITES, snp_hash=hasharr(read_snp(snp).frame["rsid"].to_list())
+        tmp_path,
+        codes,
+        n_sites=N_SITES,
+        ind_hash=hasharr(sample for sample, _, _ in people),
+        snp_hash=hasharr(read_snp(snp).frame["rsid"].to_list()),
     )
     anno = write_anno(tmp_path, [(sample, bp, group, "500000") for sample, bp, group in people])
     return snp, ind, geno, anno
@@ -311,6 +315,38 @@ def test_the_fam_carries_the_population_so_the_pgen_does(tmp_path: Path) -> None
     assert [row[1] for row in rows] == [i.sample_id for i in panel.individuals]
 
 
+def test_reopening_refuses_a_same_shaped_wrong_individual_file(tmp_path: Path) -> None:
+    """Counts cannot distinguish two releases with the same number of people. The packed
+    header's individual hash can, and the bulk transpose must not be the caller that skips
+    that half of the archive's identity check."""
+    people = cohort("Druze", 20)
+    snp, ind, geno, anno = build(tmp_path, people, [diploid(i) for i in range(20)])
+    panel = select_modern_panel(snp, ind, geno, anno, min_group=20)
+    wrong = write_ind(
+        tmp_path,
+        [(f"other_{i}", "M", "Druze") for i in range(20)],
+    )
+
+    with pytest.raises(ModernPanelError, match="individuals hash"):
+        open_panel_genotypes(panel, wrong, geno)
+
+
+def test_selection_refuses_a_same_shaped_wrong_individual_file(tmp_path: Path) -> None:
+    """The identity check must run before selection too; checking only on the later reopen
+    would let heterozygosity and group membership be measured against the wrong records."""
+    people = cohort("Druze", 20)
+    snp, _ind, geno, _anno = build(tmp_path, people, [diploid(i) for i in range(20)])
+    replacements = cohort("Druze", 20, start=100)
+    wrong_ind = write_ind(tmp_path, [(sample, "M", group) for sample, _, group in replacements])
+    wrong_anno = write_anno(
+        tmp_path,
+        [(sample, bp, group, "500000") for sample, bp, group in replacements],
+    )
+
+    with pytest.raises(EigenstratError, match="individuals hash"):
+        select_modern_panel(snp, wrong_ind, geno, wrong_anno, min_group=20)
+
+
 def test_interleaved_chromosomes_are_refused_rather_than_gathered(tmp_path: Path) -> None:
     """The decode slices a whole record, which a sorted ``.snp`` allows. An interleaved one
     needs a per-marker gather -- three billion interpreter steps at full size -- so it is
@@ -324,6 +360,7 @@ def test_interleaved_chromosomes_are_refused_rather_than_gathered(tmp_path: Path
         tmp_path,
         [diploid(i)[: len(rows)] for i in range(20)],
         n_sites=len(rows),
+        ind_hash=hasharr(sample for sample, _, _ in people),
         snp_hash=hasharr(read_snp(snp).frame["rsid"].to_list()),
     )
     anno = write_anno(tmp_path, [(s, bp, g, "500000") for s, bp, g in people])
@@ -343,6 +380,12 @@ def test_panel_floor_matches_the_model(tmp_path: Path) -> None:
     nothing; a group the model would admit that the transform never wrote is a population it
     looks for and cannot find. Named in both docstrings, held here."""
     assert _MODERN_PANEL_MIN_GROUP == MIN_POPULATION_SAMPLES
+
+
+@pytest.mark.parametrize("value", [20.5, True, "20.5"])
+def test_manifest_panel_floor_refuses_values_that_are_not_whole(value: object) -> None:
+    with pytest.raises(postprocess.ProcessError, match="whole number"):
+        _resolve_min_group({"min_group": value})
 
 
 def test_a_panel_with_no_qualifying_group_says_what_was_dropped(tmp_path: Path) -> None:
@@ -370,10 +413,13 @@ def test_the_selector_itself_refuses_a_single_person_population(tmp_path: Path) 
 # ---------------------------------------------------------------------------
 
 
-def locality_sheet(tmp_path: Path, rows: list[tuple[str, str]]) -> Path:
-    """A narrow stand-in for the two columns the label reader uses."""
+def locality_sheet(tmp_path: Path, rows: list[tuple[str, str, str]]) -> Path:
+    """A narrow stand-in for the three columns the label reader uses."""
     path = tmp_path / "localities.anno"
-    lines = ["Group ID\tPolitical Entity", *(f"{group}\t{place}" for group, place in rows)]
+    lines = [
+        "Genetic ID\tGroup ID\tPolitical Entity",
+        *(f"{sample}\t{group}\t{place}" for sample, group, place in rows),
+    ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
 
@@ -392,11 +438,11 @@ def test_aadr_labels_read_population_from_the_artifact_and_locality_from_the_she
     anno = locality_sheet(
         tmp_path,
         [
-            ("Druze", "Israel"),
-            ("Druze", "Israel"),
-            ("Druze", "Jordan"),
-            ("Kazakh", "Russia"),
-            ("Kazakh", "Kazakhstan"),
+            ("D1", "Druze", "Israel"),
+            ("D2", "Druze", "Jordan"),
+            # Same group, not in the artifact: it must not vote in the artifact's mode.
+            ("D3", "Druze", "Jordan"),
+            ("K1", "Kazakh", "Kazakhstan"),
         ],
     )
 
@@ -414,9 +460,44 @@ def test_aadr_labels_refuse_a_sheet_that_cannot_locate_a_panel_population(
 ) -> None:
     psam = tmp_path / "modern.psam"
     psam.write_text("#FID\tIID\nDruze\tD1\nKazakh\tK1\n", encoding="utf-8")
-    anno = locality_sheet(tmp_path, [("Druze", "Israel"), ("Kazakh", "..")])
+    anno = locality_sheet(tmp_path, [("D1", "Druze", "Israel"), ("K1", "Kazakh", "..")])
 
     with pytest.raises(PopulationsError, match="Kazakh"):
+        read_aadr_population_labels(psam, anno)
+
+
+def test_aadr_labels_refuse_group_names_from_a_different_set_of_samples(tmp_path: Path) -> None:
+    """A stale sheet can carry all the same groups and none of the same people. Joining on
+    group alone returns plausible countries and defeats the release-integrity check."""
+    psam = tmp_path / "modern.psam"
+    psam.write_text("#FID\tIID\nDruze\tD1\nKazakh\tK1\n", encoding="utf-8")
+    anno = locality_sheet(
+        tmp_path,
+        [("other_d", "Druze", "Israel"), ("other_k", "Kazakh", "Kazakhstan")],
+    )
+
+    with pytest.raises(PopulationsError, match="D1"):
+        read_aadr_population_labels(psam, anno)
+
+
+def test_aadr_labels_refuse_a_sample_whose_group_changed_between_files(tmp_path: Path) -> None:
+    psam = tmp_path / "modern.psam"
+    psam.write_text("#FID\tIID\nDruze\tD1\n", encoding="utf-8")
+    anno = locality_sheet(tmp_path, [("D1", "BedouinA", "Israel")])
+
+    with pytest.raises(PopulationsError, match="different panel builds"):
+        read_aadr_population_labels(psam, anno)
+
+
+def test_aadr_labels_refuse_a_panel_sample_repeated_in_the_sheet(tmp_path: Path) -> None:
+    psam = tmp_path / "modern.psam"
+    psam.write_text("#FID\tIID\nDruze\tD1\n", encoding="utf-8")
+    anno = locality_sheet(
+        tmp_path,
+        [("D1", "Druze", "Israel"), ("D1", "Druze", "Jordan")],
+    )
+
+    with pytest.raises(PopulationsError, match="more than once"):
         read_aadr_population_labels(psam, anno)
 
 

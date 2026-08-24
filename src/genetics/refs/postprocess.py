@@ -1982,10 +1982,14 @@ def _aadr_inputs(
 
 def _resolve_min_group(params: Mapping[str, Any]) -> int:
     raw = params.get("min_group", _MODERN_PANEL_MIN_GROUP)
+    if isinstance(raw, bool) or not isinstance(raw, (int, str)):
+        raise ProcessError(f"min_group must be a whole number, got {raw!r}")
     try:
         value = int(raw)
     except (TypeError, ValueError):
         raise ProcessError(f"min_group must be a whole number, got {raw!r}") from None
+    if isinstance(raw, str) and str(value) != raw.strip():
+        raise ProcessError(f"min_group must be a whole number, got {raw!r}")
     if value < 2:
         raise ProcessError(
             f"min_group must be at least 2, got {value}; a population of one has a radius of "
