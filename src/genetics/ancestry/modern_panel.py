@@ -123,6 +123,7 @@ from genetics.ancestry.eigenstrat import (
     EigenstratSites,
     PackedGenotypes,
     annotate,
+    hasharr,
     open_packed,
     read_anno,
     read_ind,
@@ -337,9 +338,12 @@ class ModernPanel:
         return dict(sorted(out.items()))
 
     def labels(self) -> pl.DataFrame:
-        """``sample_id``, ``population`` -- the join
-        :func:`~genetics.ancestry.populations.read_population_labels` needs, without the
-        region, which comes from the ``.anno`` sheet rather than from this selection."""
+        """``sample_id``, ``population`` membership, without an invented region.
+
+        :func:`~genetics.ancestry.populations.read_aadr_population_labels` reconstructs the
+        same two columns from the emitted ``.psam`` and adds AADR's sampling locality from
+        the annotation sheet before the population model consumes them.
+        """
         return pl.DataFrame(
             {
                 "sample_id": [individual.sample_id for individual in self.individuals],
@@ -448,6 +452,7 @@ def select_modern_panel(
         geno,
         n_individuals=len(individuals),
         n_sites=sites.n_read,
+        individual_id_hash=hasharr(item.sample_id for item in individuals),
         site_id_hash=sites.id_hash,
     )
     het = _measure_heterozygosity(packed, labelled, _heterozygosity_sites(sites.indices))
@@ -692,12 +697,13 @@ def open_panel_genotypes(panel: ModernPanel, ind: Path, geno: Path) -> PackedGen
     selected from one file using genotypes from another.
     """
     try:
-        n_individuals = len(read_ind(ind))
+        individuals = read_ind(ind)
+        return open_packed(
+            geno,
+            n_individuals=len(individuals),
+            n_sites=panel.sites.n_read,
+            individual_id_hash=hasharr(item.sample_id for item in individuals),
+            site_id_hash=panel.sites.id_hash,
+        )
     except EigenstratError as exc:
         raise ModernPanelError(str(exc)) from exc
-    return open_packed(
-        geno,
-        n_individuals=n_individuals,
-        n_sites=panel.sites.n_read,
-        site_id_hash=panel.sites.id_hash,
-    )
