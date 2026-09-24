@@ -52,6 +52,7 @@ from __future__ import annotations
 
 import shutil
 import tempfile
+import time
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -593,6 +594,42 @@ class _Plink:
         return self._found
 
 
+_SCRATCH_PREFIX: Final = ".run-"
+
+_STALE_SCRATCH_SECONDS: Final = 24 * 60 * 60
+"""How old a per-run directory must be before a later run treats it as abandoned.
+
+``finally`` does not run for a process that is killed outright -- a closed console window,
+a power cut -- so a copy of the sample's genotypes could otherwise outlive its run
+indefinitely, contradicting :func:`_scratch`'s whole purpose (found in the M5.8 review,
+2026-09-24). An age rather than "every one found", because a second run may be live beside
+this one; a day is far beyond any run's length, the ancient projection included."""
+
+
+def _sweep_abandoned_scratch(parent: Path, *, now: float | None = None) -> None:
+    """Remove per-run directories that an earlier, killed run left behind.
+
+    Only what this module creates: directories named with :data:`_SCRATCH_PREFIX`, directly
+    under ``parent``. The reference PCAs beside them are never touched. A directory that
+    cannot be removed raises, for the reason :func:`_scratch`'s own removal does.
+    """
+    if not parent.is_dir():
+        return
+    cutoff = (time.time() if now is None else now) - _STALE_SCRATCH_SECONDS
+    for entry in parent.iterdir():
+        if not entry.name.startswith(_SCRATCH_PREFIX) or not entry.is_dir():
+            continue
+        if entry.stat().st_mtime >= cutoff:
+            continue
+        try:
+            shutil.rmtree(entry)
+        except OSError as exc:
+            raise AncestryError(
+                f"an abandoned per-run directory, {entry}, holds a copy of an earlier "
+                f"sample's genotypes and cannot be removed: {exc}. Delete it by hand."
+            ) from exc
+
+
 @contextmanager
 def _scratch(parent: Path) -> Iterator[Callable[[], Path]]:
     """A per-run directory for the sample's own intermediates, removed afterwards.
@@ -607,13 +644,17 @@ def _scratch(parent: Path) -> Iterator[Callable[[], Path]]:
     and every fresh checkout -- would otherwise make and remove a directory in the user's
     data directory for no part that computes anything. Removal is not told to ignore errors:
     a copy of the sample's genotypes that could not be deleted is something to hear about.
+
+    Removal here covers every exit Python sees. The exits it does not see are covered on the
+    next run's entry, by :func:`_sweep_abandoned_scratch`.
     """
+    _sweep_abandoned_scratch(parent)
     made: list[Path] = []
 
     def get() -> Path:
         if not made:
             parent.mkdir(parents=True, exist_ok=True)
-            made.append(Path(tempfile.mkdtemp(prefix=".run-", dir=parent)))
+            made.append(Path(tempfile.mkdtemp(prefix=_SCRATCH_PREFIX, dir=parent)))
         return made[0]
 
     try:
