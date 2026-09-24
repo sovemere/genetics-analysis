@@ -21,7 +21,8 @@ would fail no test and produce a tree that mostly works.
 **What is dropped, and why it is not a loss.** Of PhyloTree's mutation tokens 195 are
 indels (``A249d``, ``315.1C``) and are skipped: the vendor writes ``I``/``D`` for an indel
 with no sequence (AGENTS.md 4.2), so there is nothing to match them against. What remains
-is 11,529 substitutions over 3,874 rCRS positions, of which the array touches 139.
+is 11,529 substitutions over 3,874 rCRS positions, of which the array touches 141
+(re-measured at M5.8, 2026-09-24; M5.7 wrote 139).
 """
 
 from __future__ import annotations
