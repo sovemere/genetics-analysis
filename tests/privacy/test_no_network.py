@@ -15,14 +15,19 @@ bare socket that no shipped code resembles.
 from __future__ import annotations
 
 import socket
+import urllib.request
+from collections.abc import Iterator
 
 import pytest
 
 from genetics.refs.fetcher import UrllibTransport
+from genetics.testing import network
 from genetics.testing.network import (
     _REAL_GETADDRINFO,
+    _REAL_GETPROXIES,
     NetworkAccessError,
     _blocked_connect,
+    _proxy_ports,
     block_network,
     guard_is_active,
     is_local_address,
@@ -77,6 +82,137 @@ def test_connecting_to_a_literal_address_is_blocked() -> None:
             sock.connect_ex(("198.51.100.7", 443))
     finally:
         sock.close()
+
+
+# ---------------------------------------------------------------------------
+# A proxy on loopback is a way off the machine
+# ---------------------------------------------------------------------------
+#
+# Found in a cloud container whose traffic all leaves through a proxy on 127.0.0.1: the two
+# tests at the top of this file failed there, one of them getting an HTTP 404 back through
+# the proxy, and passed on every machine without one. These reproduce that condition on any
+# machine, with a listener standing in for the proxy, so the hole cannot reopen somewhere it
+# is invisible.
+
+
+@pytest.fixture
+def loopback_proxy(monkeypatch: pytest.MonkeyPatch) -> Iterator[socket.socket]:
+    """A listening socket named as the HTTP(S) proxy. Nothing ever answers on it.
+
+    Both spellings of each variable are set because urllib reads either and prefers the
+    lowercase one, so setting only one would leave a real proxy in the other in force.
+    """
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.bind(("127.0.0.1", 0))
+    listener.listen(1)
+    url = f"http://127.0.0.1:{listener.getsockname()[1]}"
+    for name in ("http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"):
+        monkeypatch.setenv(name, url)
+    try:
+        yield listener
+    finally:
+        listener.close()
+
+
+def _reached(listener: socket.socket) -> bool:
+    """Whether anything connected. A completed ``connect`` is already queued for accept."""
+    listener.setblocking(False)
+    try:
+        accepted, _ = listener.accept()
+    except BlockingIOError:
+        return False
+    accepted.close()
+    return True
+
+
+def test_a_loopback_proxy_does_not_carry_the_download_path_out(
+    loopback_proxy: socket.socket,
+) -> None:
+    """The production transport, pointed at a proxy on loopback, is refused -- by name.
+
+    The short timeout is for the unfixed guard, which lets the request reach the listener
+    and then waits for an answer that never comes; failing in two seconds beats hanging.
+    """
+    with pytest.raises(NetworkAccessError) as caught:
+        UrllibTransport(timeout=2).open("https://example.invalid/whatever")
+
+    assert "example.invalid" in str(caught.value), "the refusal should name what was fetched"
+    assert not _reached(loopback_proxy), "the request reached the proxy"
+
+
+def test_a_loopback_proxy_is_refused_at_connect(loopback_proxy: socket.socket) -> None:
+    """The backstop for clients other than urllib: httpx and requests read the same
+    variables and would connect to the same port, so the port itself is refused."""
+    port = loopback_proxy.getsockname()[1]
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        with pytest.raises(NetworkAccessError, match="configured proxy"):
+            client.connect(("127.0.0.1", port))
+        with pytest.raises(NetworkAccessError, match="configured proxy"):
+            client.connect_ex(("127.0.0.1", port))
+    finally:
+        client.close()
+    assert not _reached(loopback_proxy)
+
+
+@pytest.mark.network
+def test_an_opener_cached_before_the_block_does_not_keep_its_proxy(
+    loopback_proxy: socket.socket,
+) -> None:
+    """``urlopen`` builds its default opener once and keeps it, proxy table and all.
+
+    So an opener cached while the guard was down would still point at the proxy after the
+    table was swapped, and the refusal would name a port instead of the host. Marked
+    ``network`` for an unguarded start, the way the teardown test below is; nothing here
+    connects outside the block.
+    """
+    urllib.request.install_opener(urllib.request.build_opener())
+    try:
+        with block_network(), pytest.raises(NetworkAccessError) as caught:
+            UrllibTransport(timeout=2).open("https://example.invalid/whatever")
+    finally:
+        urllib.request.install_opener(None)
+
+    assert "example.invalid" in str(caught.value)
+    assert not _reached(loopback_proxy)
+
+
+def test_loopback_that_is_not_the_proxy_still_works(loopback_proxy: socket.socket) -> None:
+    """Refusing the proxy's port must not grow into refusing loopback: M4.3's server lives
+    there, and a guard that broke it would be removed rather than narrowed."""
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        server.bind(("127.0.0.1", 0))
+        server.listen(1)
+        client.settimeout(5)
+        client.connect(server.getsockname())
+        accepted, _ = server.accept()
+        accepted.close()
+    finally:
+        client.close()
+        server.close()
+    assert not _reached(loopback_proxy)
+
+
+@pytest.mark.parametrize(
+    ("proxies", "ports"),
+    [
+        ({"https": "http://127.0.0.1:3128"}, {3128}),
+        ({"http": "127.0.0.1:8080"}, {8080}),  # schemeless, as some setups write it
+        ({"all": "socks5://[::1]:1080"}, {1080}),
+        ({"https": "http://localhost"}, {80, 443}),  # no port: the request's default
+        ({"https": "http://127.0.0.1:notaport"}, {80, 443}),
+        ({"https": "http://proxy.example:3128"}, set()),  # remote: refused as remote already
+        ({"no": "localhost"}, set()),  # no_proxy is a bypass list, not a proxy
+        ({}, set()),
+    ],
+)
+def test_which_ports_count_as_a_proxy(
+    monkeypatch: pytest.MonkeyPatch, proxies: dict[str, str], ports: set[int]
+) -> None:
+    monkeypatch.setattr(network, "_REAL_GETPROXIES", lambda: proxies)
+    assert _proxy_ports() == ports
 
 
 # ---------------------------------------------------------------------------
@@ -146,6 +282,7 @@ def test_guard_is_installed_by_default() -> None:
     """
     assert guard_is_active()
     assert socket.getaddrinfo is not _REAL_GETADDRINFO
+    assert urllib.request.getproxies is not _REAL_GETPROXIES
 
 
 @pytest.mark.network
@@ -158,6 +295,7 @@ def test_the_marker_lifts_the_guard() -> None:
     """
     assert not guard_is_active()
     assert socket.getaddrinfo is _REAL_GETADDRINFO
+    assert urllib.request.getproxies is _REAL_GETPROXIES
     assert "connect" not in socket.socket.__dict__
 
 
@@ -177,10 +315,12 @@ def test_teardown_removes_the_override_rather_than_rewriting_it() -> None:
     with block_network():
         assert socket.socket.__dict__["connect"] is _blocked_connect
         assert socket.getaddrinfo is not _REAL_GETADDRINFO
+        assert urllib.request.getproxies is not _REAL_GETPROXIES
 
     assert "connect" not in socket.socket.__dict__
     assert "connect_ex" not in socket.socket.__dict__
     assert socket.getaddrinfo is _REAL_GETADDRINFO
+    assert urllib.request.getproxies is _REAL_GETPROXIES
 
 
 @pytest.mark.network
