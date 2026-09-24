@@ -16,6 +16,8 @@ roadmap's M5.8 entry.
 from __future__ import annotations
 
 import json
+import os
+import time
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -563,6 +565,47 @@ def test_a_failure_mid_placement_still_removes_the_intermediates(
     with pytest.raises(AncestryError):
         _infer(male, verified_panel.parents[1], tmp_path)
     assert written and not written[0].exists()
+
+
+def _abandoned(cache: Path, name: str, *, age_seconds: float) -> Path:
+    directory = cache / name
+    directory.mkdir(parents=True)
+    (directory / "sample.pgen").write_bytes(b"the sample's genotypes")
+    stamp = time.time() - age_seconds
+    os.utime(directory, (stamp, stamp))
+    return directory
+
+
+@pytest.mark.privacy
+def test_a_killed_runs_intermediates_are_removed_by_the_next_run(
+    male: IngestResult, empty_references: Path, tmp_path: Path
+) -> None:
+    """``finally`` never runs for a process killed outright, so the next run cleans up --
+    even one with nothing to compute, since that is the run most likely to come next on a
+    machine whose references are not yet built."""
+    cache = tmp_path / "cache"
+    stale = _abandoned(cache, ".run-killed", age_seconds=2 * stage._STALE_SCRATCH_SECONDS)
+    _infer(male, empty_references, tmp_path)
+    assert not stale.exists()
+
+
+@pytest.mark.privacy
+def test_a_live_runs_directory_and_the_reference_pcas_are_left_alone(
+    male: IngestResult, empty_references: Path, tmp_path: Path
+) -> None:
+    """A second run may be live beside this one, and the reference PCAs are kept by design;
+    only an abandoned per-run directory is swept."""
+    cache = tmp_path / "cache"
+    live = _abandoned(cache, ".run-live", age_seconds=60)
+    old_pca = cache / "refpca-0123456789abcdef.eigenvec"
+    old_pca.write_text("PC1\n", encoding="utf-8")
+    stamp = time.time() - 2 * stage._STALE_SCRATCH_SECONDS
+    os.utime(old_pca, (stamp, stamp))
+    lookalike = _abandoned(cache, "run-not-ours", age_seconds=2 * stage._STALE_SCRATCH_SECONDS)
+
+    _infer(male, empty_references, tmp_path)
+
+    assert live.is_dir() and old_pca.is_file() and lookalike.is_dir()
 
 
 def test_progress_is_reported_once_the_slow_work_begins(
