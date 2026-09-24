@@ -21,7 +21,8 @@ allele, which is worse than not testing it.
 
 **Resolution is bounded by the array, not by this table** ([AGENTS.md 4.7](AGENTS.md)).
 Measured 2026-08-23 against the real export: 74,569 markers over 10,205 haplogroups here,
-of which the array's 1,665 chrY markers touch 1,141, reaching 629 distinct haplogroups.
+of which the array's 1,665 chrY markers touch 1,129 (re-measured at M5.8, 2026-09-24; M5.7
+wrote 1,141, reaching 629, before its parsing was final).
 """
 
 from __future__ import annotations

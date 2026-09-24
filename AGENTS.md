@@ -410,13 +410,19 @@ shotgun a subset of mtDNA rather than sequencing it. Report the clade *with the 
 supporting markers*, and state the ceiling on the card. Do not imply FTDNA-level
 resolution.
 
-**Measured at M5.7 (2026-08-23), against the real export and the trees in §5.1.** Only
-about half of each lineage's markers land on a site that defines a branch at all:
+**Measured against the real export and the trees in §5.1.** Only about half of each
+lineage's markers land on a site that defines a branch at all:
 
 | | Array markers | On a defining site | Haplogroups reachable |
 |---|---|---|---|
-| mtDNA | 262 distinct positions | **139 (53%)** | 700 |
-| chrY | 1,665 | **1,141 (68.5%)** | 629 |
+| mtDNA | 262 distinct positions | **141 (53.8%)** | 767 |
+| chrY | 1,665 | **1,129 (67.8%)** | 596 |
+
+*Corrected at M5.8's acceptance run (2026-09-24).* M5.7 recorded 139 and 1,141 (reaching
+700 and 629), measured before its tree parsing was final; the loaders have not changed
+since that commit, and the figures above are what the shipped caller reports as
+`markers_on_array` on this chip. "Reachable" here counts branches defined by at least one
+on-array site; M5.7 did not record its definition, so its 700/629 are not comparable.
 
 These are properties of the *array*, not of the trees — PhyloTree carries 11,529 mutations
 and the ISOGG table 74,569. So the number a card must show is the supporting-marker count
