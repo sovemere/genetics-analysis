@@ -21,11 +21,14 @@ import uvicorn
 from fastapi.testclient import TestClient
 
 from genetics import __version__ as ENGINE_VERSION
+from genetics.ancestry.context import AncestryContext
 from genetics.engine.cards import KnowledgePack
 from genetics.qc.report import QCReport
 from genetics.run.bundle import BUNDLE_FORMAT_VERSION, write_bundle
 from genetics.web import SECURITY_HEADERS, WebConfig, WebConfigError, create_app
 from genetics.web.config import DEFAULT_HOST, DEFAULT_PORT
+
+NO_ANCESTRY = AncestryContext.not_run("synthetic test bundle: no ancestry stage ran")
 
 WEB_PACKAGE = Path(__file__).resolve().parents[2] / "src" / "genetics" / "web"
 
@@ -386,6 +389,7 @@ def test_health_counts_runs_with_the_same_function_the_cli_uses(
         qc=sample_qc,
         cards=(),
         pack=sample_pack,
+        ancestry=NO_ANCESTRY,
         runs_root=runs_root,
         lock_path=tmp_path / "absent.lock",
         tools_root=tmp_path / "tools",

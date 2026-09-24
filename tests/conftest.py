@@ -33,6 +33,7 @@ import pytest
 from genetics.testing.network import allow_network, block_network
 
 if TYPE_CHECKING:
+    from genetics.ancestry.context import AncestryContext, LineageResult
     from genetics.engine.cards import KnowledgePack
     from genetics.engine.evidence import AssembledCard
     from genetics.external.plink2 import Plink2
@@ -52,6 +53,25 @@ def _offline(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
         return
     with allow_network():
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _no_fetched_references_for_ancestry(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
+    """The ancestry stage (M5.8) sees an empty reference tree unless a test builds one.
+
+    ``infer_ancestry`` reads whatever this checkout has fetched, so without this the suite
+    would behave differently on a machine with AADR built and PLINK 2 on ``PATH`` -- running
+    the real stage over synthetic fixtures whose coordinates are invented -- than it does on
+    CI, which fetches nothing. Pinned at session scope for the reason the network guard is:
+    a higher-scoped fixture would otherwise run before any per-test pin. A test that wants
+    the stage to find references passes ``references_root`` explicitly.
+    """
+    empty = tmp_path_factory.mktemp("no-fetched-references")
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("genetics.ancestry.context.references_dir", lambda: empty)
         yield
 
 
@@ -161,6 +181,118 @@ def sample_cards(sample_pack: KnowledgePack) -> tuple[AssembledCard, ...]:
             ),
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# A populated ancestry result (M5.8)
+# ---------------------------------------------------------------------------
+#
+# Built from the result types directly rather than by running the stage, which needs PLINK 2
+# and fetched references. The tests using these are about what happens to a result
+# downstream -- the bundle's pinned shape, what the CLI may print -- not about producing one.
+# The names are unlike any real population, haplogroup or archaeological group, so a test
+# asserting one did not leak cannot pass because the string happened to occur elsewhere.
+
+ANCESTRY_NAMES = {
+    "population": "Zzyzx_Population",
+    "region": "Zzyzx_Region",
+    "second_population": "Qwxz_Population",
+    "mt": "Zqmt9x1",
+    "y": "Zqy7w2",
+    "ancient": "Zzyzx_Ancient_Group",
+}
+
+
+def _synthetic_ancestry(*, named: bool) -> AncestryContext:
+    from genetics.ancestry.aadr import AncientAffinity, GroupAffinity
+    from genetics.ancestry.context import (
+        AffinityResult,
+        AncestryContext,
+        LineageResult,
+        LineageStatus,
+        PopulationResult,
+    )
+    from genetics.ancestry.haplogroup import HaplogroupCall, PathStep
+    from genetics.ancestry.populations import HUMAN_ORIGINS_COVERAGE, Placement, PopulationFit
+
+    fits = (
+        PopulationFit(ANCESTRY_NAMES["population"], ANCESTRY_NAMES["region"], 25, 1.2, 1.0, 0.6),
+        PopulationFit(ANCESTRY_NAMES["second_population"], "Elsewhere", 30, 4.0, 1.1, 1.0),
+    )
+    placement = Placement(
+        sample_id="SAMPLE",
+        coordinates=(0.25, -1.5),
+        fits=fits,
+        population=ANCESTRY_NAMES["population"] if named else None,
+        declined_because=""
+        if named
+        else f"this sample sits 9.0 standard deviations from {ANCESTRY_NAMES['population']}",
+        decline_threshold=2.56,
+        coverage=0.999,
+        n_scored_markers=44_830,
+        n_reference_markers=44_872,
+        panel_coverage=HUMAN_ORIGINS_COVERAGE,
+        labels_source="modern_panel_ldpruned.psam",
+        n_panel_samples=5_553,
+    )
+
+    def lineage(name: str, haplogroup: str) -> LineageResult:
+        call = HaplogroupCall(
+            lineage=name,
+            source=f"synthetic {name} tree",
+            haplogroup=haplogroup,
+            path=(
+                PathStep(haplogroup[:-1], 4, 0, 0, 5),
+                PathStep(haplogroup, 2, 1, 1, 3),
+            ),
+            markers_on_array=139,
+            markers_typed=131,
+            stopped_because="no child of the deepest supported node carries a typed marker",
+        )
+        return LineageResult(name, LineageStatus.CALLED, call=call)
+
+    found = AncientAffinity(
+        sample_id="SAMPLE",
+        groups=(
+            GroupAffinity(ANCESTRY_NAMES["ancient"], 6, 3100.0, (2900.0, 3300.0), 2.5, 7_400.0),
+            GroupAffinity("Qwxz_Ancient_Group", 9, 5200.0, (5000.0, 5600.0), 6.0, 6_900.0),
+        ),
+        coverage=0.98,
+        n_scored_markers=10_905,
+        n_shared_markers=11_128,
+        n_ancient_individuals=6_672,
+        dropped_groups={"tiny_group": 2},
+        pseudo_haploid_fraction=0.992,
+        source="synthetic.snp",
+    )
+    return AncestryContext(
+        population=PopulationResult(
+            placement=placement,
+            reference="refpca-0123456789abcdef",
+            reference_markers=44_872,
+            n_components=2,
+        ),
+        mt=lineage("MT", ANCESTRY_NAMES["mt"]),
+        y=lineage("Y", ANCESTRY_NAMES["y"]),
+        ancient=AffinityResult(affinity=found, reference="refpca-fedcba9876543210"),
+    )
+
+
+@pytest.fixture
+def placed_ancestry() -> AncestryContext:
+    """Every part populated: a population named, both haplogroups called, affinity ranked."""
+    return _synthetic_ancestry(named=True)
+
+
+@pytest.fixture
+def declined_ancestry() -> AncestryContext:
+    """The same, except that no population fits -- M5.5's refusal."""
+    return _synthetic_ancestry(named=False)
+
+
+@pytest.fixture
+def ancestry_names() -> dict[str, str]:
+    return dict(ANCESTRY_NAMES)
 
 
 # ---------------------------------------------------------------------------

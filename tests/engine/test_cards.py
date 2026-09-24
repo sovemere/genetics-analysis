@@ -488,7 +488,7 @@ def test_an_unknown_ancestry_label_is_refused() -> None:
     "EUR" and "White British" cannot be compared against an inferred ancestry."""
     with pytest.raises(CardError) as caught:
         Card.parse(_mutate(["evidence", "ancestry"], ["European"]), "t")
-    assert "M5.3" in str(caught.value)
+    assert "M9.5" in str(caught.value)
 
 
 def test_unknown_ancestry_is_recordable() -> None:

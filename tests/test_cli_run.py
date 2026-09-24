@@ -13,10 +13,12 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 from typer.testing import CliRunner, Result
 
+from genetics.ancestry.context import AncestryContext
 from genetics.cli.main import app
 from genetics.paths import runs_dir
 from genetics.privacy import GenotypeLeakError
@@ -278,8 +280,8 @@ def test_both_output_paths_are_scanned(
 
     dirty = "\t".join(("rs4988235", "2", "136608646", "A", "G"))
 
-    def poisoned(input_path: Path, *, knowledge_dir: Path | None = None) -> Analysis:
-        real = analyse(input_path, knowledge_dir=knowledge_dir)
+    def poisoned(input_path: Path, **kwargs: Any) -> Analysis:
+        real = analyse(input_path, **kwargs)
         return replace(real, source=replace(real.source, vendor=dirty))
 
     # Patched by name on the CLI module, which is where the command resolved it. Patching
@@ -306,3 +308,123 @@ def test_the_run_command_is_registered_and_is_not_the_runs_group() -> None:
     assert own.exit_code == 0
     assert "--input" in own.stdout
     assert "run bundle" in own.stdout
+
+
+# ---------------------------------------------------------------------------
+# Ancestry (M5.8)
+# ---------------------------------------------------------------------------
+
+
+def _with_ancestry(monkeypatch: pytest.MonkeyPatch, context: AncestryContext) -> None:
+    """Run the real pipeline, then hand the CLI a chosen ancestry result."""
+    from genetics.run.pipeline import Analysis, analyse
+
+    def chosen(input_path: Path, **kwargs: Any) -> Analysis:
+        return replace(analyse(input_path, **kwargs), ancestry=context)
+
+    monkeypatch.setattr("genetics.cli.run_cmd.analyse", chosen)
+
+
+def test_json_reports_every_ancestry_part_and_why_it_did_not_run(
+    export: Path, store_root: Path
+) -> None:
+    """Nothing is fetched under the suite, so every part reports ``not_run`` with a reason."""
+    result = _run(export, "--json")
+    assert result.exit_code == 0, result.output
+    ancestry = json.loads(result.stdout)["ancestry"]
+    assert set(ancestry) == {"population", "mt", "y", "ancient"}
+    for part in ancestry.values():
+        assert part["status"] == "not_run"
+        assert "genetics refs fetch" in part["reason"]
+
+
+def test_the_human_output_reports_each_ancestry_part(export: Path, store_root: Path) -> None:
+    result = _run(export)
+    assert result.exit_code == 0, result.output
+    assert "ancestry" in result.stdout
+    for label in ("population", "mtDNA", "Y-DNA", "ancient"):
+        assert f"{label}" in result.stdout
+    assert "not_run" in result.stdout
+
+
+@pytest.mark.privacy
+@pytest.mark.parametrize("args", [[], ["--json"]], ids=["human", "json"])
+def test_run_reports_the_ancestry_status_and_never_the_result(
+    export: Path,
+    store_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    placed_ancestry: AncestryContext,
+    ancestry_names: dict[str, str],
+    args: list[str],
+) -> None:
+    """A haplogroup restates genotypes; a population is an inference about the person.
+
+    ``genetics run`` says whether it worked -- ``placed``, and on how many markers -- and
+    ``genetics runs show`` is where the answer is read. Checked on both output paths, M1.8's
+    lesson, because the human render is the one a person edits.
+    """
+    _with_ancestry(monkeypatch, placed_ancestry)
+    result = _run(export, *args)
+    assert result.exit_code == 0, result.output
+    assert "placed" in result.stdout
+    for name in ancestry_names.values():
+        assert name not in result.output
+
+
+def test_a_declined_placement_is_reported_as_one(
+    export: Path,
+    store_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    declined_ancestry: AncestryContext,
+) -> None:
+    _with_ancestry(monkeypatch, declined_ancestry)
+    result = _run(export)
+    assert result.exit_code == 0, result.output
+    assert "declined" in result.stdout
+    assert "unrepresented" in result.stdout
+
+
+def test_the_saved_run_keeps_the_result_the_output_withheld(
+    export: Path,
+    store_root: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    placed_ancestry: AncestryContext,
+) -> None:
+    _with_ancestry(monkeypatch, placed_ancestry)
+    run_id = json.loads(_run(export, "--json").stdout)["run_id"]
+    assert read_bundle(store_root / run_id).ancestry == placed_ancestry.to_dict()
+
+
+@pytest.mark.parametrize("args", [[], ["--json"]], ids=["human", "json"])
+def test_an_ancestry_failure_is_reported_as_its_own_kind(
+    export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch, args: list[str]
+) -> None:
+    from genetics.ancestry.context import AncestryError
+
+    def broken(input_path: Path, **kwargs: Any) -> Any:
+        raise AncestryError("the modern reference panel fails verification")
+
+    monkeypatch.setattr("genetics.cli.run_cmd.analyse", broken)
+    result = _run(export, *args)
+    assert result.exit_code == 2
+    assert "fails verification" in result.output
+    if args:
+        assert json.loads(result.stdout)["error"]["kind"] == "ancestry"
+    assert not any(store_root.iterdir()), "a failed run saved a bundle"
+
+
+def test_progress_goes_to_stderr_so_json_stays_one_document(
+    export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genetics.run.pipeline import Analysis, analyse
+
+    def reporting(input_path: Path, **kwargs: Any) -> Analysis:
+        kwargs["progress"]("ancestry: the reference PCA for this array")
+        return analyse(input_path, **kwargs)
+
+    monkeypatch.setattr("genetics.cli.run_cmd.analyse", reporting)
+    result = _run(export, "--json")
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["ok"] is True
+    assert "reference PCA" in result.stderr
+    assert "reference PCA" not in result.stdout

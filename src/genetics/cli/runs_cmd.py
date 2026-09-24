@@ -28,6 +28,7 @@ That is a decision in both directions, not an oversight in one:
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from typing import Annotated, Any, NoReturn
 
 import typer
@@ -221,6 +222,9 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         "created_at": bundle.created_at,
         "provenance": dict(bundle.provenance),
         "qc": dict(bundle.qc),
+        # None for a bundle saved before format 3 -- "not recorded", which the record
+        # itself distinguishes from a stage that ran and recorded not_run.
+        "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
         "cards": [
             {
                 "card_id": card.card_id,
@@ -282,6 +286,7 @@ def runs_show(
     source = bundle.provenance.get("input")
     if isinstance(source, dict):
         typer.echo(f"  input       {source.get('vendor')}, {source.get('markers')} markers")
+    typer.echo(f"  ancestry    {_ancestry_line(bundle.ancestry)}")
     typer.echo("")
 
     for card in bundle.cards:
@@ -291,6 +296,26 @@ def runs_show(
 
     typer.echo("")
     typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")
+
+
+def _ancestry_line(record: Mapping[str, Any] | None) -> str:
+    """The population placement in one line, read from what the bundle recorded.
+
+    Read defensively, as everything in a months-old bundle is: a missing or odd-shaped field
+    renders as absent rather than raising, because this is a display of a record that the
+    reader already accepted.
+    """
+    if record is None:
+        return "not recorded (saved before the ancestry stage existed)"
+    population = record.get("population")
+    if not isinstance(population, Mapping):
+        return "not recorded"
+    status = population.get("status")
+    if status == "placed":
+        return f"placed: {population.get('population')} ({population.get('region')})"
+    if status == "declined":
+        return "declined: no reference population fits (see --json for the nearest and why)"
+    return f"{status}: {population.get('reason')}"
 
 
 # ---------------------------------------------------------------------------

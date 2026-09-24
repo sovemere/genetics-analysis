@@ -57,6 +57,7 @@ from genetics.run.bundle import (
     payload_name,
     read_bundle,
     read_manifest,
+    required_payload_files,
     resolve_runs_root,
 )
 
@@ -325,7 +326,7 @@ def summarise_run(directory: Path) -> RunSummary:
     # `readable`, complete with a card count, while a read of the identical directory raised
     # "missing required key 'files'". The listing was reporting on a bundle nothing could
     # open.
-    unrecorded = sorted(set(PAYLOAD_FILES) - set(recorded))
+    unrecorded = sorted(set(required_payload_files(declared)) - set(recorded))
     if unrecorded:
         return RunSummary(
             **common,

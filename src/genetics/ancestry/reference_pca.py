@@ -89,6 +89,7 @@ from genetics.privacy import NoGenotypeRepr
 __all__ = [
     "ARTIFACT_VERSION",
     "EigenSettings",
+    "InsufficientOverlapError",
     "ReferencePCA",
     "ReferencePcaError",
     "array_marker_positions",
@@ -138,6 +139,18 @@ that intersects at 1,100 markers and can score 900 of them through.
 
 class ReferencePcaError(RuntimeError):
     """The reference PCA cannot be built, or a cached one cannot be trusted."""
+
+
+class InsufficientOverlapError(ReferencePcaError):
+    """The export and the panel share too few usable markers to build a space from.
+
+    A subclass rather than a message, because M5.8 has to tell this refusal from the others
+    this module makes. The rest describe a broken artifact or a failed tool -- things that
+    are wrong with the installation and would be wrong for every run. This one describes the
+    export: a synthetic fixture whose coordinates are invented, or a chip that carries too
+    little of the panel. A run records that as ancestry not inferred, with this message as
+    the reason, instead of failing outright over a fact about one file.
+    """
 
 
 @dataclass(frozen=True)
@@ -582,7 +595,7 @@ def build_reference_pca(
 
     positions = array_marker_positions(table)
     if not positions:
-        raise ReferencePcaError(
+        raise InsufficientOverlapError(
             "the export carries no autosomal markers, so there is nothing to intersect "
             "the reference panel with."
         )
@@ -591,7 +604,7 @@ def build_reference_pca(
         allowed = frozenset(restrict_to)
         positions = [position for position in positions if position in allowed]
         if not positions:
-            raise ReferencePcaError(
+            raise InsufficientOverlapError(
                 f"the {space!r} restriction and this array share no autosomal position. The "
                 f"export offered {n_array_positions:,} and the restriction named "
                 f"{len(allowed):,}; a disjoint pair is usually a build or chromosome-naming "
@@ -612,7 +625,7 @@ def build_reference_pca(
     # markers that are on their way out. See the module docstring.
     sites, excluded = harmonizable_sites(intersected)
     if sites.n_sites < _MIN_MARKERS:
-        raise ReferencePcaError(
+        raise InsufficientOverlapError(
             f"only {sites.n_sites:,} of the panel's markers are carried by this array and "
             f"usable (minimum {_MIN_MARKERS:,}). That is usually a build or "
             "chromosome-naming disagreement between the export and the panel rather than a "

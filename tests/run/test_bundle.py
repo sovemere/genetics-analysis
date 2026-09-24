@@ -18,6 +18,7 @@ from typing import Any
 
 import pytest
 
+from genetics.ancestry.context import AncestryContext
 from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource
 from genetics.engine.evidence import (
@@ -29,15 +30,19 @@ from genetics.engine.evidence import (
 from genetics.engine.matcher import MatchResult, MatchStatus, Strand
 from genetics.ingest import ingest
 from genetics.paths import UnsafeDataDirError, repo_root
-from genetics.privacy import find_genotypes
+from genetics.privacy import GenotypeLeakError, find_genotypes
 from genetics.qc.report import QCReport
 from genetics.run.bundle import (
+    ANCESTRY_FORMAT_VERSION,
+    ANCESTRY_KEYS,
+    ANCESTRY_NAME,
     BUNDLE_FORMAT_VERSION,
     CARD_KEYS,
     CARDS_NAME,
     INCOMING_PREFIX,
     MANIFEST_KEYS,
     MANIFEST_NAME,
+    PAYLOAD_FILES,
     QC_NAME,
     BundleError,
     BundleIntegrityError,
@@ -45,8 +50,11 @@ from genetics.run.bundle import (
     knowledge_provenance,
     new_run_id,
     read_bundle,
+    required_payload_files,
     write_bundle,
 )
+
+NO_ANCESTRY = AncestryContext.not_run("synthetic test bundle: no ancestry stage ran")
 
 CARD_FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "cards"
 EXPORT = Path(__file__).resolve().parents[1] / "fixtures" / "synthetic" / "ancestry_v2_male.txt"
@@ -170,6 +178,7 @@ def written(
         qc=qc_report,
         cards=assembled,
         pack=pack,
+        ancestry=NO_ANCESTRY,
         runs_root=tmp_path / "runs",
         lock_path=tmp_path / "absent.lock",
         tools_root=tmp_path / "tools",
@@ -341,6 +350,7 @@ def test_writing_over_an_existing_run_is_refused(
             qc=qc_report,
             cards=assembled,
             pack=pack,
+            ancestry=NO_ANCESTRY,
             runs_root=written.parent,
             run_id=written.name,
         )
@@ -387,7 +397,14 @@ def test_an_interrupted_write_leaves_no_run_id_and_no_staging_directory(
 
     monkeypatch.setattr(bundle_module, "_write_text", explode)
     with pytest.raises(OSError, match="disk full"):
-        write_bundle(qc=qc_report, cards=assembled, pack=pack, runs_root=root, run_id="run_a")
+        write_bundle(
+            qc=qc_report,
+            cards=assembled,
+            pack=pack,
+            ancestry=NO_ANCESTRY,
+            runs_root=root,
+            run_id="run_a",
+        )
 
     assert not (root / "run_a").exists()
     assert list(root.iterdir()) == [], "staging directory left behind"
@@ -435,7 +452,9 @@ def test_a_bundle_payload_is_gitignored_everywhere_in_the_checkout(directory: st
     later negation is exactly how the coverage was lost the first time. ``knowledge/`` is
     in this list because that is where it was actually broken.
     """
-    for name in (QC_NAME, CARDS_NAME):
+    # Every payload file, not a list of them: M5.8 added the third, and a hand-maintained
+    # tuple here is the kind of second name that forgets the next one.
+    for name in PAYLOAD_FILES:
         assert _is_ignored(f"{directory}{name}"), f"{directory}{name} is committable"
 
 
@@ -456,7 +475,8 @@ def test_the_knowledge_allowlist_still_admits_card_files() -> None:
 
 def test_the_payload_filenames_carry_the_suffix_the_ignore_rule_keys_on() -> None:
     """The naming half of the coupling above; the ignore rules key on this suffix."""
-    for name in (QC_NAME, CARDS_NAME):
+    assert {QC_NAME, CARDS_NAME, ANCESTRY_NAME} <= set(PAYLOAD_FILES)
+    for name in PAYLOAD_FILES:
         assert name.endswith(".run.json"), name
     assert not MANIFEST_NAME.endswith(".run.json"), "the manifest carries no genotype"
 
@@ -588,9 +608,11 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
     expected_manifest = frozenset(
         {"format_version", "run_id", "created_at", "provenance", "files", "counts"}
     )
+    expected_ancestry = frozenset({"population", "mt", "y", "ancient"})
     bump = "bump BUNDLE_FORMAT_VERSION in the same commit"
     assert expected_card == CARD_KEYS, f"card payload changed: {bump}"
     assert expected_manifest == MANIFEST_KEYS, f"manifest changed: {bump}"
+    assert expected_ancestry == ANCESTRY_KEYS, f"ancestry payload changed: {bump}"
 
 
 #: Sub-objects whose *keys* are data rather than schema -- card filenames, source ids,
@@ -798,6 +820,7 @@ def test_a_run_id_must_be_a_plain_directory_name(
                 qc=qc_report,
                 cards=assembled,
                 pack=pack,
+                ancestry=NO_ANCESTRY,
                 runs_root=tmp_path / "runs",
                 run_id=bad,
             )
@@ -840,6 +863,7 @@ def test_a_bundle_refuses_to_be_written_inside_the_repository(
             qc=qc_report,
             cards=assembled,
             pack=pack,
+            ancestry=NO_ANCESTRY,
             runs_root=repo_root() / "scratch_runs",
         )
 
@@ -884,7 +908,9 @@ def test_the_manifest_genotype_guard_actually_fires(
     pack, assembled = cards
     dirty = replace(qc_report, source_path=_genotype_row())
     with pytest.raises(GenotypeLeakError, match="manifest"):
-        write_bundle(qc=dirty, cards=assembled, pack=pack, runs_root=tmp_path / "runs")
+        write_bundle(
+            qc=dirty, cards=assembled, pack=pack, ancestry=NO_ANCESTRY, runs_root=tmp_path / "runs"
+        )
     assert not (tmp_path / "runs").exists() or list((tmp_path / "runs").iterdir()) == []
 
 
@@ -904,7 +930,9 @@ def test_the_qc_genotype_guard_fires_independently_of_the_manifest_one(
     pack, assembled = cards
     dirty = replace(qc_report, warnings=(f"unparsed row: {_genotype_row()}",))
     with pytest.raises(GenotypeLeakError, match="QC report"):
-        write_bundle(qc=dirty, cards=assembled, pack=pack, runs_root=tmp_path / "runs")
+        write_bundle(
+            qc=dirty, cards=assembled, pack=pack, ancestry=NO_ANCESTRY, runs_root=tmp_path / "runs"
+        )
 
 
 @pytest.mark.privacy
@@ -967,7 +995,13 @@ def test_a_pack_whose_files_have_vanished_refuses_to_claim_a_digest(
     shutil.rmtree(pack.source_dir)
 
     with pytest.raises(BundleError, match="no card files on disk"):
-        write_bundle(qc=qc_report, cards=assembled, pack=pack, runs_root=tmp_path / "runs")
+        write_bundle(
+            qc=qc_report,
+            cards=assembled,
+            pack=pack,
+            ancestry=NO_ANCESTRY,
+            runs_root=tmp_path / "runs",
+        )
 
 
 def test_an_unreadable_lock_degrades_instead_of_losing_the_run(
@@ -987,6 +1021,7 @@ def test_an_unreadable_lock_degrades_instead_of_losing_the_run(
         qc=qc_report,
         cards=assembled,
         pack=pack,
+        ancestry=NO_ANCESTRY,
         runs_root=tmp_path / "runs",
         lock_path=corrupt,
         tools_root=tmp_path / "tools",
@@ -1050,6 +1085,7 @@ def test_cards_from_a_pack_with_no_interpretation_still_round_trip(
         qc=qc_report,
         cards=impossible,
         pack=pack,
+        ancestry=NO_ANCESTRY,
         runs_root=tmp_path / "runs",
         lock_path=tmp_path / "absent.lock",
         tools_root=tmp_path / "tools",
@@ -1060,3 +1096,207 @@ def test_cards_from_a_pack_with_no_interpretation_still_round_trip(
         "cards": len(impossible),
         "with_interpretation": 0,
     }
+
+
+# ---------------------------------------------------------------------------
+# The ancestry record (format 3, M5.8)
+# ---------------------------------------------------------------------------
+
+
+def _write_with(
+    tmp_path: Path,
+    qc_report: QCReport,
+    cards: tuple[KnowledgePack, tuple[AssembledCard, ...]],
+    ancestry: AncestryContext,
+) -> Path:
+    pack, assembled = cards
+    return write_bundle(
+        qc=qc_report,
+        cards=assembled,
+        pack=pack,
+        ancestry=ancestry,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+
+
+def _refresh_digest(directory: Path, name: str) -> None:
+    manifest_path = directory / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    digest = hashlib.sha256((directory / name).read_bytes()).hexdigest()
+    manifest["files"][name] = digest
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def test_the_ancestry_record_round_trips(
+    tmp_path: Path,
+    qc_report: QCReport,
+    cards: tuple[KnowledgePack, tuple[AssembledCard, ...]],
+    placed_ancestry: AncestryContext,
+) -> None:
+    bundle = read_bundle(_write_with(tmp_path, qc_report, cards, placed_ancestry))
+    assert bundle.format_version == ANCESTRY_FORMAT_VERSION
+    assert bundle.ancestry == placed_ancestry.to_dict()
+
+
+def test_the_ancestry_record_is_a_digested_payload_file(written: Path) -> None:
+    manifest = json.loads((written / MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert ANCESTRY_NAME in manifest["files"]
+    assert ANCESTRY_NAME in required_payload_files(BUNDLE_FORMAT_VERSION)
+
+
+def test_the_whole_nested_ancestry_shape_is_pinned(
+    tmp_path: Path,
+    qc_report: QCReport,
+    cards: tuple[KnowledgePack, tuple[AssembledCard, ...]],
+    placed_ancestry: AncestryContext,
+) -> None:
+    """The sibling of the manifest and card pins, over a record with every part populated --
+    a not-run record has nulls where the nested keys would be and would pin nothing."""
+    path = _write_with(tmp_path, qc_report, cards, placed_ancestry)
+    record = json.loads((path / ANCESTRY_NAME).read_text(encoding="utf-8"))
+    population = [
+        "status",
+        "reason",
+        "population",
+        "region",
+        "reference",
+        "reference_markers",
+        "n_components",
+        "panel",
+        "panel.name",
+        "panel.labels_source",
+        "panel.n_samples",
+        "panel.n_populations",
+        "panel.gaps",
+        "panel.gaps[].region",
+        "panel.gaps[].note",
+        "decline_threshold",
+        "coverage",
+        "n_scored_markers",
+        "coordinates",
+        "fits",
+        "fits[].population",
+        "fits[].region",
+        "fits[].n_samples",
+        "fits[].distance",
+        "fits[].radius",
+        "fits[].fit",
+        "fits[].percentile",
+    ]
+    lineage = [
+        "status",
+        "reason",
+        "lineage",
+        "source",
+        "haplogroup",
+        "depth",
+        "supporting",
+        "contradicting",
+        "markers_on_array",
+        "markers_typed",
+        "stopped_because",
+        "path",
+        "path[].name",
+        "path[].supporting",
+        "path[].contradicting",
+        "path[].uncertain_support",
+        "path[].typed",
+    ]
+    ancient = [
+        "status",
+        "reason",
+        "reference",
+        "source",
+        "coverage",
+        "n_scored_markers",
+        "n_shared_markers",
+        "n_ancient_individuals",
+        "pseudo_haploid_fraction",
+        "n_dropped_groups",
+        "spread",
+        "groups",
+        "groups[].group",
+        "groups[].n_individuals",
+        "groups[].date_bp_median",
+        "groups[].date_bp_range",
+        "groups[].distance",
+        "groups[].mean_called",
+    ]
+    expected = {"population", "mt", "y", "ancient"}
+    expected |= {f"population.{key}" for key in population}
+    expected |= {f"{part}.{key}" for part in ("mt", "y") for key in lineage}
+    expected |= {f"ancient.{key}" for key in ancient}
+    assert _shape(record) == expected, (
+        "ancestry payload shape changed: bump BUNDLE_FORMAT_VERSION in the same commit"
+    )
+
+
+def _set_format_version(directory: Path, version: int, *, drop: str | None = None) -> None:
+    manifest_path = directory / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = version
+    if drop is not None:
+        del manifest["files"][drop]
+        (directory / drop).unlink()
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+
+def test_a_bundle_saved_before_the_ancestry_stage_reads_as_not_recorded(written: Path) -> None:
+    """Additive contract: a format 2 bundle has no ancestry file and must still read.
+
+    ``None`` here is "not recorded" -- the bundle predates the stage -- and it has to stay
+    distinguishable from a format 3 bundle that recorded the stage not running.
+    """
+    _set_format_version(written, ANCESTRY_FORMAT_VERSION - 1, drop=ANCESTRY_NAME)
+    older = read_bundle(written)
+    assert older.format_version == ANCESTRY_FORMAT_VERSION - 1
+    assert older.ancestry is None
+    assert ANCESTRY_NAME not in required_payload_files(ANCESTRY_FORMAT_VERSION - 1)
+
+
+def test_a_current_bundle_without_its_ancestry_record_is_damaged(written: Path) -> None:
+    """The same absence at format 3 is not "not recorded": the writer always records it."""
+    _set_format_version(written, ANCESTRY_FORMAT_VERSION, drop=ANCESTRY_NAME)
+    with pytest.raises(BundleError, match=f"no digest recorded for {ANCESTRY_NAME}"):
+        read_bundle(written)
+
+
+def test_an_ancestry_record_with_an_unknown_part_is_refused(written: Path) -> None:
+    path = written / ANCESTRY_NAME
+    record = json.loads(path.read_text(encoding="utf-8"))
+    record["admixture_percentages"] = {}
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _refresh_digest(written, ANCESTRY_NAME)
+    with pytest.raises(BundleError, match="admixture_percentages"):
+        read_bundle(written)
+
+
+def test_an_ancestry_record_missing_a_part_is_refused(written: Path) -> None:
+    path = written / ANCESTRY_NAME
+    record = json.loads(path.read_text(encoding="utf-8"))
+    del record["y"]
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _refresh_digest(written, ANCESTRY_NAME)
+    with pytest.raises(BundleError, match="missing required key 'y'"):
+        read_bundle(written)
+
+
+@pytest.mark.privacy
+def test_the_ancestry_record_is_scanned_before_it_is_written(
+    tmp_path: Path,
+    qc_report: QCReport,
+    cards: tuple[KnowledgePack, tuple[AssembledCard, ...]],
+) -> None:
+    """A reason is free text, and free text is where a row would get pasted."""
+    row = "\t".join(("rs4988235", "2", "136608646", "A", "G"))
+    poisoned = AncestryContext.not_run(f"could not place: {row}")
+    with pytest.raises(GenotypeLeakError):
+        _write_with(tmp_path, qc_report, cards, poisoned)
+    runs = tmp_path / "runs"
+    assert not runs.exists() or not any(runs.iterdir()), "a refused write left a bundle behind"

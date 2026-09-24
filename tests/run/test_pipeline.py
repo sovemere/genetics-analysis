@@ -11,14 +11,18 @@ from __future__ import annotations
 
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from genetics.ancestry.context import AncestryContext, AncestryError, PlacementStatus
 from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource
 from genetics.engine.evidence import EvidenceAssemblyError, assemble_pack
 from genetics.engine.matcher import MatchStatus, match_pack
+from genetics.ingest.schema import GenotypeTable
 from genetics.paths import runs_dir
+from genetics.qc.report import QCReport
 from genetics.run.bundle import read_bundle
 from genetics.run.pipeline import analyse, observations, save
 from genetics.testing.fixtures import FIXTURES, render_fixture
@@ -291,3 +295,73 @@ def test_two_runs_of_the_same_export_get_two_ids(export: Path, store_root: Path)
 
     assert first != second
     assert first.exists() and second.exists()
+
+
+# ---------------------------------------------------------------------------
+# The ancestry stage (M5.8)
+# ---------------------------------------------------------------------------
+
+
+def test_ancestry_is_inferred_before_any_card_is_assembled(
+    export: Path, placed_ancestry: AncestryContext, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ordering AGENTS.md 4.4 calls load-bearing, pinned where it is decided.
+
+    M9.5 will read the context while building each card's observation. That only works if
+    the context exists by then, and a refactor that moved the stage after assembly would
+    pass every test that inspects the result.
+    """
+    order: list[str] = []
+
+    def stage(table: GenotypeTable, qc: QCReport) -> AncestryContext:
+        order.append("ancestry")
+        return placed_ancestry
+
+    def assemble(*args: Any, **kwargs: Any) -> Any:
+        order.append("assemble")
+        return assemble_pack(*args, **kwargs)
+
+    monkeypatch.setattr("genetics.run.pipeline.assemble_pack", assemble)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+
+    assert order == ["ancestry", "assemble"]
+    assert analysis.ancestry is placed_ancestry
+
+
+def test_the_stage_is_handed_the_ploidy_resolved_table_and_its_qc(export: Path) -> None:
+    """The Y call reads hemizygous calls and the inferred sex; both come from ingest."""
+    seen: dict[str, Any] = {}
+
+    def stage(table: GenotypeTable, qc: QCReport) -> AncestryContext:
+        seen["table"], seen["qc"] = table, qc
+        return AncestryContext.not_run("recording what it was handed")
+
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+    assert seen["qc"] is analysis.qc
+    assert seen["table"].frame.get_column("call_status").null_count() == 0
+
+
+def test_the_default_stage_runs_and_says_why_it_inferred_nothing(export: Path) -> None:
+    """With nothing fetched -- the suite pins that, see conftest -- the default stage still
+    runs and records the reason, rather than the pipeline skipping it."""
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    assert analysis.ancestry.status is PlacementStatus.NOT_RUN
+    assert "genetics refs fetch" in analysis.ancestry.population.reason
+
+
+def test_an_ancestry_failure_stops_the_run(export: Path) -> None:
+    """Wrong is loud: a broken reference must not leave cards saved beside a missing stage."""
+
+    def stage(table: GenotypeTable, qc: QCReport) -> AncestryContext:
+        raise AncestryError("the modern reference panel fails verification")
+
+    with pytest.raises(AncestryError):
+        analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+
+
+def test_save_keeps_the_ancestry_record(
+    export: Path, store_root: Path, placed_ancestry: AncestryContext
+) -> None:
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=lambda t, q: placed_ancestry)
+    bundle = read_bundle(save(analysis))
+    assert bundle.ancestry == placed_ancestry.to_dict()
