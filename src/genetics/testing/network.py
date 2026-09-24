@@ -14,6 +14,17 @@ parity tests will drive it. A guard that blocked that would be switched off whol
 the first person who hit it -- M0.3's "a scanner that cries wolf gets bypassed", applied
 to this one.
 
+**Except where a proxy listens on it, because a proxy is a way off the machine.** Found in a
+cloud container whose outbound traffic all goes through a proxy on ``127.0.0.1``. Every HTTP
+client honours ``HTTPS_PROXY``, so a guarded request connected to loopback -- allowed, per
+the paragraph above -- and the proxy carried it out. Two tests below failed there, one of
+them getting an HTTP 404 back through the proxy, while passing on every machine without
+one. So the hole is closed twice. urllib, the only client ``src/`` uses, sees an empty proxy
+table while the block is installed, connects directly, and is refused by the resolver *by
+name* -- the same refusal, naming the same host, that a machine with no proxy gives. And a
+loopback ``connect`` to a configured proxy's port is refused whatever made it, since httpx
+and requests read the same variables and would reach the same port.
+
 **What this cannot see, by construction: a subprocess.** PLINK 2, Beagle, Java and R run
 in their own address spaces, where patching this process's :mod:`socket` module has no
 reach. Nothing here constrains them. Only the OS-level test in M4.10 does, which is why
@@ -29,9 +40,11 @@ is written to swallow. As a ``RuntimeError`` it propagates intact, saying what i
 from __future__ import annotations
 
 import socket
+import urllib.parse
+import urllib.request
 from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Final
 
 from genetics.netaddr import is_local_address
 
@@ -45,12 +58,13 @@ __all__ = [
 
 
 class NetworkAccessError(RuntimeError):
-    """Raised when code under the guard reaches for a non-loopback address."""
+    """Raised when code under the guard reaches for an address that leaves the machine."""
 
 
 _REAL_CONNECT = socket.socket.connect
 _REAL_CONNECT_EX = socket.socket.connect_ex
 _REAL_GETADDRINFO = socket.getaddrinfo
+_REAL_GETPROXIES = urllib.request.getproxies
 
 _UNSET = object()
 _PATCHED_METHODS = ("connect", "connect_ex")
@@ -96,12 +110,59 @@ def _destination(address: object) -> object | None:
     return None
 
 
+_PORTLESS_PROXY_PORTS: Final[frozenset[int]] = frozenset({80, 443})
+"""Where a proxy named without a port is reached. urllib connects to it on the *request's*
+default port -- 80 for an http URL, 443 when it tunnels an https one -- so both are its."""
+
+
+def _proxy_ports() -> frozenset[int]:
+    """The loopback ports a configured proxy listens on.
+
+    Read from the real proxy table on every call rather than once at install: the table is
+    the environment (and on Windows the registry), which can change under a running suite --
+    ``monkeypatch.setenv`` is exactly how a test would change it. A proxy on another host
+    needs nothing here, because connecting to it is already refused as a remote address.
+    """
+    ports: set[int] = set()
+    for scheme, url in _REAL_GETPROXIES().items():
+        if scheme == "no":  # no_proxy is a bypass list, not a proxy
+            continue
+        parsed = urllib.parse.urlsplit(url if "://" in url else f"http://{url}")
+        if not is_local_address(parsed.hostname):
+            continue
+        try:
+            port = parsed.port
+        except ValueError:  # not a number; the proxy is still there, at a default
+            port = None
+        ports.update(_PORTLESS_PROXY_PORTS if port is None else {port})
+    return frozenset(ports)
+
+
+_ADVICE: Final = (
+    "This suite runs offline (roadmap M2.7). Inject a fake transport the way "
+    "tests/refs/test_fetcher.py does, or mark the test @pytest.mark.network if it "
+    "genuinely has to reach the network."
+)
+
+
 def _refuse(host: object) -> NetworkAccessError:
+    return NetworkAccessError(f"blocked an attempt to reach {host!r}. {_ADVICE}")
+
+
+def _refuse_proxy(host: object, port: object) -> NetworkAccessError:
     return NetworkAccessError(
-        f"blocked an attempt to reach {host!r}. This suite runs offline (roadmap M2.7). "
-        "Inject a fake transport the way tests/refs/test_fetcher.py does, or mark the "
-        "test @pytest.mark.network if it genuinely has to reach the network."
+        f"blocked an attempt to reach {host!r} port {port}, where a configured proxy "
+        f"listens: it is on loopback, but it relays what reaches it off the machine. {_ADVICE}"
     )
+
+
+def _check(address: Any) -> None:
+    """Raise unless ``address`` stays on this machine."""
+    host = _destination(address)
+    if not is_local_address(host):
+        raise _refuse(host)
+    if isinstance(address, tuple) and len(address) >= 2 and address[1] in _proxy_ports():
+        raise _refuse_proxy(host, address[1])
 
 
 # ---------------------------------------------------------------------------
@@ -120,18 +181,13 @@ _AddressInfo = list[
 
 
 def _blocked_connect(self: socket.socket, address: Any) -> None:
-    host = _destination(address)
-    if is_local_address(host):
-        _REAL_CONNECT(self, address)
-        return
-    raise _refuse(host)
+    _check(address)
+    _REAL_CONNECT(self, address)
 
 
 def _blocked_connect_ex(self: socket.socket, address: Any) -> int:
-    host = _destination(address)
-    if is_local_address(host):
-        return _REAL_CONNECT_EX(self, address)
-    raise _refuse(host)
+    _check(address)
+    return _REAL_CONNECT_EX(self, address)
 
 
 def _blocked_getaddrinfo(
@@ -153,9 +209,27 @@ def _blocked_getaddrinfo(
     raise _refuse(host)
 
 
+def _no_proxies() -> dict[str, str]:
+    """urllib's proxy table while the block is installed: empty.
+
+    So a request goes direct and the resolver refuses it by name, as it would on a machine
+    with no proxy. Left with the real table, urllib would connect to the proxy instead, and
+    the most :func:`_check` could then say is which port it refused -- not what was being
+    fetched, which is the part of the message that tells somebody where to look.
+    """
+    return {}
+
+
 # ---------------------------------------------------------------------------
 # Installation
 # ---------------------------------------------------------------------------
+#
+# Both functions below swap urllib's proxy table and then clear its cached opener with
+# ``install_opener(None)``, on the way in and on the way out. ``urlopen`` builds its default
+# opener once and keeps it, proxy table and all, so swapping the table alone would leave an
+# opener built before the swap still pointing at the proxy. Clearing it makes the next
+# request build one under whichever table is in force. Nothing in this project installs a
+# custom opener, which is the only thing a reset could discard.
 
 
 @contextmanager
@@ -173,9 +247,12 @@ def allow_network() -> Iterator[None]:
 
     saved = {name: socket.socket.__dict__.get(name, _UNSET) for name in _PATCHED_METHODS}
     saved_getaddrinfo = socket.getaddrinfo
+    saved_getproxies = urllib.request.getproxies
     saved_depth = _depth
 
     socket.getaddrinfo = _REAL_GETADDRINFO
+    urllib.request.getproxies = _REAL_GETPROXIES
+    urllib.request.install_opener(None)
     for name in _PATCHED_METHODS:
         if name in socket.socket.__dict__:
             delattr(socket.socket, name)
@@ -185,6 +262,8 @@ def allow_network() -> Iterator[None]:
     finally:
         _depth = saved_depth
         socket.getaddrinfo = saved_getaddrinfo
+        urllib.request.getproxies = saved_getproxies
+        urllib.request.install_opener(None)
         for name, value in saved.items():
             if value is _UNSET:
                 if name in socket.socket.__dict__:
@@ -195,7 +274,9 @@ def allow_network() -> Iterator[None]:
 
 @contextmanager
 def block_network() -> Iterator[None]:
-    """Refuse every non-loopback connection and name lookup for the duration.
+    """Refuse every connection and name lookup that could leave the machine, for the duration.
+
+    That is every non-loopback one, plus loopback connections to a configured proxy.
 
     ``connect`` and ``connect_ex`` are inherited from ``_socket.socket`` rather than
     defined on ``socket.socket``, so restoring means *removing* the override, not writing
@@ -205,16 +286,21 @@ def block_network() -> Iterator[None]:
 
     saved = {name: socket.socket.__dict__.get(name, _UNSET) for name in _PATCHED_METHODS}
     saved_getaddrinfo = socket.getaddrinfo
+    saved_getproxies = urllib.request.getproxies
 
     socket.socket.connect = _blocked_connect  # type: ignore[assignment]
     socket.socket.connect_ex = _blocked_connect_ex  # type: ignore[assignment]
     socket.getaddrinfo = _blocked_getaddrinfo
+    urllib.request.getproxies = _no_proxies
+    urllib.request.install_opener(None)
     _depth += 1
     try:
         yield
     finally:
         _depth -= 1
         socket.getaddrinfo = saved_getaddrinfo
+        urllib.request.getproxies = saved_getproxies
+        urllib.request.install_opener(None)
         for name, value in saved.items():
             if value is _UNSET:
                 delattr(socket.socket, name)
