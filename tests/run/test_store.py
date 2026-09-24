@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from genetics.ancestry.context import AncestryContext
 from genetics.engine.cards import KnowledgePack
 from genetics.engine.evidence import AssembledCard
 from genetics.privacy import find_genotypes
@@ -40,6 +41,8 @@ from genetics.run.store import (
     summarise_run,
 )
 
+NO_ANCESTRY = AncestryContext.not_run("synthetic test bundle: no ancestry stage ran")
+
 
 @pytest.fixture
 def runs_root(tmp_path: Path) -> Path:
@@ -61,6 +64,7 @@ def _save(
         qc=qc,
         cards=cards,
         pack=pack,
+        ancestry=NO_ANCESTRY,
         runs_root=root,
         run_id=run_id,
         created_at=created_at,
@@ -168,6 +172,35 @@ def test_a_missing_payload_file_is_damage_even_though_the_manifest_parses(
     (run,) = list_runs(runs_root).runs
     assert run.status is RunStatus.DAMAGED
     assert run.detail is not None and QC_NAME in run.detail
+
+
+def test_a_run_saved_before_the_ancestry_stage_still_lists_as_readable(
+    runs_root: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+) -> None:
+    """M5.8 added a payload file, and the listing must not call every older run damaged.
+
+    Requiring the new file of every bundle was the one-line change that would have done it:
+    the listing and the reader both take their required set from ``required_payload_files``,
+    keyed by the version a bundle declares.
+    """
+    from genetics.run.bundle import ANCESTRY_FORMAT_VERSION, ANCESTRY_NAME
+
+    path = _save(runs_root, sample_qc, sample_pack, cards=sample_cards)
+    manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+    del manifest["files"][ANCESTRY_NAME]
+    (path / ANCESTRY_NAME).unlink()
+    _edit_manifest(path, files=manifest["files"], format_version=ANCESTRY_FORMAT_VERSION - 1)
+
+    (run,) = list_runs(runs_root).runs
+    assert run.status is RunStatus.READABLE, run.detail
+
+    _edit_manifest(path, format_version=ANCESTRY_FORMAT_VERSION)
+    (run,) = list_runs(runs_root).runs
+    assert run.status is RunStatus.DAMAGED
+    assert run.detail is not None and ANCESTRY_NAME in run.detail
 
 
 def test_a_manifest_recording_no_payload_at_all_is_damage_not_a_readable_run(

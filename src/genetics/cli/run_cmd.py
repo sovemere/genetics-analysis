@@ -16,6 +16,13 @@ So the output is aggregates: QC, counts by match status, counts by confidence ti
 run id. Counts are the honest thing to show anyway -- what a person wants from a pipeline
 command is whether it worked and where the result went, not the result.
 
+**Ancestry (M5.8) is reported the same way: a status per part, never the answer.** Whether
+a population was placed, declined or not inferred, and why not; whether each haplogroup was
+called and on how many markers. Not the population, not the haplogroup, not the ancient
+groups. A haplogroup restates the genotypes at every site that defines it
+(:class:`~genetics.ancestry.haplogroup.HaplogroupCall`), and the others are inferences about
+the person; ``genetics runs show`` is where results are read.
+
 **Every status is printed, including the zeros.** A status that disappears when it is empty
 makes "nothing was strand-ambiguous" indistinguishable from "strand ambiguity is not
 checked", which is the class of silence AGENTS.md 0.1A exists to prevent. The same argument
@@ -36,6 +43,7 @@ from typing import Annotated, Any, NoReturn
 
 import typer
 
+from genetics.ancestry.context import AncestryContext, AncestryError
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
 from genetics.ingest import IngestError
@@ -61,6 +69,8 @@ def _error_kind(exc: Exception) -> str:
     """
     if isinstance(exc, IngestError | AnchorError):
         return "ingest"
+    if isinstance(exc, AncestryError):
+        return "ancestry"
     if isinstance(exc, CardError):
         return "knowledge"
     if isinstance(exc, EvidenceAssemblyError):
@@ -103,6 +113,7 @@ def _payload(analysis: Analysis, path: Path) -> dict[str, Any]:
             "array_version": analysis.source.array_version,
         },
         "qc": analysis.qc.to_dict(),
+        "ancestry": analysis.ancestry.summary(),
         "cards": {
             "total": analysis.n_cards,
             "with_interpretation": analysis.with_interpretation,
@@ -142,12 +153,19 @@ def run(
     Prints QC, card counts and the new run id. Never prints a genotype -- read the cards
     with `genetics runs show <run-id>`.
     """
+
+    def progress(message: str) -> None:
+        # stderr, on both branches: stdout under --json is one JSON document, and a
+        # progress line in it would make the document unparseable.
+        _echo(f"  {message}", err=True, dim=True)
+
     try:
-        analysis = analyse(input_path, knowledge_dir=knowledge)
+        analysis = analyse(input_path, knowledge_dir=knowledge, progress=progress)
         path = save(analysis)
     except (
         IngestError,
         AnchorError,
+        AncestryError,
         CardError,
         EvidenceAssemblyError,
         BundleError,
@@ -179,6 +197,8 @@ def _render(analysis: Analysis, path: Path) -> None:
         _echo("")
         for warning in qc.warnings:
             _echo(f"  ! {warning}", fg=typer.colors.YELLOW)
+
+    _render_ancestry(analysis.ancestry)
 
     _echo("")
     _echo(f"  {analysis.n_cards} card(s) from {analysis.pack.source_dir}")
@@ -214,3 +234,48 @@ def _render(analysis: Analysis, path: Path) -> None:
     _echo(f"  saved  {path.name}", fg=typer.colors.GREEN, bold=True)
     _echo(f"         {path}")
     _echo(f"  read it with:  genetics runs show {path.name}")
+
+
+def _render_ancestry(ancestry: AncestryContext) -> None:
+    """One line per part: its status, and the reason when it is not a result.
+
+    See the module docstring for why the result itself is not printed here.
+    """
+    summary = ancestry.summary()
+    _echo("")
+    _echo("  ancestry", bold=True)
+
+    population = summary["population"]
+    status = population["status"]
+    if status == "placed":
+        detail = (
+            f"named among {population['n_populations']} reference populations, "
+            f"{population['coverage']:.1%} of {population['reference_markers']:,} markers scored"
+        )
+    elif status == "declined":
+        detail = (
+            f"no reference population among {population['n_populations']} fits this sample "
+            "closely enough to be named -- ancestry is recorded as unrepresented"
+        )
+    else:
+        detail = population["reason"]
+    colour = typer.colors.YELLOW if status != "placed" else None
+    _echo(f"    population  {status}: {detail}", fg=colour)
+
+    for key, label in (("mt", "mtDNA"), ("y", "Y-DNA")):
+        lineage = summary[key]
+        if lineage["status"] == "called":
+            text = (
+                f"called on {lineage['supporting']} supporting marker(s) of "
+                f"{lineage['markers_on_array']} the array can use"
+            )
+        else:
+            text = lineage["reason"]
+        _echo(f"    {label:<10}  {lineage['status']}: {text}")
+
+    ancient = summary["ancient"]
+    if ancient["status"] == "computed":
+        text = f"distances to {ancient['n_groups']} ancient groups (affinity, not descent)"
+    else:
+        text = ancient["reason"]
+    _echo(f"    {'ancient':<10}  {ancient['status']}: {text}")

@@ -52,7 +52,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
-from typing import Any, ClassVar, Final
+from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
@@ -66,8 +66,21 @@ from genetics.qc.report import QCReport
 from genetics.refs import lock as refs_lock
 from genetics.refs import tools as refs_tools
 
-BUNDLE_FORMAT_VERSION: Final[int] = 2
+if TYPE_CHECKING:
+    # Type-only: reading a bundle must not import the whole ancestry stack, which pulls in
+    # the reference machinery. Writing only calls `to_dict()` on what it is handed.
+    from genetics.ancestry.context import AncestryContext
+
+BUNDLE_FORMAT_VERSION: Final[int] = 3
 """Bumped whenever a reader of the previous version would misread the payload.
+
+**Version 3 (M5.8) added ``ancestry.run.json``**: the ancestry stage's population placement,
+haplogroups and ancient affinity, each with its status. A new *file* rather than a key in the
+cards payload, because it describes the run rather than any card, and because it is the one
+payload file whose absence is meaningful -- a version 1 or 2 bundle predates the stage, and
+:attr:`RunBundle.ancestry` is ``None`` for it. That is "not recorded", which is a different
+fact from a version 3 bundle recording that the stage did not run, and the two are kept apart
+for the reason the stage keeps "declined" apart from "not run".
 
 **Version 2 (M4.6) added ``evidence`` to each card**, and it is worth recording why a UI
 milestone moved the format. M4.6 requires a card's detail view to state the effect size,
@@ -128,8 +141,10 @@ that may be pasted into a bug report -- which is why it is scanned before it is 
 
 QC_NAME: Final[str] = "qc.run.json"
 CARDS_NAME: Final[str] = "cards.run.json"
-"""The two genotype-bearing payload files, named to land on ``.gitignore``'s existing
-``*.run.json`` rule.
+ANCESTRY_NAME: Final[str] = "ancestry.run.json"
+"""The genotype-derived payload files, named to land on ``.gitignore``'s existing
+``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
+1.1 names as genotype-derived in so many words.
 
 A bundle is written outside the repository and an in-repo destination is refused outright,
 so this is the third line of defence, not the first. It costs one suffix and it covers the
@@ -143,12 +158,33 @@ INCOMING_PREFIX: Final[str] = ".incoming-"
 shape rather than by remembering to, and so a killed process leaves something visibly
 unfinished rather than a run id with half a payload under it."""
 
-PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME)
-"""The files a bundle must record a digest for.
+PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME, ANCESTRY_NAME)
+"""Every payload file this format version writes, and so every file a bundle may hold.
 
-Public because M4.2's listing has to require exactly the same set. When it did not, a
-manifest with no ``files`` key at all listed as ``readable`` while ``read_bundle`` refused
-it -- the listing/read divergence the store's own docstring sets out to prevent."""
+Which of them a bundle *must* record depends on the version it was written at -- see
+:func:`required_payload_files`."""
+
+ANCESTRY_FORMAT_VERSION: Final[int] = 3
+"""The first format version whose bundles carry :data:`ANCESTRY_NAME`. Named for the reason
+:data:`EVIDENCE_FORMAT_VERSION` is."""
+
+_PAYLOAD_SINCE: Final[Mapping[str, int]] = {
+    QC_NAME: 1,
+    CARDS_NAME: 1,
+    ANCESTRY_NAME: ANCESTRY_FORMAT_VERSION,
+}
+
+
+def required_payload_files(format_version: int) -> tuple[str, ...]:
+    """The payload files a bundle of ``format_version`` must record a digest for.
+
+    Public because M4.2's listing has to require exactly the same set. When it did not, a
+    manifest with no ``files`` key at all listed as ``readable`` while ``read_bundle`` refused
+    it -- the listing/read divergence the store's own docstring sets out to prevent. Keyed by
+    version since M5.8 added a file: requiring it of every bundle would have made every run
+    saved before it unreadable, which the additive contract exists to prevent.
+    """
+    return tuple(name for name in PAYLOAD_FILES if _PAYLOAD_SINCE[name] <= format_version)
 
 
 class BundleError(ValueError):
@@ -388,6 +424,8 @@ MANIFEST_KEYS: Final[frozenset[str]] = frozenset(
     {"format_version", "run_id", "created_at", "provenance", "files", "counts"}
 )
 
+ANCESTRY_KEYS: Final[frozenset[str]] = frozenset({"population", "mt", "y", "ancient"})
+
 
 # ---------------------------------------------------------------------------
 # Provenance
@@ -551,6 +589,10 @@ class RunBundle(NoGenotypeRepr):
     provenance: Mapping[str, Any]
     qc: Mapping[str, Any]
     cards: tuple[StoredCard, ...]
+    ancestry: Mapping[str, Any] | None = None
+    """The ancestry stage's record (M5.8), or ``None`` for a bundle older than
+    :data:`ANCESTRY_FORMAT_VERSION` -- "not recorded", never "not run". A bundle that recorded
+    the stage not running says so inside the mapping, with a reason."""
 
     @property
     def card_count(self) -> int:
@@ -651,6 +693,7 @@ def write_bundle(
     qc: QCReport,
     cards: Sequence[AssembledCard],
     pack: KnowledgePack,
+    ancestry: AncestryContext,
     runs_root: Path | None = None,
     run_id: str | None = None,
     created_at: datetime | None = None,
@@ -665,6 +708,10 @@ def write_bundle(
     sibling and not a system temp directory for two reasons: a rename across filesystems
     is a copy that can fail halfway, and the system temp directory is not one of the paths
     :mod:`genetics.paths` registers as genotype-bearing.
+
+    ``ancestry`` is required rather than defaulted, for the reason the pipeline refuses to
+    assemble a card without an observation: a bundle whose ancestry nobody stated would
+    record a default as though somebody had.
     """
     root = resolve_runs_root(runs_root)
     stamp = (created_at or datetime.now(UTC)).astimezone(UTC)
@@ -698,6 +745,13 @@ def write_bundle(
             staging / CARDS_NAME,
             _render({"cards": [_card_payload(card) for card in cards]}),
         )
+        ancestry_text = _render(ancestry.to_dict())
+        # Scanned like the QC report and for the same reason: it is a derived summary with
+        # no business carrying a call. A haplogroup name implies genotypes at its defining
+        # sites, but it is not written as one, and a decline sentence that quoted a row
+        # would be a defect this should catch.
+        assert_no_genotype(ancestry_text, context="run bundle ancestry record")
+        _write_text(staging / ANCESTRY_NAME, ancestry_text)
 
         manifest = {
             "format_version": BUNDLE_FORMAT_VERSION,
@@ -908,7 +962,7 @@ def read_bundle(path: Path) -> RunBundle:
     _reject_unknown(manifest, MANIFEST_KEYS, MANIFEST_NAME)
 
     recorded = _mapping(_require(manifest, "files", MANIFEST_NAME), f"{MANIFEST_NAME}.files")
-    missing = sorted(set(PAYLOAD_FILES) - set(recorded))
+    missing = sorted(set(required_payload_files(declared)) - set(recorded))
     if missing:
         raise BundleError(f"{MANIFEST_NAME}.files: no digest recorded for {', '.join(missing)}")
     for name, expected in sorted(recorded.items()):
@@ -929,6 +983,13 @@ def read_bundle(path: Path) -> RunBundle:
     if not isinstance(entries, Sequence) or isinstance(entries, str):
         raise BundleError(f"{CARDS_NAME}.cards: expected a list")
 
+    ancestry: Mapping[str, Any] | None = None
+    if declared >= ANCESTRY_FORMAT_VERSION:
+        ancestry = _load_json(directory / ANCESTRY_NAME)
+        _reject_unknown(ancestry, ANCESTRY_KEYS, ANCESTRY_NAME)
+        for key in sorted(ANCESTRY_KEYS):
+            _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
+
     return RunBundle(
         path=directory,
         run_id=str(_require(manifest, "run_id", MANIFEST_NAME)),
@@ -941,4 +1002,5 @@ def read_bundle(path: Path) -> RunBundle:
         cards=tuple(
             _stored_card(entry, f"{CARDS_NAME}.cards[{i}]") for i, entry in enumerate(entries)
         ),
+        ancestry=ancestry,
     )

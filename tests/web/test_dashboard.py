@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from genetics.ancestry.context import AncestryContext
 from genetics.engine.cards import KnowledgePack
 from genetics.privacy import GenotypeLeakError
 from genetics.qc.report import QCReport
@@ -32,6 +33,8 @@ from genetics.testing.fixtures import FIXTURES, render_fixture
 from genetics.web import STATIC_DIR, WebConfig, create_app, views
 from genetics.web.app import _environment
 from genetics.web.views import QCBanner, RunOption, Shell, shell_for
+
+NO_ANCESTRY = AncestryContext.not_run("synthetic test bundle: no ancestry stage ran")
 
 LOCAL_BASE_URL = "http://127.0.0.1:8765"
 
@@ -69,6 +72,7 @@ def saved(
         qc=sample_qc,
         cards=sample_cards,  # type: ignore[arg-type]
         pack=sample_pack,
+        ancestry=NO_ANCESTRY,
         runs_root=runs_root,
         run_id="20260821T090000Z-aaaa1111",
         lock_path=runs_root / "absent.lock",

@@ -16,20 +16,25 @@ the source of truth for build state.
 
 ## Next up
 
-M0-M4 are done and the M4 slice checkpoint passed. **M5 is complete except M5.8.** M5.1-M5.7
-and M5.9 are done and every one of them is verified against real data rather than fixtures: the
-panel is fetched, the LD-pruned subset is built (290,285 markers over 2,504 samples), the
-M5.2 -> M5.3 -> M5.4 chain runs end to end, both haplogroup callers are validated against
-1000 Genomes chrY, M5.5 places a sample among the modern populations and refuses when none
-fits, and M5.6 places it against 442 ancient groups from the AADR.
+M0-M4 are done and the M4 slice checkpoint passed. **M5 is complete except M5.8's local
+acceptance run.** M5.1-M5.7 and M5.9 are done and every one of them is verified against real
+data rather than fixtures: the panel is fetched, the LD-pruned subset is built (290,285 markers
+over 2,504 samples), the M5.2 -> M5.3 -> M5.4 chain runs end to end, both haplogroup callers
+are validated against 1000 Genomes chrY, M5.5 places a sample among the modern populations
+and refuses when none fits, and M5.6 places it against 442 ancient groups from the AADR.
 
-**Next is [M5.8](#m5--ancestry), and it is small but load-bearing**: the ancestry output has
-to reach the shared context object, because PRS confidence depends on it
-([AGENTS.md §4.4](AGENTS.md)). Everything it needs now exists and is typed; what it needs
-deciding is how a *declined* placement is represented downstream. "No population named" is
-not a missing value — it is a positive finding that every PRS on this run should be
-discounted, and a context object that stores `None` there will be read as "not computed yet"
-by the first thing that touches it.
+**[M5.8](#m5--ancestry) is code-complete and waiting on one local run (2026-09-24).** It was
+built in a cloud session, where the real export may not go (AGENTS.md §1.3), so it is verified
+on synthetic data and through the real pinned PLINK 2 binary but not yet on the real file. The
+box stays `[~]` until that run is done; the M5.8 entry says exactly what to run and what to
+expect. `genetics run` now infers ancestry before any card is assembled and saves it in the
+bundle (format 3), with "not inferred" and "inferred, and no population fits" kept apart by
+explicit statuses rather than by a `None`.
+
+**After that, the choice is between [M6](#m6--genome-structure) (next by number) and the
+fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
+study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
+not a blocker for either.
 
 **M5.5's coverage gap is now closed as far as the available panel can honestly close it.**
 [M5.9](#m5--ancestry) selects AADR Human Origins' present-day, diploid individuals into a
@@ -2034,8 +2039,94 @@ section, that proves every layer.*
         annotation sheet before computing modal countries; matching group names from a
         different release are no longer enough. Panel-source names and the manifest's group
         floor are also validated rather than coerced into plausible provenance.
-- [ ] **M5.8** Ancestry output feeds the shared context object — **PRS confidence depends
+- [~] **M5.8** Ancestry output feeds the shared context object — **PRS confidence depends
       on it** ([AGENTS.md §4.4](AGENTS.md)). This ordering dependency is load-bearing.
+      `ancestry/context.py`; wired into `run/pipeline.py`, the bundle, and both CLI commands.
+      - **Code-complete 2026-09-24, in a cloud session; `[~]` until the local half runs.**
+        The real export and the real references are not in the cloud and the export must not
+        go there (AGENTS.md §1.3), so what is verified is synthetic: the unit suite, and one
+        run through the pinned PLINK 2 binary described below. **Remaining acceptance, on
+        the machine that holds the export:**
+        1. `genetics refs verify` -- `aadr` (for `modern_panel_ldpruned.pgen`),
+           `thousand_genomes_phase3_grch37` (for `pca_markers_ldpruned.pgen`), `phylotree_17`
+           and `y_tree_isogg_grch37` should all verify; `genetics refs fetch --only <id>`
+           builds whatever does not.
+        2. `genetics run --input <export>` -- expect `population` to be `placed` or
+           `declined`, never `not_run`, with coverage near the 99.9% M5.5 measured on this
+           chip; both haplogroups `called` on the marker counts M5.7 reported; and `ancient
+           computed`. Note the wall-clock: the first run on a chip builds two reference PCAs
+           and projects ~9,700 ancients.
+        3. Run it again and note the wall-clock: the two PCAs should be reused (`reused=True`
+           in the cache sidecars); the ancient projection is not cached yet (see below).
+        4. `genetics runs show <run-id>` -- the ancestry line should name the population M5.9's
+           panel places this export in; compare `--json`'s `ancestry` with M5.9's own figures.
+        Then tick the box and record the timings in the progress log.
+      - **The shared context object is `AncestryContext`, and a refusal is not a missing
+        value.** Four parts, each with a status: the population placement (`not_run`,
+        `placed`, `declined`), mtDNA and Y (`not_run`, `called`, `not_applicable`) and
+        ancient affinity (`not_run`, `computed`). The placement's status is *derived* from
+        what the result holds rather than stored beside it, so `placed` without a population
+        and `declined` without the decline sentence cannot be constructed, and nothing is
+        built empty without a reason. Y is `not_applicable`, not `not_run`, for a sample QC
+        inferred female -- a result about the sample, not a missing reference.
+      - **Absent is `not_run`; wrong is loud.** A reference not fetched or not built, and a
+        PLINK 2 not installed, are what a fresh checkout looks like, and record `not_run`
+        with the command that fixes it. A reference present and failing `refs verify`'s own
+        check, a tree that cannot be parsed, or a PLINK 2 that is not the pinned build raise
+        `AncestryError` and stop the run -- `default_anchors()`'s line. The artifacts are
+        verified by `postprocess.run(verify_only=True)` with the lock's digests, the same
+        check `refs verify` makes, so the two cannot disagree.
+      - **One refusal stays quiet, and it is about the export.** `InsufficientOverlapError`
+        (new, a `ReferencePcaError` subclass for the three overlap floors) means the chip
+        carries too little of the panel. Every synthetic fixture meets it on a machine with
+        references built, so it records `not_run` with the reason instead of failing the run
+        over a fact about one file; M15.2's structurally different fixture depends on that.
+      - **Ordering is pinned by a test**: the stage runs after ingest and before
+        `assemble_pack`, and a refactor that moved it would fail
+        `test_ancestry_is_inferred_before_any_card_is_assembled`.
+      - **Bundle format 3 adds `ancestry.run.json`**, digested and genotype-scanned like
+        `qc.run.json`. Required only at format 3 and later (`required_payload_files`), so
+        format 1 and 2 bundles still read and list; their `RunBundle.ancestry` is `None`,
+        rendered as "not recorded" -- a different fact from a format 3 bundle recording
+        `not_run`. The whole nested shape is pinned in `test_bundle.py`.
+      - **`genetics run` prints each part's status, never its answer.** A haplogroup
+        restates genotypes at its defining sites and a population is an inference about the
+        person; `genetics runs show` names them. Progress lines go to stderr so `--json`
+        stays one document.
+      - **The sample's own intermediates do not outlive the run**: its harmonized pgen and
+        projections go in a per-run directory under `cache_dir()` that is removed on success
+        and on failure, and is created only when a part actually computes -- a run with
+        nothing fetched, which is every test run, writes nothing to the user's data directory.
+        The two reference PCAs are kept, keyed to panel and chip as before.
+      - **The suite is pinned to an empty reference tree** (conftest), because the stage
+        reads whatever this checkout has fetched and would otherwise run for real over
+        synthetic fixtures on a machine with references built. A test asserts the pin.
+      - **Found by running it, not by the tests.** The first real-binary run failed with
+        PLINK's "All genotypes in single-sample VCF contain at least one ALT allele". The
+        cause was the synthetic archive, not the stage: it listed the sample's own allele
+        first at every site, so every call carried the panel's ALT. Real allele order is
+        unrelated to any one person, and M5.9 ran this path on the real export. Recorded
+        because it is the one refusal a synthetic panel built *from* the sample will always
+        meet.
+      - **Real-binary smoke run (synthetic data, pinned PLINK 2).** A synthetic AADR archive
+        and a synthetic 1000 Genomes release on the male fixture's own coordinates (~10,000
+        sites), both reference artifacts built by the real post-process steps, then the stage
+        end to end. With a population the sample is a typical member of: **placed**, fit
+        1.08 against a threshold of 2.02 over 9,290 markers at 100% coverage, region read
+        from the annotation sheet; the ancient group built from the same frequencies ranked
+        first at 3.3 against 41.9. With that population removed: **declined**, nearest fit
+        22.8 against 1.48, and the decline sentence names both. Both runs saved and read back
+        at format 3; no per-run scratch left behind. Mechanics only -- M5.4's lesson is that
+        numbers measured on a synthetic array describe the fixture.
+      - **Deliberately not done here.** `ancestry_match` stays `None` on every card: turning
+        a placement into a number needs a mapping from the 100 AADR populations (whose region
+        is a sampling *country*) onto the five study-ancestry codes cards declare, and a
+        rule for what a *declined* placement does to it. Both are
+        [M9.5](#m9--prs-engine--score-driven-sections)'s; the `{ancestry}` card placeholder
+        now points there too, and the `Ancestry` enum's docstring, which still said M5.3
+        would add finer labels, says so. The ancient model is recomputed each run (minutes
+        on the real archive) rather than cached per chip -- worth doing if the local timing
+        says so.
 
 ---
 
@@ -2104,6 +2195,14 @@ default-on.*
       ancestry-matched reference group where possible.
 - [ ] **M9.5** Ancestry-portability adjustment to confidence
       ([AGENTS.md §4.4](AGENTS.md)).
+      - **Owns the mapping M5.8 left open.** `AncestryContext.population` names one of M5.9's
+        100 AADR populations, with a sampling country as its region; cards declare study
+        ancestry as five continental codes. Something has to map one onto the other before
+        `ancestry_match` can be a number, and it must not be written from memory
+        ([AGENTS.md §6](AGENTS.md)). It also has to decide what `declined` does -- a finding
+        that the sample is unrepresented, which should lower portability, not leave it at
+        the neutral `None` the calculator uses for "not computed". The `{ancestry}` card
+        placeholder is locked until this lands.
 - [ ] **M9.6** PRS card renderer: distribution-dominant visual, **no point estimates about
       the person**, absolute outcome rates by decile where available, within-family
       attenuation stated on the card face where known.
@@ -2290,6 +2389,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-09-24 | M5.8 | **Ancestry reaches the run, and a refusal cannot be read as a gap.** Built in a cloud session, so verified on synthetic data and through the pinned PLINK 2 binary; the box stays `[~]` until the real-export run described in the M5.8 entry. **1706 passed + 7 skipped** (51 new); ruff, `ruff format` and `mypy --strict` clean. `AncestryContext` carries four parts with explicit statuses -- population `not_run`/`placed`/`declined`, mtDNA and Y `not_run`/`called`/`not_applicable`, ancient `not_run`/`computed` -- and the placement's status is derived from what it holds, so the combinations that would contradict each other cannot be built. `genetics run` infers it after ingest and before any card is assembled, pinned by a test; the bundle moves to **format 3** with `ancestry.run.json`, required only from format 3 so every saved run still reads and lists. **Absent is `not_run`, wrong is loud**: an unbuilt reference or missing PLINK records the fix-it command, while an artifact failing `refs verify`'s own check, an unparseable tree or an unpinned PLINK stops the run; the one quiet refusal is the export sharing too little with the panel (`InsufficientOverlapError`, new), because it is a fact about one file. `genetics run` prints statuses and counts, never a population or haplogroup; `runs show` names them. Twenty-two guards broken one at a time, twenty-two caught. **The real binary found what the tests could not**: PLINK refuses a single-sample VCF whose every call carries ALT, which a synthetic archive built with the sample's allele listed first always produces -- a fixture artifact, fixed in the fixture. Smoke run on the male fixture's coordinates: placed at fit 1.08 against 2.02 when a matching population exists, declined at 22.8 against 1.48 when it does not, ancient ranking correct in both. `ancestry_match` stays `None`: the AADR-to-study-code mapping and what `declined` does to it are M9.5's. |
 | 2026-09-24 | M2.7 fix | **The offline guard failed open behind a proxy on loopback, and the first session run from the web client is what found it.** Baseline in that container: **1641 passed, 7 skipped, 2 failed**, both failures in `tests/privacy/test_no_network.py` -- and because the pre-commit hook runs the privacy suite, no commit could have gone through. The container sends all outbound traffic through a proxy at `127.0.0.1`; the guard allows loopback on purpose (M4.3's server), urllib honours `HTTPS_PROXY`, so the guarded request connected to loopback and the proxy carried it off the machine -- one came back with an HTTP 404. **Not a cloud quirk**: any machine with a local proxy (a corporate one, Fiddler, mitmproxy) had the same hole, invisible here only because no machine this project has run on had one. Closed twice. Under the guard urllib sees an empty proxy table, and its cached opener is cleared on the way in and out, since `urlopen` keeps whatever table it was built under; so it connects directly and is refused by name. And a loopback `connect` to a configured proxy's port is refused whatever made it, for httpx and requests. **1655 passed + 7 skipped** (12 new); ruff, `ruff format` and `mypy --strict` clean. The regression tests stand up their own listener as the proxy, so against the old guard they fail on *any* machine (3 of 4 verified failing; the fourth asserts loopback still works), and each of the fix's six parts was removed in turn and caught. Also found: `core.hooksPath` is unset in a fresh clone, so the hook would not have run at all; `genetics install-hooks` fixed that before this commit. |
 | 2026-08-25 | M5.9 review | Diff-driven correctness and completeness pass over `86a0c69`. **Four fail-open boundaries closed.** (1) The modern-panel selector and transpose reopen passed the packed archive's SNP hash but not its individual hash, so a same-shaped wrong or reordered `.ind` could select genotype records by the wrong row while every size check passed; both paths now verify EIGENSOFT's individual hash. (2) The AADR locality reader joined on group name alone, so an annotation sheet from another release with the same plausible population names and none of the panel's sample IDs was accepted; it now verifies every `.psam` sample and group before taking the modal country, and ignores non-panel rows. (3) `reference_panels="aadr"` was a valid `Sequence[str]` and entered provenance as four one-character sources; bare strings, empty/padded names and duplicates now fail before cache lookup. (4) YAML `min_group: 20.5` silently became 20 through `int()` despite the error contract saying whole number; fractional and boolean values are refused. The roadmap's M5.3 and M5.5 sections were also reconciled with the completed widening instead of continuing to call 1000G-only final and every widened coverage statement unknown. **1,645 tests + 5 skips**; repository-wide ruff, `ruff format` and `mypy --strict` clean. |
 | 2026-08-25 | M5.9 | **M5.5's continental coverage gap is closed without weakening its refusal.** AADR Human Origins already held the missing modern panel: after selecting known present-day dates, removing AADR QC/outlier labels, measuring diploidy rather than trusting file suffixes, and applying the model's 20-member floor, the artifact holds **5,553 individuals in 100 populations**. In the same 44,872-marker space, refusal over those members falls **32.1% -> 0.2%**, 90th-percentile geographic naming error **3,778 km -> 1,212 km**, and names within 1,000 km rise 78% -> 89%; held-out populations with no substitute still refuse, including all Khomani and Aboriginal Australian samples. `build_modern_reference_panel` transposes the 4 GB individual-major archive to PLINK BED in bulk, filters/LD-prunes it, keeps population labels in the fileset and binds the four source digests, settings, selection counts, exact group set and companion digests into provenance. The transpose was checked cell by cell against an independent decoder and at full size produced bytes identical to an independent implementation. **The integration defect came from a real PLINK header:** an EIGENSTRAT panel has provisional REF alleles, so `--pca allele-wts` inserts `PROVISIONAL_REF?`; fixed positions read `Y` as A1 and rejected every weight. Projection now locates ID/A1/PC columns by name and verifies the sequence begins at PC1. The completion pass added the label-reader, exact coverage-binding, executor/provenance and cache-identity tests and found two more reachable failures: malformed packed input escaped the post-process runner as an `EigenstratError` traceback, and ten physically adjacent `PC2..PC11` columns passed the contiguity guard while silently omitting PC1. Both now fail closed. **1,633 tests + 5 skips**; repository-wide ruff, `ruff format` and `mypy --strict` clean. |

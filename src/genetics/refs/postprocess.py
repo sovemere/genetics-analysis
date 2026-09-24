@@ -1945,6 +1945,38 @@ exactly one of each -- is checked.
 """
 
 
+def aadr_input_paths(source: Source, source_dir: Path) -> dict[str, Path]:
+    """The four AADR files, keyed by suffix, each required to be on disk.
+
+    Public because M5.8's ancestry stage reads the same four files this step builds from --
+    the annotation sheet for population localities, and the EIGENSTRAT trio for ancient
+    affinity. A second locator would be a second answer to "which file is the ``.anno``",
+    and the manifest already names exactly one of each.
+    """
+    found: dict[str, Path] = {}
+    for item in source.files:
+        suffix = Path(item.filename).suffix.lower()
+        if suffix not in _AADR_SUFFIXES:
+            continue
+        if suffix in found:
+            raise ProcessError(
+                f"this source names more than one {suffix} file ({found[suffix].name} and "
+                f"{item.filename}); the modern panel cannot choose between them."
+            )
+        path = _inside(source_dir, item.filename, label="input")
+        if not path.is_file():
+            raise ProcessError(f"panel input {item.filename} is missing; fetch this source first")
+        found[suffix] = path
+    missing = [suffix for suffix in _AADR_SUFFIXES if suffix not in found]
+    if missing:
+        raise ProcessError(
+            f"this source has no {', '.join(missing)} file. The modern panel needs the "
+            "EIGENSTRAT trio and the annotation sheet; a source carrying only some of them "
+            "is a partial fetch rather than a different layout."
+        )
+    return {suffix: found[suffix] for suffix in _AADR_SUFFIXES}
+
+
 def _aadr_inputs(
     source: Source, source_dir: Path, input_digests: Mapping[str, str] | None
 ) -> tuple[dict[str, Path], str]:
@@ -1954,30 +1986,17 @@ def _aadr_inputs(
     manifest does not invalidate a built artifact -- the same reason
     :func:`_panel_input_digest` sorts by chromosome.
     """
-    found: dict[str, tuple[Path, str]] = {}
-    for item in source.files:
-        suffix = Path(item.filename).suffix.lower()
-        if suffix not in _AADR_SUFFIXES:
-            continue
-        if suffix in found:
-            raise ProcessError(
-                f"this source names more than one {suffix} file ({found[suffix][0].name} and "
-                f"{item.filename}); the modern panel cannot choose between them."
-            )
-        path = _inside(source_dir, item.filename, label="input")
-        if not path.is_file():
-            raise ProcessError(f"panel input {item.filename} is missing; fetch this source first")
-        found[suffix] = (path, (input_digests or {}).get(item.filename) or _sha256(path))
-    missing = [suffix for suffix in _AADR_SUFFIXES if suffix not in found]
-    if missing:
-        raise ProcessError(
-            f"this source has no {', '.join(missing)} file. The modern panel needs the "
-            "EIGENSTRAT trio and the annotation sheet; a source carrying only some of them "
-            "is a partial fetch rather than a different layout."
-        )
-    joined = "\n".join(f"{found[s][0].name} {found[s][1]}" for s in _AADR_SUFFIXES)
+    paths = aadr_input_paths(source, source_dir)
+    # Keyed by the manifest's filename, which is what `input_digests` is keyed by; the
+    # duplicate-suffix refusal above guarantees one filename per suffix.
+    filenames = {Path(item.filename).suffix.lower(): item.filename for item in source.files}
+    digests = {
+        suffix: (input_digests or {}).get(filenames[suffix]) or _sha256(path)
+        for suffix, path in paths.items()
+    }
+    joined = "\n".join(f"{paths[s].name} {digests[s]}" for s in _AADR_SUFFIXES)
     digest = hashlib.sha256(joined.encode("utf-8")).hexdigest()
-    return {suffix: found[suffix][0] for suffix in _AADR_SUFFIXES}, digest
+    return paths, digest
 
 
 def _resolve_min_group(params: Mapping[str, Any]) -> int:

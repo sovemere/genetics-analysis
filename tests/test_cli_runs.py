@@ -15,13 +15,23 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+from genetics.ancestry.context import AncestryContext
 from genetics.cli.main import app
 from genetics.engine.cards import KnowledgePack
 from genetics.engine.evidence import AssembledCard
 from genetics.paths import runs_dir
 from genetics.privacy import GenotypeLeakError
 from genetics.qc.report import QCReport
-from genetics.run.bundle import BUNDLE_FORMAT_VERSION, INCOMING_PREFIX, MANIFEST_NAME, write_bundle
+from genetics.run.bundle import (
+    ANCESTRY_FORMAT_VERSION,
+    ANCESTRY_NAME,
+    BUNDLE_FORMAT_VERSION,
+    INCOMING_PREFIX,
+    MANIFEST_NAME,
+    write_bundle,
+)
+
+NO_ANCESTRY = AncestryContext.not_run("synthetic test bundle: no ancestry stage ran")
 
 runner = CliRunner()
 
@@ -45,6 +55,7 @@ def saved(
         qc=sample_qc,
         cards=sample_cards,
         pack=sample_pack,
+        ancestry=NO_ANCESTRY,
         runs_root=store_root,
         run_id="20260817T101112Z-ab12cd34",
         created_at=datetime(2026, 8, 17, 10, 11, 12, tzinfo=UTC),
@@ -310,3 +321,65 @@ def test_the_runs_group_is_registered() -> None:
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     assert "runs" in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# show: ancestry (M5.8)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def saved_placed(
+    store_root: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    placed_ancestry: AncestryContext,
+) -> Path:
+    return write_bundle(
+        qc=sample_qc,
+        cards=(),
+        pack=sample_pack,
+        ancestry=placed_ancestry,
+        runs_root=store_root,
+        run_id="20260924T101112Z-cd34ef56",
+        lock_path=store_root / "absent.lock",
+        tools_root=store_root / "tools",
+    )
+
+
+def test_show_names_the_placement_that_run_withheld(
+    saved_placed: Path, ancestry_names: dict[str, str]
+) -> None:
+    """``runs show`` is the command that states results; ``run`` reports only statuses."""
+    result = runner.invoke(app, ["runs", "show", saved_placed.name])
+    assert result.exit_code == 0, result.output
+    line = next(row for row in result.stdout.splitlines() if row.strip().startswith("ancestry"))
+    assert ancestry_names["population"] in line and ancestry_names["region"] in line
+
+
+def test_show_json_carries_the_whole_ancestry_record(
+    saved_placed: Path, placed_ancestry: AncestryContext
+) -> None:
+    result = runner.invoke(app, ["runs", "show", saved_placed.name, "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["ancestry"] == placed_ancestry.to_dict()
+
+
+def test_show_says_why_ancestry_was_not_run(saved: Path) -> None:
+    result = runner.invoke(app, ["runs", "show", saved.name])
+    assert result.exit_code == 0, result.output
+    assert "not_run: synthetic test bundle" in result.stdout
+
+
+def test_show_of_a_run_from_before_the_stage_says_not_recorded(saved: Path) -> None:
+    """Not "not run": the stage did not exist, which is a different fact about the run."""
+    manifest = json.loads((saved / MANIFEST_NAME).read_text(encoding="utf-8"))
+    del manifest["files"][ANCESTRY_NAME]
+    (saved / ANCESTRY_NAME).unlink()
+    _edit_manifest(saved, files=manifest["files"], format_version=ANCESTRY_FORMAT_VERSION - 1)
+
+    shown = runner.invoke(app, ["runs", "show", saved.name])
+    assert shown.exit_code == 0, shown.output
+    assert "not recorded" in shown.stdout
+    as_json = runner.invoke(app, ["runs", "show", saved.name, "--json"])
+    assert json.loads(as_json.stdout)["ancestry"] is None

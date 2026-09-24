@@ -9,7 +9,14 @@ driven by exactly one of them.
 The stages are the ones the earlier milestones already built, in the only order they
 compose::
 
-    ingest -> match_pack -> assemble_pack -> write_bundle
+    ingest -> infer_ancestry -> match_pack -> assemble_pack -> write_bundle
+
+**Ancestry runs before any card is assembled (M5.8), and that order is the requirement.**
+PRS confidence depends on it (AGENTS.md 4.4), so the stage that will consume it -- M9.5,
+turning a placement into ``ancestry_match`` -- has to find it already computed. What the
+stage returns is :class:`~genetics.ancestry.context.AncestryContext`, whose statuses keep
+"not inferred" and "inferred, and no reference population fits" apart; see that module for
+why the difference is load-bearing. Nothing in this module yet reads it back into a card.
 
 Nothing here reshapes what those return. That is deliberate: every adapter written at this
 seam would be a second description of a format that already has one, and the failure this
@@ -20,7 +27,8 @@ being explicit about why that is a decision rather than a default.
 :func:`~genetics.engine.evidence.assemble_pack` refuses to assemble an interpretation card
 without :class:`~genetics.engine.evidence.ObservationEvidence`, because assuming a direct
 call would score an imputed observation as perfect. At this milestone there is no
-imputation stage and no ancestry fit, so the honest observation is
+imputation stage, and the ancestry stage's result has no mapping onto a card's study
+population yet (M9.5), so the honest observation is
 :attr:`~genetics.engine.confidence.CallSource.DIRECT` with no frequencies and no ancestry
 match -- and the caveat that produces on the card face ("no population frequency was
 available, so the rarity check could not be applied and confidence is capped") is the
@@ -41,11 +49,13 @@ record for unmatched cards would throw it away for the only cards it can disting
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 from typing import ClassVar
 
+from genetics.ancestry.context import AncestryContext, AncestryStage, infer_ancestry
 from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import AssembledCard, ObservationEvidence, assemble_pack
@@ -87,6 +97,7 @@ class Analysis(NoGenotypeRepr):
     pack: KnowledgePack
     matches: tuple[MatchResult, ...]
     cards: tuple[AssembledCard, ...]
+    ancestry: AncestryContext
 
     @property
     def vendor(self) -> str:
@@ -137,13 +148,24 @@ def observations(pack: KnowledgePack) -> dict[str, ObservationEvidence]:
     return {card.id: _DIRECT for card in pack.cards if card.kind is not CardKind.IMPOSSIBILITY}
 
 
-def analyse(input_path: Path, *, knowledge_dir: Path | None = None) -> Analysis:
-    """Parse, QC, match and assemble. Writes nothing.
+def analyse(
+    input_path: Path,
+    *,
+    knowledge_dir: Path | None = None,
+    ancestry: AncestryStage | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> Analysis:
+    """Parse, QC, infer ancestry, match and assemble. Writes nothing to the run store.
 
-    Raises whatever the stages raise -- ``IngestError``, ``AnchorError``, ``CardError``,
-    ``EvidenceAssemblyError`` -- unwrapped. A pipeline-specific exception type here would
-    hide which stage failed behind one name, and the CLI has to tell a bad export from a
-    bad knowledge pack to say anything useful about either.
+    ``ancestry`` replaces the default stage, :func:`~genetics.ancestry.context.
+    infer_ancestry`. ``progress`` is handed to that default and receives one line per slow
+    step, since the first run on a new chip builds a reference PCA and that takes minutes; a
+    replacement stage reports progress however it likes.
+
+    Raises whatever the stages raise -- ``IngestError``, ``AnchorError``, ``AncestryError``,
+    ``CardError``, ``EvidenceAssemblyError`` -- unwrapped. A pipeline-specific exception type
+    here would hide which stage failed behind one name, and the CLI has to tell a bad export
+    from a bad knowledge pack to say anything useful about either.
     """
     # The pack loads first, though nothing about the data requires it: `KnowledgePack.load`
     # parses a few YAML files, while `ingest` parses 677,000 rows. With the other order a
@@ -152,6 +174,10 @@ def analyse(input_path: Path, *, knowledge_dir: Path | None = None) -> Analysis:
     # authoring is exactly when that mistake gets made.
     pack = KnowledgePack.load(knowledge_dir)
     result: IngestResult = ingest(input_path)
+    if ancestry is None:
+        context = infer_ancestry(result.table, result.qc, progress=progress)
+    else:
+        context = ancestry(result.table, result.qc)
     matches = match_pack(pack, result.table)
     cards = assemble_pack(pack, matches, observations(pack))
     return Analysis(
@@ -160,6 +186,7 @@ def analyse(input_path: Path, *, knowledge_dir: Path | None = None) -> Analysis:
         pack=pack,
         matches=matches,
         cards=cards,
+        ancestry=context,
     )
 
 
@@ -184,6 +211,7 @@ def save(
         qc=analysis.qc,
         cards=analysis.cards,
         pack=analysis.pack,
+        ancestry=analysis.ancestry,
         runs_root=runs_root,
         run_id=run_id,
         created_at=created_at,

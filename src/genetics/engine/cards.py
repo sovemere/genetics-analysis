@@ -196,14 +196,18 @@ class Ancestry(StrEnum):
     "European"/"EUR"/"european"/"White British" cannot be compared. These five codes have
     been stable since 1000G phase 3 and need no reference download to write down.
 
-    Finer labels (the twenty-six 1000G populations) arrive with M5.3, which is where the
-    reference panel is actually chosen; extending this enum is that milestone's job. HGDP
-    and SGDP were named here too until 2026-08-22, when M5.3 scoped the panel to 1000G
-    alone -- HGDP is withdrawn by its publisher and SGDP's public subset averages two
-    samples per population. So the finer labels that arrive are 1000G's and no others, and
-    whole regions have none. Until then a study is describable at continental
-    granularity, which is the granularity portability arguments are usually made at
-    anyway.
+    **The sample's side of that comparison is no longer in this vocabulary, and nothing maps
+    between the two yet (found at M5.8, 2026-09-24).** This docstring said finer labels --
+    the twenty-six 1000G populations -- would arrive with M5.3. They did not, and M5.9 then
+    moved placement to AADR Human Origins' 100 present-day populations, whose region is the
+    *country a population was sampled in* rather than a continental code
+    (:func:`~genetics.ancestry.populations.read_aadr_population_labels` explains why no
+    continental grouping was invented). So a placement reads "Druze, Israel" and a study
+    reads ``EUR``. M5.8 carries the placement forward unmapped; writing the mapping, and
+    deciding what a *declined* placement does to a study-to-sample match, is M9.5's.
+
+    A study stays describable at continental granularity, which is the granularity
+    portability arguments are usually made at anyway.
     """
 
     AFR = "AFR"
@@ -256,7 +260,10 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     TemplateVar("confidence", "The computed confidence tier."),
     TemplateVar("frequency", "Population allele frequency from gnomAD.", milestone="M7.2"),
     TemplateVar("ppv", "Empirical PPV for the frequency band.", milestone="M7.3"),
-    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M5.8"),
+    # M5.8 computes the ancestry context, but a card sentence needs it mapped onto the
+    # study-ancestry codes cards declare, and a *declined* placement needs wording that
+    # cannot read as a missing value. Both are M9.5's; until then naming this is refused.
+    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.5"),
     TemplateVar("imputation_quality", "Per-variant r2/DR2.", milestone="M8.5"),
     TemplateVar("percentile", "Placement in the reference distribution.", milestone="M9.4"),
 )
@@ -601,7 +608,8 @@ class Evidence:
                 known = ", ".join(a.value for a in Ancestry)
                 raise CardError(
                     f"{where}.ancestry: unknown population {label!r}. Known: {known}. "
-                    "Finer labels arrive with the reference panel in M5.3."
+                    "Finer labels, and their mapping onto a sample's inferred ancestry, are "
+                    "M9.5's."
                 ) from None
 
         attenuation = data.get("within_family_attenuation")
