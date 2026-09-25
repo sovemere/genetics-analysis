@@ -28,8 +28,9 @@ inferred" and "inferred, and no population fits" kept apart by explicit statuses
 a `None`. On the real export: population placed, both haplogroups called, ancient computed, in
 about a minute with the reference PCAs cached.
 
-**Next, the choice is between [M6](#m6--genome-structure) (next by number) and the
-fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
+**M6.1 is implemented and validated against the pinned native tools on synthetic panels
+(2026-09-25). Next is [M6.2](#m6--genome-structure), the autozygosity interpretation card,
+or the fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
 study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
 not a blocker for either.
 
@@ -2148,9 +2149,34 @@ section, that proves every layer.*
 
 ## M6 — Genome structure
 
-- [ ] **M6.1** ROH via PLINK `--homozyg`. LD-prune and MAF-filter first; **do not use the
+- [x] **M6.1** ROH via **PLINK 1.9** `--homozyg` (PLINK 2 handles preparation). LD-prune and MAF-filter first; **do not use the
       defaults** — tune window/length parameters for 677k density and document the
       choice. Report total ROH length, count, longest segment, and F_ROH.
+      - **Completed 2026-09-25.** `genetics roh --input <export>` calls the shared
+        `structure.roh.compute_roh` engine and emits JSON, or saves `.roh.json` outside
+        the checkout. [Method and usage](docs/roh.md) document every parameter and the
+        observable-autosomal-span denominator; this is long-ROH F_ROH, not a whole-genome
+        coefficient. Missing/insufficient calls are explicit, never silently a zero score.
+      - **Toolchain correction:** the pinned PLINK 2 build has no `--homozyg`.
+        Official PLINK 1.9 v1.9.0-rc3 (23 Sep 2026) archives were downloaded and hashed
+        for Windows, Linux and Intel macOS; the Windows binary was installed and verified.
+        The shared subprocess wrapper preserves version checking and error redaction.
+      - **Reference filtering precedes sample conversion.** Unpruned GRCh37 cohorts,
+        at least 50 reference members, MAF 0.05, missingness 0.02, LD 500 kb / step 1 /
+        r-squared 0.2. Defaults use the fetched pooled 1000G panel, explicitly labelled;
+        `--keep` allows a named ancestry-matched cohort. No MAF or LD is estimated from
+        the subject. PCA subsets are not reused. All reference hashes and settings persist.
+      - **Validation:** fixed-seed synthetic panels with planted long runs, correlated
+        markers, rare sites, gaps, missing calls and random controls. Real pinned binaries
+        verify reference filtering, detection, gap splitting, no-call handling, call-independent
+        marker selection, CLI serialization, and scratch cleanup after late failures.
+        CI installs both pinned tools to run these checks on Windows and Linux.
+        Full local suite: **1,740 passed, 5 platform skips**; ruff, format and strict
+        mypy clean. Synthetic fixture reproduction and card-schema lint also pass.
+      - **Remaining limits are explicit:** no short-run sensitivity claim or empirical
+        chip/population calibration yet; interpretation belongs to M6.2. Scratch is cleaned
+        on completion/errors, but interrupted reference processing is not resumable in this
+        first engine. No personal results or reference payloads are committed.
 - [ ] **M6.2** Autozygosity interpretation card. Sensitive and occasionally surprising —
       include it, compute it properly, state it plainly
       ([AGENTS.md §0.1B](AGENTS.md)). No euphemism, no advice.

@@ -325,3 +325,11 @@ desktop.ini
 .idea/
 .vscode/
 !.vscode/extensions.json
+
+# M6.1 ROH segments, summaries, and sample-specific marker selections
+*.hom
+*.hom.*
+*.roh.json
+*.prune.in
+*.prune.out
+*.roh-markers.txt

@@ -472,7 +472,8 @@ This is not a blocker, but it is a binding architectural constraint:
   for the obvious library will produce code that cannot run here.
 - **Push work into PLINK 2**, which has native Windows builds and reads/writes VCF
   directly. It covers format conversion, LD pruning, PCA projection, `--score` for both
-  PCA and PRS, `--homozyg` for ROH, allele frequencies, and sex checks. Most of the
+  PCA and PRS, allele frequencies, and sex checks. ROH uses a separately pinned native PLINK 1.9
+  binary: PLINK 2 does not implement `--homozyg` (verified 2026-09-25). Most of the
   pipeline is one native binary. PLINK 2 is still alpha — **pin the exact build in the
   manifest.** *Updated at M2.5 (2026-08-15): the "2.00a5.x" originally written here is
   stale, and following it literally would now pin an undocumented build — the download

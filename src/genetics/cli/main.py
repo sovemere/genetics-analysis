@@ -397,5 +397,10 @@ _add_cards_commands()
 _add_runs_commands()
 
 
+from genetics.cli.roh_cmd import roh  # noqa: E402
+
+app.command()(roh)
+
+
 if __name__ == "__main__":
     app()

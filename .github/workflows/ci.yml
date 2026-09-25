@@ -71,9 +71,17 @@ jobs:
           # this set, an unavailable namespace fails the job instead of quietly passing it.
           GENETICS_REQUIRE_OS_ISOLATION: ${{ runner.os == 'Linux' && '1' || '' }}
 
+      - name: Install pinned tools for synthetic ROH acceptance
+        run: |
+          uv run genetics tools install --only plink2
+          uv run genetics tools install --only plink19
+        env:
+          GENETICS_DATA_DIR: ${{ runner.temp }}/genetics-native
+
       - name: Tests
         run: uv run pytest -q
         env:
+          GENETICS_ROH_TEST_TOOLS: ${{ runner.temp }}/genetics-native/tools
           GENETICS_REQUIRE_OS_ISOLATION: ${{ runner.os == 'Linux' && '1' || '' }}
 
       - name: Fixtures reproduce byte-identically
@@ -101,7 +109,8 @@ jobs:
           hits=$(find . -path ./.git -prune -o \
             \( -name '*.vcf' -o -name '*.vcf.gz' -o -name '*.bed' -o -name '*.bim' \
                -o -name '*.fam' -o -name '*.pgen' -o -name '*.eigenvec' \
-               -o -name '*.sscore' -o -name '*.run.json' \) -print)
+               -o -name '*.sscore' -o -name '*.run.json' -o -name '*.hom' \
+               -o -name '*.hom.*' -o -name '*.roh.json' \) -print)
           if [ -n "$hits" ]; then
             echo "::error::genotype-derived artifacts present:"
             echo "$hits"

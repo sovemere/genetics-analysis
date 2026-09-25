@@ -279,11 +279,11 @@ def test_refs_probe_can_be_narrowed_to_one_source(monkeypatch: pytest.MonkeyPatc
 # ---------------------------------------------------------------------------
 
 
-def test_tools_status_reports_both_tools_for_this_platform() -> None:
+def test_tools_status_reports_all_tools_for_this_platform() -> None:
     payload = run_json("tools", "status")
     assert payload["platform"].split("_", 1)[0] in {"windows", "macos", "linux"}
     ids = {row["tool_id"] for row in payload["tools"]}
-    assert ids == {"plink2", "beagle"}
+    assert ids == {"plink2", "beagle", "plink19"}
 
 
 def test_tools_status_says_which_milestone_needs_each_tool() -> None:
