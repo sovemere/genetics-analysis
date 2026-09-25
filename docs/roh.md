@@ -3,7 +3,8 @@
 `genetics roh --input <export> --output <outside-repo>/result.roh.json` calls
 the shared `genetics.structure.roh.compute_roh` engine. The default references are
 the 22 already-fetched 1000 Genomes phase 3 GRCh37 autosomal VCFs. This is a separate
-computation command; M6.2 owns its interpretation card and dashboard integration.
+computation command; **M6.1 is complete**, including the diff-driven review pass.
+M6.2 owns its interpretation card and dashboard integration.
 
 Install the pinned native tools with `genetics tools install --only plink19` and
 `genetics tools install --only plink2`. PLINK 2 does not implement `--homozyg`.
@@ -18,8 +19,12 @@ reference cohort**, not the subject's pgen. The engine requires at least 50 coho
 members. It intersects array positions, excludes non-SNP and strand-ambiguous sites,
 requires reference MAF >= 0.05 and reference missingness <= 0.02, then prunes LD in
 500 kb windows, step 1, r-squared 0.2. Filtering never uses allele frequencies or LD
-estimated from the subject. Duplicate reference positions and overlapping chromosome
-inputs fail explicitly. Unresolved array calls remain missing or are excluded by the
+estimated from the subject. Duplicate reference positions and overlapping analyzed
+chromosomes fail explicitly. An empty filtered intersection, a sub-window intersection,
+or an intersection that cannot be harmonized is recorded as unavailable for that
+reference; it does not abort usable results from other chromosomes. Malformed reference
+files and other native errors still fail. A filter that leaves no variants may stop
+before the selected cohort size can be measured; that count is then null, not guessed. Unresolved array calls remain missing or are excluded by the
 existing harmonizer; alleles are never filled from the reference.
 
 The default uses pooled 1000G frequencies and LD, **not an ancestry-matched cohort**.
@@ -29,13 +34,18 @@ For another panel, repeat `--reference <cohort.vcf.gz-or-pgen>` and supply
 `--reference-version` and `--population`. The caller is responsible for the panel's
 GRCh37 build and diploid/unrelated sample selection; filenames cannot prove those facts.
 Input SHA256 digests, selected-sample file digest, versions, cohort sizes, retained
-marker digests, tool versions and parameters are recorded in the result.
+marker digests, tool versions and parameters are recorded in the result. Hashes are
+keyed by input role (`vcf`, or `pgen`/`pvar`/`psam`, plus optional `keep`), so identical
+filenames in different directories cannot overwrite provenance. Per-reference status
+and harmonization counts distinguish absent coverage from excluded calls.
 
 ## Parameter policy
 
 This first policy targets **long runs (at least 5 Mb)** on a ~677k consumer array,
 after substantial reference filtering. It does not claim sensitivity to short ROH.
-All native settings are explicit and can be overridden through `--settings <JSON>`:
+All native settings are explicit and can be overridden through `--settings <JSON>`.
+Fractions must be finite numbers, not JSON booleans. A zero reference-missingness
+threshold is valid and requires completely called reference markers:
 
 | Setting | Value | Reason |
 |---|---:|---|
@@ -57,22 +67,39 @@ Native flag semantics and inclusive segment lengths are documented in the
 
 ## Denominator and coverage
 
-`F_ROH = total_roh_bp / denominator_bp`. The denominator is the sum of observable
+`F_ROH = total_roh_bp / denominator_bp`. The denominator is the sum of **assayed**
 autosomal marker spans, broken at gaps larger than 500 kb, retaining blocks with at
-least 50 markers and length >=5 Mb. Coordinates and lengths are **1-based inclusive**.
-Unobserved chromosome ends and large gaps contribute to neither numerator nor
-denominator. Density is checked on each ROH, not on an entire denominator block:
-a sparse block can contain a dense callable run. A denominator block is an assay
-span, not a guarantee that all calls within it are present.
+least 50 markers and length >=5 Mb under the default settings. Coordinates and lengths
+are **1-based inclusive**. Unobserved chromosome ends and large gaps contribute to
+neither numerator nor denominator. Density is checked on each ROH, not on an entire
+denominator block: a sparse block can contain a dense callable run. A denominator
+block is an assay span, not a claim that every part of it was observable.
 
-This is a long-ROH fraction of the observable assay, **not a whole-genome inbreeding
-coefficient**, and should not be compared unqualified across chips or filtering
-policies. The result includes intervals, chromosomes assayed, missing-call count,
-array/retained/analyzed marker counts, total length, count and longest run.
-Too few observed calls for even one valid window yields `insufficient_calls` and
-`f_roh: null`. No eligible denominator yields `insufficient_coverage` and `f_roh: null`, never zero.
-Low coverage and missingness remain visible. A zero with a nonzero denominator means
-no run met this policy; it does not exclude shorter or poorly covered runs.
+This is an **observed long-ROH fraction of the assay**, not a whole-genome inbreeding
+coefficient or an estimate corrected for missing calls. It should not be compared
+unqualified across chips or filtering policies. The result includes intervals,
+chromosomes assayed, missing-call count, array/retained/analyzed marker counts,
+total length, count and longest run.
+
+Schema **2** adds per-interval `window_support`. Within eligible denominator blocks,
+it counts contiguous windows meeting the configured density bound and then those
+also meeting the window-missingness bound. Heterozygotes count as observed calls;
+the diagnostic does not select regions for their homozygosity. This is a check for
+potential support, not a claim that a ROH exists. Actual native segments take
+precedence over the conservative fixed-window diagnostic for custom settings.
+
+No eligible span or density-supported window yields `insufficient_coverage` and
+`f_roh: null`. Density-supported windows without sufficient local calls yield
+`insufficient_calls` and `f_roh: null`. A large genome-wide called-marker count cannot
+substitute for a usable local window, and calls outside denominator blocks do not
+establish support within them.
+
+When some blocks are usable and others are not, findings and the assay denominator
+remain visible. The result explicitly warns that the observed fraction can underestimate
+ROH in unobservable regions; per-block counts identify the unsupported spans. A numeric
+zero means no run met the policy in a result with some window support. It does not
+exclude shorter or poorly covered runs. Schema 1 used a genome-wide count for this
+check; rerun those results to obtain the corrected observability status.
 
 ## Storage and execution
 
@@ -84,5 +111,11 @@ does not resume interrupted chromosome work. Full-reference reads and hashing ma
 take substantial time. No network request occurs during computation.
 
 JSON stdout is intentional for agents; use `--output` to keep personal results in a
-file outside the repository. `.hom`, `.hom.*`, `.roh.json` and pruning outputs are
+file outside the repository. Invalid vendor exports are reported as normal CLI errors.
+Saving first writes and flushes a temporary `.roh-pending-*.roh.json` sibling, then
+publishes the complete file with an atomic, no-overwrite hard link. This requires
+hard-link support (including NTFS and ordinary Linux filesystems); unsupported targets
+fail without a final result file. Concurrent writers cannot replace an existing result.
+A failed write removes its staging file; abrupt termination may leave a visibly pending
+file, never a truncated final result. `.hom`, `.hom.*`, `.roh.json` and pruning outputs are
 gitignored. Results and even their aggregate lengths must never be committed.

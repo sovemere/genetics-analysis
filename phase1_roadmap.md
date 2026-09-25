@@ -2155,7 +2155,7 @@ section, that proves every layer.*
       - **Completed 2026-09-25.** `genetics roh --input <export>` calls the shared
         `structure.roh.compute_roh` engine and emits JSON, or saves `.roh.json` outside
         the checkout. [Method and usage](docs/roh.md) document every parameter and the
-        observable-autosomal-span denominator; this is long-ROH F_ROH, not a whole-genome
+        assayed-autosomal-span denominator; this is observed long-ROH F_ROH, not a whole-genome
         coefficient. Missing/insufficient calls are explicit, never silently a zero score.
       - **Toolchain correction:** the pinned PLINK 2 build has no `--homozyg`.
         Official PLINK 1.9 v1.9.0-rc3 (23 Sep 2026) archives were downloaded and hashed
@@ -2173,6 +2173,17 @@ section, that proves every layer.*
         CI installs both pinned tools to run these checks on Windows and Linux.
         Full local suite: **1,740 passed, 5 platform skips**; ruff, format and strict
         mypy clean. Synthetic fixture reproduction and card-schema lint also pass.
+      - **Diff-driven review (2026-09-25):** schema 2 checks potential scanning-window
+        support within denominator blocks, including density and local missingness. Scattered
+        calls or well-called islands outside those blocks no longer establish a numeric zero.
+        Unsupported blocks remain visible beside valid findings with an underestimation warning.
+        Empty/sub-window reference intersections and wholly unresolvable calls are explicit
+        reference statuses; malformed sources still fail. Hashes are keyed by input role to
+        prevent same-filename collisions. Invalid exports use normal CLI errors; JSON fractions
+        reject booleans and accept zero reference missingness. Result publication is atomic and
+        never overwrites another writer. Synthetic missing-call fixtures use the actual enum.
+        Review suite: **1,759 passed, 5 platform skips**; the final numeric-range hardening
+        also passes the focused **44-test ROH suite**, ruff, format and strict mypy.
       - **Remaining limits are explicit:** no short-run sensitivity claim or empirical
         chip/population calibration yet; interpretation belongs to M6.2. Scratch is cleaned
         on completion/errors, but interrupted reference processing is not resumable in this

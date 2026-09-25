@@ -3,10 +3,42 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Annotated
 
 import typer
+
+
+def _write_result(output: Path, text: str) -> None:
+    """Publish complete JSON without replacing a concurrent writer's result."""
+    from genetics.paths import is_inside_repo
+
+    output = output.resolve()
+    if is_inside_repo(output) or not output.name.endswith(".roh.json"):
+        raise ValueError("output must be outside the repository and end in .roh.json")
+    output.parent.mkdir(parents=True, exist_ok=True)
+    staging: Path | None = None
+    try:
+        with NamedTemporaryFile(
+            mode="w",
+            encoding="utf-8",
+            dir=output.parent,
+            prefix=".roh-pending-",
+            suffix=".roh.json",
+            delete=False,
+        ) as stream:
+            staging = Path(stream.name)
+            stream.write(text)
+            stream.flush()
+            os.fsync(stream.fileno())
+        # Both names are on the same filesystem. link() is atomic and fails if the
+        # destination exists, unlike POSIX rename(), which would overwrite it.
+        os.link(staging, output)
+    finally:
+        if staging is not None:
+            staging.unlink(missing_ok=True)
 
 
 def roh(
@@ -33,11 +65,13 @@ def roh(
     from genetics.external.pgen import EmptyHarmonizationError
     from genetics.external.plink2 import Plink2, Plink2Error
     from genetics.external.plink19 import Plink19
-    from genetics.ingest import ingest
+    from genetics.ingest import IngestError, ingest
     from genetics.paths import is_inside_repo, references_dir
     from genetics.structure.roh import ReferenceInput, RohSettings, compute_roh
 
     try:
+        if output is not None:
+            output = output.resolve()
         if output and (is_inside_repo(output.resolve()) or not output.name.endswith(".roh.json")):
             raise ValueError("output must be outside the repository and end in .roh.json")
         if output and output.exists():
@@ -75,12 +109,17 @@ def roh(
         )
         text = json.dumps(result.as_dict(), indent=2, allow_nan=False) + "\n"
         if output:
-            output.parent.mkdir(parents=True, exist_ok=True)
-            with output.open("x", encoding="utf-8") as stream:
-                stream.write(text)
+            _write_result(output, text)
         else:
             typer.echo(text, nl=False)
-    except (ValueError, OSError, Plink2Error, TypeError, EmptyHarmonizationError) as exc:
+    except (
+        ValueError,
+        OSError,
+        Plink2Error,
+        TypeError,
+        EmptyHarmonizationError,
+        IngestError,
+    ) as exc:
         from genetics.privacy import redact
 
         typer.echo(f"ROH failed: {redact(str(exc))}", err=True)

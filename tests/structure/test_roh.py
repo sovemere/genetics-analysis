@@ -30,6 +30,7 @@ from genetics.structure.roh import (
     assayed_intervals,
     compute_roh,
     read_segments,
+    window_support,
 )
 
 
@@ -38,7 +39,19 @@ def test_gap_denominator_and_inclusive_lengths() -> None:
     markers += [("1", 10_000_001 + i * 100_000) for i in range(60)]
     blocks = assayed_intervals(markers, RohSettings())
     assert [b.length_bp for b in blocks] == [5_900_001, 5_900_001]
-    result = RohResult((blocks[0],), blocks, 120, 120, 120, 0, RohSettings(), (), "2", "1")
+    result = RohResult(
+        (blocks[0],),
+        blocks,
+        120,
+        120,
+        120,
+        0,
+        RohSettings(),
+        (),
+        "2",
+        "1",
+        window_support(markers, set(), RohSettings()),
+    )
     data = result.as_dict()
     assert data["total_roh_bp"] == 5_900_001
     assert data["longest_roh_bp"] == 5_900_001
@@ -49,7 +62,7 @@ def test_gap_denominator_and_inclusive_lengths() -> None:
 
 
 def test_no_coverage_is_not_a_zero_score() -> None:
-    result = RohResult((), (), 1, 1, 1, 1, RohSettings(), (), "2", "1").as_dict()
+    result = RohResult((), (), 1, 1, 1, 1, RohSettings(), (), "2", "1", ()).as_dict()
     assert result["f_roh"] is None
     assert result["status"] == "insufficient_coverage"
 
@@ -58,6 +71,7 @@ def test_no_coverage_is_not_a_zero_score() -> None:
     "kwargs",
     [
         {"maf": float("nan")},
+        {"maf": 10**400},
         {"maf": 0.7},
         {"min_kb": 0},
         {"gap_kb": -1},
@@ -125,7 +139,7 @@ def _synthetic(tmp_path: Path, mode: str = "planted") -> tuple[GenotypeTable, Pa
                     "a1": None if missing else alleles[0],
                     "a2": None if missing else alleles[1],
                     "genotype": None if missing else "".join(alleles),
-                    "call_status": "no-call" if missing else "called",
+                    "call_status": "no_call" if missing else "called",
                 }
             )
     return GenotypeTable(pl.DataFrame(rows, schema=NORMALIZED_SCHEMA), vendor="synthetic"), cohort
@@ -151,6 +165,31 @@ def test_cli_refuses_unsafe_output_before_running_tools(tmp_path: Path) -> None:
     )
     assert result.exit_code == 1
     assert "outside" in result.output
+
+
+def test_invalid_export_is_a_cli_error_without_traceback(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    source = tmp_path / "invalid.txt"
+    source.write_text("not a genome export\n", encoding="utf-8")
+    monkeypatch.setattr(Plink2, "discover", lambda: native_tools[0])
+    monkeypatch.setattr(Plink19, "discover", lambda: native_tools[1])
+    invocation = CliRunner().invoke(app, ["roh", "--input", str(source)])
+    assert invocation.exit_code == 1
+    assert "ROH failed:" in invocation.output
+    assert isinstance(invocation.exception, SystemExit)
+
+
+def test_zero_reference_missingness_is_a_valid_policy() -> None:
+    assert RohSettings(reference_missing=0).reference_missing == 0
+
+
+@pytest.mark.parametrize("name", ["maf", "reference_missing", "ld_r2", "window_threshold"])
+def test_boolean_settings_are_not_numbers(name: str) -> None:
+    with pytest.raises(RohError):
+        RohSettings(**{name: True})
 
 
 @pytest.fixture
@@ -182,7 +221,7 @@ def test_native_planted_runs(
     assert data["n_analyzed_markers"] > 500
     assert result.provenance[0]["n_retained_markers"] < result.provenance[0]["n_eligible_before_ld"]
     assert data["denominator_bp"] > 15_000_000
-    assert json.loads(json.dumps(data))["schema_version"] == 1
+    assert json.loads(json.dumps(data))["schema_version"] == 2
     if mode == "control":
         assert data["roh_count"] == 0
     elif mode == "planted":
@@ -272,6 +311,263 @@ def test_selection_is_independent_of_subject_calls(
     assert first.provenance == second.provenance
     assert first.as_dict()["roh_count"] == 1
     assert second.as_dict()["roh_count"] == 0
+
+
+def test_scattered_calls_cannot_establish_a_zero_roh_fraction(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    observed = pl.col("pos_grch37") % 40_000 == 1
+    frame = table.frame.with_columns(
+        *[
+            pl.when(observed).then(pl.col(name)).otherwise(None).alias(name)
+            for name in ("a1", "a2", "genotype")
+        ],
+        pl.when(observed)
+        .then(pl.col("call_status"))
+        .otherwise(pl.lit("no_call"))
+        .cast(NORMALIZED_SCHEMA["call_status"])
+        .alias("call_status"),
+    )
+    result = compute_roh(
+        GenotypeTable(frame, vendor="synthetic"),
+        [ReferenceInput(source, "synthetic", "synthetic")],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    assert result["n_analyzed_markers"] - result["n_missing_calls"] > 100
+    assert result["roh_count"] == 0
+    assert result["f_roh"] is None
+    assert result["status"] == "insufficient_calls"
+
+
+def test_no_reference_overlap_is_an_explicit_unavailable_result(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    table = GenotypeTable(
+        table.frame.with_columns(
+            (pl.col("pos_grch37") + 100_000_000).alias("pos_grch37"),
+        ),
+        vendor="synthetic",
+    )
+    result = compute_roh(
+        table,
+        [ReferenceInput(source, "synthetic", "synthetic")],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    assert result["status"] == "insufficient_coverage"
+    assert result["n_analyzed_markers"] == 0
+    assert result["f_roh"] is None
+    assert result["references"][0]["status"] == "no_eligible_markers"
+
+
+def test_supported_calls_must_be_inside_denominator_intervals() -> None:
+    policy = RohSettings()
+    eligible = [("1", 1 + 100_000 * i) for i in range(60)]
+    # A small, well-called island on another chromosome cannot rescue this missing block.
+    markers = eligible + [("2", 1 + i * 1000) for i in range(80)]
+    support = window_support(markers, set(eligible), policy)
+    result = RohResult(
+        (), assayed_intervals(markers, policy), 140, 140, 140, 60, policy, (), "2", "1", support
+    ).as_dict()
+    assert result["status"] == "insufficient_calls"
+    assert result["f_roh"] is None
+
+
+def test_sparse_grid_does_not_establish_a_zero_fraction() -> None:
+    policy = RohSettings()
+    markers = [("1", 1 + 200_000 * i) for i in range(60)]
+    support = window_support(markers, set(), policy)
+    result = RohResult(
+        (), assayed_intervals(markers, policy), 60, 60, 60, 0, policy, (), "2", "1", support
+    ).as_dict()
+    assert result["status"] == "insufficient_coverage"
+    assert result["f_roh"] is None
+
+
+def test_unobservable_blocks_remain_visible_alongside_valid_findings() -> None:
+    policy = RohSettings()
+    called = [("1", 1 + 100_000 * i) for i in range(60)]
+    missing = [("2", 1 + 100_000 * i) for i in range(60)]
+    markers = called + missing
+    intervals = assayed_intervals(markers, policy)
+    result = RohResult(
+        (intervals[0],),
+        intervals,
+        120,
+        120,
+        120,
+        60,
+        policy,
+        (),
+        "2",
+        "1",
+        window_support(markers, set(missing), policy),
+    ).as_dict()
+    assert result["f_roh"] == 0.5
+    assert result["roh_count"] == 1
+    assert "underestimate" in " ".join(result["warnings"])
+    assert result["window_support"][1]["observed_windows"] == 0
+
+
+def test_failed_result_write_never_claims_the_final_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from genetics.cli import roh_cmd
+
+    def fail_sync(_: int) -> None:
+        raise OSError("simulated storage failure")
+
+    monkeypatch.setattr(os, "fsync", fail_sync)
+    with pytest.raises(OSError, match="storage failure"):
+        roh_cmd._write_result(tmp_path / "result.roh.json", '{"complete": true}')
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_concurrent_result_writer_is_not_overwritten(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from genetics.cli import roh_cmd
+
+    real_link = os.link
+    target = tmp_path / "result.roh.json"
+
+    def concurrent_link(source: Path, destination: Path) -> None:
+        destination.write_text("winner", encoding="utf-8")
+        real_link(source, destination)
+
+    monkeypatch.setattr(os, "link", concurrent_link)
+    with pytest.raises(FileExistsError):
+        roh_cmd._write_result(target, "loser")
+    assert target.read_text(encoding="utf-8") == "winner"
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_reference_and_keep_hashes_survive_identical_basenames(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    other = tmp_path / "other"
+    other.mkdir()
+    keep = other / source.name
+    keep.write_text("\n".join(f"ref{i}" for i in range(80)), encoding="utf-8")
+    result = compute_roh(
+        table,
+        [ReferenceInput(source, "synthetic", "synthetic", keep)],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    hashes = result["references"][0]["input_sha256"]
+    assert set(hashes) == {"vcf", "keep"}
+    assert hashes["vcf"] != hashes["keep"]
+
+
+def test_window_support_applies_the_missing_limit_at_the_boundary() -> None:
+    policy = replace(RohSettings(), min_kb=100)
+    markers = [("1", 1 + 20_000 * i) for i in range(50)]
+    assert window_support(markers, set(markers[:2]), policy)[0].observed_windows == 1
+    assert window_support(markers, set(markers[:3]), policy)[0].observed_windows == 0
+
+
+def test_reference_parse_errors_are_not_hidden_as_missing_coverage(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    from genetics.external.plink2 import Plink2RunError
+
+    table, source = _synthetic(tmp_path)
+    source.write_text("invalid reference header\n", encoding="utf-8")
+    with pytest.raises(Plink2RunError):
+        compute_roh(
+            table,
+            [ReferenceInput(source, "synthetic", "synthetic")],
+            plink2=native_tools[0],
+            plink19=native_tools[1],
+            workspace=tmp_path / "work",
+        )
+    assert list((tmp_path / "work").iterdir()) == []
+
+
+def test_small_reference_intersection_is_not_a_native_failure(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    tiny = GenotypeTable(table.frame.head(20), vendor="synthetic")
+    result = compute_roh(
+        tiny,
+        [ReferenceInput(source, "synthetic", "synthetic")],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    assert result["status"] == "insufficient_coverage"
+    assert result["references"][0]["status"] == "insufficient_marker_support"
+
+
+def test_small_island_does_not_erase_a_valid_other_chromosome(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    second = tmp_path / "chr2.vcf"
+    content = source.read_text(encoding="utf-8").replace("ID=1>", "ID=2>")
+    content = (
+        "\n".join(
+            "2" + line[1:] if line.startswith("1\t") else line for line in content.splitlines()
+        )
+        + "\n"
+    )
+    second.write_text(content, encoding="utf-8")
+    island = table.frame.head(20).with_columns(
+        pl.lit("2").cast(NORMALIZED_SCHEMA["chrom"]).alias("chrom")
+    )
+    table = GenotypeTable(pl.concat([table.frame, island]), vendor="synthetic")
+    result = compute_roh(
+        table,
+        [ReferenceInput(p, "synthetic", "synthetic") for p in (source, second)],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    assert result["status"] == "computed"
+    assert result["roh_count"] == 1
+    assert result["references"][1]["status"] == "insufficient_marker_support"
+
+
+def test_unresolvable_array_indels_produce_unavailable_coverage(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    table, source = _synthetic(tmp_path)
+    table = GenotypeTable(
+        table.frame.with_columns(
+            pl.lit("D").alias("a1"),
+            pl.lit("I").alias("a2"),
+            pl.lit("DI").alias("genotype"),
+        ),
+        vendor="synthetic",
+    )
+    result = compute_roh(
+        table,
+        [ReferenceInput(source, "synthetic", "synthetic")],
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    ).as_dict()
+    assert result["status"] == "insufficient_coverage"
+    assert result["references"][0]["status"] == "no_harmonized_markers"
+    assert result["references"][0]["harmonization_counts"]["array_indel"] > 0
 
 
 def test_cli_writes_engine_result_without_overwriting(
