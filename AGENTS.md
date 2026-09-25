@@ -647,8 +647,8 @@ gracefully when absent, and prompt the user once.
 - The fetcher writes each source's resolved license into a machine-readable lock file and
   **refuses or loudly flags** anything non-permissive (§4.8, §5.3).
 - Do **not** subset the imputation reference panel to array positions — imputation needs
-  the full panel (§4.3). Subsetting is fine only for PCA projection, which needs just the
-  array's markers.
+  the full panel (§4.3). Separate derived subsets are appropriate for PCA projection and
+  ROH reference filtering, which use array markers; neither may modify the full imputation panel.
 - Every card's provenance names the reference version it came from, so a saved run stays
   interpretable after references update.
 

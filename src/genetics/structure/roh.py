@@ -7,12 +7,14 @@ No interpretation of parental relationships is made here (M6.2 owns interpretati
 from __future__ import annotations
 
 import hashlib
-import math
+from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
+
+import polars as pl
 
 from genetics import __version__
 from genetics.ancestry.reference_pca import array_marker_positions
@@ -22,8 +24,8 @@ from genetics.external.harmonize import (
     harmonizable_sites,
     read_panel_sites,
 )
-from genetics.external.pgen import to_pgen
-from genetics.external.plink2 import Plink2
+from genetics.external.pgen import EmptyHarmonizationError, to_pgen
+from genetics.external.plink2 import Plink2, Plink2RunError
 from genetics.external.plink19 import Plink19
 from genetics.ingest.schema import GenotypeTable
 from genetics.paths import cache_dir, is_inside_repo
@@ -54,8 +56,10 @@ class RohSettings:
     def __post_init__(self) -> None:
         for name in ("maf", "reference_missing", "ld_r2", "window_threshold"):
             value = getattr(self, name)
-            if not math.isfinite(value) or not 0 < value <= 1:
-                raise RohError(f"{name} must be finite and in (0, 1]")
+            if type(value) not in (int, float):
+                raise RohError(f"{name} must be a finite number, not a boolean")
+            if not (0 <= value <= 1 if name == "reference_missing" else 0 < value <= 1):
+                raise RohError(f"{name} is outside its allowed fraction range")
         if self.maf > 0.5:
             raise RohError("maf cannot exceed 0.5")
         for name in (
@@ -128,6 +132,15 @@ class Interval(NoGenotypeRepr):
 
 
 @dataclass(frozen=True)
+class WindowSupport(NoGenotypeRepr):
+    """Potential scanning windows, independent of the subject's homozygosity."""
+
+    interval: Interval
+    density_windows: int
+    observed_windows: int
+
+
+@dataclass(frozen=True)
 class RohResult(NoGenotypeRepr):
     segments: tuple[Interval, ...]
     assayed_intervals: tuple[Interval, ...]
@@ -139,14 +152,15 @@ class RohResult(NoGenotypeRepr):
     provenance: tuple[dict[str, Any], ...]
     plink2_version: str
     plink19_version: str
+    window_support: tuple[WindowSupport, ...]
 
     def as_dict(self) -> dict[str, Any]:
         denominator = sum(i.length_bp for i in self.assayed_intervals)
         total = sum(i.length_bp for i in self.segments)
         chroms = sorted({i.chrom for i in self.assayed_intervals}, key=int)
         warnings = [
-            "Long ROH estimate only; short runs are outside this parameter policy.",
-            "F_ROH uses observable autosomal spans, not the entire reference genome.",
+            f"ROH minimum length is {self.settings.min_kb} kb; shorter runs are not assessed.",
+            "F_ROH uses assayed autosomal spans, not the entire reference genome.",
             "Marker selection depends on the named reference population and pruning policy.",
         ]
         if len(chroms) < 22:
@@ -155,22 +169,32 @@ class RohResult(NoGenotypeRepr):
             warnings.append("Missing calls remain missing; ROH confidence depends on call quality.")
         if not denominator:
             warnings.append("No interval meets the minimum span and marker count requirements.")
-        enough_calls = self.n_analyzed_markers - self.n_missing_calls >= (
-            self.settings.window_snps - self.settings.window_missing - self.settings.window_hets
-        )
-        if not enough_calls:
-            warnings.append("Too few observed calls for a scanning window; F_ROH is unavailable.")
-        status = "computed" if denominator else "insufficient_coverage"
-        if denominator and not enough_calls:
+        density_windows = sum(w.density_windows for w in self.window_support)
+        observed_windows = sum(w.observed_windows for w in self.window_support)
+        # An actual native segment is stronger evidence of support than the conservative
+        # fixed-window check, especially with custom min_snps < window_snps settings.
+        enough_calls = bool(self.segments) or observed_windows > 0
+        status = "computed"
+        if not denominator or (not density_windows and not self.segments):
+            status = "insufficient_coverage"
+        elif not enough_calls:
             status = "insufficient_calls"
+        unsupported = sum(not w.observed_windows for w in self.window_support)
+        if unsupported:
+            warnings.append(
+                f"{unsupported} denominator interval(s) have no supported scanning window; "
+                "the observed ROH fraction can underestimate ROH in unobservable regions."
+            )
+        if status != "computed":
+            warnings.append("No supported scanning window in eligible spans; F_ROH is unavailable.")
         return {
-            "schema_version": 1,
+            "schema_version": 2,
             "engine_version": __version__,
             "status": status,
             "total_roh_bp": total,
             "roh_count": len(self.segments),
             "longest_roh_bp": max((i.length_bp for i in self.segments), default=0),
-            "f_roh": total / denominator if denominator and enough_calls else None,
+            "f_roh": total / denominator if status == "computed" else None,
             "denominator_bp": denominator,
             "denominator_definition": "sum of gap-bounded assayed autosomal spans (inclusive bp)",
             "chromosomes_assayed": chroms,
@@ -180,6 +204,7 @@ class RohResult(NoGenotypeRepr):
             "n_missing_calls": self.n_missing_calls,
             "segments": [asdict(i) for i in self.segments],
             "assayed_intervals": [asdict(i) for i in self.assayed_intervals],
+            "window_support": [asdict(w) for w in self.window_support],
             "settings": asdict(self.settings),
             "references": list(self.provenance),
             "tools": {"plink2": self.plink2_version, "plink19": self.plink19_version},
@@ -196,6 +221,8 @@ def assayed_intervals(
     markers: Sequence[tuple[str, int]], settings: RohSettings
 ) -> tuple[Interval, ...]:
     """Bound the denominator by typed markers, never bridging a large assay gap."""
+    if any(c not in {str(i) for i in range(1, 23)} or p < 1 for c, p in markers):
+        raise RohError("ROH markers must be positive GRCh37 autosomal positions")
     ordered = sorted(markers, key=lambda m: (int(m[0]), m[1]))
     if len(set(ordered)) != len(ordered):
         raise RohError("duplicate analyzed marker positions")
@@ -218,6 +245,41 @@ def assayed_intervals(
         if len(b) >= max(settings.min_snps, settings.window_snps)
         and b[-1][1] - b[0][1] + 1 >= settings.min_kb * 1000
     )
+
+
+def window_support(
+    markers: Sequence[tuple[str, int]],
+    missing: set[tuple[str, int]],
+    settings: RohSettings,
+) -> tuple[WindowSupport, ...]:
+    """Check locality, density and missingness; heterozygotes are observed calls too.
+
+    Do not infer observability from a genome-wide called-marker count: calls on another
+    chromosome or scattered between long missing stretches cannot support a window here.
+    This diagnostic leaves the assay-span denominator independent of observed homozygosity.
+    """
+    by_chrom: dict[str, list[int]] = {}
+    for chrom, pos in sorted(markers, key=lambda m: (int(m[0]), m[1])):
+        by_chrom.setdefault(chrom, []).append(pos)
+    result: list[WindowSupport] = []
+    for interval in assayed_intervals(markers, settings):
+        positions = by_chrom[interval.chrom]
+        start = bisect_left(positions, interval.start)
+        end = bisect_right(positions, interval.end)
+        positions = positions[start:end]
+        cumulative = [0]
+        for pos in positions:
+            cumulative.append(cumulative[-1] + ((interval.chrom, pos) in missing))
+        density = observed = 0
+        size = settings.window_snps
+        for i in range(len(positions) - size + 1):
+            length = positions[i + size - 1] - positions[i] + 1
+            if length <= size * settings.density_kb * 1000:
+                density += 1
+                if cumulative[i + size] - cumulative[i] <= settings.window_missing:
+                    observed += 1
+        result.append(WindowSupport(interval, density, observed))
+    return tuple(result)
 
 
 def read_segments(
@@ -287,7 +349,7 @@ def compute_roh(
     policy = settings or RohSettings()
     if not references:
         raise RohError("at least one reference cohort is required")
-    root = workspace if workspace is not None else cache_dir() / "roh"
+    root = (workspace if workspace is not None else cache_dir() / "roh").resolve()
     if is_inside_repo(root.resolve()):
         raise RohError("ROH workspace must be outside the repository")
     positions = array_marker_positions(table)
@@ -299,6 +361,16 @@ def compute_roh(
     provenance: list[dict[str, Any]] = []
     seen_chroms: set[str] = set()
     filtered_count = missing_count = 0
+    # Match the harmonizer's duplicate policy: a called probe plus an uncalled probe
+    # is an observed site, while a site at which every probe is uncalled stays missing.
+    no_calls = (
+        table.frame.group_by("chrom", "pos_grch37")
+        .agg(pl.col("genotype").is_not_null().any().alias("observed"))
+        .filter(~pl.col("observed"))
+    )
+    missing_positions = {
+        (str(c), int(p)) for c, p in no_calls.select("chrom", "pos_grch37").iter_rows()
+    }
     with TemporaryDirectory(prefix="roh-", dir=root) as scratch:
         work = Path(scratch)
         ranges = work / "array.bed"
@@ -309,55 +381,86 @@ def compute_roh(
             prefix = work / f"reference-{index}"
             source = reference.path
             inputs = (
-                [source, source.with_suffix(".pvar"), source.with_suffix(".psam")]
+                {
+                    "pgen": source,
+                    "pvar": source.with_suffix(".pvar"),
+                    "psam": source.with_suffix(".psam"),
+                }
                 if source.suffix == ".pgen"
-                else [source]
+                else {"vcf": source}
             )
             if reference.keep_file is not None:
-                inputs.append(reference.keep_file)
-            fingerprints = {p.name: _digest(p) for p in inputs}
+                inputs["keep"] = reference.keep_file
+            # Key by role: two files in different directories may have the same name.
+            fingerprints = {role: _digest(path) for role, path in inputs.items()}
+            record: dict[str, Any] = {
+                "version": reference.version,
+                "population": reference.population,
+                "input_sha256": fingerprints,
+                "build": "GRCh37",
+                "n_reference_samples": None,
+                "n_eligible_before_ld": 0,
+                "n_retained_markers": 0,
+                "marker_sha256": None,
+                "status": "no_eligible_markers",
+            }
+            provenance.append(record)
             source_args = (
                 ["--pfile", str(source.with_suffix(""))]
                 if source.suffix == ".pgen"
                 else ["--vcf", str(source)]
             )
             keep_args = ["--keep", str(reference.keep_file)] if reference.keep_file else []
-            plink2.run(
-                [
-                    *source_args,
-                    *keep_args,
-                    "--autosome",
-                    "--snps-only",
-                    "just-acgt",
-                    "--max-alleles",
-                    "2",
-                    "--extract",
-                    "bed0",
-                    str(ranges),
-                    "--maf",
-                    str(policy.maf),
-                    "--geno",
-                    str(policy.reference_missing),
-                    "--set-all-var-ids",
-                    "@:#:$r:$a",
-                    "--make-pgen",
-                    "--sort-vars",
-                ],
-                out=prefix,
-            )
+            try:
+                plink2.run(
+                    [
+                        *source_args,
+                        *keep_args,
+                        "--autosome",
+                        "--snps-only",
+                        "just-acgt",
+                        "--max-alleles",
+                        "2",
+                        "--extract",
+                        "bed0",
+                        str(ranges),
+                        "--maf",
+                        str(policy.maf),
+                        "--geno",
+                        str(policy.reference_missing),
+                        "--set-all-var-ids",
+                        "@:#:$r:$a",
+                        "--make-pgen",
+                        "--sort-vars",
+                    ],
+                    out=prefix,
+                )
+            except Plink2RunError as exc:
+                # Exact empty-filter outcome verified against the pinned build. Never
+                # turn corrupt VCFs, missing files, or other native failures into gaps.
+                if exc.returncode == 13 and exc.messages == (
+                    "Error: No variants remaining after main filters.",
+                ):
+                    continue
+                raise
             psam = prefix.with_suffix(".psam")
             n_samples = sum(
                 bool(line.strip()) and not line.startswith("#")
                 for line in psam.read_text(encoding="utf-8").splitlines()
             )
+            record["n_reference_samples"] = n_samples
             if n_samples < 50:
                 raise RohError("ROH reference needs at least 50 diploid cohort members")
             sites = read_panel_sites(prefix.with_suffix(".pvar"))
             if sites.n_duplicate_positions:
                 raise RohError("reference contains duplicate positions; resolve before ROH")
             sites, _ = harmonizable_sites(sites)
+            record["n_eligible_before_ld"] = sites.n_sites
+            if not sites.n_sites:
+                continue
             if sites.n_sites < policy.window_snps:
-                raise RohError("too few harmonizable reference markers for the scanning window")
+                record["status"] = "insufficient_marker_support"
+                continue
             chroms = set(sites.frame.get_column("chrom").cast(str).to_list())
             if seen_chroms & chroms:
                 raise RohError("reference inputs overlap chromosomes")
@@ -393,7 +496,17 @@ def compute_roh(
             filtered_count += sites.n_sites
             if not sites.n_sites:
                 raise RohError("reference pruning retained no markers")
-            conversion = to_pgen(table, sites, plink=plink2, workspace=work, stem=f"sample-{index}")
+            record["n_retained_markers"] = sites.n_sites
+            record["marker_sha256"] = _digest(pruned.with_suffix(".prune.in"))
+            try:
+                conversion = to_pgen(
+                    table, sites, plink=plink2, workspace=work, stem=f"sample-{index}"
+                )
+            except EmptyHarmonizationError as exc:
+                record["status"] = "no_harmonized_markers"
+                record["harmonization_counts"] = dict(exc.report.counts)
+                continue
+            record["harmonization_counts"] = dict(conversion.report.counts)
             missing_count += conversion.report.counts.get(SiteOutcome.NO_CALL, 0)
             sample_sites = read_panel_sites(conversion.pvar)
             markers = [
@@ -409,16 +522,12 @@ def compute_roh(
                 ["--bfile", str(native), "--autosome", *policy.arguments()], out=result_prefix
             )
             all_segments.extend(read_segments(result_prefix.with_suffix(".hom"), markers, policy))
-            provenance.append(
+            record.update(
                 {
-                    "version": reference.version,
-                    "population": reference.population,
-                    "input_sha256": fingerprints,
-                    "n_reference_samples": n_samples,
                     "n_retained_markers": sites.n_sites,
                     "n_eligible_before_ld": eligible_count,
                     "marker_sha256": _digest(pruned.with_suffix(".prune.in")),
-                    "build": "GRCh37",
+                    "status": "analyzed",
                 }
             )
     return RohResult(
@@ -432,4 +541,5 @@ def compute_roh(
         tuple(provenance),
         plink2.version,
         plink19.version,
+        window_support(all_markers, missing_positions, policy),
     )
