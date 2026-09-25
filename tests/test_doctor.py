@@ -31,7 +31,7 @@ def test_collect_never_raises_on_a_bare_environment() -> None:
     report = doctor.collect()
     assert report.python_version
     assert report.platform_name
-    assert {t.name for t in report.tools} == {"plink2", "java", "beagle", "R (HIBAG)"}
+    assert {t.name for t in report.tools} == {"plink2", "plink19", "java", "beagle", "R (HIBAG)"}
 
 
 def test_missing_tools_are_not_a_problem() -> None:
@@ -229,7 +229,7 @@ def test_doctor_json_is_parseable() -> None:
 
 def test_doctor_human_output_lists_every_tool() -> None:
     result = runner.invoke(app, ["doctor"])
-    for name in ("plink2", "java", "beagle", "R (HIBAG)"):
+    for name in ("plink2", "plink19", "java", "beagle", "R (HIBAG)"):
         assert name in result.stdout
 
 

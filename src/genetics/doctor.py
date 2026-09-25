@@ -2,9 +2,10 @@
 
 The first thing to run when picking this project up. It answers "what can this machine
 actually do right now?" -- which matters more here than in most projects, because the
-pipeline leans on four external programs that are each optional in a different way:
+pipeline leans on five external programs that are each optional in a different way:
 
 * **PLINK 2** is required from M5 on. Native Windows build, pinned (AGENTS.md 4.9).
+* **PLINK 1.9** is required for ROH from M6.1; PLINK 2 lacks --homozyg.
 * **Java** is required only by Beagle, so a missing JVM blocks imputation (M8) and
   nothing before it.
 * **Beagle** is a jar, so "installed" means "a file exists at a known path".
@@ -177,6 +178,16 @@ def _check_plink2() -> ToolReport:
     return ToolReport("plink2", "M5", status, path, version, detail)
 
 
+def _check_plink19() -> ToolReport:
+    path = _which("plink", tool_id="plink19")
+    if path is None:
+        return ToolReport(
+            "plink19", "M6.1", "missing", detail="run genetics tools install --only plink19"
+        )
+    status, version, detail = _run_version([path, "--version"])
+    return ToolReport("plink19", "M6.1", status, path, version, detail)
+
+
 def _check_java() -> ToolReport:
     path = _which("java")
     if path is None:
@@ -318,7 +329,7 @@ def collect() -> Report:
         manifest_present=reference_manifest().is_file(),
         lock_present=reference_lock().is_file(),
         reference_files=reference_files,
-        tools=(_check_plink2(), _check_java(), _check_beagle(), _check_r()),
+        tools=(_check_plink2(), _check_plink19(), _check_java(), _check_beagle(), _check_r()),
     )
 
 

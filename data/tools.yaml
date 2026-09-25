@@ -31,8 +31,8 @@ tools:
     notes: >-
       AGENTS.md 4.6 chose PLINK 2 over ADMIXTURE because it has native Windows builds and
       a LICENSE, and 4.9 makes it the workhorse that keeps htslib off the dependency list:
-      format conversion, LD pruning, PCA projection, --score, --homozyg and allele
-      frequencies are all one binary.
+      format conversion, LD pruning, PCA projection, --score and allele
+      frequencies are all one binary. ROH needs the separate plink19 entry below.
 
       Pinned to the alpha7 build dated 2026-08-08. Note the roadmap and AGENTS.md 4.9 say
       to pin "2.00a5.x": that advice is stale, and following it literally would now pin an
@@ -98,3 +98,41 @@ tools:
         filename: beagle.27Feb25.75f.jar
         sha256: 7319f4af9638be05c18dcc1bfb8fb41a58a09293507ebf0d54617d0e40df5a70
         size_bytes: 316844
+
+  - id: plink19
+    name: PLINK 1.9
+    version: v1.9.0-rc3
+    homepage: https://www.cog-genomics.org/plink/1.9/
+    license: GPL-3.0-or-later
+    kind: executable
+    required_from: M6.1
+    notes: >-
+      ROH only: PLINK 2 does not implement --homozyg. Official stable archives
+      downloaded and SHA256 verified on 2026-09-25. Windows version probe observed
+      PLINK v1.9.0-rc3 64-bit (23 Sep 2026). PLINK 2 still handles preparation.
+      Native macOS arm64 build is not published; unsupported platforms fail explicitly.
+    version_check:
+      args: ["--version"]
+      must_contain: "v1.9.0-rc3 64-bit (23 Sep 2026)"
+    builds:
+      - platform: windows_x86_64
+        url: https://s3.amazonaws.com/plink1-assets/plink_win64_20260923.zip
+        filename: plink_win64_20260923.zip
+        sha256: 2d18e717c52f6f4f048838e74929bbdc296cc1108604dee23f6830a36c4e82bd
+        size_bytes: 8836973
+        archive: zip
+        member: plink.exe
+      - platform: linux_x86_64
+        url: https://s3.amazonaws.com/plink1-assets/plink_linux_x86_64_20260923.zip
+        filename: plink_linux_x86_64_20260923.zip
+        sha256: f1bc75ba7caf4ac5ee278db8320be808b59129888cb20d24365b83adfcd91189
+        size_bytes: 6319922
+        archive: zip
+        member: plink
+      - platform: macos_x86_64
+        url: https://s3.amazonaws.com/plink1-assets/plink_mac_20260923.zip
+        filename: plink_mac_20260923.zip
+        sha256: 34d180eec46159399ace0e0cccbdba8a39613c7bc8685bd5e2ba6dd25fb0f1c3
+        size_bytes: 2203553
+        archive: zip
+        member: plink

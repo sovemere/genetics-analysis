@@ -57,6 +57,12 @@ def _stage(repo: Path, rel: str, content: str) -> None:
         "out.eigenvec",
         "scores.sscore",
         "cohort.bim",
+        "result.hom",
+        "result.hom.indiv",
+        "result.roh.json",
+        "eligible.roh-markers.txt",
+        "sample.prune.in",
+        "sample.prune.out",
         "results/x.run.json",
     ],
 )

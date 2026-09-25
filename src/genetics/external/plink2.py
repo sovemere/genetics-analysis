@@ -2,8 +2,8 @@
 
 PLINK 2 is the workhorse AGENTS.md 4.9 chose to keep htslib off the dependency list, so
 almost every milestone from M5 on runs through this module: pgen conversion (M5.2), the
-reference PCA and its projection (M5.3, M5.4), ROH (M6.1) and ``--score`` for polygenic
-scores (M9.2). Four decisions here are load-bearing.
+reference PCA and its projection (M5.3, M5.4), format preparation for ROH (M6.1),
+and ``--score`` for polygenic scores (M9.2). Four decisions here are load-bearing.
 
 **The pinned build is verified before anything runs.** ``discover()`` does not merely find
 a program called ``plink2``; it runs the version probe from ``data/tools.yaml`` and refuses
@@ -43,7 +43,7 @@ import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import ClassVar, Self
 
 from genetics.paths import tools_dir
 from genetics.privacy import NoGenotypeRepr, redact
@@ -211,6 +211,9 @@ class Plink2:
 
     path: Path
     version: str
+    tool_id: ClassVar[str] = "plink2"
+    executable_name: ClassVar[str] = "plink2"
+    label: ClassVar[str] = "PLINK 2"
 
     @classmethod
     def discover(
@@ -218,7 +221,7 @@ class Plink2:
         *,
         tools_root: Path | None = None,
         manifest: tools.ToolManifest | None = None,
-    ) -> Plink2:
+    ) -> Self:
         """Locate PLINK 2 and confirm it is the pinned build.
 
         Raises :class:`Plink2NotFoundError` when nothing is installed and
@@ -229,21 +232,21 @@ class Plink2:
         """
         root = tools_root if tools_root is not None else tools_dir()
         tool_manifest = manifest if manifest is not None else tools.load()
-        tool = tool_manifest.get(PLINK2_TOOL_ID)
+        tool = tool_manifest.get(cls.tool_id)
 
-        found = tools.find_executable(PLINK2_TOOL_ID, tools_root=root, tool_id=PLINK2_TOOL_ID)
+        found = tools.find_executable(cls.executable_name, tools_root=root, tool_id=cls.tool_id)
         if found is None:
             raise Plink2NotFoundError(
-                "PLINK 2 is not installed. It is required from M5 on (AGENTS.md 4.9); run "
-                "`genetics tools install --only plink2` to fetch the pinned build, or "
+                f"{cls.label} is not installed; run "
+                f"`genetics tools install --only {cls.tool_id}` to fetch the pinned build, or "
                 "`genetics doctor` to see what this machine has."
             )
 
         ok, reported, detail = tools.run_version_check(tool, found)
         if not ok:
             raise Plink2VersionError(
-                f"{found} is not the pinned PLINK 2 build: {detail} Reinstall with "
-                "`genetics tools install --only plink2 --force`."
+                f"{found} is not the pinned {cls.label} build: {detail} Reinstall with "
+                f"`genetics tools install --only {cls.tool_id} --force`."
             )
         return cls(path=found, version=reported or tool.version)
 
@@ -289,7 +292,7 @@ class Plink2:
             )
         except subprocess.TimeoutExpired as exc:
             raise Plink2RunError(
-                f"PLINK 2 did not finish within {timeout}s ({' '.join(argv)}).",
+                f"{self.label} did not finish within {timeout}s ({' '.join(argv)}).",
                 returncode=None,
                 messages=(),
             ) from exc
@@ -306,7 +309,7 @@ class Plink2:
         if completed.returncode != 0:
             detail = _error_text(completed.stderr, log_text)
             raise Plink2RunError(
-                f"PLINK 2 failed (exit {completed.returncode}): "
+                f"{self.label} failed (exit {completed.returncode}): "
                 f"{detail or 'it reported no error text.'}",
                 returncode=completed.returncode,
                 messages=tuple(detail.splitlines()) if detail else (),
