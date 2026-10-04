@@ -23,6 +23,11 @@ one, and it is the difference between a limit stated and a limit implied.
 This is intentionally a curated pack, not a bulk database import. Later milestones expand
 the other sections through the same schema and lint path.
 
+M6 adds four computed genome-structure cards under `structure/`: long ROH,
+Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns. The current
+pack has 47 cards: 31 single-variant interpretations, 12 assay-limit cards and four
+computed cards.
+
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
 copied here.
@@ -38,6 +43,7 @@ knowledge/
 ├── pgx/
 ├── nutrition/
 ├── health/
+├── structure/
 └── impossibilities/
 ```
 
@@ -103,7 +109,7 @@ cards:
    tell that from "the variant was not found". If there is nothing to say, say that.
 3. **Citations are structured and format-checked.** `{type, id, title}`, not prose. A
    free-text citation satisfies "has a citation" while being unverifiable, which is the
-   fabrication the rule exists to prevent. Interpretation cards need at least one;
+   fabrication the rule exists to prevent. Interpretation and computed cards need at least one;
    impossibility cards do not, because their claim is about the assay rather than the
    person.
 4. **Both rsID and coordinates are required.** Positional keys are primary because rsIDs
@@ -159,7 +165,7 @@ phase, which is M10.1–M10.2's work; a genotype cross-product would be a differ
 wrong answer. `variants:` is a list so the shape survives, and the validator refuses what
 the engine cannot honour.
 
-## Computed cards (M6.2-M6.3)
+## Computed cards (M6.2–M6.4)
 
 `structure/autozygosity.yaml` defines the first `kind: computed` card, with
 `computation: long_roh` in `genome_structure`. It declares static `summary` and `detail`
@@ -175,8 +181,16 @@ chip/population calibration caps a computed result at `limited`. Absent prerequi
 insufficient observations remain visible with their own statuses. The saved computation
 record contains all parameters, measurements, provenance and reliability inputs, so an
 agent and the dashboard read the same result without consulting today's knowledge pack.
+Each `method_evidence` population must be nonempty text with one corresponding positive
+integer sample size; booleans and coerced non-text values are rejected. The saved reader
+enforces the same metadata contract and refuses SNP observations or phenotype evidence
+attached to a computed card. New runs use bundle format 6; formats 1–5 remain readable.
 
 `structure/archaic.yaml` adds `neanderthal_f4` and `denisovan_f4` computations with
 the same authoring contract. These carry model-dependent array ranges, per-filter
 block uncertainty and reference provenance, with the assumptions and absent calibration
 visible on the face. See [the method documentation](../docs/archaic.md).
+
+`structure/sex_chromosomes.yaml` adds `sex_chromosome_profile`: non-PAR X heterozygosity
+and Y call rate with probe denominators, recorded thresholds, duplicate warnings and
+explicit karyotype limitations. See [sex-chromosome reporting](../docs/sex_chromosomes.md).

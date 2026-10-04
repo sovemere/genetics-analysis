@@ -509,7 +509,7 @@ vendored). This tier alone supports the great majority of planned cards.
 | Source | Scale | License |
 |---|---|---|
 | **GWAS Catalog** | ~7,000 publications, 15,000+ traits, 625,000+ curated lead associations, 85,000 full summary-stat datasets, harmonised | EMBL-EBI terms; post-2021 sumstats CC0 |
-| **PGS Catalog** | 5,022 scores across 656 traits; harmonised to GRCh37 **and** GRCh38 | EBI default, **per-score varies — parse the header** |
+| **PGS Catalog** | 5,022 scores across 656 traits; harmonised to GRCh37 **and** GRCh38 | EBI default, **per-score varies — parse the metadata `License/Terms of Use` column (§4.8)** |
 | **ClinVar** | Full variant + classification set | US public domain |
 | **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | Free; open access |
 | **Pan-UK Biobank** | GWAS across thousands of traits, multi-ancestry | **CC BY 4.0**, explicitly unrestricted |

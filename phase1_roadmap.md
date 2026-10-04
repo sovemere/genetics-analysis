@@ -32,10 +32,16 @@ about a minute with the reference PCAs cached.
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
-Next is [M7.1](#m7--monogenic-health--frequency-gating), ClinVar lookup,
-or the fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
-study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
-not a blocker for either.
+Next is [M7.1](#m7--monogenic-health--frequency-gating), ClinVar lookup.**
+The [handoff](docs/handoff.md) records its scope, verified prerequisites and acceptance
+checks. M7.1 has no outstanding blocker; the fetcher debt below must be paid before
+gnomAD's 63 GB exome file (M7.2). The study-to-sample ancestry mapping M5.8 surfaced
+belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
+
+**Current checkpoint (2026-10-04):** new runs use bundle format **6**, with formats
+1–5 preserved. The review fixes are `1c1c2ec`: **1,898 tests passed, five existing Windows
+skips**, and [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
+Earlier milestone acceptance counts and format numbers below record what shipped then.
 
 **M5.5's coverage gap is now closed as far as the available panel can honestly close it.**
 [M5.9](#m5--ancestry) selects AADR Human Origins' present-day, diploid individuals into a
@@ -2498,6 +2504,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-04 | M7.1 handoff | Synchronized the README, method docs and knowledge-pack guide with current bundle format 6 and the reviewed computed-card contracts. Corrected the reference README's obsolete absent-lock claim and the PGS license-table shorthand to match §4.8. Added `docs/handoff.md` with M7.1's scope, acceptance checks, verified ClinVar prerequisites and remaining M7.2/M15.4 dependencies. The local ClinVar source and build anchors verify; M7.1 can proceed. Reviewed-code validation and CI remain recorded at `1c1c2ec`, separate from historical milestone acceptance counts. |
 | 2026-10-04 | M6.2–M6.4 / CI review | Diff-driven review of session commits `788cd4c..ad471e6`. Fixed computed method metadata accepting non-text populations and unvalidated saved evidence; contradictory saved ROH intervals, totals, window support, policies and unavailable tiers; incomplete archaic provenance and policies; historical sex-chromosome reloads depending on current prose; and nested serialization aliases that could mutate source results or sex-chromosome defaults. Saved readers validate recorded measurements and structured assay limitations without rerunning a genome or replacing its saved wording. Added 38 synthetic regression cases, including native ROH save/read acceptance. **1,898 passed, five existing Windows skips**; ruff, format, fixture reproduction, full card lint (47 cards, 218 renders, 31 resolved variants) and strict mypy pass. CI-version mypy 2.4.0 checked with both platform/Python matrices. |
 | 2026-10-04 | CI / M2.7 | All four CI configurations failed type checking after installing mypy 2.4.0: typeshed narrowed `socket.getaddrinfo`'s result by address family, making the network guard's duplicated list alias incompatible. Local mypy 2.3.1 did not catch it. Replaced the alias with a `ParamSpec`/`TypeVar` wrapper that preserves the resolver's installed signature and return type, without disabling checks or pinning an older checker. Regression checks verify positional/keyword forwarding, unchanged loopback results and refusal before outbound DNS. |
 | 2026-09-24 | M5.8 review | Diff-driven pass over `e6e06cf`. **One defect, fixed; the rest held.** **1710 passed + 5 skipped** (2 new); ruff and `ruff format` clean. (1) **A killed run's copy of the sample outlived it.** `_scratch` removes the per-run directory in `finally`, which covers every exit Python sees and none it does not -- a closed console window or a power cut left the sample's harmonized pgen under `cache_dir()` indefinitely, contradicting the entry's own "do not outlive the run". Each run now sweeps `.run-*` directories older than a day on entry, even a run with nothing to compute; an age rather than every one found, because a second run may be live; the prefix keeps the reference PCAs out of reach. Three guards (sweep call, age, prefix) broken one at a time, three caught. **Checked and sound:** a partially fetched or unbuilt reference verifies as PENDING and so reads `not_run`, not loud (`postprocess.run` stops only on FAILED); the genotype scanner is rsID-anchored, so Y haplogroup names such as `CT` cannot trip the bundle write; the store's listing and `read_bundle` require the same per-version payload set; the `genetics run --json` summary leaves a *declined* placement's reason empty deliberately, since M5.5's decline sentence names the nearest population. Also deleted the twelve 2026-08-23 sample intermediates the acceptance row flagged, and closed the stale `[~]` on AADR in M2.3's list. |

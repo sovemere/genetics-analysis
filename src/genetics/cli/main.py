@@ -185,8 +185,9 @@ def run(
 ) -> None:
     """Analyse an export and save it as a run bundle (M4.0).
 
-    The whole pipeline: ingest, QC, match, assemble, save. Prints counts and the new run
-    id; never a genotype. Read the cards with `genetics runs show <run-id>`.
+    The shared pipeline: ingest/QC, ancestry, matching, evidence, genome structure,
+    then save. Prints counts and the new run id; never a genotype. Read the cards
+    with `genetics runs show <run-id>`.
     """
     # Lazy for the same reason as `ingest` below: this reaches the Polars-backed ingest
     # stack, the card engine and the bundle writer, and `genetics --help` should not pay
