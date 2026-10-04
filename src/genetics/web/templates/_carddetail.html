@@ -153,7 +153,11 @@
 {% endif %}
 
   {% if card.is_computed %}
-    {% include "_rohdetail.html" %}
+    {% if card.computation.source == "long_roh" %}
+      {% include "_rohdetail.html" %}
+    {% else %}
+      {% include "_archaicdetail.html" %}
+    {% endif %}
   {% endif %}
 
   {% if card.confidence %}

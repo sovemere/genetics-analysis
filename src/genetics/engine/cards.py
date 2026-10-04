@@ -931,8 +931,15 @@ class Card:
             for forbidden in ("match", "outcomes", "evidence", "impossibility_reason", "gene"):
                 if forbidden in data:
                     raise CardError(f"{where}: computed cards cannot carry {forbidden!r}")
-            if data.get("computation") != "long_roh" or section is not Section.GENOME_STRUCTURE:
-                raise CardError(f"{where}: supported computation is long_roh in genome_structure")
+            if (
+                not isinstance(data.get("computation"), str)
+                or data.get("computation") not in {"long_roh", "neanderthal_f4", "denisovan_f4"}
+                or section is not Section.GENOME_STRUCTURE
+            ):
+                raise CardError(
+                    f"{where}: unsupported computation or section; "
+                    "computed measurements belong in genome_structure"
+                )
             method = _mapping(_require(data, "method_evidence", where), where)
             fields = {
                 "tier",
@@ -975,7 +982,7 @@ class Card:
                 caveats=caveats,
                 summary=summary,
                 detail=detail,
-                computation="long_roh",
+                computation=str(data["computation"]),
                 method_evidence=dict(method),
             )
         for name in ("computation", "method_evidence"):

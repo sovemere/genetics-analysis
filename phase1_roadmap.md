@@ -28,8 +28,10 @@ inferred" and "inferred, and no population fits" kept apart by explicit statuses
 a `None`. On the real export: population placed, both haplogroups called, ancient computed, in
 about a minute with the reference PCAs cached.
 
-**M6.1 and M6.2 are implemented and validated against the pinned native tools on synthetic
-panels. Next is [M6.3](#m6--genome-structure), archaic introgression,
+**M6.1-M6.3 are implemented. ROH is validated against the pinned native tools on synthetic
+panels; archaic estimation is checked against the pinned AADR archive and a public reference
+individual, with synthetic statistical and integration tests. Next is
+[M6.4](#m6--genome-structure), sex chromosome findings,
 or the fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
 study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
 not a blocker for either.
@@ -2213,9 +2215,23 @@ section, that proves every layer.*
         ruff, format, strict mypy, fixture reproduction and full card lint pass
         (44 cards, 212 template renders, 31/31 dbSNP keys resolved).
         [Method and usage](docs/roh.md).
-- [ ] **M6.3** Archaic introgression (Neanderthal/Denisovan) against public Vindija/Altai
+- [x] **M6.3** Archaic introgression (Neanderthal/Denisovan) against public Vindija/Altai
       references. Array-based estimates are coarser than sequence-based — say so, and
       give a range rather than a false-precision percentage.
+      - Implemented 2026-10-04: local f4 estimators against the existing, checksum-pinned
+        AADR high-coverage Altai/Vindija/Denisova references, Mbuti/Han and chimp. Weighted
+        block-jackknife intervals, transition sensitivity and a Denisovan-ancestral primary
+        Neanderthal filter; signed ranges and coverage/denominator failures remain visible.
+        Model assumptions and uncalibrated array bias are on the card face. These are
+        allele-sharing model ranges, not measured genome-wide DNA percentages or tracts.
+      - Both cards reach `genetics run`, immutable bundle format 5, CLI JSON and dashboard
+        details; formats 1-4 remain readable. Synthetic maths, harmonization, missing
+        dependencies, corruption refusal, CLI/HTTP agreement and privacy-safe repr are
+        covered. Pinned AADR loader and default estimator checks used public references
+        only. Full regression and final targeted guard checks pass (five existing Windows
+        skips); ruff, format, strict mypy, fixture reproduction and full card lint pass
+        (46 cards, 216 template renders, 31/31 dbSNP keys resolved).
+        [Method and usage](docs/archaic.md).
 - [ ] **M6.4** Sex chromosome findings + karyotype-adjacent caveats. Be careful and
       literal; this is an inference from het rates, not a karyotype.
 

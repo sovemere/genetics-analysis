@@ -72,8 +72,12 @@ if TYPE_CHECKING:
     # the reference machinery. Writing only calls `to_dict()` on what it is handed.
     from genetics.ancestry.context import AncestryContext
 
-BUNDLE_FORMAT_VERSION: Final[int] = 4
+BUNDLE_FORMAT_VERSION: Final[int] = 5
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 5 (M6.3) adds signed archaic f4 ranges and their per-filter uncertainty,
+parameters, assay coverage and reference provenance to computed cards. Versions
+1-4 remain readable; no older computation field changes its meaning.
 
 **Version 4 (M6.2) adds computed cards with a ``computation`` record** inside
 ``cards.run.json``: raw measurement, reference/tool provenance, method evidence and
@@ -907,7 +911,11 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             frozenset({"source", "status", "reason", "result", "reliability", "method_evidence"}),
             where,
         )
-        if data.get("kind") != "computed" or computation_map.get("source") != "long_roh":
+        if (
+            data.get("kind") != "computed"
+            or not isinstance(computation_map.get("source"), str)
+            or computation_map.get("source") not in {"long_roh", "neanderthal_f4", "denisovan_f4"}
+        ):
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
             raise BundleError(f"{where}: computation and card statuses disagree")
@@ -922,6 +930,21 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         if measured is None:
             if data["status"] != "not_run" or tier is not None or not computation_map["reason"]:
                 raise BundleError(f"{where}: not-run computation needs a reason and no tier")
+        elif computation_map["source"] != "long_roh":
+            from genetics.structure.archaic import ArchaicError, validate_result
+
+            try:
+                validate_result(
+                    _mapping(measured, where), computation_map["source"], data["status"]
+                )
+            except ArchaicError as exc:
+                raise BundleError(f"{where}: {exc}") from exc
+            if (
+                (data["status"] == "computed") != (tier == "limited")
+                or (data["status"] != "computed" and tier is not None)
+                or computation_map["reason"] is not None
+            ):
+                raise BundleError(f"{where}: inconsistent archaic reliability tier or reason")
         else:
             measured_map = _mapping(measured, where)
             required = {

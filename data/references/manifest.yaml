@@ -720,6 +720,7 @@ sources:
     enables:
       - ancient-population affinity projection (M5.6)
       - the modern reference panel M5.5 places a sample against (M5.9)
+      - archaic f4 array ranges against high-coverage Altai, Vindija and Denisova (M6.3)
     post_process:
       - step: build_modern_reference_panel
         params:

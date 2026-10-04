@@ -287,6 +287,10 @@ def assemble_card(
             raise EvidenceAssemblyError("computed cards require the computation assembler")
         from genetics.structure.interpretation import assemble_roh_card
 
+        if card.computation != "long_roh":
+            from genetics.structure.archaic_interpretation import assemble_archaic_card
+
+            return assemble_archaic_card(card, None, reason=match.reason)
         return assemble_roh_card(card, None, reason=match.reason)
     if card.kind is CardKind.IMPOSSIBILITY:
         if match.status is not MatchStatus.NOT_DETERMINABLE:

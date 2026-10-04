@@ -134,7 +134,7 @@ def infer_roh_cards(
     progress: Callable[[str], None] | None = None,
 ) -> tuple[AssembledCard, ...]:
     """Run once for all ROH cards; absent dependencies stay visible, malformed ones fail."""
-    if not any(card.kind is CardKind.COMPUTED for card in cards):
+    if not any(card.card.computation == "long_roh" for card in cards):
         return cards
     refs = default_references()
     result = None
@@ -155,7 +155,7 @@ def infer_roh_cards(
             result = compute_roh(table, refs, plink2=tool2, plink19=tool19, progress=progress)
     return tuple(
         assemble_roh_card(card.card, result, reason=reason)
-        if card.kind is CardKind.COMPUTED
+        if card.card.computation == "long_roh"
         else card
         for card in cards
     )

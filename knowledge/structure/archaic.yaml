@@ -1,0 +1,79 @@
+schema_version: 1
+cards:
+  - id: neanderthal_array_range
+    section: genome_structure
+    kind: computed
+    computation: neanderthal_f4
+    title: Neanderthal allele sharing on the array
+    summary: "Denisovan-ancestral sites are the primary estimator; unrestricted sharing is a confounding diagnostic."
+    detail: >-
+      This compares directly typed allele sharing with the high-coverage Altai and
+      Vindija Neanderthals against a Mbuti baseline and chimpanzee outgroup. The primary
+      calculation uses sites where Denisova is homozygous for the chimp allele to reduce
+      Denisovan confounding. Unrestricted and transversion-only results expose filter
+      sensitivity. These signed f4 ratios depend on a demographic model and chip
+      ascertainment; they are not observed lengths of inherited Neanderthal segments.
+      The displayed range encloses available filter-specific sampling intervals but
+      cannot bound unknown systematic bias. It does not establish a whole-genome fraction,
+      a population percentile, or a trait consequence.
+    method_evidence:
+      tier: high-coverage genomes and population-genetic model
+      replication: independent genome panels; quantitative estimates depend on model and reference choice
+      populations:
+        - "Bergström 2020: HGDP genomes from 54 worldwide populations"
+      sample_sizes: [929]
+      measure: Neanderthal f4 ratio with Denisovan-ancestral and transversion sensitivity checks
+      units: "dimensionless ratio, displayed as a model-dependent percentage range"
+      effect_size: >-
+        No phenotype effect is estimated. Whole-genome reference studies support the
+        allele-sharing method; their ancestry proportions do not calibrate this array.
+    citations:
+      - type: doi
+        id: 10.1126/science.aao1887
+        title: A high-coverage Neandertal genome from Vindija Cave in Croatia
+      - type: doi
+        id: 10.1126/science.aay5012
+        title: Insights into human genetic variation and population history from 929 diverse genomes
+    caveats:
+      - "Consumer arrays preferentially type common modern-human variants; unobserved archaic-informative sites and selection can bias the ratio."
+      - "The Mbuti zero-archaic baseline and chimp ancestral-state approximation are model assumptions, not established facts about every reference allele."
+      - "Unrestricted sharing can include Denisovan ancestry, especially in Oceanians. The sensitivity envelope is not a calibrated genome-wide confidence interval."
+      - "Only direct calls enter this method. Sparse array-derived imputation is not additional independent evidence of archaic segments."
+  - id: denisovan_array_range
+    section: genome_structure
+    kind: computed
+    computation: denisovan_f4
+    title: Denisovan allele sharing on the array
+    summary: "The model assumes comparable Neanderthal ancestry in Han and the target; that assumption can fail."
+    detail: >-
+      This compares the target's excess allele sharing relative to Han against the
+      high-coverage Denisovan genome, with Mbuti and Vindija as contrasts. The model
+      assumes comparable Neanderthal ancestry in Han and the target and a negligible
+      Denisovan contribution in Han. Both assumptions can fail, particularly outside
+      the Oceanian populations for which this estimator was used. Negative values are
+      retained as statistical results, not interpreted as negative DNA. The displayed
+      range combines block uncertainty and transition sensitivity. It is an uncalibrated
+      array statistic, not a measured genome-wide Denisovan fraction or evidence of
+      particular introgressed tracts.
+    method_evidence:
+      tier: high-coverage genomes and population-genetic model
+      replication: alternative f4 and admixture models in sequenced population panels
+      populations:
+        - "Bergström 2020: HGDP genomes from 54 worldwide populations; the f4 estimator was applied to Papuan Highlands"
+      sample_sizes: [929]
+      measure: Denisovan f4 ratio relative to Han with transversion sensitivity
+      units: "dimensionless ratio, displayed as a model-dependent percentage range"
+      effect_size: >-
+        No phenotype effect is estimated. The sample size describes the full study
+        panel, not an individual-level or cross-ancestry validation of this estimator.
+    citations:
+      - type: doi
+        id: 10.1126/science.aay5012
+        title: Insights into human genetic variation and population history from 929 diverse genomes
+      - type: doi
+        id: 10.1126/science.1224344
+        title: A high-coverage genome sequence from an archaic Denisovan individual
+    caveats:
+      - "Differences in Neanderthal ancestry from Han can masquerade as Denisovan signal. This is a model assumption on the card face, not a universal ancestry estimator."
+      - "Han has a small Denisovan component; treating it as zero can bias the estimate downwards. One Siberian Denisovan genome does not represent all Denisovan lineages."
+      - "Array ascertainment bias and original sequence-quality masks are not calibrated by the sampling interval. A range including zero is not proof of absence."

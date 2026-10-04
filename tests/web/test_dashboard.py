@@ -780,6 +780,7 @@ def test_computed_measurement_metadata_reaches_the_detail_template() -> None:
         computation={
             "result": None,
             "reason": "ROH-NOT-RUN-MARKER",
+            "source": "long_roh",
             "reliability": {"reason": "ROH-RELIABILITY-MARKER", "inputs": {}},
             "method_evidence": {
                 "effect_size": "METHOD-MARKER",
