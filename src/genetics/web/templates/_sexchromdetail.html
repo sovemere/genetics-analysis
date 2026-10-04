@@ -1,0 +1,40 @@
+<section class="detailblock">
+  <h3>Direct-call sex chromosome measurements</h3>
+  {% set result = card.computation.result %}
+  {% if result %}
+    <dl class="facts">
+      <div><dt>Non-PAR X heterozygous / called SNP probes</dt><dd>{{ result.x.heterozygous_snps }} / {{ result.x.snp_called }}
+        {% if result.x_het_rate is not none %}({{ "%.2f" | format(result.x_het_rate * 100) }}%){% else %}(unavailable){% endif %}</dd></div>
+      <div><dt>Non-PAR Y called / assayed probes</dt><dd>{{ result.y.called }} / {{ result.y.total }}
+        {% if result.y_call_rate is not none %}({{ "%.2f" | format(result.y_call_rate * 100) }}%){% else %}(no Y probes; unavailable){% endif %}</dd></div>
+      <div><dt>X / Y signal</dt><dd>{{ result.x_signal }} / {{ result.y_signal }}</dd></div>
+      <div><dt>QC ploidy assumption (not a karyotype)</dt><dd>{{ result.qc_inferred_sex }}{% if result.y.total == 0 %}; X alone{% endif %}</dd></div>
+      <div><dt>X / Y no-calls</dt><dd>{{ result.x.total - result.x.called }} / {{ result.y.total - result.y.called }}</dd></div>
+      <div><dt>X / Y called indels</dt><dd>{{ result.x.indel_called }} / {{ result.y.indel_called }}</dd></div>
+      <div><dt>Non-PAR Y heterozygous SNP calls</dt><dd>{{ result.y.heterozygous_snps }}</dd></div>
+      <div><dt>Excluded PAR: vendor / X coordinates / Y coordinates</dt><dd>{{ result.par_excluded.vendor_labelled }} / {{ result.par_excluded.coordinate_x }} / {{ result.par_excluded.coordinate_y }}</dd></div>
+      <div><dt>Repeated positions / rsIDs (excess rows)</dt><dd>{{ result.duplicate_positions }} / {{ result.duplicate_rsids }}</dd></div>
+    </dl>
+    <h3>Recorded QC thresholds and PAR boundaries</h3>
+    <dl class="facts">
+      {% for name, value in result.settings.items() %}<div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+    </dl>
+  {% else %}<p>{{ card.computation.reason }}</p>{% endif %}
+</section>
+<section class="detailblock">
+  <h3>Why this reliability tier</h3>
+  <p>{{ card.computation.reliability.reason }}</p>
+  <dl class="facts">
+    {% for name, value in card.computation.reliability.inputs.items() %}<div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+  </dl>
+  <h3>Published method evidence</h3>
+  {% set method = card.computation.method_evidence %}
+  <p>{{ method.effect_size }}</p>
+  <dl class="facts">
+    <div><dt>Measurement / units</dt><dd>{{ method.measure }} / {{ method.units }}</dd></div>
+    <div><dt>Evidence tier</dt><dd>{{ method.tier }}</dd></div>
+    <div><dt>Replication</dt><dd>{{ method.replication }}</dd></div>
+    <div><dt>Study populations</dt><dd>{{ method.populations | join("; ") }}</dd></div>
+    <div><dt>Study sample sizes (same order)</dt><dd>{{ method.sample_sizes | join(", ") }}</dd></div>
+  </dl>
+</section>

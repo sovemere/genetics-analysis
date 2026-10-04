@@ -66,6 +66,7 @@ from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
 from genetics.structure.archaic import infer_archaic_cards
 from genetics.structure.interpretation import infer_roh_cards
+from genetics.structure.sex_chromosomes import infer_sex_chromosome_cards
 
 __all__ = ["Analysis", "analyse", "save"]
 
@@ -161,7 +162,9 @@ def analyse(
     ancestry: AncestryStage | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> Analysis:
-    """Parse, QC, infer ancestry, match, assemble and compute ROH. Writes no run bundle.
+    """Parse, QC, infer ancestry, match, assemble and compute structure cards.
+
+    Writes no run bundle.
 
     ``ancestry`` replaces the default stage, :func:`~genetics.ancestry.context.
     infer_ancestry`. ``progress`` is handed to that default and receives one line per slow
@@ -188,6 +191,7 @@ def analyse(
     cards = assemble_pack(pack, matches, observations(pack))
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
+    cards = infer_sex_chromosome_cards(cards, result.table)
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,

@@ -20,9 +20,8 @@ is why its adapter registers ``verified_against_real_export=False`` and why
   pass through untouched, but they resolve against no reference and M1.7's merge table
   does not know them.
 * 23andMe does not distinguish PAR from X, so PAR markers arrive labelled ``X``. Sex
-  inference (M1.5) excludes PAR from the X heterozygosity rate; with this layout it
-  cannot, and the rate is very slightly inflated. Noted rather than silently corrected --
-  inventing a PAR boundary would be worse than a documented approximation.
+  inference and ploidy resolution exclude these using the GRC's verified GRCh37 PAR
+  coordinates (M6.4), without changing the adapter's original chromosome labels.
 """
 
 from __future__ import annotations

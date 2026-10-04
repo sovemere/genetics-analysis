@@ -1,0 +1,45 @@
+schema_version: 1
+cards:
+  - id: sex_chromosome_call_pattern
+    section: genome_structure
+    kind: computed
+    computation: sex_chromosome_profile
+    title: Sex chromosome call pattern
+    summary: "Direct-call X heterozygosity and Y call rate; not a karyotype."
+    detail: >-
+      This reports the two measurements used by QC to decide whether doubled X/Y
+      calls should be handled as hemizygous. Non-PAR X heterozygosity uses called
+      SNP probes, excluding indels and no-calls. Non-PAR Y call rate uses all Y
+      probes, including indels, with no-calls in the denominator. Vendor-labelled
+      PAR and GRCh37 coordinate-defined PAR are excluded from both measurements
+      and remain diploid. Male/female labels in QC are pipeline ploidy assumptions,
+      not measured chromosome complements. Disagreeing or intermediate signals
+      leave X/Y ploidy unresolved. A layout with no Y probes uses X alone; absent
+      probes are not evidence that a chromosome is absent. Published detection of
+      sex-chromosome abnormalities uses probe intensity and/or sequencing, which
+      this raw export does not supply. No chromosome count or aneuploidy probability
+      is estimated, and this measurement cannot distinguish XXY, XYY, chromosome
+      loss, mosaicism, contamination or technical errors.
+    method_evidence:
+      tier: descriptive array QC; insufficient for karyotype inference
+      replication: >-
+        Published intensity-based methods support the assay limitation; these
+        export-only thresholds have no independent chip/population calibration.
+      populations:
+        - "Zhao 2022: European-ancestry UK Biobank men aged 40-70"
+      sample_sizes: [207067]
+      measure: non-PAR X SNP heterozygosity and non-PAR Y probe call rate
+      units: "fractions with called-SNP and assayed-probe denominators"
+      effect_size: >-
+        No phenotype effect, absolute disease risk or aneuploidy probability is
+        estimated. The cited study uses intensity and sequencing information absent
+        from this export; its sample size does not validate these QC thresholds.
+    citations:
+      - type: doi
+        id: 10.1016/j.gim.2022.05.011
+        title: Detection and characterization of male sex chromosome abnormalities in the UK Biobank study
+    caveats:
+      - "A genotype string cannot establish chromosome copy number. This export provides neither probe intensity nor measured dosage."
+      - "X/Y patterns are not gender, reproductive phenotype, a karyotype, or a diagnosis."
+      - "The QC cutoffs are broad operational heuristics; population and chip calibration is unavailable."
+      - "Repeated probes, ancestry, homozygosity, mixed samples and assay errors can change these rates."

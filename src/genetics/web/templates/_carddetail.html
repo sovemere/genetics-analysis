@@ -155,6 +155,8 @@
   {% if card.is_computed %}
     {% if card.computation.source == "long_roh" %}
       {% include "_rohdetail.html" %}
+    {% elif card.computation.source == "sex_chromosome_profile" %}
+      {% include "_sexchromdetail.html" %}
     {% else %}
       {% include "_archaicdetail.html" %}
     {% endif %}

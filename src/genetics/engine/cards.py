@@ -933,7 +933,8 @@ class Card:
                     raise CardError(f"{where}: computed cards cannot carry {forbidden!r}")
             if (
                 not isinstance(data.get("computation"), str)
-                or data.get("computation") not in {"long_roh", "neanderthal_f4", "denisovan_f4"}
+                or data.get("computation")
+                not in {"long_roh", "neanderthal_f4", "denisovan_f4", "sex_chromosome_profile"}
                 or section is not Section.GENOME_STRUCTURE
             ):
                 raise CardError(

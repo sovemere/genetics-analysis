@@ -72,8 +72,12 @@ if TYPE_CHECKING:
     # the reference machinery. Writing only calls `to_dict()` on what it is handed.
     from genetics.ancestry.context import AncestryContext
 
-BUNDLE_FORMAT_VERSION: Final[int] = 5
+BUNDLE_FORMAT_VERSION: Final[int] = 6
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 6 (M6.4) adds sex-chromosome call profiles, PAR exclusions and the recorded
+QC thresholds to computed cards. Versions 1-5 remain readable; saved results are
+not reinterpreted using the new PAR-aware QC measurements.
 
 Version 5 (M6.3) adds signed archaic f4 ranges and their per-filter uncertainty,
 parameters, assay coverage and reference provenance to computed cards. Versions
@@ -914,7 +918,8 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         if (
             data.get("kind") != "computed"
             or not isinstance(computation_map.get("source"), str)
-            or computation_map.get("source") not in {"long_roh", "neanderthal_f4", "denisovan_f4"}
+            or computation_map.get("source")
+            not in {"long_roh", "neanderthal_f4", "denisovan_f4", "sex_chromosome_profile"}
         ):
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
@@ -930,6 +935,20 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         if measured is None:
             if data["status"] != "not_run" or tier is not None or not computation_map["reason"]:
                 raise BundleError(f"{where}: not-run computation needs a reason and no tier")
+        elif computation_map["source"] == "sex_chromosome_profile":
+            from genetics.structure.sex_chromosomes import SexChromosomeError
+            from genetics.structure.sex_chromosomes import validate_result as validate_sex_result
+
+            try:
+                validate_sex_result(_mapping(measured, where), data["status"])
+            except SexChromosomeError as exc:
+                raise BundleError(f"{where}: {exc}") from exc
+            if (
+                (data["status"] == "computed") != (tier == "limited")
+                or (data["status"] != "computed" and tier is not None)
+                or computation_map["reason"] is not None
+            ):
+                raise BundleError(f"{where}: inconsistent sex-chromosome reliability or reason")
         elif computation_map["source"] != "long_roh":
             from genetics.structure.archaic import ArchaicError, validate_result
 
