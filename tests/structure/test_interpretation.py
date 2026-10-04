@@ -235,7 +235,14 @@ def test_bundle_cli_and_http_share_the_same_computation(
         tools_root=tmp_path / "tools",
     )
     bundle = read_bundle(path)
-    assert bundle.format_version == 4 and bundle.cards[0].computation == card.computation
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION
+    assert bundle.cards[0].computation == card.computation
+    # This ROH record existed in format 4; a newer reader must still accept it.
+    manifest_path = path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = 4
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    assert read_bundle(path).cards[0].computation == card.computation
     assert bundle.cards[0].confidence_tier == "limited"
     invocation = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert invocation.exit_code == 0

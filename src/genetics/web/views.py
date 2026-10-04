@@ -929,7 +929,7 @@ class CardView(NoGenotypeRepr):
 
     @property
     def roh(self) -> Mapping[str, Any] | None:
-        if self.computation is None:
+        if self.computation is None or self.computation.get("source") != "long_roh":
             return None
         result = self.computation.get("result")
         return result if isinstance(result, Mapping) else None

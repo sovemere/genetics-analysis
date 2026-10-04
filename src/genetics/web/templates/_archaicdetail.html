@@ -1,0 +1,53 @@
+<section class="detailblock">
+  <h3>Archaic allele-sharing model</h3>
+  {% set result = card.computation.result %}
+  {% if result %}
+    <p>{{ result.range_definition }}</p>
+    <dl class="facts">
+      <div><dt>Estimator</dt><dd>{{ result.formula }}</dd></div>
+      <div><dt>Primary filter</dt><dd>{{ result.primary_filter.replace("_", " ") }}</dd></div>
+      <div><dt>Array autosomal positions / shared reference sites</dt><dd>{{ result.n_array_autosomal_positions }} / {{ result.n_shared_reference_sites }}</dd></div>
+      <div><dt>Missing / incompatible / duplicated sites</dt><dd>{{ result.n_missing_calls }} / {{ result.n_incompatible_calls }} / {{ result.n_duplicate_sites }}</dd></div>
+    </dl>
+    <h3>Filter sensitivity and block uncertainty</h3>
+    {% for diagnostic in result.diagnostics %}
+      <p><strong>{{ diagnostic.filter.replace("_", " ") }}</strong>:
+        {% if diagnostic.interval is not none %}
+          {{ "%.1f" | format(diagnostic.interval[0] * 100) }}% to {{ "%.1f" | format(diagnostic.interval[1] * 100) }}% (approximate 95% sampling interval);
+          standard error {{ "%.2f" | format(diagnostic.standard_error * 100) }} percentage points.
+        {% else %}Unavailable: {{ diagnostic.reason }}.{% endif %}
+        {{ diagnostic.n_informative }} informative sites in {{ diagnostic.n_blocks }} blocks;
+        chromosomes {{ diagnostic.chromosomes | join(", ") or "none" }}.
+      </p>
+    {% endfor %}
+    <h3>Parameters and reference provenance</h3>
+    <dl class="facts">
+      {% for name, value in result.settings.items() %}<div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+      <div><dt>Source / version / build</dt><dd>{{ result.reference.source }} / {{ result.reference.version }} / {{ result.reference.build }}</dd></div>
+      <div><dt>Reference quality</dt><dd>{{ result.reference.quality }}</dd></div>
+      {% for name, value in result.reference.archaic_ids.items() %}<div><dt>{{ name }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+      {% for name, value in result.reference.population_ids.items() %}<div><dt>{{ name }} reference individuals</dt><dd>{{ value | join(", ") }}</dd></div>{% endfor %}
+      {% for name, value in result.reference.input_sha256.items() %}<div><dt>{{ name }} SHA-256</dt><dd>{{ value }}</dd></div>{% endfor %}
+    </dl>
+  {% else %}<p>{{ card.computation.reason }}</p>{% endif %}
+</section>
+<section class="detailblock">
+  <h3>Why this reliability tier</h3>
+  <p>{{ card.computation.reliability.reason }}</p>
+  <dl class="facts">
+    {% for name, value in card.computation.reliability.inputs.items() %}
+      <div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>
+    {% endfor %}
+  </dl>
+  <h3>Published method evidence</h3>
+  {% set method = card.computation.method_evidence %}
+  <p>{{ method.effect_size }}</p>
+  <dl class="facts">
+    <div><dt>Measurement</dt><dd>{{ method.measure }}</dd></div>
+    <div><dt>Units</dt><dd>{{ method.units }}</dd></div>
+    <div><dt>Evidence tier</dt><dd>{{ method.tier }}</dd></div>
+    <div><dt>Replication</dt><dd>{{ method.replication }}</dd></div>
+    <div><dt>Study populations</dt><dd>{{ method.populations | join("; ") }}</dd></div>
+    <div><dt>Study sample sizes (same order)</dt><dd>{{ method.sample_sizes | join(", ") }}</dd></div>
+  </dl>
+</section>

@@ -354,7 +354,7 @@ class Matcher:
             return MatchResult(
                 card_id=card.id,
                 status=MatchStatus.NOT_RUN,
-                reason="Long-ROH computation has not run.",
+                reason=f"{card.computation} computation has not run.",
             )
         if card.kind is CardKind.IMPOSSIBILITY:
             return MatchResult(

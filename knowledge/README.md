@@ -159,7 +159,7 @@ phase, which is M10.1–M10.2's work; a genotype cross-product would be a differ
 wrong answer. `variants:` is a list so the shape survives, and the validator refuses what
 the engine cannot honour.
 
-## Computed cards (M6.2)
+## Computed cards (M6.2-M6.3)
 
 `structure/autozygosity.yaml` defines the first `kind: computed` card, with
 `computation: long_roh` in `genome_structure`. It declares static `summary` and `detail`
@@ -175,3 +175,8 @@ chip/population calibration caps a computed result at `limited`. Absent prerequi
 insufficient observations remain visible with their own statuses. The saved computation
 record contains all parameters, measurements, provenance and reliability inputs, so an
 agent and the dashboard read the same result without consulting today's knowledge pack.
+
+`structure/archaic.yaml` adds `neanderthal_f4` and `denisovan_f4` computations with
+the same authoring contract. These carry model-dependent array ranges, per-filter
+block uncertainty and reference provenance, with the assumptions and absent calibration
+visible on the face. See [the method documentation](../docs/archaic.md).

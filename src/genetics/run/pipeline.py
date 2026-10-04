@@ -9,7 +9,7 @@ driven by exactly one of them.
 The stages are the ones the earlier milestones already built, in the only order they
 compose::
 
-    ingest -> infer_ancestry -> match_pack -> assemble_pack -> infer_roh_cards -> write_bundle
+    ingest -> infer_ancestry -> match_pack -> assemble_pack -> structure stages -> write_bundle
 
 **Ancestry runs before any card is assembled (M5.8), and that order is the requirement.**
 PRS confidence depends on it (AGENTS.md 4.4), so the stage that will consume it -- M9.5,
@@ -64,6 +64,7 @@ from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
+from genetics.structure.archaic import infer_archaic_cards
 from genetics.structure.interpretation import infer_roh_cards
 
 __all__ = ["Analysis", "analyse", "save"]
@@ -186,6 +187,7 @@ def analyse(
     matches = match_pack(pack, result.table)
     cards = assemble_pack(pack, matches, observations(pack))
     cards = infer_roh_cards(cards, result.table, progress=progress)
+    cards = infer_archaic_cards(cards, result.table, progress=progress)
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,

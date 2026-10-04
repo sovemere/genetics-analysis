@@ -73,6 +73,7 @@ def _no_fetched_references_for_ancestry(
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr("genetics.ancestry.context.references_dir", lambda: empty)
         patch.setattr("genetics.structure.interpretation.references_dir", lambda: empty)
+        patch.setattr("genetics.structure.archaic.references_dir", lambda: empty)
         yield
 
 
