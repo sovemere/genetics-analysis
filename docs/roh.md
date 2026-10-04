@@ -1,4 +1,4 @@
-# Long autosomal runs of homozygosity (M6.1)
+# Long autosomal runs of homozygosity (M6.1–M6.2)
 
 `genetics roh --input <export> --output <outside-repo>/result.roh.json` calls
 the shared `genetics.structure.roh.compute_roh` engine. The default references are
@@ -12,11 +12,14 @@ wrong tool versions and malformed reference inputs fail the run. A custom knowle
 without a computed ROH card does not request this computation.
 
 The shared engine supplies the same measurement to the CLI and dashboard. Bundle format
-**4** records it in the card's `computation` block in `cards.run.json`, including raw
+**4 introduced** the card's `computation` block in `cards.run.json`, including raw
 segments, observability windows, parameters, tool versions, reference hashes, method
 evidence and reliability inputs. `genetics runs show <run-id> --json` exposes that whole
-record. Formats 1–3 remain readable; their cards have no computation record. Saved results
-never re-render against a changed knowledge pack.
+record. New runs now use **format 6**; formats 1–5 remain readable, with no computation
+record on formats 1–3. Saved results never re-render against a changed knowledge pack.
+The saved reader checks interval and segment consistency, totals, marker counts,
+observability, recorded policy, tool versions, reference digests and method evidence.
+Unavailable results carry neither a numeric fraction nor a reliability tier.
 
 The card is in **Genome structure**. Its face states total length, count, the observed
 assay fraction and denominator, and calibration and coverage limitations. The detail

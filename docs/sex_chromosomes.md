@@ -6,6 +6,10 @@ The CLI and dashboard read the same saved result, including denominators, PAR
 exclusions, thresholds and caveats. No new output file is created: the measurement
 lives in the existing private `cards.run.json` payload, in bundle format 6.
 Versions 1-5 remain readable without reinterpreting their saved QC or cards.
+Saved profiles are validated against their recorded thresholds and the structured
+direct-call, intensity and karyotype flags. Changing current display wording or source-link
+wording does not invalidate an older profile. Exported results and recorded settings copy
+nested metadata so edits cannot change the source measurement or the engine defaults.
 
 The card face gives non-PAR X SNP heterozygosity and non-PAR Y probe call rate,
 with limited reliability and an explicit statement that this is not a karyotype.

@@ -41,7 +41,11 @@ point estimate. Reliability has a computed `limited` ceiling because chip/popula
 calibration and original sequence-quality masks are absent. The range quantifies
 sampling and filter sensitivity; it **does not bound array ascertainment or model
 error** and is **not a measured genome-wide archaic DNA percentage**. There is no
-segment calling, inferred trait effect, or comparison percentile. Saved bundle format
-5 carries each diagnostic, counts, formula, settings, assumptions and reference hashes;
+segment calling, inferred trait effect, or comparison percentile. Bundle format
+**5 introduced** each diagnostic, counts, formula, settings, assumptions and reference hashes;
 `genetics runs show --json` and the dashboard read that same record. Older bundles
-remain readable.
+remain readable. New runs now use **format 6**, which also carries sex-chromosome
+profiles. The saved archaic reader requires the complete recorded policy, named archaic
+genomes and baseline individuals, reference version/quality, input digests and caveats.
+Serialized results copy nested metadata, so editing an export cannot change its source
+measurement or the other lineage's saved result.
