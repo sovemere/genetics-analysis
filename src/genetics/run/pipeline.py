@@ -9,7 +9,7 @@ driven by exactly one of them.
 The stages are the ones the earlier milestones already built, in the only order they
 compose::
 
-    ingest -> infer_ancestry -> match_pack -> assemble_pack -> write_bundle
+    ingest -> infer_ancestry -> match_pack -> assemble_pack -> infer_roh_cards -> write_bundle
 
 **Ancestry runs before any card is assembled (M5.8), and that order is the requirement.**
 PRS confidence depends on it (AGENTS.md 4.4), so the stage that will consume it -- M9.5,
@@ -64,6 +64,7 @@ from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
+from genetics.structure.interpretation import infer_roh_cards
 
 __all__ = ["Analysis", "analyse", "save"]
 
@@ -129,6 +130,10 @@ class Analysis(NoGenotypeRepr):
         for card in self.cards:
             if card.confidence is not None:
                 counts[card.confidence.tier] += 1
+            elif card.computation is not None:
+                tier = card.computation["reliability"]["tier"]
+                if tier is not None:
+                    counts[ConfidenceTier(tier)] += 1
         return counts
 
     @property
@@ -139,13 +144,13 @@ class Analysis(NoGenotypeRepr):
 def observations(pack: KnowledgePack) -> dict[str, ObservationEvidence]:
     """One observation per interpretation card. See this module's docstring for why.
 
-    Impossibility cards are excluded rather than given an empty observation:
+    Computed and impossibility cards are excluded rather than given an empty observation:
     ``assemble_card`` refuses one outright, on the grounds that a card that is not
     determinable by construction cannot carry genotype-derived runtime evidence. Keyed by
     card id because ``assemble_pack`` rejects a key naming a card the pack does not have,
     which is the check that catches this function drifting out of step with the pack.
     """
-    return {card.id: _DIRECT for card in pack.cards if card.kind is not CardKind.IMPOSSIBILITY}
+    return {card.id: _DIRECT for card in pack.cards if card.kind is CardKind.INTERPRETATION}
 
 
 def analyse(
@@ -155,7 +160,7 @@ def analyse(
     ancestry: AncestryStage | None = None,
     progress: Callable[[str], None] | None = None,
 ) -> Analysis:
-    """Parse, QC, infer ancestry, match and assemble. Writes nothing to the run store.
+    """Parse, QC, infer ancestry, match, assemble and compute ROH. Writes no run bundle.
 
     ``ancestry`` replaces the default stage, :func:`~genetics.ancestry.context.
     infer_ancestry`. ``progress`` is handed to that default and receives one line per slow
@@ -180,6 +185,8 @@ def analyse(
         context = ancestry(result.table, result.qc)
     matches = match_pack(pack, result.table)
     cards = assemble_pack(pack, matches, observations(pack))
+    cards = infer_roh_cards(cards, result.table, progress=progress)
+    matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,
         qc=result.qc,

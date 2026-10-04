@@ -249,6 +249,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
                 "citations": [dict(c) for c in card.citations],
                 "authored_caveats": list(card.authored_caveats),
                 "computed_caveats": list(card.computed_caveats),
+                "computation": None if card.computation is None else dict(card.computation),
             }
             for card in bundle.cards
         ],

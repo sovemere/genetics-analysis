@@ -61,6 +61,30 @@ def test_gap_denominator_and_inclusive_lengths() -> None:
     assert "5900001" not in repr(result)
 
 
+def test_native_result_reaches_the_autozygosity_card(
+    tmp_path: Path,
+    native_tools: tuple[Plink2, Plink19],
+) -> None:
+    from genetics.engine.cards import KnowledgePack
+    from genetics.engine.matcher import MatchStatus
+    from genetics.structure.interpretation import assemble_roh_card
+
+    definition = KnowledgePack.load().by_id("long_roh_autozygosity")
+    assert definition is not None
+    table, panel = _synthetic(tmp_path)
+    result = compute_roh(
+        table,
+        (ReferenceInput(panel, "synthetic-v1", "synthetic"),),
+        plink2=native_tools[0],
+        plink19=native_tools[1],
+        workspace=tmp_path / "work",
+    )
+    card = assemble_roh_card(definition, result)
+    assert card.status is MatchStatus.COMPUTED and card.computation is not None
+    assert card.computation["result"]["roh_count"] == 1
+    assert card.computation["result"]["longest_roh_bp"] > 10_000_000
+
+
 def test_no_coverage_is_not_a_zero_score() -> None:
     result = RohResult((), (), 1, 1, 1, 1, RohSettings(), (), "2", "1", ()).as_dict()
     assert result["f_roh"] is None

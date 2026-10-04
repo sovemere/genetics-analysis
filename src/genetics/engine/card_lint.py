@@ -306,7 +306,7 @@ def lint_pack(
     interpretations = tuple(card for card in pack.cards if card.kind is CardKind.INTERPRETATION)
 
     for card in pack.cards:
-        if card.kind is CardKind.INTERPRETATION and not card.citations:
+        if card.kind is not CardKind.IMPOSSIBILITY and not card.citations:
             issues.append(
                 LintIssue(
                     "citation-missing",
@@ -475,7 +475,7 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
 
     issues: list[LintIssue] = []
     rendered = 0
-    if card.kind is CardKind.IMPOSSIBILITY:
+    if card.kind is not CardKind.INTERPRETATION:
         context: dict[str, object] = {"gene": card.gene or "GENE"}
         for field_name, template in (("summary", card.summary), ("detail", card.detail)):
             if template is None:

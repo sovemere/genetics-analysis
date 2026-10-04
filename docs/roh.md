@@ -3,8 +3,39 @@
 `genetics roh --input <export> --output <outside-repo>/result.roh.json` calls
 the shared `genetics.structure.roh.compute_roh` engine. The default references are
 the 22 already-fetched 1000 Genomes phase 3 GRCh37 autosomal VCFs. This is a separate
-computation command; **M6.1 is complete**, including the diff-driven review pass.
-M6.2 owns its interpretation card and dashboard integration.
+computation command; **M6.1 and M6.2 are complete**. `genetics run --input <export>`
+also computes ROH for the `long_roh_autozygosity` card when the full default reference
+panel and pinned tools are available. This step reads and filters all 22 autosomal
+references afresh, so it can substantially increase run time. Progress appears on stderr.
+Missing references or tools render a visible `not_run` card with the fix-it command;
+wrong tool versions and malformed reference inputs fail the run. A custom knowledge pack
+without a computed ROH card does not request this computation.
+
+The shared engine supplies the same measurement to the CLI and dashboard. Bundle format
+**4** records it in the card's `computation` block in `cards.run.json`, including raw
+segments, observability windows, parameters, tool versions, reference hashes, method
+evidence and reliability inputs. `genetics runs show <run-id> --json` exposes that whole
+record. Formats 1–3 remain readable; their cards have no computation record. Saved results
+never re-render against a changed knowledge pack.
+
+The card is in **Genome structure**. Its face states total length, count, the observed
+assay fraction and denominator, and calibration and coverage limitations. The detail
+view adds the longest segment, every detected interval, local observability, reference
+population, parameters, tool versions and citations. Supported zero, insufficient
+coverage, insufficient local calls and a computation that did not run remain distinct.
+
+Interpretation reliability is **limited** for computed results because this policy lacks
+empirical chip/population calibration; unavailable results have no numeric tier. The
+inputs and explanation are recorded, and no SNP-specific allele-frequency or disease-risk
+calculation is attached to a genome-wide measurement. Long ROH are consistent with shared
+ancestry between parental lineages, but neither a particular parental relationship nor a
+population percentile is established from this assay fraction.
+
+The method explanation draws on
+[McQuillan et al. (2008), 2,618 European-origin participants](https://doi.org/10.1016/j.ajhg.2008.08.007)
+and [Pemberton et al. (2012), 1,839 participants in 64 worldwide populations](https://doi.org/10.1016/j.ajhg.2012.06.014).
+These studies used different marker sets, callers and denominators; their results support
+the general interpretation, not a numerical calibration of this implementation.
 
 Install the pinned native tools with `genetics tools install --only plink19` and
 `genetics tools install --only plink2`. PLINK 2 does not implement `--homozyg`.
@@ -61,7 +92,8 @@ threshold is valid and requires completely called reference markers:
 These are an engineering policy, not a universal optimum or clinical calibration.
 Synthetic planted runs test detection, interruptions, missingness and gap behavior
 against the real pinned binary. Population and chip-specific sensitivity still need
-empirical calibration before the M6.2 interpretation claims can be established.
+empirical calibration before population percentiles, pedigree thresholds or individual
+risk claims can be established. M6.2 reports the observed measurement with this limit.
 Native flag semantics and inclusive segment lengths are documented in the
 [PLINK 1.9 ROH manual](https://www.cog-genomics.org/plink/1.9/ibd#homozyg).
 

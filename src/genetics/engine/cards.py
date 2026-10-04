@@ -299,7 +299,7 @@ def _available_vars(kind: CardKind, *, has_gene: bool) -> frozenset[str]:
     unapplied to the per-card case.
     """
     usable = {name for name, var in TEMPLATE_VARS.items() if var.available}
-    if kind is CardKind.IMPOSSIBILITY:
+    if kind is not CardKind.INTERPRETATION:
         usable -= _MATCH_VARS
     if not has_gene:
         usable.discard("gene")
@@ -795,6 +795,7 @@ class Match:
 
 class CardKind(StrEnum):
     INTERPRETATION = "interpretation"
+    COMPUTED = "computed"
     IMPOSSIBILITY = "impossibility"
     """AGENTS.md 3.2: rendered as an explicit "not determinable" card rather than silently
     omitted, so a reader who has heard of a test elsewhere learns why this tool does not
@@ -850,6 +851,8 @@ _CARD_KEYS: Final[frozenset[str]] = frozenset(
         "impossibility_reason",
         "summary",
         "detail",
+        "computation",
+        "method_evidence",
     }
 )
 
@@ -875,6 +878,8 @@ class Card:
     impossibility_reason: str | None = None
     summary: str | None = None
     detail: str | None = None
+    computation: str | None = None
+    method_evidence: Mapping[str, Any] | None = None
 
     @property
     def variant_key(self) -> VariantKey | None:
@@ -922,6 +927,60 @@ class Card:
         caveats = _string_list(data.get("caveats") or [], f"{where}.caveats")
         gene = str(data["gene"]).strip() if data.get("gene") else None
 
+        if kind is CardKind.COMPUTED:
+            for forbidden in ("match", "outcomes", "evidence", "impossibility_reason", "gene"):
+                if forbidden in data:
+                    raise CardError(f"{where}: computed cards cannot carry {forbidden!r}")
+            if data.get("computation") != "long_roh" or section is not Section.GENOME_STRUCTURE:
+                raise CardError(f"{where}: supported computation is long_roh in genome_structure")
+            method = _mapping(_require(data, "method_evidence", where), where)
+            fields = {
+                "tier",
+                "replication",
+                "populations",
+                "sample_sizes",
+                "measure",
+                "units",
+                "effect_size",
+            }
+            _reject_unknown(method, frozenset(fields), where)
+            for name in fields - {"populations", "sample_sizes"}:
+                value = _require(method, name, where)
+                if not isinstance(value, str) or not value.strip():
+                    raise CardError(f"{where}: method_evidence.{name} must be nonempty text")
+            _string_list(_require(method, "populations", where), where)
+            sizes = _require(method, "sample_sizes", where)
+            if (
+                not isinstance(sizes, list)
+                or not sizes
+                or any(type(n) is not int or n < 1 for n in sizes)
+            ):
+                raise CardError(f"{where}: method_evidence.sample_sizes needs positive integers")
+            if not method["populations"]:
+                raise CardError(f"{where}: method_evidence.populations cannot be empty")
+            if len(sizes) != len(method["populations"]):
+                raise CardError(f"{where}: each study population needs its own sample size")
+            summary = _require(data, "summary", where)
+            detail = _require(data, "detail", where)
+            if not isinstance(summary, str) or not isinstance(detail, str):
+                raise CardError(f"{where}: summary and detail must be text")
+            _check_template(summary, where, frozenset())
+            _check_template(detail, where, frozenset())
+            return cls(
+                id=card_id,
+                section=section,
+                kind=kind,
+                title=title,
+                citations=citations,
+                caveats=caveats,
+                summary=summary,
+                detail=detail,
+                computation="long_roh",
+                method_evidence=dict(method),
+            )
+        for name in ("computation", "method_evidence"):
+            if name in data:
+                raise CardError(f"{where}: {name} belongs to a computed card")
         if kind is CardKind.IMPOSSIBILITY:
             return cls._parse_impossibility(
                 data, where, card_id, section, title, citations, caveats, gene
@@ -948,7 +1007,7 @@ class Card:
         except CitationError as exc:
             raise CardError(str(exc)) from None
 
-        if kind is CardKind.INTERPRETATION and not citations:
+        if kind is not CardKind.IMPOSSIBILITY and not citations:
             raise CardError(
                 f"{where}: an interpretation card needs at least one citation. AGENTS.md 3: "
                 "a card without a citation does not render."

@@ -60,7 +60,7 @@ def _offline(request: pytest.FixtureRequest) -> Iterator[None]:
 def _no_fetched_references_for_ancestry(
     tmp_path_factory: pytest.TempPathFactory,
 ) -> Iterator[None]:
-    """The ancestry stage (M5.8) sees an empty reference tree unless a test builds one.
+    """Ancestry and ROH stages see empty reference trees unless a test builds one.
 
     ``infer_ancestry`` reads whatever this checkout has fetched, so without this the suite
     would behave differently on a machine with AADR built and PLINK 2 on ``PATH`` -- running
@@ -72,6 +72,7 @@ def _no_fetched_references_for_ancestry(
     empty = tmp_path_factory.mktemp("no-fetched-references")
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr("genetics.ancestry.context.references_dir", lambda: empty)
+        patch.setattr("genetics.structure.interpretation.references_dir", lambda: empty)
         yield
 
 
