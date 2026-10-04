@@ -435,6 +435,38 @@ def _number(raw: Any, where: str, field_name: str) -> float:
     return value
 
 
+def parse_method_evidence(raw: Any, where: str) -> dict[str, Any]:
+    """Validate authored and saved computed-method metadata with the same contract."""
+    method = _mapping(raw, where)
+    fields = {
+        "tier",
+        "replication",
+        "populations",
+        "sample_sizes",
+        "measure",
+        "units",
+        "effect_size",
+    }
+    _reject_unknown(method, frozenset(fields), where)
+    for name in fields - {"populations", "sample_sizes"}:
+        value = _require(method, name, where)
+        if not isinstance(value, str) or not value.strip():
+            raise CardError(f"{where}: method_evidence.{name} must be nonempty text")
+    populations = _require(method, "populations", where)
+    if (
+        not isinstance(populations, list)
+        or not populations
+        or any(not isinstance(p, str) or not p.strip() for p in populations)
+    ):
+        raise CardError(f"{where}: method_evidence.populations needs nonempty text")
+    sizes = _require(method, "sample_sizes", where)
+    if not isinstance(sizes, list) or not sizes or any(type(n) is not int or n < 1 for n in sizes):
+        raise CardError(f"{where}: method_evidence.sample_sizes needs positive integers")
+    if len(sizes) != len(populations):
+        raise CardError(f"{where}: each study population needs its own sample size")
+    return dict(method)
+
+
 def _string_list(raw: Any, where: str) -> tuple[str, ...]:
     if not isinstance(raw, Sequence) or isinstance(raw, str):
         raise CardError(f"{where}: expected a list of strings")
@@ -941,33 +973,7 @@ class Card:
                     f"{where}: unsupported computation or section; "
                     "computed measurements belong in genome_structure"
                 )
-            method = _mapping(_require(data, "method_evidence", where), where)
-            fields = {
-                "tier",
-                "replication",
-                "populations",
-                "sample_sizes",
-                "measure",
-                "units",
-                "effect_size",
-            }
-            _reject_unknown(method, frozenset(fields), where)
-            for name in fields - {"populations", "sample_sizes"}:
-                value = _require(method, name, where)
-                if not isinstance(value, str) or not value.strip():
-                    raise CardError(f"{where}: method_evidence.{name} must be nonempty text")
-            _string_list(_require(method, "populations", where), where)
-            sizes = _require(method, "sample_sizes", where)
-            if (
-                not isinstance(sizes, list)
-                or not sizes
-                or any(type(n) is not int or n < 1 for n in sizes)
-            ):
-                raise CardError(f"{where}: method_evidence.sample_sizes needs positive integers")
-            if not method["populations"]:
-                raise CardError(f"{where}: method_evidence.populations cannot be empty")
-            if len(sizes) != len(method["populations"]):
-                raise CardError(f"{where}: each study population needs its own sample size")
+            method = parse_method_evidence(_require(data, "method_evidence", where), where)
             summary = _require(data, "summary", where)
             detail = _require(data, "detail", where)
             if not isinstance(summary, str) or not isinstance(detail, str):

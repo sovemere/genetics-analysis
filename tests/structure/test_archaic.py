@@ -349,6 +349,11 @@ def test_saved_cards_cli_http_and_older_roh_bundles(
         "missing",
         "digest",
         "unavailable",
+        "reference_ids",
+        "population_ids",
+        "reference_text",
+        "warnings_empty",
+        "settings_missing",
     ],
 )
 def test_corrupt_numeric_ranges_are_refused(pack: KnowledgePack, edit: str) -> None:
@@ -390,8 +395,31 @@ def test_corrupt_numeric_ranges_are_refused(pack: KnowledgePack, edit: str) -> N
         raw["status"] = payload["status"] = payload["computation"]["status"] = (
             "insufficient_coverage"
         )
+    elif edit == "reference_ids":
+        del raw["reference"]["archaic_ids"]
+    elif edit == "population_ids":
+        raw["reference"]["population_ids"]["han"] = [False]
+    elif edit == "reference_text":
+        raw["reference"]["version"] = None
+    elif edit == "warnings_empty":
+        raw["warnings"] = []
+    elif edit == "settings_missing":
+        del raw["settings"]["block_bp"]
     with pytest.raises(BundleError):
         _stored_card(payload, "synthetic corrupt archaic card")
+
+
+def test_serialized_archaic_measurement_is_an_independent_snapshot() -> None:
+    table, panel = synthetic()
+    results = compute_archaic(table, panel, settings=POLICY)
+    result = results["neanderthal_f4"]
+    serialized = result.as_dict()
+    serialized["reference"]["population_ids"]["han"].clear()
+    serialized["diagnostics"].clear()
+    assert result.data["diagnostics"]
+    assert result.data["reference"]["population_ids"]["han"]
+    assert results["denisovan_f4"].data["reference"]["population_ids"]["han"]
+    assert panel.provenance["population_ids"]["han"]
 
 
 def write_panel(tmp_path: Path) -> tuple[Path, Path, Path]:

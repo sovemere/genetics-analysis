@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping
+from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any, ClassVar
 
@@ -30,7 +31,7 @@ from genetics.qc.metrics import (
 from genetics.qc.sex_regions import PAR_GRCH37, PAR_SOURCE, coordinate_par_expr, nonpar_expr
 
 SOURCE = "sex_chromosome_profile"
-SETTINGS = {
+SETTINGS: dict[str, Any] = {
     "min_usable_x_loci": MIN_SEX_LOCI,
     "low_x_max": MALE_MAX_X_HET,
     "high_x_min": FEMALE_MIN_X_HET,
@@ -58,7 +59,7 @@ class SexChromosomeResult(NoGenotypeRepr):
     _repr_fields: ClassVar[tuple[str, ...]] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return dict(self.data)
+        return deepcopy(dict(self.data))
 
 
 def _counts(table: GenotypeTable, chrom: str) -> dict[str, int]:
@@ -154,7 +155,7 @@ def compute_sex_chromosomes(table: GenotypeTable) -> SexChromosomeResult:
             },
             "duplicate_positions": duplicates.duplicate_positions,
             "duplicate_rsids": duplicates.duplicate_rsids,
-            "settings": dict(SETTINGS),
+            "settings": deepcopy(SETTINGS),
             "directly_typed_only": True,
             "intensity_available": False,
             "karyotype_determinable": False,
@@ -208,9 +209,11 @@ def validate_result(data: Mapping[str, Any], status: str) -> None:
         or settings["min_usable_x_loci"] < 1
         or settings["low_x_max"] >= settings["high_x_min"]
         or settings["low_y_max"] >= settings["high_y_min"]
+        or settings["par_boundaries"]
+        != {c: [list(pair) for pair in bounds] for c, bounds in PAR_GRCH37.items()}
         or any(
-            settings[k] != SETTINGS[k]
-            for k in ("par_boundaries", "par_source", "coordinate_system", "duplicate_policy")
+            not isinstance(settings[k], str) or not settings[k].strip()
+            for k in ("par_source", "coordinate_system", "duplicate_policy")
         )
     ):
         raise SexChromosomeError("inconsistent sex-chromosome settings")
@@ -251,8 +254,8 @@ def validate_result(data: Mapping[str, Any], status: str) -> None:
         or any(not isinstance(w, str) or not w.strip() for w in warnings)
     ):
         raise SexChromosomeError("sex-chromosome result needs caveats")
-    if LIMIT not in warnings:
-        raise SexChromosomeError("sex-chromosome result lacks its assay limitation")
+    # The structured assay flags above enforce the limitation. Saved prose is a
+    # snapshot: changing current wording must not invalidate a historical result.
 
 
 def infer_sex_chromosome_cards(

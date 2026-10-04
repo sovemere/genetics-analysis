@@ -12,7 +12,9 @@ import hashlib
 import math
 from collections import Counter, defaultdict
 from collections.abc import Callable, Mapping, Sequence
+from copy import deepcopy
 from dataclasses import asdict, dataclass
+from dataclasses import fields as dataclass_fields
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -105,7 +107,7 @@ class ArchaicResult(NoGenotypeRepr):
     _repr_fields: ClassVar[tuple[str, ...]] = ()
 
     def as_dict(self) -> dict[str, Any]:
-        return dict(self.data)
+        return deepcopy(dict(self.data))
 
 
 def reference_paths(root: Path | None = None) -> tuple[Path, Path, Path]:
@@ -460,17 +462,42 @@ def validate_result(data: Mapping[str, Any], source: str, status: str) -> None:
             raise ArchaicError("archaic counts must be nonnegative integers")
     if not isinstance(data["range_definition"], str) or not data["range_definition"].strip():
         raise ArchaicError("archaic range requires an uncertainty definition")
-    if not isinstance(data["warnings"], list) or not all(
-        isinstance(w, str) and w for w in data["warnings"]
+    if (
+        not isinstance(data["warnings"], list)
+        or not data["warnings"]
+        or not all(isinstance(w, str) and w.strip() for w in data["warnings"])
     ):
         raise ArchaicError("archaic warnings must be text")
     if not isinstance(data["reference"], Mapping) or not isinstance(data["settings"], Mapping):
         raise ArchaicError("archaic provenance and parameters must be objects")
+    if set(data["settings"]) != {f.name for f in dataclass_fields(ArchaicSettings)}:
+        raise ArchaicError("saved archaic parameters must record the complete policy")
     try:
         policy = ArchaicSettings(**data["settings"])
     except (TypeError, ArchaicError) as exc:
         raise ArchaicError("invalid saved archaic parameters") from exc
     reference = data["reference"]
+    if any(
+        not isinstance(reference.get(k), str) or not reference[k].strip()
+        for k in ("source", "version", "quality")
+    ):
+        raise ArchaicError("archaic reference needs source, version and quality metadata")
+    ids = reference.get("archaic_ids")
+    populations = reference.get("population_ids")
+    if (
+        not isinstance(ids, Mapping)
+        or set(ids) != {"altai", "vindija", "denisova", "chimp"}
+        or any(not isinstance(v, str) or not v.strip() for v in ids.values())
+        or not isinstance(populations, Mapping)
+        or set(populations) != {"mbuti", "han"}
+        or any(
+            not isinstance(v, list)
+            or not v
+            or any(not isinstance(identifier, str) or not identifier.strip() for identifier in v)
+            for v in populations.values()
+        )
+    ):
+        raise ArchaicError("archaic reference needs named genomes and baseline individuals")
     if reference.get("build") != "GRCh37" or not isinstance(reference.get("input_sha256"), Mapping):
         raise ArchaicError("archaic reference needs a build and file digests")
     if len(reference["input_sha256"]) != 3 or any(
