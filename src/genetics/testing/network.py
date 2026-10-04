@@ -42,9 +42,9 @@ from __future__ import annotations
 import socket
 import urllib.parse
 import urllib.request
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, Final
+from typing import Any, Final, ParamSpec, TypeVar
 
 from genetics.netaddr import is_local_address
 
@@ -169,15 +169,8 @@ def _check(address: Any) -> None:
 # Replacements
 # ---------------------------------------------------------------------------
 
-_AddressInfo = list[
-    tuple[
-        socket.AddressFamily,
-        socket.SocketKind,
-        int,
-        str,
-        tuple[str, int] | tuple[str, int, int, int] | tuple[int, bytes],
-    ]
-]
+_Params = ParamSpec("_Params")
+_Result = TypeVar("_Result")
 
 
 def _blocked_connect(self: socket.socket, address: Any) -> None:
@@ -190,23 +183,28 @@ def _blocked_connect_ex(self: socket.socket, address: Any) -> int:
     return _REAL_CONNECT_EX(self, address)
 
 
-def _blocked_getaddrinfo(
-    host: bytes | str | None,
-    port: bytes | str | int | None,
-    family: int = 0,
-    type: int = 0,  # shadows a builtin, because socket.getaddrinfo names it that
-    proto: int = 0,
-    flags: int = 0,
-) -> _AddressInfo:
-    """Resolution is blocked too, not only connection.
+def _guard_getaddrinfo(resolver: Callable[_Params, _Result]) -> Callable[_Params, _Result]:
+    """Block outbound resolution while preserving the resolver's exact type.
 
     A DNS lookup is itself traffic, and it is the step that discloses what is being
     fetched. Catching it here also produces the better message: at this point the hostname
     is still in hand, where by ``connect`` time it is an anonymous IP.
+
+    Do not duplicate typeshed's address tuple union: mypy 2.4 narrowed it by family,
+    making our old list alias incompatible in both return and patch assignment.
+    ParamSpec and TypeVar preserve whichever signature the installed stubs provide.
     """
-    if is_local_address(host):
-        return _REAL_GETADDRINFO(host, port, family, type, proto, flags)
-    raise _refuse(host)
+
+    def guarded(*args: _Params.args, **kwargs: _Params.kwargs) -> _Result:
+        host = kwargs.get("host", args[0] if args else None)
+        if is_local_address(host):
+            return resolver(*args, **kwargs)
+        raise _refuse(host)
+
+    return guarded
+
+
+_blocked_getaddrinfo = _guard_getaddrinfo(_REAL_GETADDRINFO)
 
 
 def _no_proxies() -> dict[str, str]:
