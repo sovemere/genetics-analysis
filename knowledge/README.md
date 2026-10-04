@@ -48,7 +48,7 @@ schema_version: 1
 cards:
   - id: some_card
     section: traits          # one of the thirteen in AGENTS.md §3.1
-    kind: interpretation     # or: impossibility
+    kind: interpretation     # or: impossibility / computed
     title: Human-readable title
     gene: GENE
 
@@ -158,3 +158,20 @@ Schema v1 matches **one variant per card**. Haplotype and diplotype interpretati
 phase, which is M10.1–M10.2's work; a genotype cross-product would be a different and
 wrong answer. `variants:` is a list so the shape survives, and the validator refuses what
 the engine cannot honour.
+
+## Computed cards (M6.2)
+
+`structure/autozygosity.yaml` defines the first `kind: computed` card, with
+`computation: long_roh` in `genome_structure`. It declares static `summary` and `detail`
+text, structured citations, caveats and `method_evidence` (measure, units, evidence tier,
+replication, study populations and corresponding sample sizes, and the applicability of
+published effect estimates). It cannot declare a variant, genotype map, phenotype evidence
+block, gene, impossibility reason or confidence. Text placeholders are refused because
+none of the single-variant template variables describe a genome-wide computation.
+
+The engine supplies the numeric measurement and coverage warnings. Its interpretation
+tier is computed separately from the SNP rarity framework: the current absence of
+chip/population calibration caps a computed result at `limited`. Absent prerequisites and
+insufficient observations remain visible with their own statuses. The saved computation
+record contains all parameters, measurements, provenance and reliability inputs, so an
+agent and the dashboard read the same result without consulting today's knowledge pack.

@@ -603,6 +603,7 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
             "citations",
             "authored_caveats",
             "computed_caveats",
+            "computation",
         }
     )
     expected_manifest = frozenset(
@@ -775,6 +776,7 @@ def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
         f"{card}.citations[].note",
         f"{card}.authored_caveats",
         f"{card}.computed_caveats",
+        f"{card}.computation",
     }, "card payload shape changed: bump BUNDLE_FORMAT_VERSION in the same commit"
 
 
@@ -1138,7 +1140,7 @@ def test_the_ancestry_record_round_trips(
     placed_ancestry: AncestryContext,
 ) -> None:
     bundle = read_bundle(_write_with(tmp_path, qc_report, cards, placed_ancestry))
-    assert bundle.format_version == ANCESTRY_FORMAT_VERSION
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION
     assert bundle.ancestry == placed_ancestry.to_dict()
 
 

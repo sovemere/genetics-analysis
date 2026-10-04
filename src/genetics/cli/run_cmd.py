@@ -46,11 +46,13 @@ import typer
 from genetics.ancestry.context import AncestryContext, AncestryError
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
+from genetics.external.plink2 import Plink2Error
 from genetics.ingest import IngestError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
 from genetics.run.bundle import BundleError
 from genetics.run.pipeline import Analysis, analyse, save
+from genetics.structure.roh import RohError
 
 
 def _echo(text: str = "", **kwargs: object) -> None:
@@ -71,6 +73,8 @@ def _error_kind(exc: Exception) -> str:
         return "ingest"
     if isinstance(exc, AncestryError):
         return "ancestry"
+    if isinstance(exc, RohError | Plink2Error):
+        return "structure"
     if isinstance(exc, CardError):
         return "knowledge"
     if isinstance(exc, EvidenceAssemblyError):
@@ -170,6 +174,8 @@ def run(
         EvidenceAssemblyError,
         BundleError,
         OSError,
+        RohError,
+        Plink2Error,
     ) as exc:
         _fail(exc, as_json=as_json)
 

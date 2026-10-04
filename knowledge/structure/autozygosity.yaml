@@ -1,0 +1,41 @@
+schema_version: 1
+cards:
+  - id: long_roh_autozygosity
+    section: genome_structure
+    kind: computed
+    computation: long_roh
+    title: Long runs of homozygosity and autozygosity
+    summary: "Interpretation is limited by assay coverage and absent chip/population calibration."
+    detail: >-
+      Autozygosity means inheriting the same ancestral DNA segment through both parents.
+      Long runs of homozygosity are evidence consistent with shared ancestry between
+      parental lineages. Their distribution also depends on population history, endogamy,
+      recombination and the calling method. These measurements cannot identify a particular
+      parental relationship or date a shared ancestor. F_ROH here is the fraction of
+      assayed autosomal spans in runs meeting the recorded policy, not a whole-genome
+      inbreeding coefficient. No population percentile or individual disease risk is
+      established by this uncalibrated assay fraction.
+    method_evidence:
+      tier: observational population studies
+      replication: independent studies with different populations and ROH callers
+      populations:
+        - "McQuillan 2008: four European-origin populations, including Orkney and Croatian isolates"
+        - "Pemberton 2012: 64 worldwide populations"
+      sample_sizes: [2618, 1839]
+      measure: observed long-ROH length divided by eligible assayed autosomal span
+      units: "bp for lengths; dimensionless fraction for F_ROH"
+      effect_size: >-
+        Not a phenotype effect or disease-risk estimate. The cited studies support the
+        relationship between ROH and autozygosity; their quantitative pedigree correlations
+        and population distributions do not calibrate this chip, filtering policy or denominator.
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2008.08.007
+        title: Runs of Homozygosity in European Populations
+      - type: doi
+        id: 10.1016/j.ajhg.2012.06.014
+        title: Genomic Patterns of Homozygosity in Worldwide Human Populations
+    caveats:
+      - "The default pooled 1000 Genomes reference is not ancestry matched. Its MAF and LD filters can change detection and the denominator."
+      - "A numeric zero means no run met the recorded policy with some supported scanning windows; it does not exclude shorter or poorly observed runs."
+      - "Missing calls and unsupported assay spans can cause underestimation. Empirical chip/population sensitivity and comparative percentiles are not calibrated."

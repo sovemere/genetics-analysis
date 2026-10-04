@@ -15,7 +15,7 @@ from __future__ import annotations
 import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from genetics.engine.cards import Card, CardKind, KnowledgePack
 from genetics.engine.citations import Citation
@@ -163,6 +163,7 @@ class AssembledCard(NoGenotypeRepr):
     citations: tuple[Citation, ...]
     authored_caveats: tuple[str, ...]
     computed_caveats: tuple[str, ...]
+    computation: Mapping[str, Any] | None = None
 
     @property
     def has_interpretation(self) -> bool:
@@ -281,6 +282,12 @@ def assemble_card(
         raise EvidenceAssemblyError(
             f"cannot assemble card {card.id!r} with match for {match.card_id!r}"
         )
+    if card.kind is CardKind.COMPUTED:
+        if observation is not None or match.status is not MatchStatus.NOT_RUN:
+            raise EvidenceAssemblyError("computed cards require the computation assembler")
+        from genetics.structure.interpretation import assemble_roh_card
+
+        return assemble_roh_card(card, None, reason=match.reason)
     if card.kind is CardKind.IMPOSSIBILITY:
         if match.status is not MatchStatus.NOT_DETERMINABLE:
             raise EvidenceAssemblyError(

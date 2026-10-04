@@ -45,6 +45,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import secrets
 import shutil
@@ -71,8 +72,14 @@ if TYPE_CHECKING:
     # the reference machinery. Writing only calls `to_dict()` on what it is handed.
     from genetics.ancestry.context import AncestryContext
 
-BUNDLE_FORMAT_VERSION: Final[int] = 3
+BUNDLE_FORMAT_VERSION: Final[int] = 4
 """Bumped whenever a reader of the previous version would misread the payload.
+
+**Version 4 (M6.2) adds computed cards with a ``computation`` record** inside
+``cards.run.json``: raw measurement, reference/tool provenance, method evidence and
+computed reliability inputs. Older cards have ``computation=None``. ROH reliability is
+not a single-variant rarity score, and its interpretation ceiling remains limited until
+empirical chip/population calibration exists.
 
 **Version 3 (M5.8) added ``ancestry.run.json``**: the ancestry stage's population placement,
 haplogroups and ancient affinity, each with its status. A new *file* rather than a key in the
@@ -393,6 +400,7 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "citations": [_citation_payload(c) for c in assembled.citations],
         "authored_caveats": list(assembled.authored_caveats),
         "computed_caveats": list(assembled.computed_caveats),
+        "computation": assembled.computation,
     }
 
 
@@ -417,6 +425,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "citations",
         "authored_caveats",
         "computed_caveats",
+        "computation",
     }
 )
 
@@ -574,6 +583,7 @@ class StoredCard(NoGenotypeRepr):
     citations: tuple[Mapping[str, Any], ...]
     authored_caveats: tuple[str, ...]
     computed_caveats: tuple[str, ...]
+    computation: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -889,6 +899,105 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     tier = confidence_map.get("tier") if confidence_map is not None else None
     variant = data.get("variant")
     observation = data.get("observation")
+    computation = data.get("computation")
+    computation_map = None if computation is None else _mapping(computation, f"{where}.computation")
+    if computation_map is not None:
+        _reject_unknown(
+            computation_map,
+            frozenset({"source", "status", "reason", "result", "reliability", "method_evidence"}),
+            where,
+        )
+        if data.get("kind") != "computed" or computation_map.get("source") != "long_roh":
+            raise BundleError(f"{where}: invalid computed-card source or kind")
+        if computation_map.get("status") != data.get("status"):
+            raise BundleError(f"{where}: computation and card statuses disagree")
+        reliability = _mapping(_require(computation_map, "reliability", where), where)
+        _mapping(_require(reliability, "inputs", where), where)
+        if not isinstance(reliability.get("reason"), str) or not reliability["reason"].strip():
+            raise BundleError(f"{where}: computation reliability needs a reason")
+        tier = reliability.get("tier")
+        for key in ("result", "reason", "method_evidence"):
+            _require(computation_map, key, where)
+        measured = computation_map["result"]
+        if measured is None:
+            if data["status"] != "not_run" or tier is not None or not computation_map["reason"]:
+                raise BundleError(f"{where}: not-run computation needs a reason and no tier")
+        else:
+            measured_map = _mapping(measured, where)
+            required = {
+                "schema_version",
+                "engine_version",
+                "status",
+                "total_roh_bp",
+                "roh_count",
+                "longest_roh_bp",
+                "f_roh",
+                "denominator_bp",
+                "denominator_definition",
+                "chromosomes_assayed",
+                "n_array_positions",
+                "n_filtered_reference_markers",
+                "n_analyzed_markers",
+                "n_missing_calls",
+                "segments",
+                "assayed_intervals",
+                "window_support",
+                "settings",
+                "references",
+                "tools",
+                "warnings",
+            }
+            _reject_unknown(measured_map, frozenset(required), where)
+            for key in required:
+                _require(measured_map, key, where)
+            for key in (
+                "total_roh_bp",
+                "roh_count",
+                "longest_roh_bp",
+                "denominator_bp",
+                "n_array_positions",
+                "n_filtered_reference_markers",
+                "n_analyzed_markers",
+                "n_missing_calls",
+            ):
+                if type(measured_map[key]) is not int or measured_map[key] < 0:
+                    raise BundleError(f"{where}: ROH {key} must be a nonnegative integer")
+            for key in (
+                "segments",
+                "assayed_intervals",
+                "window_support",
+                "references",
+                "warnings",
+                "chromosomes_assayed",
+            ):
+                if not isinstance(measured_map[key], list):
+                    raise BundleError(f"{where}: ROH {key} must be a list")
+            for key in ("settings", "tools"):
+                _mapping(measured_map[key], where)
+            if (
+                measured_map.get("schema_version") != 2
+                or measured_map.get("status") != data["status"]
+            ):
+                raise BundleError(f"{where}: unsupported ROH result schema or inconsistent status")
+            if data["status"] not in {"computed", "insufficient_calls", "insufficient_coverage"}:
+                raise BundleError(f"{where}: invalid ROH computation status")
+            if (data["status"] == "computed") != (tier == "limited"):
+                raise BundleError(f"{where}: inconsistent ROH interpretation tier")
+            if data["status"] != "computed" and measured_map.get("f_roh") is not None:
+                raise BundleError(f"{where}: unavailable ROH cannot carry a numeric fraction")
+            if data["status"] == "computed":
+                fraction = measured_map["f_roh"]
+                denominator = measured_map["denominator_bp"]
+                if (
+                    type(fraction) not in (float, int)
+                    or not math.isfinite(fraction)
+                    or not 0 <= fraction <= 1
+                    or denominator <= 0
+                    or not math.isclose(fraction, measured_map["total_roh_bp"] / denominator)
+                ):
+                    raise BundleError(f"{where}: invalid or inconsistent observed ROH fraction")
+    elif data.get("kind") == "computed":
+        raise BundleError(f"{where}: computed card has no computation record")
     frequency_source = data.get("confidence_frequency")
     return StoredCard(
         card_id=str(_require(data, "card_id", where)),
@@ -924,6 +1033,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         ),
         authored_caveats=tuple(str(c) for c in data.get("authored_caveats") or ()),
         computed_caveats=tuple(str(c) for c in data.get("computed_caveats") or ()),
+        computation=computation_map,
     )
 
 

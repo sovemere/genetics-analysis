@@ -57,7 +57,7 @@
   tier the card does not have. A false explanation is worse than a blank, because a reader
   cannot tell it from the case where it is true.
 #}
-{% if not card.is_impossibility %}
+{% if not card.is_impossibility and not card.is_computed %}
   <section class="detailblock">
     <h3>Effect size</h3>
     {% if not card.is_interpreted and card.evidence %}
@@ -151,6 +151,10 @@
     </section>
   {% endif %}
 {% endif %}
+
+  {% if card.is_computed %}
+    {% include "_rohdetail.html" %}
+  {% endif %}
 
   {% if card.confidence %}
     <section class="detailblock">

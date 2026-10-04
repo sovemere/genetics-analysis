@@ -767,7 +767,34 @@ def _render_card(card: views.CardView, template: str) -> str:
 CONDITIONAL_FIELDS = {
     "kind": "test_the_kind_of_card_decides_which_citations_sentence_is_shown",
     "bundle_format_version": "test_an_old_bundle_says_so_where_the_effect_size_would_be",
+    "computation": "test_computed_measurement_metadata_reaches_the_detail_template",
 }
+
+
+def test_computed_measurement_metadata_reaches_the_detail_template() -> None:
+    card = replace(
+        _full_card(),
+        kind="computed",
+        status="not_run",
+        confidence=None,
+        computation={
+            "result": None,
+            "reason": "ROH-NOT-RUN-MARKER",
+            "reliability": {"reason": "ROH-RELIABILITY-MARKER", "inputs": {}},
+            "method_evidence": {
+                "effect_size": "METHOD-MARKER",
+                "measure": "assay fraction",
+                "units": "bp",
+                "tier": "observational",
+                "replication": "independent",
+                "populations": ["synthetic"],
+                "sample_sizes": [50],
+            },
+        },
+    )
+    markup = _render_card(card, "_carddetail.html")
+    assert "ROH-NOT-RUN-MARKER" in markup and "ROH-RELIABILITY-MARKER" in markup
+    assert "METHOD-MARKER" in markup and "Effect size</h3>" not in markup
 
 
 def test_every_field_a_card_view_collects_reaches_a_rendered_card() -> None:

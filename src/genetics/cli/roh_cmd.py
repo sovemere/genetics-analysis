@@ -66,7 +66,8 @@ def roh(
     from genetics.external.plink2 import Plink2, Plink2Error
     from genetics.external.plink19 import Plink19
     from genetics.ingest import IngestError, ingest
-    from genetics.paths import is_inside_repo, references_dir
+    from genetics.paths import is_inside_repo
+    from genetics.structure.interpretation import default_references
     from genetics.structure.roh import ReferenceInput, RohSettings, compute_roh
 
     try:
@@ -82,13 +83,9 @@ def roh(
         else:
             if population and not keep:
                 raise ValueError("--population requires --keep when using the default pooled panel")
-            root = references_dir() / "thousand_genomes_phase3_grch37"
-            reference = [
-                root
-                / f"ALL.chr{c}.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz"
-                for c in range(1, 23)
-            ]
-            reference_version = "1000 Genomes phase 3 GRCh37 20130502 v5b"
+            defaults = default_references()
+            reference = [ref.path for ref in defaults]
+            reference_version = defaults[0].version
             if keep and not population:
                 raise ValueError("--keep requires an explicit --population label")
             population = population or "pooled 1000G phase 3 (not ancestry-matched)"

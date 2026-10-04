@@ -28,8 +28,8 @@ inferred" and "inferred, and no population fits" kept apart by explicit statuses
 a `None`. On the real export: population placed, both haplogroups called, ancient computed, in
 about a minute with the reference PCAs cached.
 
-**M6.1 is implemented and validated against the pinned native tools on synthetic panels
-(2026-09-25). Next is [M6.2](#m6--genome-structure), the autozygosity interpretation card,
+**M6.1 and M6.2 are implemented and validated against the pinned native tools on synthetic
+panels. Next is [M6.3](#m6--genome-structure), archaic introgression,
 or the fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
 study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
 not a blocker for either.
@@ -2188,9 +2188,31 @@ section, that proves every layer.*
         chip/population calibration yet; interpretation belongs to M6.2. Scratch is cleaned
         on completion/errors, but interrupted reference processing is not resumable in this
         first engine. No personal results or reference payloads are committed.
-- [ ] **M6.2** Autozygosity interpretation card. Sensitive and occasionally surprising —
+- [x] **M6.2** Autozygosity interpretation card. Sensitive and occasionally surprising —
       include it, compute it properly, state it plainly
       ([AGENTS.md §0.1B](AGENTS.md)). No euphemism, no advice.
+      - **Completed 2026-10-04.** `long_roh_autozygosity` is a cited, declarative
+        `computed` card in `knowledge/structure/`. `genetics run` calls the shared M6.1
+        engine once when the pack requests it and the full 22-autosome reference and
+        pinned tools are present. Missing dependencies render `not_run` with a fix-it
+        command; wrong versions and malformed references fail. No PCA subset is reused.
+      - Bundle **format 4** adds the per-card `computation` record: measurements,
+        intervals, local observability, reference hashes, parameters, tool versions,
+        method evidence and computed reliability inputs. Formats 1–3 still read. CLI
+        `runs show --json` and dashboard card detail expose the same saved record.
+      - **Interpretation is limited by the uncalibrated assay.** The face states count,
+        total length, observed F_ROH and its assayed denominator, with missing-call,
+        partial-coverage and unsupported-span limitations. The detail states what
+        autozygosity means and why this result cannot identify a particular parental
+        relationship, percentile or individual disease risk. McQuillan (2008; n=2,618)
+        and Pemberton (2012; n=1,839) support the method explanation, not numeric
+        calibration of this caller. Supported zero and unavailable results are distinct.
+      - Validation covers schema refusal, all result states, native planted runs,
+        dependency handling, immutable bundle round-trip, CLI/HTTP agreement,
+        corruption refusal and genotype-safe repr. **1,790 passed, 5 platform skips**;
+        ruff, format, strict mypy, fixture reproduction and full card lint pass
+        (44 cards, 212 template renders, 31/31 dbSNP keys resolved).
+        [Method and usage](docs/roh.md).
 - [ ] **M6.3** Archaic introgression (Neanderthal/Denisovan) against public Vindija/Altai
       references. Array-based estimates are coarser than sequence-based — say so, and
       give a range rather than a false-precision percentage.

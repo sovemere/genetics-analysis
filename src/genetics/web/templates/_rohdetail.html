@@ -1,0 +1,59 @@
+<section class="detailblock">
+  <h3>Observed long runs of homozygosity</h3>
+  {% if card.roh %}
+    <dl class="facts">
+      <div><dt>Result status</dt><dd>{{ card.status_label }}</dd></div>
+      <div><dt>Total ROH length</dt><dd>{{ card.roh.total_roh_bp }} bp</dd></div>
+      <div><dt>Number of runs</dt><dd>{{ card.roh.roh_count }}</dd></div>
+      <div><dt>Longest run</dt><dd>{{ card.roh.longest_roh_bp }} bp</dd></div>
+      <div><dt>Observed F_ROH</dt><dd>{% if card.roh.f_roh is not none %}{{ "%.4f" | format(card.roh.f_roh) }} ({{ "%.2f" | format(card.roh.f_roh * 100) }}%){% else %}Unavailable{% endif %}</dd></div>
+      <div><dt>Assayed denominator</dt><dd>{{ card.roh.denominator_bp }} bp — {{ card.roh.denominator_definition }}</dd></div>
+      <div><dt>Autosomes assayed</dt><dd>{{ card.roh.chromosomes_assayed | join(", ") or "None" }}</dd></div>
+      <div><dt>Array / reference-filtered / analyzed markers</dt><dd>{{ card.roh.n_array_positions }} / {{ card.roh.n_filtered_reference_markers }} / {{ card.roh.n_analyzed_markers }}</dd></div>
+      <div><dt>Missing calls</dt><dd>{{ card.roh.n_missing_calls }}</dd></div>
+    </dl>
+    <h3>Detected segments (GRCh37, 1-based inclusive)</h3>
+    {% if card.roh.segments %}
+      <ul class="plainlist">
+      {% for segment in card.roh.segments %}
+        <li>Chromosome {{ segment.chrom }}: {{ segment.start }}–{{ segment.end }}; {{ segment.n_snps }} markers</li>
+      {% endfor %}
+      </ul>
+    {% else %}<p>No segment was detected under the recorded policy. See coverage and result status above.</p>{% endif %}
+    <h3>Assay observability</h3>
+    <ul class="plainlist">
+      {% for window in card.roh.window_support %}
+        <li>Chromosome {{ window.interval.chrom }}: {{ window.interval.start }}–{{ window.interval.end }};
+          {{ window.observed_windows }} supported windows / {{ window.density_windows }} density-eligible windows</li>
+      {% endfor %}
+    </ul>
+    <h3>Method and provenance</h3>
+    <dl class="facts">
+      {% for name, value in card.roh.settings.items() %}<div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+      {% for name, value in card.roh.tools.items() %}<div><dt>{{ name }}</dt><dd>{{ value }}</dd></div>{% endfor %}
+    </dl>
+    {% for reference in card.roh.references %}
+      <p>{{ reference.population }} — {{ reference.version }}; status {{ reference.status }}</p>
+    {% endfor %}
+  {% else %}<p>{{ card.computation.reason }}</p>{% endif %}
+</section>
+<section class="detailblock">
+  <h3>Why this reliability tier</h3>
+  <p>{{ card.computation.reliability.reason }}</p>
+  <dl class="facts">
+    {% for name, value in card.computation.reliability.inputs.items() %}
+      <div><dt>{{ name.replace("_", " ") }}</dt><dd>{{ value }}</dd></div>
+    {% endfor %}
+  </dl>
+  <h3>Published method evidence</h3>
+  {% set method = card.computation.method_evidence %}
+  <p>{{ method.effect_size }}</p>
+  <dl class="facts">
+    <div><dt>Measurement</dt><dd>{{ method.measure }}</dd></div>
+    <div><dt>Units</dt><dd>{{ method.units }}</dd></div>
+    <div><dt>Evidence tier</dt><dd>{{ method.tier }}</dd></div>
+    <div><dt>Replication</dt><dd>{{ method.replication }}</dd></div>
+    <div><dt>Study populations</dt><dd>{{ method.populations | join("; ") }}</dd></div>
+    <div><dt>Study sample sizes (same order)</dt><dd>{{ method.sample_sizes | join(", ") }}</dd></div>
+  </dl>
+</section>

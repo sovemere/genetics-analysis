@@ -82,6 +82,10 @@ class MatchStatus(StrEnum):
     """Why there is, or is not, an interpretation."""
 
     MATCHED = "matched"
+    COMPUTED = "computed"
+    NOT_RUN = "not_run"
+    INSUFFICIENT_COVERAGE = "insufficient_coverage"
+    INSUFFICIENT_CALLS = "insufficient_calls"
 
     NOT_DETERMINABLE = "not_determinable"
     """An impossibility card (AGENTS.md 3.2). It carries no match and never could; the
@@ -116,7 +120,7 @@ class MatchStatus(StrEnum):
 
     @property
     def has_interpretation(self) -> bool:
-        return self is MatchStatus.MATCHED
+        return self in {MatchStatus.MATCHED, MatchStatus.COMPUTED}
 
 
 class Strand(StrEnum):
@@ -346,6 +350,12 @@ class Matcher:
         return cls(index=index, merges=merges)
 
     def match(self, card: Card) -> MatchResult:
+        if card.kind is CardKind.COMPUTED:
+            return MatchResult(
+                card_id=card.id,
+                status=MatchStatus.NOT_RUN,
+                reason="Long-ROH computation has not run.",
+            )
         if card.kind is CardKind.IMPOSSIBILITY:
             return MatchResult(
                 card_id=card.id,

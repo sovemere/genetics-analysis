@@ -452,6 +452,10 @@ printed on the page. Asserted not to collide with any :class:`ConfidenceTier` me
 
 _STATUS_LABELS: Mapping[str, str] = {
     MatchStatus.MATCHED.value: "Interpreted",
+    MatchStatus.COMPUTED.value: "Computed measurement",
+    MatchStatus.NOT_RUN.value: "Computation not run",
+    MatchStatus.INSUFFICIENT_COVERAGE.value: "Insufficient assay coverage",
+    MatchStatus.INSUFFICIENT_CALLS.value: "Insufficient local calls",
     MatchStatus.NOT_DETERMINABLE.value: "Not determinable by this assay",
     MatchStatus.MARKER_ABSENT.value: "Marker not on this array",
     MatchStatus.NO_CALL.value: "No call",
@@ -913,10 +917,22 @@ class CardView(NoGenotypeRepr):
     url: str
     """This card's own address, id encoded. Built once here rather than in each template --
     see :func:`run_path` for the hostile id that made that a correctness question."""
+    computation: Mapping[str, Any] | None = None
 
     @property
     def is_interpreted(self) -> bool:
-        return self.status == MATCHED
+        return self.status in {MATCHED, "computed"}
+
+    @property
+    def is_computed(self) -> bool:
+        return self.kind == "computed"
+
+    @property
+    def roh(self) -> Mapping[str, Any] | None:
+        if self.computation is None:
+            return None
+        result = self.computation.get("result")
+        return result if isinstance(result, Mapping) else None
 
     @property
     def is_impossibility(self) -> bool:
@@ -964,7 +980,7 @@ class CardView(NoGenotypeRepr):
         """
         if self.frequencies or self.confidence_frequency is not None:
             return None
-        if not self.is_interpreted:
+        if not self.is_interpreted or self.is_computed:
             return None
         return (
             "No population frequency was available for this variant, so the rarity check "
@@ -1101,6 +1117,7 @@ class CardView(NoGenotypeRepr):
             strand=_text(card.match.get("strand")),
             bundle_format_version=format_version,
             url=card_path(run_id, card.card_id),
+            computation=card.computation,
         )
 
 
