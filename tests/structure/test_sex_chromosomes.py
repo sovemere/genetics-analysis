@@ -301,9 +301,39 @@ def test_saved_inconsistent_measurements_are_rejected(pack: KnowledgePack, edit:
     elif edit == "status":
         raw["status"] = payload["status"] = payload["computation"]["status"] = "insufficient_calls"
     elif edit == "limitation":
-        raw["warnings"] = ["No limitations."]
+        raw["warnings"] = []
     with pytest.raises(BundleError):
         _stored_card(payload, "synthetic corrupted sex-chromosome card")
+
+
+def test_saved_profile_survives_current_wording_changes(
+    pack: KnowledgePack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genetics.structure import sex_chromosomes
+
+    payload = copy.deepcopy(
+        _card_payload(
+            assemble_sex_chromosome_card(pack.cards[0], compute_sex_chromosomes(synthetic()))
+        )
+    )
+    monkeypatch.setattr(sex_chromosomes, "LIMIT", "Updated presentation of the assay limitation.")
+    monkeypatch.setitem(sex_chromosomes.SETTINGS, "par_source", "https://example.org/new-source")
+    monkeypatch.setitem(sex_chromosomes.SETTINGS, "duplicate_policy", "Updated policy wording.")
+    assert (
+        _stored_card(payload, "historical synthetic profile").computation == payload["computation"]
+    )
+
+
+def test_serialized_profile_is_an_independent_snapshot() -> None:
+    from genetics.structure.sex_chromosomes import SETTINGS
+
+    result = compute_sex_chromosomes(synthetic())
+    serialized = result.as_dict()
+    serialized["settings"]["par_boundaries"]["X"][0][0] = 0
+    serialized["warnings"].clear()
+    assert result.data["settings"]["par_boundaries"]["X"][0][0] == 60_001
+    assert SETTINGS["par_boundaries"]["X"][0][0] == 60_001
+    assert result.data["warnings"]
 
 
 @pytest.mark.privacy

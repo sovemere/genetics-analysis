@@ -57,7 +57,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
-from genetics.engine.cards import Card, KnowledgePack
+from genetics.engine.cards import Card, CardError, KnowledgePack, parse_method_evidence
 from genetics.engine.citations import Citation
 from genetics.engine.confidence import ConfidenceResult
 from genetics.engine.evidence import AssembledCard, PopulationFrequency
@@ -924,6 +924,35 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
             raise BundleError(f"{where}: computation and card statuses disagree")
+        if (
+            data.get("section") != "genome_structure"
+            or any(
+                data.get(k) is not None
+                for k in (
+                    "variant",
+                    "observation",
+                    "confidence",
+                    "evidence",
+                    "gene",
+                    "impossibility_reason",
+                )
+            )
+            or any(
+                _mapping(_require(data, "match", where), where).get(k) is not None
+                for k in (
+                    "genotype",
+                    "observed_genotype",
+                    "observed_rsid",
+                    "call_status",
+                    "outcome_name",
+                )
+            )
+        ):
+            raise BundleError(f"{where}: inconsistent computed-card interpretation or match")
+        try:
+            parse_method_evidence(_require(computation_map, "method_evidence", where), where)
+        except CardError as exc:
+            raise BundleError(f"{where}: {exc}") from exc
         reliability = _mapping(_require(computation_map, "reliability", where), where)
         _mapping(_require(reliability, "inputs", where), where)
         if not isinstance(reliability.get("reason"), str) or not reliability["reason"].strip():
@@ -932,8 +961,15 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         for key in ("result", "reason", "method_evidence"):
             _require(computation_map, key, where)
         measured = computation_map["result"]
+        if measured is not None and computation_map["reason"] is not None:
+            raise BundleError(f"{where}: a measured computation cannot carry a not-run reason")
         if measured is None:
-            if data["status"] != "not_run" or tier is not None or not computation_map["reason"]:
+            if (
+                data["status"] != "not_run"
+                or tier is not None
+                or not isinstance(computation_map["reason"], str)
+                or not computation_map["reason"].strip()
+            ):
                 raise BundleError(f"{where}: not-run computation needs a reason and no tier")
         elif computation_map["source"] == "sex_chromosome_profile":
             from genetics.structure.sex_chromosomes import SexChromosomeError
@@ -1025,6 +1061,8 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 raise BundleError(f"{where}: invalid ROH computation status")
             if (data["status"] == "computed") != (tier == "limited"):
                 raise BundleError(f"{where}: inconsistent ROH interpretation tier")
+            if data["status"] != "computed" and tier is not None:
+                raise BundleError(f"{where}: unavailable ROH cannot carry a reliability tier")
             if data["status"] != "computed" and measured_map.get("f_roh") is not None:
                 raise BundleError(f"{where}: unavailable ROH cannot carry a numeric fraction")
             if data["status"] == "computed":
@@ -1038,6 +1076,13 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                     or not math.isclose(fraction, measured_map["total_roh_bp"] / denominator)
                 ):
                     raise BundleError(f"{where}: invalid or inconsistent observed ROH fraction")
+            from genetics.structure.roh import RohError
+            from genetics.structure.roh_validation import validate_result as validate_roh_result
+
+            try:
+                validate_roh_result(measured_map)
+            except RohError as exc:
+                raise BundleError(f"{where}: {exc}") from exc
     elif data.get("kind") == "computed":
         raise BundleError(f"{where}: computed card has no computation record")
     frequency_source = data.get("confidence_frequency")

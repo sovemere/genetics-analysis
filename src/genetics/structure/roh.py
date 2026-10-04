@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 from bisect import bisect_left, bisect_right
 from collections.abc import Callable, Sequence
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -206,7 +207,7 @@ class RohResult(NoGenotypeRepr):
             "assayed_intervals": [asdict(i) for i in self.assayed_intervals],
             "window_support": [asdict(w) for w in self.window_support],
             "settings": asdict(self.settings),
-            "references": list(self.provenance),
+            "references": deepcopy(list(self.provenance)),
             "tools": {"plink2": self.plink2_version, "plink19": self.plink19_version},
             "warnings": warnings,
         }

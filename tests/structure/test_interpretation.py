@@ -113,6 +113,108 @@ def test_computed_schema_refuses_invalid_claims(pack: KnowledgePack, edit: dict[
         Card.parse(raw, "synthetic schema test")
 
 
+@pytest.mark.parametrize("population", [None, False, {}, " "])
+def test_computed_populations_must_be_nonempty_text(pack: KnowledgePack, population: Any) -> None:
+    path = pack.source_dir / "structure/autozygosity.yaml"
+    raw = yaml.safe_load(path.read_text(encoding="utf-8"))["cards"][0]
+    raw["method_evidence"]["populations"][0] = population
+    with pytest.raises(CardError):
+        Card.parse(raw, "synthetic method evidence")
+
+
+@pytest.mark.parametrize(
+    "edit",
+    [
+        "method_null",
+        "method_population",
+        "method_size",
+        "match_genotype",
+        "observation",
+        "reason",
+        "segment_reversed",
+        "segment_chrom",
+        "segments_missing",
+        "interval_length",
+        "window_shape",
+        "window_count",
+        "settings",
+        "unavailable_tier",
+        "overlap",
+        "window_interval",
+        "marker_count",
+        "reference_digest",
+        "tool_version",
+        "warnings",
+    ],
+)
+def test_saved_roh_contract_rejects_inconsistent_records(definition: Card, edit: str) -> None:
+    from genetics.run.bundle import _card_payload
+
+    data = copy.deepcopy(_card_payload(assemble_roh_card(definition, measured())))
+    computation = data["computation"]
+    result = computation["result"]
+    if edit == "method_null":
+        computation["method_evidence"] = None
+    elif edit == "method_population":
+        computation["method_evidence"]["populations"][0] = False
+    elif edit == "method_size":
+        computation["method_evidence"]["sample_sizes"][0] = True
+    elif edit == "match_genotype":
+        data["match"]["genotype"] = "invented"
+    elif edit == "observation":
+        data["observation"] = {}
+    elif edit == "reason":
+        computation["reason"] = "A measurement cannot also be not run"
+    elif edit == "segment_reversed":
+        result["segments"][0]["start"] = 7_000_000
+    elif edit == "segment_chrom":
+        result["segments"][0]["chrom"] = "X"
+    elif edit == "segments_missing":
+        result["segments"] = []
+    elif edit == "interval_length":
+        result["assayed_intervals"][0]["end"] += 1
+    elif edit == "window_shape":
+        result["window_support"][0] = {}
+    elif edit == "window_count":
+        result["window_support"][0]["observed_windows"] = 61
+    elif edit == "settings":
+        result["settings"]["window_snps"] = 0
+    elif edit == "unavailable_tier":
+        result.update(
+            status="insufficient_calls",
+            segments=[],
+            total_roh_bp=0,
+            roh_count=0,
+            longest_roh_bp=0,
+            f_roh=None,
+        )
+        for window in result["window_support"]:
+            window["observed_windows"] = 0
+        data["status"] = computation["status"] = "insufficient_calls"
+        computation["reliability"]["tier"] = "strong"
+    elif edit == "overlap":
+        result["segments"].append(copy.deepcopy(result["segments"][0]))
+    elif edit == "window_interval":
+        result["window_support"][0]["interval"]["end"] += 1
+    elif edit == "marker_count":
+        result["n_missing_calls"] = 241
+    elif edit == "reference_digest":
+        result["references"][0]["input_sha256"] = {"vcf": "not a digest"}
+    elif edit == "tool_version":
+        result["tools"]["plink19"] = None
+    elif edit == "warnings":
+        result["warnings"] = []
+    with pytest.raises(BundleError):
+        _stored_card(data, "synthetic damaged measurement")
+
+
+def test_serialized_roh_provenance_is_an_independent_snapshot() -> None:
+    result = measured()
+    serialized = result.as_dict()
+    serialized["references"][0]["input_sha256"].clear()
+    assert result.provenance[0]["input_sha256"] == {"vcf": "a" * 64}
+
+
 def test_measured_card_states_the_assay_fraction_and_limits(definition: Card) -> None:
     card = assemble_roh_card(definition, measured())
     assert card.status is MatchStatus.COMPUTED and card.has_interpretation
@@ -159,6 +261,24 @@ def test_unavailable_is_never_a_numeric_zero(definition: Card, mode: str) -> Non
     assert card.computation is not None
     assert card.computation["result"]["f_roh"] is None
     assert card.computation["reliability"]["tier"] is None
+
+
+@pytest.mark.parametrize("mode", ["computed", "zero", "unsupported", "coverage", "calls"])
+def test_saved_roh_validation_preserves_all_legitimate_states(definition: Card, mode: str) -> None:
+    from genetics.run.bundle import _card_payload
+
+    result = measured(zero=mode in {"zero", "coverage", "calls"}, unsupported=mode == "unsupported")
+    if mode == "coverage":
+        result = replace(result, assayed_intervals=(), window_support=())
+    elif mode == "calls":
+        result = replace(
+            result,
+            window_support=tuple(replace(w, observed_windows=0) for w in result.window_support),
+        )
+    payload = _card_payload(assemble_roh_card(definition, result))
+    assert (
+        _stored_card(payload, "synthetic saved measurement").computation == payload["computation"]
+    )
 
 
 def test_stage_runs_native_engine_once_and_preserves_result(

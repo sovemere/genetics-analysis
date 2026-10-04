@@ -67,6 +67,7 @@ def test_native_result_reaches_the_autozygosity_card(
 ) -> None:
     from genetics.engine.cards import KnowledgePack
     from genetics.engine.matcher import MatchStatus
+    from genetics.run.bundle import _card_payload, _stored_card
     from genetics.structure.interpretation import assemble_roh_card
 
     definition = KnowledgePack.load().by_id("long_roh_autozygosity")
@@ -83,6 +84,7 @@ def test_native_result_reaches_the_autozygosity_card(
     assert card.status is MatchStatus.COMPUTED and card.computation is not None
     assert card.computation["result"]["roh_count"] == 1
     assert card.computation["result"]["longest_roh_bp"] > 10_000_000
+    assert _stored_card(_card_payload(card), "synthetic native ROH").computation == card.computation
 
 
 def test_no_coverage_is_not_a_zero_score() -> None:
