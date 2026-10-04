@@ -244,6 +244,44 @@ def test_localhost_resolves_by_name() -> None:
     assert socket.getaddrinfo("localhost", 0)
 
 
+@pytest.mark.parametrize("host", ["localhost", "127.0.0.1", "::1"])
+def test_resolver_wrapper_preserves_arguments_and_result_without_outbound_dns(host: str) -> None:
+    """A narrower resolver result must pass through unchanged, for both call styles."""
+    calls: list[tuple[str, int, int, int, int, int]] = []
+    result = [("127.0.0.1", 8765)]
+
+    def resolver(
+        host: str, port: int, family: int = 0, type: int = 0, proto: int = 0, flags: int = 0
+    ) -> list[tuple[str, int]]:
+        calls.append((host, port, family, type, proto, flags))
+        return result
+
+    guarded = network._guard_getaddrinfo(resolver)
+    assert (
+        guarded(host, 8765, socket.AF_INET, socket.SOCK_STREAM, 6, socket.AI_NUMERICHOST) is result
+    )
+    assert (
+        guarded(
+            host=host,
+            port=8765,
+            family=socket.AF_INET6,
+            type=socket.SOCK_DGRAM,
+            proto=17,
+            flags=socket.AI_PASSIVE,
+        )
+        is result
+    )
+    assert calls == [
+        (host, 8765, socket.AF_INET, socket.SOCK_STREAM, 6, socket.AI_NUMERICHOST),
+        (host, 8765, socket.AF_INET6, socket.SOCK_DGRAM, 17, socket.AI_PASSIVE),
+    ]
+    with pytest.raises(NetworkAccessError):
+        guarded("example.invalid", 80)
+    with pytest.raises(NetworkAccessError):
+        guarded(host="example.invalid", port=80)
+    assert len(calls) == 2
+
+
 @pytest.mark.parametrize(
     ("host", "local"),
     [
