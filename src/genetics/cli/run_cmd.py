@@ -55,6 +55,7 @@ from genetics.run.bundle import BundleError
 from genetics.run.pipeline import Analysis, analyse, save
 from genetics.structure.archaic import ArchaicError
 from genetics.structure.roh import RohError
+from genetics.structure.sex_chromosomes import SexChromosomeError
 
 
 def _echo(text: str = "", **kwargs: object) -> None:
@@ -75,7 +76,9 @@ def _error_kind(exc: Exception) -> str:
         return "ingest"
     if isinstance(exc, AncestryError):
         return "ancestry"
-    if isinstance(exc, RohError | ArchaicError | EigenstratError | Plink2Error):
+    if isinstance(
+        exc, RohError | ArchaicError | SexChromosomeError | EigenstratError | Plink2Error
+    ):
         return "structure"
     if isinstance(exc, CardError):
         return "knowledge"
@@ -178,6 +181,7 @@ def run(
         OSError,
         RohError,
         ArchaicError,
+        SexChromosomeError,
         EigenstratError,
         Plink2Error,
     ) as exc:

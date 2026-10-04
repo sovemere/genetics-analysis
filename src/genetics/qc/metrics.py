@@ -1,11 +1,10 @@
 """QC computations (roadmap M1.5).
 
 The consequential function here is :func:`infer_sex`. Everything else is arithmetic; sex
-inference decides how the entire X and Y are *read*, because the vendor writes a
+inference decides how non-PAR X and Y are *read*, because the vendor writes a
 hemizygous call as a doubled homozygote and the file itself cannot tell the two apart
-(AGENTS.md section 2). Get it wrong and a male X reads as a genome-wide run of
-homozygosity, which would land in the autozygosity card in M6.2 as a striking and
-completely false finding.
+(AGENTS.md section 2). Get it wrong and an inferred single-copy X call reads as
+diploid homozygosity. M6.2's ROH computation remains autosomal-only.
 
 That is why :func:`resolve_ploidy` refuses to guess. An ambiguous inference leaves the sex
 chromosomes marked ``CALLED`` and says so in a warning, rather than picking the likelier
@@ -39,6 +38,7 @@ from genetics.qc.report import (
     QCReport,
     SexInference,
 )
+from genetics.qc.sex_regions import nonpar_expr
 
 # --- thresholds -------------------------------------------------------------
 # Wide gaps on purpose. These separate two populations that are far apart in the data --
@@ -149,7 +149,7 @@ def heterozygosity(table: GenotypeTable) -> Heterozygosity:
     autosomal = frame.filter(
         pl.col("chrom").cast(pl.String).is_in([c.value for c in AUTOSOMES]) & _is_snp()
     )
-    x_nonpar = frame.filter((pl.col("chrom").cast(pl.String) == Chrom.X.value) & _is_snp())
+    x_nonpar = frame.filter(nonpar_expr("X") & _is_snp())
 
     a_total, a_het = autosomal.height, int(autosomal.filter(_is_het()).height)
     x_total, x_het = x_nonpar.height, int(x_nonpar.filter(_is_het()).height)
@@ -170,15 +170,15 @@ def infer_sex(table: GenotypeTable, het: Heterozygosity) -> SexInference:
     Two signals rather than one, because each fails differently and they rarely fail
     together. X heterozygosity is the sharper discriminator but goes quiet on a
     poorly-called X; Y call rate is coarse but robust. Requiring them to *agree* is what
-    turns a disagreement into ``AMBIGUOUS`` instead of a coin flip -- and a disagreement
-    is exactly what a sex-chromosome aneuploidy looks like, which M6.4 has a card for.
+    turns a disagreement into ``AMBIGUOUS``. Missingness, array error, mixed samples
+    and chromosome variation can produce disagreement; it does not diagnose aneuploidy.
 
     PAR is excluded from the X rate. The pseudoautosomal regions are diploid in both
     sexes, so folding them in would give every male a nonzero X heterozygosity and blunt
     the one signal that separates the two cleanly.
     """
     frame = table.frame
-    y_rows = frame.filter(pl.col("chrom").cast(pl.String) == Chrom.Y.value)
+    y_rows = frame.filter(nonpar_expr("Y"))
     y_total = y_rows.height
     y_called = int(
         y_rows.filter(pl.col("call_status").cast(pl.String) != CallStatus.NO_CALL.value).height
@@ -241,7 +241,7 @@ def _hemizygous_mask(sex: InferredSex) -> pl.Expr:
     mt_only = pl.col("chrom").cast(pl.String) == Chrom.MT.value
     if sex is InferredSex.MALE:
         # PAR is deliberately absent: it is diploid in males too.
-        return pl.col("chrom").cast(pl.String).is_in([Chrom.X.value, Chrom.Y.value]) | mt_only
+        return nonpar_expr("X") | nonpar_expr("Y") | mt_only
     if sex is InferredSex.FEMALE:
         # A female Y call is unexpected rather than hemizygous; it is counted as a warning
         # in run_qc instead of being given a ploidy it has not earned.
@@ -418,7 +418,9 @@ def _warnings(
     if het_haploid:
         out.append(
             f"{het_haploid} heterozygous call(s) at loci inferred single-copy. A few are "
-            "ordinary genotyping error; many would mean the sex inference is wrong."
+            "compatible with genotyping error; many can also reflect mixed samples, "
+            "probe cross-hybridisation or an unresolved chromosome pattern. "
+            "These calls do not establish a chromosome count."
         )
 
     if sex.inferred is InferredSex.FEMALE and sex.y_call_rate > FEMALE_MAX_Y_CALL:

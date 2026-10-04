@@ -28,10 +28,11 @@ inferred" and "inferred, and no population fits" kept apart by explicit statuses
 a `None`. On the real export: population placed, both haplogroups called, ancient computed, in
 about a minute with the reference PCAs cached.
 
-**M6.1-M6.3 are implemented. ROH is validated against the pinned native tools on synthetic
+**M6 is complete. ROH is validated against the pinned native tools on synthetic
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
-individual, with synthetic statistical and integration tests. Next is
-[M6.4](#m6--genome-structure), sex chromosome findings,
+individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
+are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
+Next is [M7.1](#m7--monogenic-health--frequency-gating), ClinVar lookup,
 or the fetcher debt below**, which has to be paid before gnomAD's 63 GB exome file (M7.2). The
 study-to-sample ancestry mapping M5.8 surfaced is [M9.5](#m9--prs-engine--score-driven-sections)'s,
 not a blocker for either.
@@ -380,8 +381,8 @@ permanent in git history.*
       a doubled `A A` on the male X readable.
       - **Sex inference requires two signals to agree** (X het ≤ 0.05 with Y call ≥ 0.30,
         or X het ≥ 0.15 with Y call ≤ 0.15). Disagreement yields `AMBIGUOUS` and leaves
-        ploidy unresolved rather than guessing: that disagreement is what a sex-chromosome
-        aneuploidy looks like (M6.4), and an unresolved locus is visibly unresolved while
+        ploidy unresolved rather than guessing: missingness, assay errors and chromosome
+        variation can produce disagreement (M6.4); an unresolved locus is visibly unresolved while
         a wrongly resolved one is not.
       - `HET_HAPLOID` is its own status, so a heterozygous call at a single-copy locus
         stays countable instead of being dropped or read as a diploid genotype.
@@ -1537,7 +1538,8 @@ section, that proves every layer.*
       - **Autosomes only, and not as a parameter.** PLINK refuses a chrX record outright
         (`Error: chrX is present in the input file, but no sex information was provided`),
         and a doubled hemizygous call written as a diploid homozygote would be a fabricated
-        second allele. Non-autosomal conversion needs M6.4's ploidy plumbing.
+        second allele. M6.4 now shares PAR-aware QC and ploidy handling; extending this
+        converter to non-autosomes still needs an explicit sex/ploidy-aware export contract.
       - The report's ten outcomes **partition the array's autosomal positions exactly
         once**, so the count is readable as coverage rather than as overlapping tallies —
         which is what M9.3's per-score coverage figure has to be built from.
@@ -2232,8 +2234,24 @@ section, that proves every layer.*
         skips); ruff, format, strict mypy, fixture reproduction and full card lint pass
         (46 cards, 216 template renders, 31/31 dbSNP keys resolved).
         [Method and usage](docs/archaic.md).
-- [ ] **M6.4** Sex chromosome findings + karyotype-adjacent caveats. Be careful and
+- [x] **M6.4** Sex chromosome findings + karyotype-adjacent caveats. Be careful and
       literal; this is an inference from het rates, not a karyotype.
+      - Added the computed `sex_chromosome_call_pattern` card, showing direct-call
+        non-PAR X heterozygosity and Y call rate with counts and denominators on its
+        face. Disagreement, sparse inputs and missing Y probes stay visible. Reliability
+        is limited; chromosome count, aneuploidy and mosaicism are not inferred.
+      - QC and structure reporting share verified, inclusive GRCh37 GRC PAR boundaries.
+        Coordinate-defined PAR on X/Y is excluded from both signals and remains diploid,
+        including in layouts that do not label PAR separately. No-call/indel policies and
+        duplicate-probe caveats are explicit. No new tools or reference downloads.
+      - CLI and dashboard read the same bundle-format-6 measurements, method evidence,
+        thresholds and caveats; older bundles remain readable without reinterpretation.
+        Synthetic checks cover threshold edges, discordance, missing/sparse signals,
+        PAR endpoints, ploidy, duplicates, indels, corrupted payloads and saved UI/CLI
+        agreement. Acceptance: 1,857 tests passed with five existing Windows skips;
+        ruff, format, strict mypy (142 files), fixture reproduction and full card lint
+        passed (47 cards, 218 template renders, 31/31 dbSNP keys resolved).
+        [Method and usage](docs/sex_chromosomes.md).
 
 ---
 

@@ -1,10 +1,9 @@
 """Tests for the QC module (roadmap M1.5).
 
-The consequential thing here is sex inference, because it decides how the entire X and Y
-are *read*. Get it wrong on a male sample and the hemizygous X reads as a genome-wide run
-of homozygosity, which would arrive in the autozygosity card (M6.2) as a striking and
-entirely false finding. So the tests below check not only that the inference is right on
-the fixtures, but that it *refuses* rather than guesses when the signals disagree.
+The consequential thing here is sex inference, because it decides how non-PAR X and Y
+are *read*. An inferred single-copy call must not be read as diploid homozygosity;
+M6.2's ROH computation remains autosomal-only. The tests check the inference on
+the fixtures and verify that it refuses to guess when the signals disagree.
 """
 
 from __future__ import annotations
@@ -32,6 +31,7 @@ from genetics.qc import (
     run_qc,
 )
 from genetics.qc.build_anchors import ANCHORS, BuildAnchor
+from genetics.qc.sex_regions import nonpar_expr
 from genetics.testing.fixtures import DEFAULT_FIXTURE_DIR
 
 
@@ -130,7 +130,7 @@ def test_female_y_is_entirely_uncalled() -> None:
 def test_disagreeing_signals_produce_ambiguous_not_a_guess() -> None:
     """Male-looking X with female-looking Y. Refusing is the point.
 
-    A sex-chromosome aneuploidy looks exactly like this, and M6.4 has a card for it.
+    Missingness, assay error and chromosome variation can produce this pattern.
     Picking the likelier answer would silently change how every X and Y call is read.
     """
     table = sex_chrom_table(x_het_fraction=0.0, y_call_fraction=0.0)
@@ -184,9 +184,13 @@ def test_male_sex_chromosomes_become_hemizygous() -> None:
     frame = result.table.frame
 
     for chrom in (Chrom.X, Chrom.Y, Chrom.MT):
+        region = (
+            nonpar_expr(chrom.value)
+            if chrom in (Chrom.X, Chrom.Y)
+            else pl.col("chrom").cast(pl.String) == chrom.value
+        )
         called = frame.filter(
-            (pl.col("chrom").cast(pl.String) == chrom.value)
-            & (pl.col("call_status").cast(pl.String) != CallStatus.NO_CALL.value)
+            region & (pl.col("call_status").cast(pl.String) != CallStatus.NO_CALL.value)
         )
         statuses = set(called.get_column("call_status").cast(pl.String).unique().to_list())
         assert statuses <= {CallStatus.HEMIZYGOUS.value, CallStatus.HET_HAPLOID.value}, chrom
@@ -241,7 +245,7 @@ def test_ambiguous_sex_leaves_sex_chromosomes_unresolved() -> None:
 def test_heterozygous_call_at_a_haploid_locus_is_labelled_not_dropped() -> None:
     """A contradiction, kept as its own status so it stays countable in QC."""
     rows = [_row(f"rs{700000000 + i}", Chrom.X, 1000 + i, "A", "A") for i in range(300)]
-    rows.append(_row("rs799999999", Chrom.X, 99999, "A", "G"))
+    rows.append(_row("rs799999999", Chrom.X, 3000000, "A", "G"))
     table = synthetic_table(rows)
 
     resolved = resolve_ploidy(table, sex=InferredSex.MALE)

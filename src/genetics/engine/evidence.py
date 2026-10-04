@@ -287,6 +287,10 @@ def assemble_card(
             raise EvidenceAssemblyError("computed cards require the computation assembler")
         from genetics.structure.interpretation import assemble_roh_card
 
+        if card.computation == "sex_chromosome_profile":
+            from genetics.structure.sex_interpretation import assemble_sex_chromosome_card
+
+            return assemble_sex_chromosome_card(card, None, reason=match.reason)
         if card.computation != "long_roh":
             from genetics.structure.archaic_interpretation import assemble_archaic_card
 
