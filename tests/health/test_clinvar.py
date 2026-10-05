@@ -270,14 +270,43 @@ def test_saved_results_reject_inconsistent_or_unknown_fields(tmp_path: Path, mut
         validate_lookup(payload)
 
 
+@pytest.mark.parametrize("with_frequency", [False, True])
 def test_bundle_cli_and_dashboard_share_the_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     sample_qc: QCReport,
     sample_pack: KnowledgePack,
     sample_cards: tuple[AssembledCard, ...],
+    with_frequency: bool,
 ) -> None:
     result = build(tmp_path).lookup(table())
+    if with_frequency:
+        from genetics.health.frequencies import (
+            INDEX_VERSION,
+            SOURCE,
+            FrequencyIndex,
+            calibrate,
+            parse_record,
+        )
+
+        index = FrequencyIndex(
+            tmp_path / "reference.sqlite",
+            {
+                "source": SOURCE,
+                "version": "r2.1.1",
+                "build": "GRCh37",
+                "filename": "synthetic.vcf.bgz",
+                "sha256": "1" * 64,
+                "index_schema_version": INDEX_VERSION,
+                "records": 1,
+            },
+        )
+        frequency = parse_record(
+            "\t".join(
+                ("7", str(POS), ".", "A", "G", ".", "PASS", "AC=1;AN=200000;AF=0.000005;nhomalt=0")
+            )
+        )
+        result = calibrate(result, index=index, records={("7", POS): [frequency]})
     snapshot = result.to_dict()
     edited = result.to_dict()
     edited["loci"][0]["records"][0]["info"]["CLNSIG"] = "changed"
@@ -314,6 +343,22 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
         ):
             assert expected in page.text
         assert "/clinvar" in client.get(f"/runs/{path.name}").text
+        if with_frequency:
+            assert "likely-artifact" in page.text
+            assert "16%" in page.text
+            assert "200000" in page.text
+            assert "not inferred personal ancestry" in page.text
+            assert 'href="https://doi.org/10.1136/bmj.n214"' in page.text
+            assert 'rel="noreferrer noopener" class="citelink"' in page.text
+            assert 'target="_blank"' in page.text
+            assert page.headers["referrer-policy"] == "no-referrer"
+        else:
+            manifest_path = path / MANIFEST_NAME
+            old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            old_manifest["format_version"] = 7
+            manifest_path.write_text(json.dumps(old_manifest), encoding="utf-8")
+            assert read_bundle(path).clinvar == snapshot
+            assert "Frequency-based reliability" in client.get(f"/runs/{path.name}/clinvar").text
     (path / CLINVAR_NAME).write_text("{}", encoding="utf-8")
     with pytest.raises(BundleIntegrityError):
         read_bundle(path)

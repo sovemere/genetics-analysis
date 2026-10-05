@@ -231,7 +231,8 @@ def _confidence_frequency(
     variant, and a strand-ambiguous site legitimately adds a complemented allele the
     reference never reported. Raising lost the whole pack -- every other card included --
     to one absent row, which is the filtering AGENTS.md 0.1A forbids arriving as an
-    exception instead of as a policy. ``None`` frequency is already the conservative path:
+    exception instead of as a policy. ``None`` frequency is the conservative path unless
+    a measured rare companion already triggers the artifact gate:
     :func:`calculate_confidence` caps an unknown frequency at ``moderate``, so nothing is
     scored as common on the strength of a missing number.
     """
@@ -264,6 +265,14 @@ def _confidence_frequency(
     by_allele = {item.allele: item for item in observation.frequencies}
     missing = tuple(sorted(called - set(by_allele)))
     if missing:
+        # A missing companion allele cannot erase a measured rare observation.
+        known = [by_allele[allele] for allele in called if allele in by_allele]
+        if known:
+            rarest = min(known, key=lambda item: item.frequency)
+            from genetics.engine.confidence import RARE_CALL_FREQUENCY_CEILING
+
+            if rarest.frequency < RARE_CALL_FREQUENCY_CEILING:
+                return rarest, missing
         return None, missing
     return (
         min((by_allele[allele] for allele in called), key=lambda item: item.frequency),
@@ -388,7 +397,11 @@ def assemble_card(
             *computed_caveats,
             "No population frequency was available for "
             + ", ".join(unpriced_alleles)
-            + ", so the rarity check could not be applied and confidence is capped.",
+            + (
+                "; a measured rare allele still triggers the likely-artifact gate."
+                if confidence_frequency is not None
+                else ", so the rarity check could not be applied and confidence is capped."
+            ),
         )
     return AssembledCard(
         card_id=card.id,

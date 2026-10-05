@@ -133,10 +133,10 @@ sources:
       - rare-variant frequency gate (M7.2) -- the AGENTS.md 4.1 requirement
       - empirical PPV band on likely-artifact cards (M7.3)
     post_process:
-      - step: subset_vcf_to_array_positions
+      - step: build_gnomad_frequency_index
         params:
-          output: gnomad_exomes_af_array_positions.parquet
-          info_fields: AF,AF_popmax,AN,AC,nhomalt
+          input: gnomad.exomes.r2.1.1.sites.vcf.bgz
+          output: gnomad_frequencies.sqlite
     files:
       - url: https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/exomes/gnomad.exomes.r2.1.1.sites.vcf.bgz
         filename: gnomad.exomes.r2.1.1.sites.vcf.bgz
@@ -957,4 +957,3 @@ sources:
     notes: >-
       Listed to make the decision visible. The knowledge pack should be written from
       primary literature instead (M3.6).
-

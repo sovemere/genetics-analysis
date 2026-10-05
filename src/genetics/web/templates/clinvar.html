@@ -13,6 +13,17 @@
   {% set lookup = shell.clinvar %}
   <p class="problem">{{ lookup.notice }}</p>
   <p>Status: {{ lookup.status }}. {{ lookup.reason }}</p>
+  {% if lookup.get("frequency_reference") %}
+    <p>gnomAD frequency screen: {{ lookup.frequency_reference.status }}.</p>
+    <p>Observed alternates: {{ lookup.frequency_reference.counts["likely-artifact"] }} likely artifact;
+      {{ lookup.frequency_reference.counts.frequency_screen_passed }} outside the rare-call band;
+      {{ lookup.frequency_reference.counts.unknown }} with unknown reliability.</p>
+    <p>{{ lookup.frequency_reference.policy }}</p>
+    {% if lookup.frequency_reference.provenance %}
+      <p>gnomAD {{ lookup.frequency_reference.provenance.version }} source SHA256:
+        <code>{{ lookup.frequency_reference.provenance.sha256 }}</code></p>
+    {% endif %}
+  {% endif %}
   {% if lookup.provenance %}
     <p>ClinVar {{ lookup.provenance.version }} · {{ lookup.provenance.build }} · {{ lookup.provenance.filename }}</p>
     <p>{{ lookup.counts.overlapping_loci }} overlapping loci;
@@ -40,6 +51,32 @@
       {% for entry in locus.records %}
         <h3>Variation {{ entry.variation_id }} · {{ entry.status }}</h3>
         <p>{{ entry.reason }}</p>
+        {% if entry.get("reliability") %}
+          <p class="problem">Measurement reliability: <strong>{{ entry.reliability.tier }}</strong>.
+            {{ entry.reliability.reason }}</p>
+          {% if entry.reliability.frequency is not none %}
+            <p>Alternate allele frequency: {{ entry.reliability.frequency }} (fraction);
+              population: {{ entry.reliability.population }}.</p>
+          {% endif %}
+          {% if entry.reliability.empirical_ppv %}
+            <p><a href="{{ clinvar_benchmark_urls.get(entry.variation_id) }}" target="_blank"
+                  rel="noreferrer noopener" class="citelink">Published benchmark (opens a public paper in a new tab; sends only its DOI)</a>:
+              {{ entry.reliability.empirical_ppv.applies_to }}</p>
+          {% endif %}
+          <details><summary>Source population frequencies and counts</summary>
+            {% for frequency_record in entry.frequency_records %}
+              <p>REF {{ frequency_record.ref }}; ALT {{ frequency_record.alts | join(", ") }};
+                FILTER {{ frequency_record.filter }}.</p>
+              <table><thead><tr><th>Population</th><th>AF (fraction)</th><th>AC</th><th>AN</th><th>Homozygotes</th></tr></thead>
+                <tbody>{% for population, counts in frequency_record.populations.items() %}
+                  <tr><td>{{ population }}</td><td>{{ counts.af | join(", ") }}</td>
+                    <td>{{ counts.ac | join(", ") }}</td><td>{{ counts.an }}</td>
+                    <td>{{ counts.nhomalt | join(", ") }}</td></tr>
+                {% endfor %}</tbody>
+              </table>
+            {% endfor %}
+          </details>
+        {% endif %}
         <p>Reference alleles: {{ entry.ref }} → {{ entry.alts | join(", ") }}</p>
         <p>Germline classification: {{ entry.info.get("CLNSIG", "not provided") }}<br>
           Review status: {{ entry.info.get("CLNREVSTAT", "not provided") }}<br>

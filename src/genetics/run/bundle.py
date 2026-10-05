@@ -73,8 +73,12 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 7
+BUNDLE_FORMAT_VERSION: Final[int] = 8
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 8 (M7.2) adds allele-specific gnomAD population frequencies/counts and a
+separate measurement-reliability screen to the ClinVar snapshot (lookup schema 2).
+Versions 1-7 remain readable with their original saved calibration and notices.
 
 Version 7 (M7.1) adds ``clinvar.run.json``: reference lookup, observed calls,
 ambiguity/exclusion states and pinned source provenance. Versions 1-6 remain
@@ -1209,6 +1213,8 @@ def read_bundle(path: Path) -> RunBundle:
         from genetics.health.clinvar import ClinVarError, validate_lookup
 
         clinvar = _load_json(directory / CLINVAR_NAME)
+        if declared < 8 and clinvar.get("schema_version") == 2:
+            raise BundleError("ClinVar frequency calibration requires bundle format 8")
         try:
             validate_lookup(clinvar)
         except ClinVarError as exc:

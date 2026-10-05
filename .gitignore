@@ -232,6 +232,7 @@ core.*
 # M7.1 full public-reference indexes and download prefix provenance are fetched/derived,
 # never vendored, including copies outside their normal reference directory.
 clinvar_lookup.sqlite*
+gnomad_frequencies.sqlite*
 *.part.resume.json
 *.part.resume.json.tmp
 /refs/

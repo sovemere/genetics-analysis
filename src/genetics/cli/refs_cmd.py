@@ -94,6 +94,8 @@ def _process_work_present(source_dir: Path, output_name: str) -> bool:
     return (
         output.with_name(f".{output.name}.chunks").is_dir()
         or output.with_name(f".{output.name}.part").exists()
+        or output.with_name(f"{output.name}.building").is_file()
+        or output.with_name(f"{output.name}.provenance.json.tmp").is_file()
         or classified.with_name(f".{classified.name}.chunks").is_dir()
         or classified.exists()
     )
