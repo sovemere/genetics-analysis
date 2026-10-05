@@ -234,14 +234,16 @@ def test_wrong_build_or_date_and_truncated_gzip_fail(tmp_path: Path) -> None:
 
 def test_checksum_cache_reuse_and_corruption(tmp_path: Path) -> None:
     index = build(tmp_path)
+    source = tmp_path / "synthetic.vcf.gz"
     stamp = index.path.stat().st_mtime_ns
-    assert build(tmp_path).path.stat().st_mtime_ns == stamp
+    # Rewriting gzip also changes its timestamp/checksum; reuse unchanged source bytes.
+    assert ClinVarIndex.build(source, version=VERSION).path.stat().st_mtime_ns == stamp
     with pytest.raises(ClinVarError, match="pinned checksum"):
-        ClinVarIndex.build(tmp_path / "synthetic.vcf.gz", version=VERSION, expected_md5="0" * 32)
+        ClinVarIndex.build(source, version=VERSION, expected_md5="0" * 32)
     with index.path.open("ab") as handle:
         handle.write(b"corruption")
     with pytest.raises(ClinVarError, match=r"provenance|checksum"):
-        build(tmp_path)
+        ClinVarIndex.build(source, version=VERSION)
 
 
 @pytest.mark.parametrize(

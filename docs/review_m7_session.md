@@ -14,6 +14,7 @@ Findings fixed in the review follow-up:
 | P2 | An empty saved ALT list in calibrated ClinVar schemas 2–4 reached `ALT[0]` before base validation and raised an uncaught `IndexError`. This bypassed the domain errors handled by bundle readers, CLI and dashboard. | Validate the list before calibration. Three regressions check snapshot validation, digest-consistent malformed bundles, structured CLI failure and a dashboard explanation rather than a server error. |
 | P3 | The dedicated ACMG page also displayed full-ClinVar frequency totals without naming their scope; its browser title still said ClinVar. | Label totals as all ClinVar reference overlaps and give the ACMG route its own title. Existing shared-view/pagination tests assert both labels. |
 | P3 | ROH, archaic and knowledge-pack guides still claimed current format 9; the sex-chromosome guide did not distinguish introduction in format 6 from current format 10. README linked the preceding checkpoint, and M7.5 handoff omitted the single-marker/APOE constraint. | Align current-format claims, checkpoint/CI links and reference-guide placement; preserve historical milestone descriptions. Expand the M7.5 handoff with declarative matching, absolute-risk sourcing, phase ambiguity and verification requirements. |
+| P3 | Windows/Python 3.13 CI exposed a flaky cache-reuse test: it rewrote the gzip source on each build, so crossing a second changed the header timestamp/checksum and correctly rebuilt the index. | Reproduced with two controlled clock values. Reuse the original source bytes for cache reuse, pinned-checksum refusal and index-corruption checks; retain the index modification-time assertion. |
 
 The session's privacy boundaries remain intact: indexes contain complete public
 references; sample coordinates are queried through memory-only temporary tables on
@@ -38,7 +39,9 @@ Validation: focused health/download/dashboard suite **411 passed**; full synthet
 offline suite **2,076 passed, five existing Windows skips**, with native ROH enabled.
 Strict mypy passed for Windows/Linux and Python 3.11/3.13 (153 files); ruff/format,
 fixture reproduction and full card lint passed (47 cards, 218 renders, 31 dbSNP keys).
-The final privacy hook and pushed-commit CI remain required for this follow-up.
+Privacy hooks remain enabled; follow-up CI exercises Windows/Linux and Python
+3.11/3.13. Its first run exposed the gzip-fixture issue recorded above; all **131
+health tests** passed after correcting that test.
 
 M7.5 is ready to start from [the handoff](handoff.md#next-m75). APOE's two-marker
 support is implementation work within M7.5; it is not already supplied by the current
