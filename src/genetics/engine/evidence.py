@@ -174,6 +174,7 @@ def _template_values(
     card: Card,
     match: MatchResult,
     confidence: ConfidenceResult,
+    frequency: PopulationFrequency | None = None,
 ) -> dict[str, object]:
     """Build the closed template context validated by ``cards.py``.
 
@@ -187,6 +188,9 @@ def _template_values(
     assert card.evidence is not None
     variant = card.match.variant
     effect = card.evidence.effect
+    from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
+
+    ppv = confidence.empirical_ppv
     return {
         "genotype": match.genotype or match.observed_genotype or "unresolved",
         "rsid": match.observed_rsid or variant.rsid,
@@ -201,6 +205,20 @@ def _template_values(
         "effect_units": effect.units or "",
         "sample_size": card.evidence.sample_size,
         "confidence": confidence.tier.value,
+        "frequency": (
+            f"{100 * frequency.frequency:g}% ({frequency.allele}; {frequency.population})"
+            if frequency is not None
+            else "unknown; no usable allele-specific frequency"
+        ),
+        "ppv": (
+            confirmation_text(ppv.estimate, ppv.population_frequency_ceiling)
+            + " "
+            + ppv.applies_to
+            + " "
+            + CLINICAL_NOTICE
+            if ppv is not None
+            else "No empirical PPV assigned to this observation."
+        ),
     }
 
 
@@ -387,7 +405,7 @@ def assemble_card(
         imputation_quality=observed.imputation_quality,
         ancestry_match=observed.ancestry_match,
     )
-    template_values = _template_values(card, match, confidence)
+    template_values = _template_values(card, match, confidence, confidence_frequency)
     computed_caveats = match.caveats
     if unpriced_alleles:
         # Said on the card face rather than swallowed: the rarity inversion is the most

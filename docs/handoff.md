@@ -1,8 +1,8 @@
-# Handoff: M7.3 empirical PPV presentation
+# Handoff: M7.4 ACMG secondary-finding surfacing
 
-As of 2026-10-05, M0-M6, M7.1 and **M7.2 are complete**. Full local reference
+As of 2026-10-05, M0-M6 and **M7.1-M7.3 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M7.3.
+first, then [the roadmap](../phase1_roadmap.md). Next is M7.4.
 
 ## Current local acceptance
 
@@ -50,17 +50,24 @@ measurement-reliability screen, without fabricated penetrance or claim evidence.
 Below 0.001%, the generic 16% heterozygous-chip confirmation benchmark is attached
 and explicitly distinguished from an individual's posterior probability.
 
-New bundles use **format 8**, with ClinVar lookup schema **2** in the existing private
+M7.3 puts the published confirmed/unconfirmed percentages on the face and in CLI
+summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely-pathogenic
+`CLNSIG` select the BRCA benchmark; mixed, uncertain, conflicting, somatic and
+included-haplotype annotations do not. Missing frequency or unresolved observations
+still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
+
+New bundles use **format 9**, with ClinVar lookup schema **3** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
-1-7 retain their original results and notices. See [the frequency guide](health_frequencies.md).
+1-8 retain their original results and notices, including schema-2 BRCA entries with
+the original generic benchmark. See [the frequency guide](health_frequencies.md).
 
 M7.1's complete pinned ClinVar index contains **4,461,445 records** from 2026-08-04.
 All INFO classifications/conflicts/review status and ambiguity states remain intact.
 
-## Next: M7.3
+## Next: M7.4
 
-Complete `likely-artifact` frequency-band PPV presentation, especially the separate
-BRCA1/BRCA2 benchmark. M7.4 owns ACMG surfacing, M7.5 common-variant health cards
+Surface ACMG secondary-finding genes with computed reliability and the explicit
+clinical-sequencing limitation, retaining low-confidence findings. M7.5 owns common-variant health cards
 with absolute-risk framing, and M7.6 coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license
 audit remains M15.4. M6's missing chip/population calibration stays attached.
@@ -75,10 +82,12 @@ privacy, pinning or the pre-commit checks.
 
 ## Validation
 
-The full suite passed **1,991 tests, five existing Windows skips**, with pinned native
+The full suite passed **2,022 tests, five existing Windows skips**, with pinned native
 ROH enabled. Ruff/formatting, strict mypy on Windows/Linux and Python 3.11/3.13,
 fixture reproduction and full card lint pass (47 cards, 218 renders, 31 dbSNP keys).
-Tests cover rare thresholds/counts/populations, missing/filtered/split/duplicate
+M7.3 adds 31 synthetic cases for exact BRCA/classification scope, numerical face/detail
+and CLI presentation, unavailable PPV, placeholder contexts and historical schema-2
+save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations, missing/filtered/split/duplicate
 records, direct/imputed gating, malformed headers, checkpoint recovery/corruption,
 saved integrity, format-7 compatibility, CLI/dashboard parity and citation privacy.
 

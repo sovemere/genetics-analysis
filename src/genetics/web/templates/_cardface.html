@@ -27,6 +27,13 @@
     </div>
     <h3 class="cardtitle">{{ card.title }}</h3>
     <p class="cardsummary">{{ card.summary }}</p>
+    {% if card.confidence and card.confidence.has_ppv %}
+      <p class="caution">{{ card.confidence.ppv_display }}
+        {{ card.confidence.ppv_applies_to }} {{ card.confidence.clinical_notice }}</p>
+    {% elif card.confidence and card.tier == "likely-artifact" %}
+      <p class="caution">No empirical PPV was recorded for this reliability failure.
+        {{ card.confidence.clinical_notice }}</p>
+    {% endif %}
     <p class="cardmeta muted">
       {{ card.section_title }}
       {%- if card.gene %} · {{ card.gene }}{% endif %}

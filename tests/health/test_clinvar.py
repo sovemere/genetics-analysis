@@ -270,7 +270,9 @@ def test_saved_results_reject_inconsistent_or_unknown_fields(tmp_path: Path, mut
         validate_lookup(payload)
 
 
-@pytest.mark.parametrize("with_frequency", [False, True])
+@pytest.mark.parametrize(
+    "with_frequency,gene", [(False, None), (True, None), (True, "BRCA1"), (True, "BRCA2")]
+)
 def test_bundle_cli_and_dashboard_share_the_snapshot(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -278,8 +280,14 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
     sample_pack: KnowledgePack,
     sample_cards: tuple[AssembledCard, ...],
     with_frequency: bool,
+    gene: str | None,
 ) -> None:
-    result = build(tmp_path).lookup(table())
+    rows = (
+        None
+        if gene is None
+        else [vcf_row() + f";GENEINFO={gene}:{672 if gene == 'BRCA1' else 675}"]
+    )
+    result = build(tmp_path, rows).lookup(table())
     if with_frequency:
         from genetics.health.frequencies import (
             INDEX_VERSION,
@@ -328,6 +336,12 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
     response = CliRunner().invoke(app, ["runs", "clinvar", path.name, "--json"])
     assert response.exit_code == 0
     assert json.loads(response.stdout)["clinvar"] == snapshot
+    if with_frequency:
+        human = CliRunner().invoke(app, ["runs", "clinvar", path.name])
+        assert human.exit_code == 0
+        assert ("16% confirmed" if gene is None else "4.2% confirmed") in human.stdout
+        assert "not an individual posterior" in human.stdout
+        assert "Only clinical sequencing" in human.stdout
     with TestClient(
         create_app(WebConfig(runs_root=data / "runs")), base_url="http://127.0.0.1:8765"
     ) as client:
@@ -345,13 +359,52 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
         assert "/clinvar" in client.get(f"/runs/{path.name}").text
         if with_frequency:
             assert "likely-artifact" in page.text
-            assert "16%" in page.text
+            assert ("16% confirmed" if gene is None else "4.2% confirmed") in page.text
+            assert ("84% unconfirmed" if gene is None else "95.8% unconfirmed") in page.text
+            assert "not an individual posterior" in page.text
+            assert "Only clinical sequencing" in page.text
             assert "200000" in page.text
             assert "not inferred personal ancestry" in page.text
             assert 'href="https://doi.org/10.1136/bmj.n214"' in page.text
             assert 'rel="noreferrer noopener" class="citelink"' in page.text
             assert 'target="_blank"' in page.text
             assert page.headers["referrer-policy"] == "no-referrer"
+            if gene is not None:
+                from genetics.health.frequencies import _legacy_reliability
+
+                payload_path = path / CLINVAR_NAME
+                manifest_path = path / MANIFEST_NAME
+                original_payload = payload_path.read_bytes()
+                original_manifest = manifest_path.read_bytes()
+                manifest = json.loads(original_manifest)
+                manifest["format_version"] = 8
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                with pytest.raises(BundleError, match="format 9"):
+                    read_bundle(path)
+                legacy = json.loads(original_payload)
+                legacy["schema_version"] = 2
+                for locus in legacy["loci"]:
+                    for entry in locus["records"]:
+                        entry["reliability"] = _legacy_reliability(
+                            entry, entry["frequency_records"]
+                        )
+                assert (
+                    legacy["loci"][0]["records"][0]["reliability"]["empirical_ppv"]["estimate"]
+                    == 0.16
+                )
+                payload_path.write_text(json.dumps(legacy), encoding="utf-8")
+                manifest["files"][CLINVAR_NAME] = hashlib.sha256(
+                    payload_path.read_bytes()
+                ).hexdigest()
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+                assert read_bundle(path).clinvar == legacy
+                old_json = CliRunner().invoke(app, ["runs", "clinvar", path.name, "--json"])
+                assert json.loads(old_json.stdout)["clinvar"] == legacy
+                old_page = client.get(f"/runs/{path.name}/clinvar")
+                assert old_page.status_code == 200 and "16%" in old_page.text
+                assert "4.2%" not in old_page.text
+                payload_path.write_bytes(original_payload)
+                manifest_path.write_bytes(original_manifest)
         else:
             manifest_path = path / MANIFEST_NAME
             old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))

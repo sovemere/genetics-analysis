@@ -59,6 +59,9 @@
               population: {{ entry.reliability.population }}.</p>
           {% endif %}
           {% if entry.reliability.empirical_ppv %}
+            {% if entry.reliability.empirical_ppv.get("confirmation_text") %}
+              <p class="problem"><strong>{{ entry.reliability.empirical_ppv.confirmation_text }}</strong></p>
+            {% endif %}
             <p><a href="{{ clinvar_benchmark_urls.get(entry.variation_id) }}" target="_blank"
                   rel="noreferrer noopener" class="citelink">Published benchmark (opens a public paper in a new tab; sends only its DOI)</a>:
               {{ entry.reliability.empirical_ppv.applies_to }}</p>

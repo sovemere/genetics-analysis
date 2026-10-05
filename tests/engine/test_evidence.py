@@ -100,6 +100,29 @@ def test_rare_low_confidence_finding_is_returned_not_filtered() -> None:
     assert result.has_interpretation
 
 
+@pytest.mark.parametrize("frequency", [None, 0.20, 0.000001])
+def test_frequency_and_ppv_templates_render_known_unknown_and_rare_observations(
+    frequency: float | None,
+) -> None:
+    card = _pack().by_id("synthetic_dominant_trait")
+    assert card is not None
+    outcome = Outcome("Frequency: {frequency}. PPV: {ppv}", "Synthetic detail.")
+    match = replace(_matched(card.id), outcome=outcome)
+    observed = () if frequency is None else _frequencies(a=1 - frequency, g=frequency)
+    result = assemble_card(
+        card, match, ObservationEvidence(call_source=CallSource.DIRECT, frequencies=observed)
+    )
+    if frequency is None:
+        assert "unknown; no usable" in result.summary
+    elif frequency < 0.00001:
+        assert "16% confirmed" in result.summary
+        assert "not an individual posterior" in result.summary
+    else:
+        assert "20%" in result.summary
+    if frequency is None or frequency >= 0.00001:
+        assert "No empirical PPV assigned" in result.summary
+
+
 @pytest.mark.parametrize("source", [CallSource.DIRECT, CallSource.IMPUTED])
 def test_missing_companion_frequency_cannot_erase_known_rare_allele(source: CallSource) -> None:
     card = _pack().by_id("synthetic_dominant_trait")

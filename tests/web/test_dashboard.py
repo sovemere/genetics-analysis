@@ -760,6 +760,33 @@ def _render_card(card: views.CardView, template: str) -> str:
     return _environment().get_template(template).render({"card": card, "shell": shell})
 
 
+@pytest.mark.parametrize("template", ["_cardface.html", "_carddetail.html"])
+def test_empirical_ppv_is_visible_on_the_face_and_detail_as_a_study_benchmark(
+    template: str,
+) -> None:
+    markup = _render_card(_full_card(), template)
+    assert "16% confirmed" in markup and "84% unconfirmed" in markup
+    assert "below 0.001%" in markup
+    assert "calls like this one are real" not in markup
+    assert "Only clinical sequencing" in markup
+    assert "PPV-MARKER" in markup
+    if template == "_carddetail.html":
+        assert 'href="https://doi.org/10.1136/bmj.n214"' in markup
+        assert 'rel="noreferrer noopener" class="citelink"' in markup
+
+
+def test_imputation_artifact_without_a_ppv_stays_visible_without_fabricated_odds() -> None:
+    card = replace(
+        _full_card(),
+        tier="likely-artifact",
+        confidence=views.ConfidenceView.of({"tier": "likely-artifact", "inputs": {}}),
+    )
+    markup = _render_card(card, "_cardface.html")
+    assert "No empirical PPV was recorded" in markup
+    assert "Only clinical sequencing" in markup
+    assert "16%" not in markup and "4.2%" not in markup
+
+
 #: Fields whose outlet is *conditional* on their own value, so no fixed marker in the map
 #: below can test them: rendering `_full_card()` produces the same string whatever they hold.
 #: Each is asserted by its own test, named here so the coverage check stays exhaustive
