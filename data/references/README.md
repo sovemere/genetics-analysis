@@ -48,10 +48,29 @@ proof that the payloads exist in another checkout. Use `genetics refs verify` to
 the local files. For an explicitly unpinned rolling source, a fresh fetch can record a
 new release; existing local bytes are still checked against their recorded digests.
 
-ClinVar's dated GRCh37 VCF is ready for [M7.1](../../docs/handoff.md). Its existing
-post-processing output is a build-anchor table; the runtime ClinVar lookup remains to be
-implemented. The roadmap's fetcher resumability debt remains open before M7.2's large
-gnomAD exome download.
+M7.1 uses ClinVar's dated GRCh37 VCF for runtime lookup. On first analysis it builds
+`clinvar_lookup.sqlite` and its checksum/provenance sidecar beside the fetched VCF.
+The index contains the complete public reference, including alternate contigs, and
+never a sample-selected subset. The existing build-anchor output remains separate.
+Personal lookup results are saved outside the repository in `clinvar.run.json`.
+
+## Download resumability
+
+Publisher-checksummed sources resume with final digest verification, including M7.2's
+63 GB gnomAD exomes file. Frozen sources without a publisher digest must explicitly
+declare `immutable: true` and a fixed size in the manifest; this is not inferred from
+`unpinned_reason` or a dated URL. The 24 frozen 1000 Genomes chromosome files declare it.
+Rolling sources, including ClinVar's `variant_summary.txt.gz`, do not.
+
+A digestless immutable transfer keeps a `.part.resume.json` sidecar recording its URL,
+declared size, prefix length and SHA256. A retry rehashes the prefix and resumes only
+when those match. Missing, changed or damaged provenance restarts the transfer; server
+length drift fails. Ctrl-C and short transfers preserve verifiable prefixes, and a
+complete verified partial can be promoted without requesting an invalid end-of-file
+range. Success and partial cleanup remove the sidecar. This relies on the declared
+publisher immutability contract; a local prefix hash is not a publisher checksum.
+
+See the [M7.2 handoff](../../docs/handoff.md) for the next implementation step.
 
 ## Adding a source
 

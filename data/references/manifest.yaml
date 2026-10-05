@@ -299,98 +299,122 @@ sources:
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 1165011543
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr2.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 1255861869
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr3.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 1058895733
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr4.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 1071020149
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr5.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 946995712
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr6.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 959144250
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr7.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 870098463
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr8.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 824304010
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr9.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 644258549
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr10.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 741683063
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr11.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 734583405
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr12.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 710187972
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr13.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 533918831
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr14.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 485261255
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr15.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 438397058
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr16.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 473472094
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr17.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 415901551
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr18.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 418186091
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr19.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 344793450
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr20.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 327135853
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr21.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 209774472
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr22.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         size_bytes: 205612353
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz
         filename: ALL.chrX.phase3_shapeit2_mvncall_integrated_v1c.20130502.genotypes.vcf.gz
         size_bytes: 1908425030
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz
         filename: ALL.chrY.phase3_integrated_v2b.20130502.genotypes.vcf.gz
         size_bytes: 5656911
+        immutable: true
         unpinned_reason: "immutable release, but no digest is published and none was computed at authoring time; recorded in the lock on first fetch"
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel
         filename: integrated_call_samples_v3.20130502.ALL.panel

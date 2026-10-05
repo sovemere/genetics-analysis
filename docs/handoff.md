@@ -1,79 +1,77 @@
-# Handoff: M7.1 ClinVar lookup
+# Handoff: M7.2 gnomAD frequency gating
 
-As of 2026-10-04, M0–M6 are complete and the diff-driven review of M6.2–M6.4 and
-the CI resolver fix is committed as `1c1c2ec`. Read [AGENTS.md](../AGENTS.md) first,
-then [the roadmap](../phase1_roadmap.md). Its milestone checklist remains authoritative.
+As of 2026-10-05, M0?M6 and **M7.1** are complete. Read [AGENTS.md](../AGENTS.md)
+first, then [the roadmap](../phase1_roadmap.md); its checklist is authoritative.
 
-## Ready to proceed
+## Completed in this handoff
 
-**M7.1 can start immediately.** The existing ingest, keying, matching, evidence,
-confidence, run storage and dashboard layers are available. The pinned ClinVar GRCh37
-release is already fetched in this checkout. Verification with
-`genetics refs verify --only clinvar_grch37 --json` passed on 2026-10-04,
-including both source files and the build-anchor output.
-Other checkouts must fetch and verify their own payloads.
+M7.1 builds a complete reference-only SQLite index from the pinned ClinVar GRCh37
+VCF, with source checksum, build/date validation and an index checksum sidecar.
+The local acceptance indexed **4,461,445 public records** from the 2026-08-04 VCF.
+Alternate/unplaced contigs are retained without mapping them onto primary chromosomes;
+no-alternate, indel and symbolic records cannot supply an allele match.
 
-The source is `clinvar_grch37` in `data/references/manifest.yaml`. Use its dated
-`clinvar_20260804.vcf.gz` for lookup. `variant_summary.txt.gz` is a separate, rolling
-source used for the existing build anchors; it does not replace the pinned VCF. The
-current ClinVar post-processing step builds anchors, **not a runtime variant-lookup
-index**. That lookup is the next implementation task.
+Lookup joins normalized sample loci and checks REF/ALT compatibility. Original calls,
+source variation/allele identifiers, all INFO annotations, germline classifications,
+review statuses, conditions and source provenance survive in the saved snapshot.
+Missing, incompatible, excluded and ambiguous results stay explicit. Duplicate probes
+cannot select a preferred call; duplicate allele records retain every classification
+as ambiguity. Multiallelic aggregate annotations are not assigned to an alternate.
 
-The verification command also reports an existing, deferred source-license audit
-warning. The manifest's declared license permits the fetch; checking its classification
-against published terms remains M15.4's release work, rather than an M7.1 blocker.
+New runs use bundle format **7**, adding private `clinvar.run.json`. Formats 1?6
+remain readable with ClinVar marked not recorded. `genetics runs clinvar <run-id> --json`,
+whole-run JSON and the dashboard expose the same snapshot. These are
+uncalibrated reference annotations, not confirmed personal findings. Source payloads,
+the index and personal results must never be committed.
 
-## Scope and acceptance
+The download debt is resolved. `RemoteFile.immutable` explicitly distinguishes frozen
+releases from rolling files; it is never inferred from `unpinned_reason`. The 24 frozen
+1000 Genomes chromosome files declare it. Digestless frozen transfers need a fixed
+size and a matching URL/size/prefix-hash sidecar before resuming. Changed or damaged
+provenance restarts, length drift fails, interrupted transfers preserve valid prefixes,
+and complete verified partials avoid end-of-file Range requests. Rolling files still
+restart. Publisher-checksummed sources retain their final digest verification.
 
-- Look up ClinVar against the normalized GRCh37 table by position and compatible
-  reference/alternate alleles. Reuse `ingest/keys.py`: a sample supplies a locus and
-  observed alleles, while a reference supplies the full allele key. rsID is secondary;
-  do not join by rsID alone or treat a position match as an allele match.
-- Preserve source variant identifiers, classifications, review status, condition
-  annotations and reference version so the result can be checked. Define and test how
-  multiallelic records and conflicting classifications are represented. Ambiguous,
-  missing and incompatible calls must remain explicit. Indel matching stays excluded
-  except for the verified whitelist allowed by AGENTS.md §4.2.
-- Keep lookup independent of the vendor adapter and reachable through the shared
-  engine. Retain provenance in private saved results; verify CLI/dashboard agreement
-  for any findings exposed by this milestone.
-- Use stdlib gzip streaming or the established native-tool path on Windows; do not
-  introduce htslib dependencies. A reusable index derived solely from public references
-  can live beside those fetched references. Any artifact selected using a personal
-  export belongs outside the repository.
-- Test with synthetic inputs: allele order, matching and nonmatching alleles at the
-  same position, missing calls, duplicate/ambiguous records, multiallelic annotations,
-  classification conflicts, malformed references and recorded provenance. Add meaningful
-  integration checks for the interfaces changed by the implementation.
+## Next: M7.2
 
-M7.1 establishes lookup. gnomAD frequency gating is **M7.2**, frequency-band PPV
-presentation is **M7.3**, ACMG surfacing is **M7.4**, curated common-variant health
-cards are **M7.5**, and coverage honesty is **M7.6**. Do not treat a pathogenic ClinVar
-annotation as a confirmed personal variant or infer clinical risk from lookup alone.
-Low-confidence findings remain visible with the required reliability labels.
+Wire gnomAD allele frequencies into the existing confidence engine. Rarity lowers
+confidence regardless of direct or imputed call source; retain missing-frequency and
+ancestry context instead of treating them as reassurance. Low-confidence findings
+remain visible. M7.3 owns explicit frequency-band PPV presentation; M7.4 owns ACMG
+surfacing, M7.5 common-variant health cards and M7.6 coverage honesty.
 
-## Dependencies and preserved contracts
+The required source is `gnomad_exomes_r2_1_1_grch37` in the manifest: a **63 GB**
+GRCh37 v2.1.1 sites VCF, already publisher-MD5-pinned. It was not installed at this
+handoff. Its download uses the existing digest-verified resume path:
 
-The roadmap carries fetcher resumability debt before M7.2's large gnomAD download.
-Resolve it without trusting a digestless partial of a rolling release. The study-to-sample
-ancestry mapping is M9.5 work and does not block M7.1. M6's absent chip/population
-calibration remains attached to its cards; it does not block ClinVar lookup.
+```text
+genetics refs fetch --only gnomad_exomes_r2_1_1_grch37
+genetics refs verify --only gnomad_exomes_r2_1_1_grch37 --json
+```
 
-New runs use bundle format **6**. Preserve formats 1–5 and saved interpretations.
-The review hardened computed method evidence, ROH consistency and archaic provenance;
-sex-chromosome reloads use recorded thresholds and structured assay flags rather than
-today's display wording. Exported structure measurements copy their nested metadata.
-Do not loosen these checks while adding the health path.
+Check manifest-declared sizes and disk preflight before fetching. Reference-only full
+indexes may live beside fetched sources; anything selected using a personal export
+belongs outside the repository. Stream gzip on Windows or use pinned native tools;
+do not introduce htslib dependencies. Keep the CLI and dashboard on one engine.
 
-## Validation checkpoint
+The source-license audit remains M15.4 work. Study-to-sample ancestry mapping remains
+M9.5 work. M6's absent chip/population calibration stays attached to its cards. None
+of these authorizes loosening saved-result validation or silently reinterpreting runs.
 
-At `1c1c2ec`: **1,898 passed, five existing Windows skips**; native ROH acceptance,
-privacy checks, fixture reproduction, ruff, formatting, full card lint and strict mypy
-passed. mypy 2.4.0 was checked for all four CI platform/Python configurations, and
-[all five GitHub CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
-Full card lint checked 47 cards, 218 template renders and 31 dbSNP variant keys.
+## Validation
 
-For the next change, run the relevant tests and the repository checks:
+M7.1 has synthetic matching, malformed-reference, duplicate/multiallelic/conflict,
+provenance, snapshot integrity, compatibility and CLI/dashboard parity checks. Download
+regressions cover short transfers, Ctrl-C, prefix damage, changed provenance, ignored
+ranges, declared length drift and rolling-source isolation. The full reference was
+parsed locally without accessing a personal export.
+
+The full suite passed **1,949 tests, five existing Windows skips**, with pinned native
+ROH tests enabled. After adding dashboard pagination, **245 ClinVar/web tests passed**.
+Ruff, formatting, strict mypy, fixture reproduction and full card lint passed; the lint
+checked 47 cards, 218 template renders and 31 dbSNP keys.
+
+Run the repository checks for the next change:
 
 ```text
 ruff check .
@@ -84,7 +82,6 @@ genetics cards lint --json
 pytest -q
 ```
 
-Set `GENETICS_ROH_TEST_TOOLS` to the pinned tools directory to include native ROH
-tests. CI installs those tools and tests Windows/Linux on Python 3.11 and 3.13.
+Set `GENETICS_ROH_TEST_TOOLS` to the pinned tools directory for native ROH tests.
 Before committing, inspect `git status --porcelain` and run `genetics check-staged`;
-leave the pre-commit privacy hook enabled. CLI work commits and pushes directly to `main`.
+leave the privacy hook enabled. CLI work commits and pushes directly to `main`.

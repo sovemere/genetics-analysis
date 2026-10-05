@@ -225,6 +225,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         # None for a bundle saved before format 3 -- "not recorded", which the record
         # itself distinguishes from a stage that ran and recorded not_run.
         "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
+        "clinvar": None if bundle.clinvar is None else dict(bundle.clinvar),
         "cards": [
             {
                 "card_id": card.card_id,
@@ -254,6 +255,40 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
             for card in bundle.cards
         ],
     }
+
+
+@runs_app.command("clinvar")
+def runs_clinvar(
+    run_id: Annotated[str, typer.Argument(help="Saved run id.")],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit the saved lookup.")] = False,
+) -> None:
+    """Read ClinVar reference lookup; classifications are not calibrated findings."""
+    try:
+        bundle = store.load_run(run_id)
+    except (BundleError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    if as_json:
+        typer.echo(json.dumps({"run_id": bundle.run_id, "clinvar": bundle.clinvar}, indent=2))
+        return
+    if bundle.clinvar is None:
+        typer.echo("ClinVar lookup was not recorded by this older bundle.")
+        return
+    record = bundle.clinvar
+    typer.echo(record["notice"])
+    typer.echo(f"Status: {record['status']}")
+    if record["reason"]:
+        typer.echo(record["reason"])
+    for locus in record["loci"]:
+        typer.echo(f"{locus['chrom']}:{locus['pos_grch37']}")
+        for entry in locus["records"]:
+            info = entry["info"]
+            typer.echo(
+                f"  Variation {entry['variation_id']}: {entry['status']}; "
+                f"germline classification: {info.get('CLNSIG', 'not provided')}; "
+                f"review: {info.get('CLNREVSTAT', 'not provided')}"
+            )
+            typer.echo(f"    {entry['reason']}")
+    typer.echo("Use --json for all annotations, calls and source provenance.")
 
 
 @runs_app.command("show")
@@ -288,6 +323,7 @@ def runs_show(
     if isinstance(source, dict):
         typer.echo(f"  input       {source.get('vendor')}, {source.get('markers')} markers")
     typer.echo(f"  ancestry    {_ancestry_line(bundle.ancestry)}")
+    typer.echo(f"  ClinVar     {bundle.clinvar['status'] if bundle.clinvar else 'not recorded'}")
     typer.echo("")
 
     for card in bundle.cards:

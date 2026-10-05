@@ -119,6 +119,11 @@ class RemoteFile:
 
     size_bytes: int | None = None
     unpinned_reason: str | None = None
+    immutable: bool = False
+    """Explicit publisher-stable release. Allows digestless resume with prefix provenance.
+
+    Never inferred from the free-text unpinned reason or from a dated-looking URL.
+    """
 
     @property
     def pinned(self) -> bool:
@@ -161,6 +166,11 @@ class RemoteFile:
         size = raw.get("size_bytes")
         if size is not None and (not isinstance(size, int) or size <= 0):
             raise ManifestError(f"{where}: size_bytes must be a positive integer")
+        immutable = raw.get("immutable", False)
+        if not isinstance(immutable, bool):
+            raise ManifestError(f"{where}: immutable must be a boolean")
+        if immutable and size is None:
+            raise ManifestError(f"{where}: immutable resume requires size_bytes")
 
         return cls(
             url=url,
@@ -169,6 +179,7 @@ class RemoteFile:
             md5=str(md5).strip().lower() if md5 is not None else None,
             size_bytes=size,
             unpinned_reason=str(reason) if reason else None,
+            immutable=immutable,
         )
 
 

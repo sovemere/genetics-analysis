@@ -12,13 +12,19 @@ synthetic data; reference payloads are fetched, never committed.
 
 M0–M6 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
-New runs use bundle format **6**; formats 1–5 remain readable without reinterpreting their
-saved findings. Monogenic-health lookup and imputation are upcoming milestones.
+M7.1 adds ClinVar position/allele lookup with preserved source classifications,
+ambiguity states and provenance. New runs use bundle format **7**; formats 1–6 remain
+readable without reinterpreting their saved findings. Frequency gating and imputation
+are upcoming milestones.
 
-**Next: M7.1, position-keyed ClinVar lookup.** Start with the
+**Next: M7.2, gnomAD frequency gating.** Download resumability debt is resolved:
+explicitly immutable releases can resume verified prefixes; rolling sources restart.
+Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The reviewed code checkpoint is `1c1c2ec`: 1,898 tests passed locally with five existing
-Windows skips, and [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
+The M7.1/download checkpoint passed 1,949 tests with five existing Windows skips,
+including native ROH checks; the final ClinVar/web regression suite passed 245 tests.
+The preceding reviewed checkpoint is `1c1c2ec`, with
+[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
 
 ## Development and use
 
@@ -40,6 +46,7 @@ licenses. Once installed, computation is local. Prefix the following commands wi
 genetics run --input <outside-repo-export>
 genetics runs list
 genetics runs show <run-id> --json
+genetics runs clinvar <run-id> --json
 genetics serve
 ```
 
@@ -47,6 +54,10 @@ Runs default to the OS user-data directory outside this checkout. Missing struct
 prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions
 fail explicitly. Standalone `genetics roh` exposes the same ROH engine with custom
 reference and policy options.
+
+The dashboard links to each run's ClinVar reference lookup. These are reference
+annotations with explicit match states, not calibrated clinical findings; M7.2–M7.3
+add the frequency-based reliability and empirical PPV presentation.
 
 See the [knowledge-pack guide](knowledge/README.md),
 [reference-data guide](data/references/README.md), [ROH](docs/roh.md),

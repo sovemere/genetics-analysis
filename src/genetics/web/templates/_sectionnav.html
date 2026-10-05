@@ -22,6 +22,9 @@
     </li>
   {% endfor %}
 </ol>
+{% if shell.has_selection %}
+  <p><a href="{{ shell.run_url }}/clinvar">ClinVar reference lookup</a></p>
+{% endif %}
 <p class="muted navnote">
   All thirteen sections are listed whether or not this run has anything in them.
   Counts are interpreted / total, for the whole run — a filter never changes them.
