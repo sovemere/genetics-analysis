@@ -437,9 +437,15 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         return _render(_shell(run_id, _query(request)))
 
     @app.get("/runs/{run_id}/clinvar", response_class=HTMLResponse)
+    @app.get("/runs/{run_id}/secondary-findings", response_class=HTMLResponse)
     def clinvar(run_id: str, request: Request, page: int = 1) -> HTMLResponse:
+        from genetics.health.secondary import DOI, secondary_view
+
         shell = _shell(run_id, _query(request))
         loci = [] if shell.clinvar is None else shell.clinvar["loci"]
+        secondary_only = request.url.path.endswith("/secondary-findings")
+        if secondary_only and shell.clinvar is not None:
+            loci = secondary_view(shell.clinvar)["loci"]
         pages = max(1, (len(loci) + 99) // 100)
         number = max(1, min(page, pages))
         start = (number - 1) * 100
@@ -457,6 +463,11 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             clinvar_pages=pages,
             clinvar_start=start + 1,
             clinvar_benchmark_urls=benchmark_urls,
+            clinvar_total=len(loci),
+            secondary_only=secondary_only,
+            clinvar_view_url=shell.run_url
+            + ("/secondary-findings" if secondary_only else "/clinvar"),
+            acmg_policy_url=citation_url("doi", DOI),
         )
 
     @app.get("/runs/{run_id}/cards/{card_id}", response_class=HTMLResponse)

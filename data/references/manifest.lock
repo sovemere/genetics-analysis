@@ -53,6 +53,34 @@
       "opt_in_required": false,
       "version": "v66.p1"
     },
+    "acmg_sf_v3_3": {
+      "files": {
+        "clingen_acmg_sf_v3.3.json": {
+          "first_seen": "2026-10-05",
+          "sha256": "8089748ab8645336eedab56e4f548f7c902e2f7d163fa3a559b49c9fbd93151d",
+          "size_bytes": 54071,
+          "url": "https://search.clinicalgenome.org/api/genes/acmg?limit=100&offset=0"
+        }
+      },
+      "license": {
+        "attribution_required": false,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "CC0-1.0",
+        "name": "Creative Commons Zero v1.0 Universal",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "permissive",
+        "terms_url": "https://creativecommons.org/publicdomain/zero/1.0/"
+      },
+      "manual_step_pending": false,
+      "obligations": [],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "3.3"
+    },
     "clinvar_grch37": {
       "files": {
         "clinvar_20260804.vcf.gz": {
