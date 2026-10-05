@@ -258,8 +258,8 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     # not yet suppliable, so authors see the responsible milestone instead of a bare
     # "unknown placeholder".
     TemplateVar("confidence", "The computed confidence tier."),
-    TemplateVar("frequency", "Population allele frequency from gnomAD.", milestone="M7.2"),
-    TemplateVar("ppv", "Empirical PPV for the frequency band.", milestone="M7.3"),
+    TemplateVar("frequency", "Selected allele frequency and population, or explicit unknown."),
+    TemplateVar("ppv", "Scoped empirical confirmation benchmark, or explicit unavailable."),
     # M5.8 computes the ancestry context, but a card sentence needs it mapped onto the
     # study-ancestry codes cards declare, and a *declined* placement needs wording that
     # cannot read as a missing value. Both are M9.5's; until then naming this is refused.
@@ -282,6 +282,8 @@ _MATCH_VARS: Final[frozenset[str]] = frozenset(
         "effect_units",
         "sample_size",
         "confidence",
+        "frequency",
+        "ppv",
     }
 )
 """Placeholders that need a matched variant and an evidence block behind them. An

@@ -129,6 +129,16 @@ def test_population_maximum_prevents_pooled_rarity() -> None:
     assert sum(v.frequency for v in values) == 1
 
 
+@pytest.mark.parametrize(
+    "frequency", [[], [parse_record(row(info="AC=1;AN=100000;AF=0.00001;nhomalt=0"))]]
+)
+def test_brca_annotation_does_not_invent_a_ppv_without_the_rare_frequency_gate(
+    frequency: list[dict[str, Any]],
+) -> None:
+    observed = {**entry(), "info": {"GENEINFO": "BRCA1:672", "CLNSIG": "Pathogenic"}}
+    assert reliability(observed, frequency)["empirical_ppv"] is None
+
+
 def test_reported_subgroup_frequency_is_not_diluted_into_its_parent_population() -> None:
     record = parse_record(
         row(
@@ -430,8 +440,34 @@ def test_calibrated_snapshot_validates_and_cannot_relabel_rare_call(tmp_path: Pa
     calibrated = calibrate(lookup, index=frequency, records=frequency.lookup([("7", POS)]))
     raw = calibrated.to_dict()
     validate_lookup(raw)
-    assert raw["schema_version"] == 2
+    assert raw["schema_version"] == 3
     assert raw["loci"][0]["records"][0]["reliability"]["tier"] == "likely-artifact"
+    # A genuinely historical schema-2 BRCA snapshot keeps its generic 16% result.
+    legacy = copy.deepcopy(raw)
+    legacy["schema_version"] = 2
+    legacy_entry = legacy["loci"][0]["records"][0]
+    legacy_entry["info"]["GENEINFO"] = "BRCA1:672"
+    legacy_entry["reliability"]["empirical_ppv"] = {
+        "estimate": 0.16,
+        "population_frequency_ceiling": 0.00001,
+        "applies_to": (
+            "Published confirmation rate for rare heterozygous SNP-chip "
+            "calls; not an individual posterior probability."
+        ),
+        "doi": "10.1136/bmj.n214",
+    }
+    legacy_entry["reliability"]["reason"] = (
+        "Below 0.001% even in the highest-frequency represented population. "
+        "About 16% of rare heterozygous chip calls were confirmed by sequencing "
+        "in the published benchmark."
+    )
+    original = copy.deepcopy(legacy)
+    validate_lookup(legacy)
+    assert legacy == original
+    changed_benchmark = copy.deepcopy(raw)
+    changed_benchmark["loci"][0]["records"][0]["reliability"]["empirical_ppv"]["estimate"] = 0.042
+    with pytest.raises(FrequencyError):
+        validate_lookup(changed_benchmark)
     older_index = copy.deepcopy(raw)
     older_index["frequency_reference"]["provenance"]["index_schema_version"] = 1
     validate_lookup(older_index)

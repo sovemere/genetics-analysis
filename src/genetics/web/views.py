@@ -822,8 +822,21 @@ class ConfidenceView:
     def ppv_display(self) -> str | None:
         if self.ppv_estimate is None:
             return None
-        ceiling = "" if self.ppv_ceiling is None else f" below {_percent(self.ppv_ceiling)}"
-        return f"about {_percent(self.ppv_estimate)} of calls like this one are real{ceiling}"
+        from genetics.engine.ppv import confirmation_text
+
+        return confirmation_text(self.ppv_estimate, self.ppv_ceiling)
+
+    @property
+    def clinical_notice(self) -> str:
+        from genetics.engine.ppv import CLINICAL_NOTICE
+
+        return CLINICAL_NOTICE
+
+    @property
+    def ppv_url(self) -> str | None:
+        from genetics.engine.ppv import DOI
+
+        return citation_url("doi", DOI) if self.has_ppv else None
 
     @classmethod
     def of(cls, raw: Mapping[str, Any]) -> ConfidenceView:

@@ -476,8 +476,8 @@ def select_frequencies(
     )
 
 
-def reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Screen an observed ClinVar ALT independently from disease penetrance/effect."""
+def _legacy_reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
+    """Frozen M7.2/schema-2 calculation for validating historical snapshots."""
     result: dict[str, Any] = {
         "tier": "unknown",
         "frequency": None,
@@ -526,6 +526,19 @@ def reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict
     return result
 
 
+def reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
+    """M7.3 screen with correctly scoped study benchmarks; never a personal PPV."""
+    from genetics.engine.ppv import CLINICAL_NOTICE, clinvar_benchmark
+
+    result = _legacy_reliability(entry, records)
+    if result["tier"] == "likely-artifact":
+        result["empirical_ppv"] = clinvar_benchmark(entry.get("info", {}))
+        result["reason"] = (
+            "Below 0.001% even in the highest-frequency represented population. " + CLINICAL_NOTICE
+        )
+    return result
+
+
 def calibrate(
     lookup: ClinVarLookup,
     *,
@@ -564,10 +577,13 @@ def calibrate(
 
 
 def validate_calibration(raw: Mapping[str, Any]) -> None:
-    """Validate the saved schema-2 frequency screen without fetching/reinterpreting."""
+    """Validate saved schema-2/3 screens under their recorded benchmark generation."""
     from genetics.health.clinvar import PROVENANCE_KEYS, validate_lookup
 
     try:
+        if type(raw["schema_version"]) is not int or raw["schema_version"] not in (2, 3):
+            raise ValueError
+        screen = _legacy_reliability if raw["schema_version"] == 2 else reliability
         base = json.loads(json.dumps(raw))
         reference = base.pop("frequency_reference")
         base["schema_version"] = 1
@@ -667,7 +683,7 @@ def validate_calibration(raw: Mapping[str, Any]) -> None:
                     )
                     if reconstructed != record:
                         raise ValueError
-                if recorded != reliability(entry, records):
+                if recorded != screen(entry, records):
                     raise ValueError
                 actual_tiers[recorded["tier"]] += 1
         if (

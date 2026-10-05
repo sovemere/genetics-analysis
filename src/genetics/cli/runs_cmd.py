@@ -296,6 +296,15 @@ def runs_clinvar(
                     f"population: {reliability['population']}"
                 )
                 typer.echo(f"    {reliability['reason']}")
+                ppv = reliability.get("empirical_ppv")
+                if ppv:
+                    from genetics.engine.ppv import confirmation_text
+
+                    typer.echo(
+                        "    "
+                        + confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"])
+                    )
+                    typer.echo(f"    {ppv['applies_to']} DOI: {ppv['doi']}")
     typer.echo("Use --json for all annotations, calls and source provenance.")
 
 
@@ -338,6 +347,19 @@ def runs_show(
         tier = card.confidence_tier or card.status
         typer.secho(f"  {tier:<16}", fg=typer.colors.CYAN, nl=False)
         typer.echo(f"{card.section:<14} {card.card_id:<34} {card.title}")
+        if card.confidence and card.confidence.get("empirical_ppv"):
+            from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
+
+            ppv = card.confidence["empirical_ppv"]
+            typer.echo(
+                "    " + confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"])
+            )
+            typer.echo(f"    {ppv['applies_to']} {CLINICAL_NOTICE}")
+        elif card.confidence_tier == "likely-artifact":
+            from genetics.engine.ppv import CLINICAL_NOTICE
+
+            typer.echo("    No empirical PPV was recorded for this reliability failure.")
+            typer.echo(f"    {CLINICAL_NOTICE}")
 
     typer.echo("")
     typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")

@@ -32,16 +32,16 @@ about a minute with the reference PCAs cached.
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
-M7.1 and M7.2 are complete: position/allele ClinVar lookup and allele-specific gnomAD
-frequency calibration are saved and available to the CLI and dashboard. Next is
-[M7.3](#m7--monogenic-health--frequency-gating), empirical PPV presentation.**
+M7.1-M7.3 are complete: position/allele ClinVar lookup, allele-specific gnomAD
+calibration and scoped PPV presentation are saved and available to the CLI and dashboard.
+Next is [M7.4](#m7--monogenic-health--frequency-gating), ACMG secondary-finding surfacing.**
 The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
 Download resumability debt is resolved and gnomAD's 63 GB exome file is verified.
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 8**, with formats 1–7 preserved.
-M7.2 checkpoint (2026-10-05): **1,991 tests passed, five existing Windows skips**,
+**Current bundle format: 9**, with formats 1–8 preserved.
+M7.3 checkpoint (2026-10-05): **2,022 tests passed, five existing Windows skips**,
 with native ROH checks enabled. Ruff, formatting, strict mypy on Windows/Linux and
 Python 3.11/3.13, fixture reproduction and full card lint passed. The required gnomAD
 exomes source passed its publisher MD5, and the complete **17,209,972-record** index
@@ -2299,9 +2299,22 @@ section, that proves every layer.*
       - Format 8 saves ClinVar schema-2 calibration/counts/provenance; formats 1–7
         retain their saved results. Synthetic-only full-reference acceptance passed
         with networking blocked, including reloading, CLI JSON and dashboard parity.
-- [ ] **M7.3** `likely-artifact` rendering: the card **states the empirical PPV for its
+- [x] **M7.3** `likely-artifact` rendering: the card **states the empirical PPV for its
       frequency band** (~16% below 0.001%; ~4% for BRCA1/2). "Low confidence" is too weak
       — give the number.
+      - Published confirmed/unconfirmed rates appear on card faces, in details and
+        CLI summaries, with a sequencing limitation and a citation. No personal
+        posterior probability is inferred, and no PPV is invented for missing
+        frequency or imputation-quality-only failures.
+      - Exact BRCA1/BRCA2 symbol/gene-ID pairs and solely pathogenic/likely-pathogenic
+        germline annotations select 4.2%; its pooled-study scope is explicit rather
+        than being mislabelled a frequency-bin estimate. Other rare observations
+        retain the 16% benchmark. Conflicts, uncertainty, unrelated genes, somatic and
+        included-haplotype annotations do not receive the BRCA calibration.
+      - Format 9 records lookup schema 3, including benchmark scope/cohort/DOI.
+        Formats 1–8 preserve their saved results, including schema-2 BRCA snapshots
+        with the original generic benchmark. `{frequency}` and `{ppv}` templates
+        now render explicit values or unavailable states through production assembly.
 - [ ] **M7.4** ACMG secondary-finding genes: surfaced, tiered, and accompanied by an
       explicit "only clinical sequencing can establish or exclude this; this is not a
       clinical test". Not suppressed, not presented as established.
@@ -2537,6 +2550,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-05 | M7.3 | Scoped empirical PPV now appears before a detail click and in CLI summaries, with confirmed/unconfirmed percentages, study limitations and clinical-sequencing wording. Exact BRCA gene IDs plus germline pathogenic/likely-pathogenic classifications select the separate pooled-study benchmark; conflicting/uncertain/somatic/included-haplotype annotations do not. Missing frequency and imputation-quality-only artifacts receive no invented PPV. New format-9/schema-3 snapshots preserve scope/cohort/DOI, while formats 1–8 retain recorded results. Enabled `{frequency}`/`{ppv}` with explicit unavailable states. **2,022 tests passed, five existing Windows skips**; strict mypy platform/Python matrix, ruff/format, fixture reproduction and card lint pass. 31 additional synthetic cases; no personal export used. Next M7.4. |
 | 2026-10-05 | M7.2 / gnomAD acceptance | Downloaded and publisher-MD5-verified all **63,145,056,967 bytes** of r2.1.1 GRCh37 exomes; complete public index **17,209,972 records / 23,837,532,160 bytes**, independently source/index-verified. Source digest is recorded in the lock; exact index provenance is in the handoff. Restartable checkpoints and memory-only sample queries preserve the privacy boundary. Shared confidence and ClinVar calibration retain all findings, source counts and unknown coverage; split loci cannot manufacture REF frequencies, and missing companion frequencies or high imputation quality cannot bypass measured rarity. The maximum includes all major groups and nine reported subgroups. **1,991 tests passed, five existing Windows skips**, native ROH enabled; ruff/format, strict mypy platform/Python matrix, fixture reproduction and full card lint passed. Synthetic-only full-reference offline acceptance passed through format-8 save/read, CLI JSON and dashboard; formats 1–7 remain readable. No personal export used. Next M7.3, including the BRCA-specific benchmark. |
 | 2026-10-05 | M7.1 + download resumability | Position/allele lookup against the pinned ClinVar GRCh37 VCF, accepted on all **4,461,445 public records**, with full annotations and explicit missing/incompatible/excluded/ambiguous states. A complete reference-only SQLite index stays beside fetched payloads; personal lookup snapshots stay in private format-7 runs, with formats 1–6 preserved. CLI and paginated dashboard share the snapshot. Digestless frozen releases now need explicit `immutable`, fixed size and verified prefix provenance to resume; rolling releases still restart. The 24 frozen 1000 Genomes chromosome files declare the policy; gnomAD exomes retains its publisher MD5 pin. **1,949 tests passed, five existing Windows skips**, native ROH enabled; final ClinVar/web regression suite **245 passed**. Ruff, formatting, strict mypy, fixture reproduction and full 47-card/218-template/31-variant lint passed. No personal export was used. The 63 GB gnomAD exome download remains M7.2 setup; handoff updated. |
 | 2026-10-04 | M7.1 handoff | Synchronized the README, method docs and knowledge-pack guide with current bundle format 6 and the reviewed computed-card contracts. Corrected the reference README's obsolete absent-lock claim and the PGS license-table shorthand to match §4.8. Added `docs/handoff.md` with M7.1's scope, acceptance checks, verified ClinVar prerequisites and remaining M7.2/M15.4 dependencies. The local ClinVar source and build anchors verify; M7.1 can proceed. Reviewed-code validation and CI remain recorded at `1c1c2ec`, separate from historical milestone acceptance counts. |

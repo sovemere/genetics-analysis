@@ -49,6 +49,12 @@ knowledge/
 
 ## Shape
 
+Interpretation templates may use `{frequency}` for the selected allele's percentage
+and population, and `{ppv}` for a scoped study benchmark. Missing frequency and
+unavailable PPV render explicit text. These placeholders require a matched interpretation;
+computed and assay-limit cards cannot supply them. Published measurement benchmarks
+also appear automatically on the card face, independently of an authored template.
+
 ```yaml
 schema_version: 1
 cards:
@@ -184,7 +190,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 8; formats 1–7 remain readable.
+attached to a computed card. New runs use bundle format 9; formats 1–8 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD

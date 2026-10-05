@@ -188,9 +188,14 @@
       </div>
       {% if card.confidence.has_ppv %}
         <p class="caution">
-          {{ card.confidence.ppv_display }}.
+          {{ card.confidence.ppv_display }}
           {% if card.confidence.ppv_applies_to %}{{ card.confidence.ppv_applies_to }}{% endif %}
+          {{ card.confidence.clinical_notice }}
+          <a href="{{ card.confidence.ppv_url }}" target="_blank" rel="noreferrer noopener" class="citelink">Published benchmark (opens a public paper in a new tab; sends only its DOI)</a>
         </p>
+      {% elif card.tier == "likely-artifact" %}
+        <p class="caution">No empirical PPV was recorded for this reliability failure.
+          {{ card.confidence.clinical_notice }}</p>
       {% endif %}
     </section>
   {% endif %}

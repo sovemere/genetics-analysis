@@ -1,4 +1,4 @@
-# ClinVar measurement reliability (M7.2)
+# ClinVar measurement reliability (M7.2-M7.3)
 
 ClinVar supplies classifications of reference variants. A compatible alternate in an
 array export does not establish that variant in the person, and a pathogenic classification
@@ -57,6 +57,18 @@ calibrated probability for a homozygous, hemizygous or imputed observation.
 Above the boundary, `frequency_screen_passed` means only that the empirical rare-call
 band was not triggered. It does not confirm a call or establish clinical significance.
 
+M7.3 displays confirmed and unconfirmed percentages before opening a detail view.
+For rare unambiguous observations with exact BRCA1/BRCA2 gene identifiers and solely
+pathogenic/likely-pathogenic germline classifications, the benchmark is 4.2% confirmed
+and 95.8% unconfirmed. That figure pools the study's pathogenic BRCA variants; it is
+not an estimate for the below-0.001% frequency bin. Other rare observations retain
+the general benchmark. Mixed, uncertain or conflicting annotations do not select BRCA
+calibration, and neither somatic nor included-haplotype classifications replace CLNSIG.
+Both figures retain the UK Biobank study scope, its 49,908 participants and DOI.
+They are not calibrated personal probabilities for this vendor or for imputed,
+homozygous or hemizygous observations. The gnomAD screening population is distinct
+from the population in which the study benchmark was measured.
+
 Interpretation cards receive the same allele-specific frequencies through the existing
 confidence engine. A single population supplies both alleles, REF=1-ALT uses that same
 denominator, and selection maximises the frequency of the rarest observed allele across
@@ -67,9 +79,9 @@ When several source rows share a locus, REF frequency is left unknown: gnomAD sp
 multiallelic sites, and 1-AF from one split row includes other alternates. The exact
 alternate's frequency can still be used without attributing those alternates to REF.
 
-Bundle format **8** records the calibrated ClinVar lookup as schema **2** in
+Bundle format **9** records the calibrated ClinVar lookup as schema **3** in
 `clinvar.run.json`, with source/index provenance, population counts, screening policy
 and reliability. CLI JSON and the dashboard read the same saved snapshot. Formats
-1-7 remain readable with their original results and notices; no saved run is recalibrated
-against newer references. M7.3 still owns the complete frequency-band presentation,
-including the separate BRCA1/BRCA2 benchmark; M7.4 owns ACMG surfacing.
+1-8 remain readable with their original results and notices; schema-2 snapshots keep
+their original generic benchmark, and no saved run is recalibrated against newer
+references. M7.4 owns ACMG surfacing.

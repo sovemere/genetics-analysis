@@ -330,7 +330,9 @@ def calculate_confidence(
             population_frequency_ceiling=RARE_CALL_FREQUENCY_CEILING,
             applies_to=(
                 "Empirical benchmark for heterozygous SNP-chip calls below 0.001% "
-                "population frequency; not an individual posterior probability."
+                "population frequency in UK Biobank; not an individual posterior probability. "
+                "Not calibrated for this vendor, homozygous/hemizygous calls or imputation. "
+                "DOI: 10.1136/bmj.n214."
             ),
         )
 
