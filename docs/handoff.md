@@ -143,6 +143,8 @@ states, missing-source/empty-screen honesty, saved metadata integrity, format-9
 compatibility and CLI/dashboard parity with 101-locus pagination.
 The review adds twelve malformed-cache/snapshot regressions, including schema-2/3/4
 bundle, CLI and dashboard error handling, and verifies the ACMG title/count scopes.
+The cache-reuse test now keeps its gzip source unchanged: regenerating it changed the
+header timestamp/checksum and caused a legitimate rebuild, producing a flaky CI failure.
 
 Before committing, inspect `git status --porcelain`, stage only code/docs/reference
 metadata, run `genetics check-staged`, and keep the privacy hook enabled. Public
