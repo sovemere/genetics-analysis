@@ -60,6 +60,7 @@ from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import AssembledCard, ObservationEvidence, assemble_pack
 from genetics.engine.matcher import MatchResult, MatchStatus, match_pack, summarise
+from genetics.health.clinvar import ClinVarLookup, lookup_default
 from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
@@ -101,6 +102,7 @@ class Analysis(NoGenotypeRepr):
     matches: tuple[MatchResult, ...]
     cards: tuple[AssembledCard, ...]
     ancestry: AncestryContext
+    clinvar: ClinVarLookup
 
     @property
     def vendor(self) -> str:
@@ -192,6 +194,7 @@ def analyse(
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
     cards = infer_sex_chromosome_cards(cards, result.table)
+    clinvar = lookup_default(result.table, progress=progress)
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,
@@ -200,6 +203,7 @@ def analyse(
         matches=matches,
         cards=cards,
         ancestry=context,
+        clinvar=clinvar,
     )
 
 
@@ -225,6 +229,7 @@ def save(
         cards=analysis.cards,
         pack=analysis.pack,
         ancestry=analysis.ancestry,
+        clinvar=analysis.clinvar,
         runs_root=runs_root,
         run_id=run_id,
         created_at=created_at,

@@ -32,14 +32,17 @@ about a minute with the reference PCAs cached.
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
-Next is [M7.1](#m7--monogenic-health--frequency-gating), ClinVar lookup.**
-The [handoff](docs/handoff.md) records its scope, verified prerequisites and acceptance
-checks. M7.1 has no outstanding blocker; the fetcher debt below must be paid before
-gnomAD's 63 GB exome file (M7.2). The study-to-sample ancestry mapping M5.8 surfaced
+M7.1 is complete: position/allele ClinVar lookup is saved and available to the CLI and
+dashboard. Next is [M7.2](#m7--monogenic-health--frequency-gating), gnomAD frequency gating.**
+The [handoff](docs/handoff.md) records its scope and prerequisites. Download resumability
+debt is resolved before gnomAD's 63 GB exome file. The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current checkpoint (2026-10-04):** new runs use bundle format **6**, with formats
-1–5 preserved. The review fixes are `1c1c2ec`: **1,898 tests passed, five existing Windows
+**Current bundle format: 7**, with formats 1–6 preserved.
+M7.1/download checkpoint (2026-10-05): **1,949 tests passed, five existing Windows
+skips**, with native ROH checks enabled; the final ClinVar/web regression suite passed
+245 tests. Ruff, formatting, strict mypy, fixture reproduction and full card lint passed.
+The preceding reviewed checkpoint (2026-10-04) is `1c1c2ec`: **1,898 tests passed, five existing Windows
 skips**, and [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
 Earlier milestone acceptance counts and format numbers below record what shipped then.
 
@@ -59,7 +62,7 @@ the coverage statement names those gaps instead of rounding them off.
    repeatedly and the fetcher discards an unpinned partial rather than resuming it, so each
    failure restarted from zero. That is correct for a *rolling* file and wrong for a frozen
    release that merely publishes no checksum -- `RemoteFile.unpinned_reason` is the field
-   that could tell them apart. **Worth fixing before gnomAD exomes**, which is 63 GB in a
+  that could tell them apart. **Worth fixing before gnomAD exomes**, which is 63 GB in a
    single file where one truncation costs far more than a gigabyte.
 
 2. ~~**Resolve HGDP, and decide whether M5.3 waits for it.**~~ **Settled 2026-08-22:
@@ -84,14 +87,13 @@ the coverage statement names those gaps instead of rounding them off.
 
 </details>
 
-Two pieces of debt worth carrying forward:
+Download debt and the remaining probe limit:
 
-- **The fetcher discards an unpinned partial rather than resuming it**, which is correct
-  for a rolling file and wrong for a frozen release that merely publishes no checksum. It
-  cost five passes on 1000 Genomes. `RemoteFile.unpinned_reason` is the field that could
-  tell the two apart, and the next place this bites is **gnomAD exomes -- 63 GB in a single
-  file**. Worth knowing: **Harvard Dataverse honours `Range`** (a byte range 1 GB into the
-  4 GB AADR `.geno` returned 206), so a resuming fetcher would have somewhere to resume to.
+- **Resolved 2026-10-05:** digestless frozen releases can resume with explicit
+  `RemoteFile.immutable`, fixed size and verified URL/length/prefix-hash provenance.
+  The 24 frozen 1000 Genomes chromosome files declare the policy. Rolling releases
+  still discard unverifiable prefixes; a reason string is never treated as a policy.
+  gnomAD exomes already has a publisher MD5 pin and uses final digest verification.
 
 - **`refs probe` reads status codes, not meaning, and an entry carrying only a homepage
   cannot be probed into truth.** hgdp_grch37 showed the false green on a withdrawn source;
@@ -2263,7 +2265,17 @@ section, that proves every layer.*
 
 ## M7 — Monogenic health & frequency gating
 
-- [ ] **M7.1** ClinVar lookup against the normalized table, position-keyed.
+- [x] **M7.1** ClinVar lookup against the normalized table, position-keyed.
+      - Full reference-only SQLite index of the pinned GRCh37 VCF; source and index
+        checksums, build/date validation and atomic publication. No htslib dependency.
+      - Locus join plus compatible REF/ALT alleles; rsID is secondary metadata. Missing,
+        incompatible, excluded indel/symbolic, duplicate-probe and duplicate-record
+        ambiguity states remain explicit. Multiallelic aggregate annotations are retained
+        without assigning them to an alternate. All classifications, conflicts, review
+        statuses, conditions and source identifiers are preserved.
+      - Bundle format 7 adds private `clinvar.run.json`; formats 1–6 remain readable.
+        `genetics runs clinvar <run-id> --json`, whole-run JSON and the dashboard read the
+        same snapshot. This is lookup only; M7.2–M7.3 own calibrated finding presentation.
 - [ ] **M7.2** **Frequency gate wired to gnomAD** — the single most important correctness
       requirement in the project ([AGENTS.md §4.1](AGENTS.md)). Rarity lowers confidence.
 - [ ] **M7.3** `likely-artifact` rendering: the card **states the empirical PPV for its
@@ -2504,6 +2516,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-05 | M7.1 + download resumability | Position/allele lookup against the pinned ClinVar GRCh37 VCF, accepted on all **4,461,445 public records**, with full annotations and explicit missing/incompatible/excluded/ambiguous states. A complete reference-only SQLite index stays beside fetched payloads; personal lookup snapshots stay in private format-7 runs, with formats 1–6 preserved. CLI and paginated dashboard share the snapshot. Digestless frozen releases now need explicit `immutable`, fixed size and verified prefix provenance to resume; rolling releases still restart. The 24 frozen 1000 Genomes chromosome files declare the policy; gnomAD exomes retains its publisher MD5 pin. **1,949 tests passed, five existing Windows skips**, native ROH enabled; final ClinVar/web regression suite **245 passed**. Ruff, formatting, strict mypy, fixture reproduction and full 47-card/218-template/31-variant lint passed. No personal export was used. The 63 GB gnomAD exome download remains M7.2 setup; handoff updated. |
 | 2026-10-04 | M7.1 handoff | Synchronized the README, method docs and knowledge-pack guide with current bundle format 6 and the reviewed computed-card contracts. Corrected the reference README's obsolete absent-lock claim and the PGS license-table shorthand to match §4.8. Added `docs/handoff.md` with M7.1's scope, acceptance checks, verified ClinVar prerequisites and remaining M7.2/M15.4 dependencies. The local ClinVar source and build anchors verify; M7.1 can proceed. Reviewed-code validation and CI remain recorded at `1c1c2ec`, separate from historical milestone acceptance counts. |
 | 2026-10-04 | M6.2–M6.4 / CI review | Diff-driven review of session commits `788cd4c..ad471e6`. Fixed computed method metadata accepting non-text populations and unvalidated saved evidence; contradictory saved ROH intervals, totals, window support, policies and unavailable tiers; incomplete archaic provenance and policies; historical sex-chromosome reloads depending on current prose; and nested serialization aliases that could mutate source results or sex-chromosome defaults. Saved readers validate recorded measurements and structured assay limitations without rerunning a genome or replacing its saved wording. Added 38 synthetic regression cases, including native ROH save/read acceptance. **1,898 passed, five existing Windows skips**; ruff, format, fixture reproduction, full card lint (47 cards, 218 renders, 31 resolved variants) and strict mypy pass. CI-version mypy 2.4.0 checked with both platform/Python matrices. |
 | 2026-10-04 | CI / M2.7 | All four CI configurations failed type checking after installing mypy 2.4.0: typeshed narrowed `socket.getaddrinfo`'s result by address family, making the network guard's duplicated list alias incompatible. Local mypy 2.3.1 did not catch it. Replaced the alias with a `ParamSpec`/`TypeVar` wrapper that preserves the resolver's installed signature and return type, without disabling checks or pinning an older checker. Regression checks verify positional/keyword forwarding, unchanged loopback results and refusal before outbound DNS. |

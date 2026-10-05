@@ -137,6 +137,8 @@ incoming/
 /out/
 /reports/
 *.run.json
+# M7.1's private ClinVar snapshot, also covered by the general run-payload rule.
+clinvar.run.json
 *.run.json.gz
 *.analysis.json
 *.analysis.sqlite
@@ -227,6 +229,11 @@ core.*
 !/data/references/README.md
 
 /data/reference/
+# M7.1 full public-reference indexes and download prefix provenance are fetched/derived,
+# never vendored, including copies outside their normal reference directory.
+clinvar_lookup.sqlite*
+*.part.resume.json
+*.part.resume.json.tmp
 /refs/
 /reference/
 /panels/

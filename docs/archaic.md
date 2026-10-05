@@ -44,8 +44,9 @@ error** and is **not a measured genome-wide archaic DNA percentage**. There is n
 segment calling, inferred trait effect, or comparison percentile. Bundle format
 **5 introduced** each diagnostic, counts, formula, settings, assumptions and reference hashes;
 `genetics runs show --json` and the dashboard read that same record. Older bundles
-remain readable. New runs now use **format 6**, which also carries sex-chromosome
-profiles. The saved archaic reader requires the complete recorded policy, named archaic
-genomes and baseline individuals, reference version/quality, input digests and caveats.
+remain readable. New runs now use **format 7**, which also carries sex-chromosome
+profiles and ClinVar lookup. The saved archaic reader requires the complete recorded
+policy, named archaic genomes and baseline individuals, reference version/quality,
+input digests and caveats.
 Serialized results copy nested metadata, so editing an export cannot change its source
 measurement or the other lineage's saved result.

@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}ClinVar reference lookup · genetics{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block content %}
+<h1>ClinVar reference lookup</h1>
+{% if shell.problem %}
+  <p>{{ shell.problem }}</p>
+{% elif shell.clinvar is none %}
+  <p>This older run did not record ClinVar lookup.</p>
+{% else %}
+  {% set lookup = shell.clinvar %}
+  <p class="problem">{{ lookup.notice }}</p>
+  <p>Status: {{ lookup.status }}. {{ lookup.reason }}</p>
+  {% if lookup.provenance %}
+    <p>ClinVar {{ lookup.provenance.version }} · {{ lookup.provenance.build }} · {{ lookup.provenance.filename }}</p>
+    <p>{{ lookup.counts.overlapping_loci }} overlapping loci;
+      {{ lookup.counts.reference_absent_loci }} sample loci absent from this reference.</p>
+    <p>Source SHA256: <code>{{ lookup.provenance.sha256 }}</code></p>
+  {% endif %}
+  {% if clinvar_loci %}
+    <p>Showing loci {{ clinvar_start }}–{{ clinvar_start + clinvar_loci | length - 1 }} of {{ lookup.loci | length }}.</p>
+  {% endif %}
+  {% if clinvar_pages > 1 %}
+    <nav aria-label="ClinVar result pages">
+      {% if clinvar_page > 1 %}<a href="{{ shell.run_url }}/clinvar?page={{ clinvar_page - 1 }}">Previous</a>{% endif %}
+      Page {{ clinvar_page }} of {{ clinvar_pages }}
+      {% if clinvar_page < clinvar_pages %}<a href="{{ shell.run_url }}/clinvar?page={{ clinvar_page + 1 }}">Next</a>{% endif %}
+    </nav>
+  {% endif %}
+  {% for locus in clinvar_loci %}
+    <section class="card">
+      <h2>{{ locus.chrom }}:{{ locus.pos_grch37 }}</h2>
+      <p>Observed probes:
+        {% for probe in locus.probes %}
+          {{ probe.rsid }} · {{ probe.genotype or "no call" }} · {{ probe.call_status }}{% if not loop.last %}; {% endif %}
+        {% endfor %}
+      </p>
+      {% for entry in locus.records %}
+        <h3>Variation {{ entry.variation_id }} · {{ entry.status }}</h3>
+        <p>{{ entry.reason }}</p>
+        <p>Reference alleles: {{ entry.ref }} → {{ entry.alts | join(", ") }}</p>
+        <p>Germline classification: {{ entry.info.get("CLNSIG", "not provided") }}<br>
+          Review status: {{ entry.info.get("CLNREVSTAT", "not provided") }}<br>
+          Conflicting classifications: {{ entry.info.get("CLNSIGCONF", "not provided") }}<br>
+          Conditions: {{ entry.info.get("CLNDN", "not provided") }}<br>
+          Condition identifiers: {{ entry.info.get("CLNDISDB", "not provided") }}</p>
+        <details><summary>All source annotations</summary>
+          <dl>{% for name, value in entry.info.items() %}<dt>{{ name }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+        </details>
+      {% endfor %}
+    </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

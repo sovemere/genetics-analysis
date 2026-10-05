@@ -31,6 +31,7 @@ verification failure instead of as new results.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import shutil
 import urllib.error
@@ -439,6 +440,7 @@ def download(
     expected_md5: str | None = None,
     expected_size: int | None = None,
     advisory: bool = False,
+    immutable: bool = False,
     progress: ProgressCallback | None = None,
     label: str = "",
 ) -> FileResult:
@@ -449,7 +451,11 @@ def download(
     resume logic. Duplicating this is how the three corruption cases handled below get
     fixed in one copy and not the other.
 
-    ``advisory`` is for a file the manifest declares unpinnable (``unpinned_reason``).
+    ``advisory`` is for a rolling, unpinned manifest file. An explicit ``immutable``
+    release instead keeps its declared size and any lock digest binding. Before its
+    first complete digest is available, resume requires a sidecar matching URL, size
+    and a freshly verified prefix hash. This relies on the publisher's immutability
+    contract; it does not turn a digestless source into a publisher-checksummed one.
     Its size and its lock-recorded digest describe *what the publisher served last time*,
     not what it promised to keep serving, so drift is reported and re-recorded rather than
     failed. Treating them as pins is not merely strict, it is wrong in a way nobody local
@@ -461,12 +467,45 @@ def download(
     declared ``Content-Length`` still fails.
     """
     name = target.name
+    if immutable and (advisory or expected_size is None):
+        raise FetchError("Immutable resume requires a fixed size and non-advisory verification")
     target.parent.mkdir(parents=True, exist_ok=True)
     part = target.with_name(target.name + ".part")
+    resume_record = part.with_name(part.name + ".resume.json")
     # Only a manifest pin authenticates a *prefix*. A lock digest describes a whole file
     # this machine once received; under `advisory` a mismatch against it is expected drift
     # rather than corruption, so it cannot also serve as the proof that resuming is safe.
     authenticated = not advisory and (expected_sha256 is not None or expected_md5 is not None)
+
+    # A declared immutable release supplies entity identity; this sidecar supplies local
+    # prefix integrity. Neither a URL's spelling nor an orphan .part supplies either.
+    def record_prefix() -> None:
+        if immutable and not authenticated and part.is_file():
+            prefix_sha, _, prefix_size = _digests(part)
+            record = {
+                "url": url,
+                "expected_size": expected_size,
+                "prefix_size": prefix_size,
+                "prefix_sha256": prefix_sha,
+            }
+            temporary_record = resume_record.with_name(resume_record.name + ".tmp")
+            temporary_record.write_text(json.dumps(record), encoding="utf-8")
+            os.replace(temporary_record, resume_record)
+
+    verified_prefix = False
+    if immutable and not authenticated and part.is_file() and resume_record.is_file():
+        try:
+            recorded_prefix = json.loads(resume_record.read_text(encoding="utf-8"))
+            prefix_sha, _, prefix_size = _digests(part)
+            verified_prefix = recorded_prefix == {
+                "url": url,
+                "expected_size": expected_size,
+                "prefix_size": prefix_size,
+                "prefix_sha256": prefix_sha,
+            }
+        except (ValueError, OSError):
+            verified_prefix = False
+    resumable = authenticated or verified_prefix
 
     # Deliberately *not* advisory: nothing was fetched here, so a mismatch is a change to
     # bytes already on this disk -- local corruption, or a stale copy of an older release.
@@ -506,7 +545,7 @@ def download(
         # A part longer than the whole file cannot be a prefix of it.
         part.unlink()
         offset = 0
-    elif expected_size is not None and offset == expected_size and offset > 0 and authenticated:
+    elif expected_size is not None and offset == expected_size and offset > 0 and resumable:
         # The part is already the full length: the transfer finished but the process died
         # before the digest and rename completed. That window is not narrow -- hashing a
         # 63 GB file takes minutes, and an interrupt during it lands exactly here.
@@ -515,21 +554,18 @@ def download(
         # arrives as a URLError and reports "could not open" *forever*, while the
         # neighbouring message advises rerunning to resume. Verify and promote instead.
         #
-        # Gated on `authenticated` because promotion here is the one path that renames a
-        # part into place without a *manifest* digest behind it. Unauthenticated, the
-        # checks below are vacuously true and a leftover part from an earlier release that
-        # happens to match the declared size would be promoted, hashed, and written into
-        # the lock as this release's authoritative digest -- the same chimera the branch
-        # below discards a shorter part to avoid, arrived at by matching a length.
+        # Promotion requires a whole-file digest or an explicit immutable contract plus
+        # verified local prefix provenance. A same-sized orphan .part is never enough.
         sha, md5, size = _digests(part)
         sha_ok = not expected_sha256 or sha == expected_sha256
         md5_ok = not expected_md5 or md5 == expected_md5
         if sha_ok and md5_ok:
             os.replace(part, target)
+            resume_record.unlink(missing_ok=True)
             return FileResult(name, FileStatus.DOWNLOADED, size, sha)
         part.unlink()
         offset = 0
-    elif offset > 0 and not authenticated:
+    elif offset > 0 and not resumable:
         # A partial response has no content identity of its own.  Without a publisher
         # digest or a digest from a previous lock, the URL may have changed between
         # invocations; appending the new suffix to the old prefix can manufacture a
@@ -538,6 +574,7 @@ def download(
         # every downstream result.
         part.unlink()
         offset = 0
+        resume_record.unlink(missing_ok=True)
 
     try:
         chunked = transport.open(url, offset=offset)
@@ -552,18 +589,38 @@ def download(
         # handling: the failure would be rare, silent and baffling.
         chunked.stream.close()
         part.unlink(missing_ok=True)
+        offset = 0
         try:
             chunked = transport.open(url, offset=0)
         except (urllib.error.URLError, OSError) as exc:
             return FileResult(name, FileStatus.FAILED, detail=f"could not reopen: {exc}")
+    # A second invalid partial response must also fail; it cannot create a hole on
+    # the fallback request. Refuse declared length drift before appending any suffix.
+    if (
+        chunked.resumed_from < 0
+        or chunked.resumed_from > offset
+        or (immutable and chunked.total_size is not None and chunked.total_size != expected_size)
+    ):
+        chunked.stream.close()
+        part.unlink(missing_ok=True)
+        offset = 0
+        resume_record.unlink(missing_ok=True)
+        return FileResult(
+            name,
+            FileStatus.FAILED,
+            detail=(
+                "Server response differs from the declared immutable release or requested "
+                "range; partial discarded"
+            ),
+        )
 
     resumed = chunked.resumed_from > 0
     mode = "ab" if resumed else "wb"
     if resumed and chunked.resumed_from < offset:
         # The server met us earlier than we asked. Trust the server and trim the local
         # part to match, rather than writing its body into the wrong place.
-        with open(part, "r+b") as handle:
-            handle.truncate(chunked.resumed_from)
+        with open(part, "r+b") as prefix_handle:
+            prefix_handle.truncate(chunked.resumed_from)
 
     written = chunked.resumed_from
     try:
@@ -576,10 +633,12 @@ def download(
     except (urllib.error.URLError, OSError) as exc:
         # Only an authenticated prefix is safe to resume.  A digest-less partial may be
         # from a rolling entity which changes before the next invocation.
-        if not authenticated:
+        if not authenticated and not immutable:
             part.unlink(missing_ok=True)
+            resume_record.unlink(missing_ok=True)
             suffix = "; unauthenticated partial discarded, rerun to restart"
         else:
+            record_prefix()
             suffix = "; rerun to resume"
         return FileResult(
             name,
@@ -587,6 +646,15 @@ def download(
             written,
             detail=f"transfer interrupted after {written} bytes ({exc}){suffix}",
         )
+    except BaseException:
+        # Preserve a verifiable digestless prefix even when Ctrl-C stops a long transfer.
+        # Rolling files discard it; their next response may be a different release.
+        if authenticated or immutable:
+            record_prefix()
+        else:
+            part.unlink(missing_ok=True)
+            resume_record.unlink(missing_ok=True)
+        raise
 
     size = part.stat().st_size
     if advisory and chunked.total_size is not None and size != chunked.total_size:
@@ -611,6 +679,7 @@ def download(
         oversized = size > expected_size
         if oversized:
             part.unlink(missing_ok=True)
+            resume_record.unlink(missing_ok=True)
             detail = _size_mismatch(
                 part,
                 expected_size,
@@ -618,7 +687,7 @@ def download(
                 discarded=True,
                 partial=True,
             )
-        elif not authenticated:
+        elif not authenticated and not immutable:
             part.unlink(missing_ok=True)
             detail = (
                 f"{part.name}: size mismatch (expected {expected_size} bytes, got {size}). "
@@ -626,6 +695,7 @@ def download(
                 "later response is the same entity; rerun to restart."
             )
         else:
+            record_prefix()
             detail = _size_mismatch(
                 part,
                 expected_size,
@@ -646,6 +716,7 @@ def download(
         return FileResult(name, FileStatus.FAILED, size, sha, detail)
 
     os.replace(part, target)
+    resume_record.unlink(missing_ok=True)
     status = FileStatus.RESUMED if resumed else FileStatus.DOWNLOADED
     drift = _drift(target, expected_size, size, expected_sha256, sha) if advisory else ""
     return FileResult(name, status, size, sha, drift)
@@ -673,7 +744,8 @@ def fetch_file(
         expected_sha256=_expected_sha256(item, source.id, previous),
         expected_md5=item.md5,
         expected_size=item.size_bytes,
-        advisory=not item.pinned,
+        advisory=not item.pinned and not item.immutable,
+        immutable=item.immutable,
         progress=progress,
         label=source.id,
     )
@@ -1011,7 +1083,9 @@ def probe_targets(
     targets: list[ProbeTarget] = []
     for source in select_sources(manifest, only, include_optional=True):
         for item in source.files:
-            targets.append((source.id, item.filename, item.url, item.size_bytes, item.pinned))
+            targets.append(
+                (source.id, item.filename, item.url, item.size_bytes, item.pinned or item.immutable)
+            )
         if source.manual is not None:
             targets.append((source.id, "<manual instructions>", source.manual.url, None, False))
 
@@ -1338,5 +1412,7 @@ def cleanup_partials(root: Path) -> list[Path]:
     for path in sorted(root.rglob("*.part")):
         with suppress(OSError):
             path.unlink()
+            path.with_name(path.name + ".resume.json").unlink(missing_ok=True)
+            path.with_name(path.name + ".resume.json.tmp").unlink(missing_ok=True)
             removed.append(path)
     return removed

@@ -73,6 +73,7 @@ def make_source(
     sha256: str | None = PAYLOAD_SHA,
     md5: str | None = None,
     unpinned_reason: str | None = None,
+    immutable: bool = False,
     required: bool = False,
     post_process: tuple[manifest.PostProcess, ...] = (),
 ) -> manifest.Source:
@@ -86,6 +87,7 @@ def make_source(
         md5=md5,
         size_bytes=len(PAYLOAD),
         unpinned_reason=unpinned_reason,
+        immutable=immutable,
     )
     return manifest.Source(
         id=source_id,
@@ -248,6 +250,163 @@ def test_an_unpinned_short_first_fetch_is_discarded_and_restarts(tmp_path: Path)
     assert second.status is FileStatus.DOWNLOADED
     assert second_transport.requests == [(URL, 0)]
     assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+
+
+def test_digestless_immutable_release_resumes_with_verified_prefix(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="no published digest", immutable=True)
+    first = fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport(truncate_at=120),
+        previous=lockfile.Lock(),
+    )
+    part = tmp_path / "example" / "ref.txt.part"
+    assert first.status is FileStatus.FAILED
+    assert part.read_bytes() == PAYLOAD[:120]
+    assert part.with_name(part.name + ".resume.json").is_file()
+    transport = FakeTransport()
+    second = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+    assert second.status is FileStatus.RESUMED
+    assert transport.requests == [(URL, 120)]
+    assert (part.parent / "ref.txt").read_bytes() == PAYLOAD
+    assert not list(part.parent.glob("*.resume.json"))
+
+
+@pytest.mark.parametrize("damage", ["prefix", "url", "size", "sidecar", "absent"])
+def test_immutable_resume_restarts_when_prefix_provenance_changes(
+    tmp_path: Path, damage: str
+) -> None:
+    import json
+    from dataclasses import replace
+
+    source = make_source(sha256=None, unpinned_reason="no published digest", immutable=True)
+    fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport(truncate_at=120),
+        previous=lockfile.Lock(),
+    )
+    part = tmp_path / "example" / "ref.txt.part"
+    sidecar = part.with_name(part.name + ".resume.json")
+    item = source.files[0]
+    if damage == "prefix":
+        part.write_bytes(b"X" * 120)
+    elif damage == "url":
+        item = replace(item, url="https://example.org/other.txt")
+    elif damage == "size":
+        metadata = json.loads(sidecar.read_text(encoding="utf-8"))
+        metadata["expected_size"] += 1
+        sidecar.write_text(json.dumps(metadata), encoding="utf-8")
+    elif damage == "sidecar":
+        sidecar.write_text("{broken", encoding="utf-8")
+    else:
+        sidecar.unlink()
+    transport = FakeTransport({item.url: PAYLOAD})
+    result = fetcher.fetch_file(
+        source, item, root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+    assert result.status is FileStatus.DOWNLOADED
+    assert transport.requests == [(item.url, 0)]
+    assert (part.parent / "ref.txt").read_bytes() == PAYLOAD
+
+
+def test_immutable_resume_honours_server_restart_and_rejects_length_drift(tmp_path: Path) -> None:
+    source = make_source(sha256=None, unpinned_reason="no published digest", immutable=True)
+    fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport(truncate_at=120),
+        previous=lockfile.Lock(),
+    )
+    drift = FakeTransport({URL: PAYLOAD + b"changed"})
+    refused = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=drift, previous=lockfile.Lock()
+    )
+    assert refused.status is FileStatus.FAILED
+    assert not list(tmp_path.rglob("*.part"))
+    assert not list(tmp_path.rglob("*.resume.json"))
+    fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport(truncate_at=120),
+        previous=lockfile.Lock(),
+    )
+    transport = FakeTransport(honour_range=False)
+    result = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+    assert result.status is FileStatus.DOWNLOADED
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_ctrl_c_preserves_digestless_immutable_prefix_and_full_part(
+    tmp_path: Path, complete: bool
+) -> None:
+    source = make_source(sha256=None, unpinned_reason="no published digest", immutable=True)
+
+    def interrupt(event: fetcher.ProgressEvent) -> None:
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        fetcher.fetch_file(
+            source,
+            source.files[0],
+            root=tmp_path,
+            transport=FakeTransport(truncate_at=None if complete else 120),
+            previous=lockfile.Lock(),
+            progress=interrupt,
+        )
+    transport = FakeTransport()
+    result = fetcher.fetch_file(
+        source, source.files[0], root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+    assert result.ok
+    assert transport.requests == ([] if complete else [(URL, 120)])
+    assert (tmp_path / "example" / "ref.txt").read_bytes() == PAYLOAD
+
+
+def test_rolling_release_cannot_reuse_immutable_prefix(tmp_path: Path) -> None:
+    from dataclasses import replace
+
+    source = make_source(sha256=None, unpinned_reason="no published digest", immutable=True)
+    fetcher.fetch_file(
+        source,
+        source.files[0],
+        root=tmp_path,
+        transport=FakeTransport(truncate_at=120),
+        previous=lockfile.Lock(),
+    )
+    item = replace(source.files[0], immutable=False)
+    transport = FakeTransport()
+    result = fetcher.fetch_file(
+        source, item, root=tmp_path, transport=transport, previous=lockfile.Lock()
+    )
+    assert result.status is FileStatus.DOWNLOADED
+    assert transport.requests == [(URL, 0)]
+
+
+def test_invalid_range_after_restart_is_rejected_even_for_pinned_files(tmp_path: Path) -> None:
+    class BrokenTransport:
+        def open(self, url: str, *, offset: int = 0) -> Chunked:
+            return Chunked(io.BytesIO(PAYLOAD[4:]), len(PAYLOAD), 4)
+
+    result = fetcher.download(
+        URL,
+        tmp_path / "payload",
+        transport=BrokenTransport(),
+        expected_sha256=PAYLOAD_SHA,
+        expected_size=len(PAYLOAD),
+    )
+    assert result.status is FileStatus.FAILED
+    assert not (tmp_path / "payload").exists()
+    assert not (tmp_path / "payload.part").exists()
 
 
 def test_an_existing_unpinned_short_part_is_discarded_before_open(tmp_path: Path) -> None:

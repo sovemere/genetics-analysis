@@ -48,6 +48,7 @@ from genetics.ancestry.eigenstrat import EigenstratError
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
 from genetics.external.plink2 import Plink2Error
+from genetics.health.clinvar import ClinVarError
 from genetics.ingest import IngestError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
@@ -76,6 +77,8 @@ def _error_kind(exc: Exception) -> str:
         return "ingest"
     if isinstance(exc, AncestryError):
         return "ancestry"
+    if isinstance(exc, ClinVarError):
+        return "clinvar"
     if isinstance(
         exc, RohError | ArchaicError | SexChromosomeError | EigenstratError | Plink2Error
     ):
@@ -123,6 +126,7 @@ def _payload(analysis: Analysis, path: Path) -> dict[str, Any]:
         },
         "qc": analysis.qc.to_dict(),
         "ancestry": analysis.ancestry.summary(),
+        "clinvar": {"status": analysis.clinvar.status},
         "cards": {
             "total": analysis.n_cards,
             "with_interpretation": analysis.with_interpretation,
@@ -175,6 +179,7 @@ def run(
         IngestError,
         AnchorError,
         AncestryError,
+        ClinVarError,
         CardError,
         EvidenceAssemblyError,
         BundleError,

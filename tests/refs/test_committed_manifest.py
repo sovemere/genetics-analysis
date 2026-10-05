@@ -37,6 +37,22 @@ def test_gnomad_is_present_and_required(committed: Manifest) -> None:
     assert exomes.files
 
 
+def test_frozen_digestless_panel_declares_immutable_but_rolling_sources_do_not(
+    committed: Manifest,
+) -> None:
+    digestless = [
+        item for item in committed.get("thousand_genomes_phase3_grch37").files if not item.pinned
+    ]
+    assert len(digestless) == 24
+    assert all(item.immutable for item in digestless)
+    rolling = next(
+        item
+        for item in committed.get("clinvar_grch37").files
+        if item.filename == "variant_summary.txt.gz"
+    )
+    assert not rolling.immutable
+
+
 def test_dbsnp_fills_the_mechanisms_m1_left_empty(committed: Manifest) -> None:
     """Merges and variant resolution come from artifacts the pinned b157 inputs support."""
     dbsnp = committed.get("dbsnp_b157_grch37")

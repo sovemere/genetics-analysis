@@ -435,6 +435,22 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         """
         return _render(_shell(run_id, _query(request)))
 
+    @app.get("/runs/{run_id}/clinvar", response_class=HTMLResponse)
+    def clinvar(run_id: str, request: Request, page: int = 1) -> HTMLResponse:
+        shell = _shell(run_id, _query(request))
+        loci = [] if shell.clinvar is None else shell.clinvar["loci"]
+        pages = max(1, (len(loci) + 99) // 100)
+        number = max(1, min(page, pages))
+        start = (number - 1) * 100
+        return _render(
+            shell,
+            "clinvar.html",
+            clinvar_loci=loci[start : start + 100],
+            clinvar_page=number,
+            clinvar_pages=pages,
+            clinvar_start=start + 1,
+        )
+
     @app.get("/runs/{run_id}/cards/{card_id}", response_class=HTMLResponse)
     def card(run_id: str, card_id: str, request: Request) -> HTMLResponse:
         """One card in full: effect size, populations, caveats and citations (M4.6).

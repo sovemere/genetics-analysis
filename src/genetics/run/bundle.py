@@ -71,9 +71,14 @@ if TYPE_CHECKING:
     # Type-only: reading a bundle must not import the whole ancestry stack, which pulls in
     # the reference machinery. Writing only calls `to_dict()` on what it is handed.
     from genetics.ancestry.context import AncestryContext
+    from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 6
+BUNDLE_FORMAT_VERSION: Final[int] = 7
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 7 (M7.1) adds ``clinvar.run.json``: reference lookup, observed calls,
+ambiguity/exclusion states and pinned source provenance. Versions 1-6 remain
+readable with ``clinvar=None``; their saved interpretations are preserved.
 
 Version 6 (M6.4) adds sex-chromosome call profiles, PAR exclusions and the recorded
 QC thresholds to computed cards. Versions 1-5 remain readable; saved results are
@@ -157,6 +162,7 @@ that may be pasted into a bug report -- which is why it is scanned before it is 
 QC_NAME: Final[str] = "qc.run.json"
 CARDS_NAME: Final[str] = "cards.run.json"
 ANCESTRY_NAME: Final[str] = "ancestry.run.json"
+CLINVAR_NAME: Final[str] = "clinvar.run.json"
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -173,7 +179,7 @@ INCOMING_PREFIX: Final[str] = ".incoming-"
 shape rather than by remembering to, and so a killed process leaves something visibly
 unfinished rather than a run id with half a payload under it."""
 
-PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME, ANCESTRY_NAME)
+PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME, ANCESTRY_NAME, CLINVAR_NAME)
 """Every payload file this format version writes, and so every file a bundle may hold.
 
 Which of them a bundle *must* record depends on the version it was written at -- see
@@ -187,6 +193,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     QC_NAME: 1,
     CARDS_NAME: 1,
     ANCESTRY_NAME: ANCESTRY_FORMAT_VERSION,
+    CLINVAR_NAME: 7,
 }
 
 
@@ -611,6 +618,8 @@ class RunBundle(NoGenotypeRepr):
     """The ancestry stage's record (M5.8), or ``None`` for a bundle older than
     :data:`ANCESTRY_FORMAT_VERSION` -- "not recorded", never "not run". A bundle that recorded
     the stage not running says so inside the mapping, with a reason."""
+    clinvar: Mapping[str, Any] | None = None
+    """Reference lookup snapshot; None means not recorded by a pre-v7 writer."""
 
     @property
     def card_count(self) -> int:
@@ -712,6 +721,7 @@ def write_bundle(
     cards: Sequence[AssembledCard],
     pack: KnowledgePack,
     ancestry: AncestryContext,
+    clinvar: ClinVarLookup | None = None,
     runs_root: Path | None = None,
     run_id: str | None = None,
     created_at: datetime | None = None,
@@ -770,6 +780,14 @@ def write_bundle(
         # would be a defect this should catch.
         assert_no_genotype(ancestry_text, context="run bundle ancestry record")
         _write_text(staging / ANCESTRY_NAME, ancestry_text)
+        from genetics.health.clinvar import ClinVarLookup, validate_lookup
+
+        clinvar_payload = (
+            clinvar
+            or ClinVarLookup.not_run("ClinVar lookup was not supplied to the bundle writer.")
+        ).to_dict()
+        validate_lookup(clinvar_payload)
+        _write_text(staging / CLINVAR_NAME, _render(clinvar_payload))
 
         manifest = {
             "format_version": BUNDLE_FORMAT_VERSION,
@@ -1181,11 +1199,20 @@ def read_bundle(path: Path) -> RunBundle:
         raise BundleError(f"{CARDS_NAME}.cards: expected a list")
 
     ancestry: Mapping[str, Any] | None = None
+    clinvar: Mapping[str, Any] | None = None
     if declared >= ANCESTRY_FORMAT_VERSION:
         ancestry = _load_json(directory / ANCESTRY_NAME)
         _reject_unknown(ancestry, ANCESTRY_KEYS, ANCESTRY_NAME)
         for key in sorted(ANCESTRY_KEYS):
             _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
+    if declared >= 7:
+        from genetics.health.clinvar import ClinVarError, validate_lookup
+
+        clinvar = _load_json(directory / CLINVAR_NAME)
+        try:
+            validate_lookup(clinvar)
+        except ClinVarError as exc:
+            raise BundleError(str(exc)) from exc
 
     return RunBundle(
         path=directory,
@@ -1200,4 +1227,5 @@ def read_bundle(path: Path) -> RunBundle:
             _stored_card(entry, f"{CARDS_NAME}.cards[{i}]") for i, entry in enumerate(entries)
         ),
         ancestry=ancestry,
+        clinvar=clinvar,
     )

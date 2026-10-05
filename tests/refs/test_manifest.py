@@ -49,6 +49,25 @@ def test_minimal_manifest_parses() -> None:
     assert source.total_size_bytes == 10
 
 
+@pytest.mark.parametrize("value", ['"true"', '"false"', "1", "null"])
+def test_immutable_policy_must_be_boolean(value: str) -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        "size_bytes: 10", f"size_bytes: 10\n        immutable: {value}"
+    )
+    with pytest.raises(ManifestError, match="immutable"):
+        manifest.loads(text)
+
+
+def test_immutable_requires_size_and_is_not_inferred_from_reason() -> None:
+    text = MINIMAL.format(sha=SHA).replace(
+        f"sha256: {SHA}", 'unpinned_reason: "immutable release, no digest"'
+    )
+    assert not manifest.loads(text).get("example").files[0].immutable
+    text = text.replace("size_bytes: 10", "immutable: true")
+    with pytest.raises(ManifestError, match="size_bytes"):
+        manifest.loads(text)
+
+
 def test_unknown_licence_stops_the_manifest_loading() -> None:
     """The fail-closed path, end to end from YAML.
 
