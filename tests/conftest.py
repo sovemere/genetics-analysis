@@ -76,6 +76,7 @@ def _no_fetched_references_for_ancestry(
         patch.setattr("genetics.structure.archaic.references_dir", lambda: empty)
         patch.setattr("genetics.health.clinvar.references_dir", lambda: empty)
         patch.setattr("genetics.health.frequencies.references_dir", lambda: empty)
+        patch.setattr("genetics.health.secondary.references_dir", lambda: empty)
         yield
 
 

@@ -64,6 +64,12 @@ for missing/filtered records, split loci and the conservative population policy.
 
 ## Download resumability
 
+M7.4 fetches `acmg_sf_v3_3`: the complete 84-gene ClinGen ACMG SF v3.3 roster and
+reporting guidance, under ClinGen's CC0 terms. The rolling API payload is pinned
+by size/SHA256, so updates require a reviewed manifest change. It is read offline
+without sample-selected reference files. Saved private runs retain the complete
+roster and provenance; see [ACMG surfacing](../../docs/secondary_findings.md).
+
 Publisher-checksummed sources resume with final digest verification, including M7.2's
 63 GB gnomAD exomes file. Frozen sources without a publisher digest must explicitly
 declare `immutable: true` and a fixed size in the manifest; this is not inferred from

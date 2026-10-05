@@ -120,6 +120,7 @@ class ClinVarLookup(NoGenotypeRepr):
     counts: Mapping[str, int]
     loci: tuple[Mapping[str, Any], ...]
     frequency_reference: Mapping[str, Any] | None = None
+    secondary_reference: Mapping[str, Any] | None = None
 
     @classmethod
     def not_run(cls, reason: str = "Pinned ClinVar GRCh37 VCF is not installed.") -> ClinVarLookup:
@@ -141,6 +142,9 @@ class ClinVarLookup(NoGenotypeRepr):
 
             payload["notice"] = FREQUENCY_NOTICE
             payload["frequency_reference"] = dict(self.frequency_reference)
+        if self.secondary_reference is not None:
+            payload["schema_version"] = 4
+            payload["secondary_reference"] = dict(self.secondary_reference)
         return json.loads(json.dumps(payload))  # type: ignore[no-any-return]
 
 
@@ -386,6 +390,11 @@ def lookup_default(
 
 def validate_lookup(raw: Mapping[str, Any]) -> None:
     """Validate a saved lookup without consulting today's reference data."""
+    if raw.get("schema_version") == 4 and type(raw.get("schema_version")) is int:
+        from genetics.health.secondary import validate_secondary
+
+        validate_secondary(raw)
+        return
     if raw.get("schema_version") in (2, 3) and type(raw.get("schema_version")) is int:
         from genetics.health.frequencies import validate_calibration
 

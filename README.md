@@ -16,21 +16,22 @@ M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
 confidence and a separate ClinVar measurement-reliability screen. M7.3 presents scoped
 confirmation benchmarks on the card face and in CLI output, including pathogenic BRCA
-annotations. New runs use bundle format **9**; formats 1–8 remain readable without
+annotations. M7.4 surfaces all ACMG SF v3.3 gene-list overlaps with their reliability,
+reportability limits and gene-specific guidance. New runs use bundle format **10**; formats 1–9 remain readable without
 reinterpreting saved findings.
 Imputation remains an upcoming milestone.
 
-**Next: M7.4, ACMG secondary-finding surfacing.**
+**Next: M7.5, common-variant health cards with absolute-risk framing.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M7.3 implementation passed 2,022 tests with five existing Windows skips,
+The M7.4 implementation passed 2,064 tests with five existing Windows skips,
 including native ROH and privacy checks.
-The preceding verified checkpoint is `d5c6a9f`, with
-[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37263728402).
+The preceding verified checkpoint is `85197b9`, with
+[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37269364383).
 
 ## Development and use
 
@@ -53,6 +54,7 @@ genetics run --input <outside-repo-export>
 genetics runs list
 genetics runs show <run-id> --json
 genetics runs clinvar <run-id> --json
+genetics runs secondary <run-id> --json
 genetics serve
 ```
 
@@ -62,8 +64,10 @@ fail explicitly. Standalone `genetics roh` exposes the same ROH engine with cust
 reference and policy options.
 
 The dashboard links to each run's ClinVar reference lookup. These are reference
-annotations with explicit match states and a separate frequency reliability screen,
-not clinical findings. Missing frequencies stay unknown. Published PPV benchmarks
+annotations; its [ACMG view](docs/secondary_findings.md) retains likely artifacts and
+states that only clinical sequencing can establish or exclude a variant. Full lookup
+annotations carry explicit match states and a separate frequency reliability screen;
+they are not confirmed clinical findings. Missing frequencies stay unknown. Published PPV benchmarks
 retain their study scope and are never presented as individual posterior probabilities.
 
 See the [knowledge-pack guide](knowledge/README.md),

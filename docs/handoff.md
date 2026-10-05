@@ -1,8 +1,8 @@
-# Handoff: M7.4 ACMG secondary-finding surfacing
+# Handoff: M7.5 common-variant health cards
 
-As of 2026-10-05, M0-M6 and **M7.1-M7.3 are complete**. Full local reference
+As of 2026-10-05, M0-M6 and **M7.1-M7.4 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M7.4.
+first, then [the roadmap](../phase1_roadmap.md). Next is M7.5.
 
 ## Current local acceptance
 
@@ -56,18 +56,35 @@ summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely
 included-haplotype annotations do not. Missing frequency or unresolved observations
 still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
 
-New bundles use **format 9**, with ClinVar lookup schema **3** in the existing private
+New bundles use **format 10**, with ClinVar lookup schema **4** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
-1-8 retain their original results and notices, including schema-2 BRCA entries with
+1-9 retain their original results and notices, including schema-2 BRCA entries with
 the original generic benchmark. See [the frequency guide](health_frequencies.md).
 
 M7.1's complete pinned ClinVar index contains **4,461,445 records** from 2026-08-04.
 All INFO classifications/conflicts/review status and ambiguity states remain intact.
 
-## Next: M7.4
+## Implemented M7.4
 
-Surface ACMG secondary-finding genes with computed reliability and the explicit
-clinical-sequencing limitation, retaining low-confidence findings. M7.5 owns common-variant health cards
+The complete 84-gene ClinGen ACMG SF v3.3 roster and reporting guidance is fetched,
+hash-pinned and verified under CC0. Its 54,071-byte payload SHA256 is
+`8089748ab8645336eedab56e4f548f7c902e2f7d163fa3a559b49c9fbd93151d`.
+All overlaps remain visible in a dedicated dashboard view and `runs secondary` CLI
+view, with the existing reliability and PPV calculations unchanged. P/LP reference
+annotations remain distinct from clinical reportability, which is not adjudicated.
+Each overlap states the clinical-sequencing limitation; missing prerequisites are
+explicit and an empty result cannot be interpreted as a negative screen.
+
+Schema 4 saves the complete source roster, guidance, provenance and overlap metadata.
+Validation uses the saved roster without consulting today's source. Older runs retain
+their original results and explicitly lack this stage. See [the ACMG guide](secondary_findings.md).
+Offline acceptance passed against the complete ClinVar/gnomAD caches using five
+fabricated calls spanning BRCA1, TTN, ABCD1, CYP27A1 and PLN, with the full 84-gene
+roster. Networking was disabled; snapshot validation and the shared view passed.
+
+## Next: M7.5
+
+M7.5 owns common-variant health cards
 with absolute-risk framing, and M7.6 coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license
 audit remains M15.4. M6's missing chip/population calibration stays attached.
@@ -82,7 +99,7 @@ privacy, pinning or the pre-commit checks.
 
 ## Validation
 
-The full suite passed **2,022 tests, five existing Windows skips**, with pinned native
+The full suite passed **2,064 tests, five existing Windows skips**, with pinned native
 ROH enabled. Ruff/formatting, strict mypy on Windows/Linux and Python 3.11/3.13,
 fixture reproduction and full card lint pass (47 cards, 218 renders, 31 dbSNP keys).
 M7.3 adds 31 synthetic cases for exact BRCA/classification scope, numerical face/detail
@@ -90,6 +107,10 @@ and CLI presentation, unavailable PPV, placeholder contexts and historical schem
 save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations, missing/filtered/split/duplicate
 records, direct/imputed gating, malformed headers, checkpoint recovery/corruption,
 saved integrity, format-7 compatibility, CLI/dashboard parity and citation privacy.
+M7.4 adds 42 synthetic cases for exact gene membership, annotation/reportability
+separation, source completeness/checksum refusal, unsuppressed ambiguity and reliability
+states, missing-source/empty-screen honesty, saved metadata integrity, format-9
+compatibility and CLI/dashboard parity with 101-locus pagination.
 
 Before committing, inspect `git status --porcelain`, stage only code/docs/reference
 metadata, run `genetics check-staged`, and keep the privacy hook enabled. Public

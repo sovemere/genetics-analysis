@@ -263,12 +263,37 @@ def runs_clinvar(
     as_json: Annotated[bool, typer.Option("--json", help="Emit the saved lookup.")] = False,
 ) -> None:
     """Read ClinVar reference lookup; classifications are not calibrated findings."""
+    _show_clinvar(run_id, as_json=as_json, secondary_only=False)
+
+
+@runs_app.command("secondary")
+def runs_secondary(
+    run_id: Annotated[str, typer.Argument(help="Saved run id.")],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit saved ACMG overlaps and provenance.")
+    ] = False,
+) -> None:
+    """Show all ACMG gene-list overlaps, including likely artifacts and unresolved calls."""
+    _show_clinvar(run_id, as_json=as_json, secondary_only=True)
+
+
+def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
+    from genetics.health.secondary import secondary_view
+
     try:
         bundle = store.load_run(run_id)
     except (BundleError, OSError) as exc:
         _fail(exc, as_json=as_json)
     if as_json:
-        typer.echo(json.dumps({"run_id": bundle.run_id, "clinvar": bundle.clinvar}, indent=2))
+        payload = (
+            {
+                "run_id": bundle.run_id,
+                "secondary": None if bundle.clinvar is None else secondary_view(bundle.clinvar),
+            }
+            if secondary_only
+            else {"run_id": bundle.run_id, "clinvar": bundle.clinvar}
+        )
+        typer.echo(json.dumps(payload, indent=2))
         return
     if bundle.clinvar is None:
         typer.echo("ClinVar lookup was not recorded by this older bundle.")
@@ -278,7 +303,21 @@ def runs_clinvar(
     typer.echo(f"Status: {record['status']}")
     if record["reason"]:
         typer.echo(record["reason"])
-    for locus in record["loci"]:
+    secondary = record.get("secondary_reference")
+    if secondary:
+        typer.echo(f"ACMG SF v3.3: {secondary['status']}. {secondary['reason']}")
+        typer.echo(secondary["notice"])
+        typer.echo(secondary["policy"])
+        typer.echo(f"ACMG overlap counts: {json.dumps(secondary['counts'], sort_keys=True)}")
+        typer.echo(
+            f"ClinGen reference provenance: {json.dumps(secondary['provenance'], sort_keys=True)}"
+        )
+    elif secondary_only:
+        typer.echo(
+            "This older run did not record ACMG gene-list surfacing; saved results are unchanged."
+        )
+    loci = secondary_view(record)["loci"] if secondary_only else record["loci"]
+    for locus in loci:
         typer.echo(f"{locus['chrom']}:{locus['pos_grch37']}")
         for entry in locus["records"]:
             info = entry["info"]
@@ -288,6 +327,21 @@ def runs_clinvar(
                 f"review: {info.get('CLNREVSTAT', 'not provided')}"
             )
             typer.echo(f"    {entry['reason']}")
+            if entry.get("acmg"):
+                acmg = entry["acmg"]
+                typer.echo(
+                    f"    ACMG gene-list overlap: {', '.join(g['symbol'] for g in acmg['genes'])}; "
+                    f"annotation: {acmg['classification']}; reportability: {acmg['reportability']}"
+                )
+                typer.echo(f"    {acmg['notice']}")
+                for gene in acmg["genes"]:
+                    typer.echo(
+                        f"    {gene['symbol']} ({gene['hgnc_id']}; NCBI {gene['ncbi_gene_id']}): "
+                        + (
+                            gene["guidance"]
+                            or "No additional guidance recorded; consult ACMG policy restrictions."
+                        )
+                    )
             if "reliability" in entry:
                 reliability = entry["reliability"]
                 typer.echo(

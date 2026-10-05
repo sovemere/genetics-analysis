@@ -28,6 +28,29 @@
 schema_version: 1
 
 sources:
+  - id: acmg_sf_v3_3
+    name: ClinGen ACMG SF v3.3 complete gene roster and reporting guidance
+    tier: A
+    required: true
+    version: "3.3"
+    homepage: https://search.clinicalgenome.org/kb/genes/acmgsf
+    license: CC0-1.0
+    enables:
+      - ACMG secondary-finding surfacing (M7.4)
+    notes: >-
+      ClinGen curated content is CC0 per https://clinicalgenome.org/docs/terms-of-use/,
+      verified 2026-10-05. Attribution and access date are retained. This complete
+      84-gene API export includes gene-specific reporting guidance; its summary
+      reportable flag is not a clinical determination. Membership does not establish
+      variant/disease/inheritance reportability. DOI 10.1016/j.gim.2025.101454.
+      The API is rolling; this observed payload is hash-pinned and changes require
+      an explicit manifest update, never silent reannotation of saved runs.
+    files:
+      - url: https://search.clinicalgenome.org/api/genes/acmg?limit=100&offset=0
+        filename: clingen_acmg_sf_v3.3.json
+        size_bytes: 54071
+        sha256: 8089748ab8645336eedab56e4f548f7c902e2f7d163fa3a559b49c9fbd93151d
+
   # --------------------------------------------------------------------------
   # Monogenic health (M7). Cheap, and the frequency gate in AGENTS.md 4.1 exists
   # precisely because these calls are unreliable -- ClinVar says what a variant means,

@@ -4,7 +4,7 @@
 {% block banner %}{{ qcbanner_html }}{% endblock %}
 {% block nav %}{% include "_sectionnav.html" %}{% endblock %}
 {% block content %}
-<h1>ClinVar reference lookup</h1>
+<h1>{{ "ACMG secondary-finding gene overlaps" if secondary_only else "ClinVar reference lookup" }}</h1>
 {% if shell.problem %}
   <p>{{ shell.problem }}</p>
 {% elif shell.clinvar is none %}
@@ -13,6 +13,30 @@
   {% set lookup = shell.clinvar %}
   <p class="problem">{{ lookup.notice }}</p>
   <p>Status: {{ lookup.status }}. {{ lookup.reason }}</p>
+  {% if lookup.get("secondary_reference") %}
+    {% set secondary = lookup.secondary_reference %}
+    <section aria-label="ACMG source and limitations">
+      <h2>ACMG SF v3.3</h2>
+      <p class="problem"><strong>{{ secondary.notice }}</strong></p>
+      <p>{{ secondary.status }}: {{ secondary.reason }}</p>
+      <p>{{ secondary.policy }}</p>
+      <p>{{ secondary.counts.get("overlapping_records", 0) }} reference overlaps;
+        {{ secondary.counts.get("alternate_observed", 0) }} compatible alternates;
+        {{ secondary.counts.get("likely-artifact", 0) }} likely artifact;
+        {{ secondary.counts.get("unknown", 0) }} with unknown reliability.</p>
+      <p>{{ secondary.counts.get("pathogenic_or_likely_pathogenic_annotation", 0) }} observed alternates have P/LP reference annotations;
+        {{ secondary.counts.get("other_or_unresolved_annotation", 0) }} have other or unresolved annotations.
+        Clinical reportability is not adjudicated.</p>
+      {% if secondary.provenance %}
+        <p>ClinGen {{ secondary.provenance.records }}-gene roster, accessed {{ secondary.provenance.accessed }},
+          {{ secondary.provenance.license }}. Source SHA256: <code>{{ secondary.provenance.sha256 }}</code>.</p>
+        <p><a href="{{ acmg_policy_url }}" target="_blank" rel="noreferrer noopener" class="citelink">ACMG SF v3.3 policy (opens the public paper; sends only its DOI)</a></p>
+      {% endif %}
+    </section>
+  {% elif secondary_only %}
+    <p>This older run did not record ACMG gene-list surfacing. Its saved results have not been reannotated.</p>
+  {% endif %}
+  {% if secondary_only %}<p><a href="{{ shell.run_url }}/clinvar">All ClinVar reference records</a></p>{% endif %}
   {% if lookup.get("frequency_reference") %}
     <p>gnomAD frequency screen: {{ lookup.frequency_reference.status }}.</p>
     <p>Observed alternates: {{ lookup.frequency_reference.counts["likely-artifact"] }} likely artifact;
@@ -31,13 +55,15 @@
     <p>Source SHA256: <code>{{ lookup.provenance.sha256 }}</code></p>
   {% endif %}
   {% if clinvar_loci %}
-    <p>Showing loci {{ clinvar_start }}–{{ clinvar_start + clinvar_loci | length - 1 }} of {{ lookup.loci | length }}.</p>
+    <p>Showing loci {{ clinvar_start }}–{{ clinvar_start + clinvar_loci | length - 1 }} of {{ clinvar_total }}.</p>
+  {% elif secondary_only and lookup.get("secondary_reference") and lookup.secondary_reference.status == "complete" %}
+    <p>No ACMG gene-list overlap was recorded at the sampled loci. This does not exclude a variant or a condition.</p>
   {% endif %}
   {% if clinvar_pages > 1 %}
     <nav aria-label="ClinVar result pages">
-      {% if clinvar_page > 1 %}<a href="{{ shell.run_url }}/clinvar?page={{ clinvar_page - 1 }}">Previous</a>{% endif %}
+      {% if clinvar_page > 1 %}<a href="{{ clinvar_view_url }}?page={{ clinvar_page - 1 }}">Previous</a>{% endif %}
       Page {{ clinvar_page }} of {{ clinvar_pages }}
-      {% if clinvar_page < clinvar_pages %}<a href="{{ shell.run_url }}/clinvar?page={{ clinvar_page + 1 }}">Next</a>{% endif %}
+      {% if clinvar_page < clinvar_pages %}<a href="{{ clinvar_view_url }}?page={{ clinvar_page + 1 }}">Next</a>{% endif %}
     </nav>
   {% endif %}
   {% for locus in clinvar_loci %}
@@ -50,6 +76,15 @@
       </p>
       {% for entry in locus.records %}
         <h3>Variation {{ entry.variation_id }} · {{ entry.status }}</h3>
+        {% if entry.get("acmg") %}
+          <p><strong>ACMG SF v3.3 gene-list overlap:
+            {% for gene in entry.acmg.genes %}{{ gene.symbol }} ({{ gene.hgnc_id }}; NCBI {{ gene.ncbi_gene_id }}){% if not loop.last %}; {% endif %}{% endfor %}</strong>.</p>
+          <p>Reference annotation: {{ entry.acmg.classification }}. Clinical reportability: {{ entry.acmg.reportability }}.</p>
+          <p class="problem"><strong>{{ entry.acmg.notice }}</strong></p>
+          <details><summary>Gene-specific reporting guidance from ClinGen</summary>
+            {% for gene in entry.acmg.genes %}<p>{{ gene.symbol }}: {{ gene.guidance or "No additional guidance recorded; consult the ACMG policy for disease, inheritance and variant restrictions." }}</p>{% endfor %}
+          </details>
+        {% endif %}
         <p>{{ entry.reason }}</p>
         {% if entry.get("reliability") %}
           <p class="problem">Measurement reliability: <strong>{{ entry.reliability.tier }}</strong>.
