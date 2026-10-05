@@ -32,16 +32,20 @@ about a minute with the reference PCAs cached.
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
-M7.1 is complete: position/allele ClinVar lookup is saved and available to the CLI and
-dashboard. Next is [M7.2](#m7--monogenic-health--frequency-gating), gnomAD frequency gating.**
-The [handoff](docs/handoff.md) records its scope and prerequisites. Download resumability
-debt is resolved before gnomAD's 63 GB exome file. The study-to-sample ancestry mapping M5.8 surfaced
+M7.1 and M7.2 are complete: position/allele ClinVar lookup and allele-specific gnomAD
+frequency calibration are saved and available to the CLI and dashboard. Next is
+[M7.3](#m7--monogenic-health--frequency-gating), empirical PPV presentation.**
+The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
+Download resumability debt is resolved and gnomAD's 63 GB exome file is verified.
+The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 7**, with formats 1–6 preserved.
-M7.1/download checkpoint (2026-10-05): **1,949 tests passed, five existing Windows
-skips**, with native ROH checks enabled; the final ClinVar/web regression suite passed
-245 tests. Ruff, formatting, strict mypy, fixture reproduction and full card lint passed.
+**Current bundle format: 8**, with formats 1–7 preserved.
+M7.2 checkpoint (2026-10-05): **1,991 tests passed, five existing Windows skips**,
+with native ROH checks enabled. Ruff, formatting, strict mypy on Windows/Linux and
+Python 3.11/3.13, fixture reproduction and full card lint passed. The required gnomAD
+exomes source passed its publisher MD5, and the complete **17,209,972-record** index
+passed source/index verification and synthetic-only offline CLI/dashboard acceptance.
 The preceding reviewed checkpoint (2026-10-04) is `1c1c2ec`: **1,898 tests passed, five existing Windows
 skips**, and [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37191147216).
 Earlier milestone acceptance counts and format numbers below record what shipped then.
@@ -2276,8 +2280,25 @@ section, that proves every layer.*
       - Bundle format 7 adds private `clinvar.run.json`; formats 1–6 remain readable.
         `genetics runs clinvar <run-id> --json`, whole-run JSON and the dashboard read the
         same snapshot. This is lookup only; M7.2–M7.3 own calibrated finding presentation.
-- [ ] **M7.2** **Frequency gate wired to gnomAD** — the single most important correctness
+- [x] **M7.2** **Frequency gate wired to gnomAD** — the single most important correctness
       requirement in the project ([AGENTS.md §4.1](AGENTS.md)). Rarity lowers confidence.
+      - Complete public-reference SQLite index of r2.1.1 GRCh37 exomes, accepted on
+        **17,209,972 records**. Publisher MD5 and source/index SHA256 verification pass.
+        Header/cardinality/count checks, source-bound resumable checkpoints and atomic
+        publication work on Windows without htslib. Sample loci remain in memory.
+      - Exact biallelic PASS records supply AC/AN frequencies through the shared
+        confidence engine and a separate ClinVar measurement-reliability screen.
+        Selection uses the conservative maximum across global, eight major ancestry
+        groups and nine reported subgroups, disclosing the selected population rather
+        than inferring personal ancestry. Missing, filtered, incompatible and ambiguous
+        entries remain unknown; split loci leave REF frequency unknown.
+      - Measured rare alleles still trigger `likely-artifact` when a companion frequency
+        is missing or imputation quality is high. Findings remain visible. The generic
+        16% benchmark is attached; M7.3 still owns the complete PPV presentation and the
+        separate BRCA1/BRCA2 benchmark.
+      - Format 8 saves ClinVar schema-2 calibration/counts/provenance; formats 1–7
+        retain their saved results. Synthetic-only full-reference acceptance passed
+        with networking blocked, including reloading, CLI JSON and dashboard parity.
 - [ ] **M7.3** `likely-artifact` rendering: the card **states the empirical PPV for its
       frequency band** (~16% below 0.001%; ~4% for BRCA1/2). "Low confidence" is too weak
       — give the number.
@@ -2516,6 +2537,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-05 | M7.2 / gnomAD acceptance | Downloaded and publisher-MD5-verified all **63,145,056,967 bytes** of r2.1.1 GRCh37 exomes; complete public index **17,209,972 records / 23,837,532,160 bytes**, independently source/index-verified. Source digest is recorded in the lock; exact index provenance is in the handoff. Restartable checkpoints and memory-only sample queries preserve the privacy boundary. Shared confidence and ClinVar calibration retain all findings, source counts and unknown coverage; split loci cannot manufacture REF frequencies, and missing companion frequencies or high imputation quality cannot bypass measured rarity. The maximum includes all major groups and nine reported subgroups. **1,991 tests passed, five existing Windows skips**, native ROH enabled; ruff/format, strict mypy platform/Python matrix, fixture reproduction and full card lint passed. Synthetic-only full-reference offline acceptance passed through format-8 save/read, CLI JSON and dashboard; formats 1–7 remain readable. No personal export used. Next M7.3, including the BRCA-specific benchmark. |
 | 2026-10-05 | M7.1 + download resumability | Position/allele lookup against the pinned ClinVar GRCh37 VCF, accepted on all **4,461,445 public records**, with full annotations and explicit missing/incompatible/excluded/ambiguous states. A complete reference-only SQLite index stays beside fetched payloads; personal lookup snapshots stay in private format-7 runs, with formats 1–6 preserved. CLI and paginated dashboard share the snapshot. Digestless frozen releases now need explicit `immutable`, fixed size and verified prefix provenance to resume; rolling releases still restart. The 24 frozen 1000 Genomes chromosome files declare the policy; gnomAD exomes retains its publisher MD5 pin. **1,949 tests passed, five existing Windows skips**, native ROH enabled; final ClinVar/web regression suite **245 passed**. Ruff, formatting, strict mypy, fixture reproduction and full 47-card/218-template/31-variant lint passed. No personal export was used. The 63 GB gnomAD exome download remains M7.2 setup; handoff updated. |
 | 2026-10-04 | M7.1 handoff | Synchronized the README, method docs and knowledge-pack guide with current bundle format 6 and the reviewed computed-card contracts. Corrected the reference README's obsolete absent-lock claim and the PGS license-table shorthand to match §4.8. Added `docs/handoff.md` with M7.1's scope, acceptance checks, verified ClinVar prerequisites and remaining M7.2/M15.4 dependencies. The local ClinVar source and build anchors verify; M7.1 can proceed. Reviewed-code validation and CI remain recorded at `1c1c2ec`, separate from historical milestone acceptance counts. |
 | 2026-10-04 | M6.2–M6.4 / CI review | Diff-driven review of session commits `788cd4c..ad471e6`. Fixed computed method metadata accepting non-text populations and unvalidated saved evidence; contradictory saved ROH intervals, totals, window support, policies and unavailable tiers; incomplete archaic provenance and policies; historical sex-chromosome reloads depending on current prose; and nested serialization aliases that could mutate source results or sex-chromosome defaults. Saved readers validate recorded measurements and structured assay limitations without rerunning a genome or replacing its saved wording. Added 38 synthetic regression cases, including native ROH save/read acceptance. **1,898 passed, five existing Windows skips**; ruff, format, fixture reproduction, full card lint (47 cards, 218 renders, 31 resolved variants) and strict mypy pass. CI-version mypy 2.4.0 checked with both platform/Python matrices. |

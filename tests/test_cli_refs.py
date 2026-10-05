@@ -111,6 +111,20 @@ def test_a_stale_transform_orphan_is_reported_as_needing_a_rerun(
     assert "rerun" in human.stdout and "resume" in human.stdout
 
 
+def test_gnomad_index_checkpoint_is_reported_as_resumable(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    folder = tmp_path / "gnomad_exomes_r2_1_1_grch37"
+    folder.mkdir()
+    (folder / "gnomad.exomes.r2.1.1.sites.vcf.bgz").touch()
+    (folder / "gnomad_frequencies.sqlite.building").write_bytes(b"public index checkpoint")
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+    payload = run_json("refs", "status")
+    source = next(s for s in payload["sources"] if s["id"] == folder.name)
+    assert source["state"] == "processing-required"
+    assert source["post_process_resumable"] is True
+
+
 def test_refs_status_requires_provenance_for_every_post_process_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

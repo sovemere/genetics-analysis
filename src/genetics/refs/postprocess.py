@@ -82,6 +82,14 @@ _STEPS: tuple[Step, ...] = (
         output_is_genotype_derived=True,
     ),
     Step(
+        name="build_gnomad_frequency_index",
+        summary="Build a complete public GRCh37 sites frequency index; no sample subset.",
+        required_params=("input", "output"),
+        implemented=True,
+        milestone="M7.2",
+        workspace_multiplier=0.75,
+    ),
+    Step(
         name="extract_rsid_merge_table",
         summary="Extract retired-to-current rsID mappings from dbSNP RefSNP JSON.",
         required_params=("input", "output", "unresolvable_output"),
@@ -2297,7 +2305,71 @@ def run(
                 input_sha256 = _sha256(input_path)
             if input_sha256 is None:
                 input_sha256 = "0" * 64  # executor returns the clearer missing-input error
-            if declared.step == "extract_rsid_merge_table":
+            if declared.step == "build_gnomad_frequency_index":
+                from genetics.health.frequencies import INDEX_VERSION, SOURCE, FrequencyIndex
+
+                output_name = str(declared.params["output"])
+                output = _inside(source_dir, output_name, label="output")
+                if not input_path.is_file():
+                    result = ProcessResult(
+                        declared.step,
+                        ProcessStatus.FAILED,
+                        output_name,
+                        detail="gnomAD source payload is missing",
+                    )
+                elif verify_only and not output.is_file():
+                    result = ProcessResult(
+                        declared.step,
+                        ProcessStatus.PENDING,
+                        output_name,
+                        detail="not built yet; run `genetics refs fetch` for this source",
+                    )
+                else:
+                    present = output.is_file()
+                    expected = {
+                        "source": SOURCE,
+                        "version": source.version,
+                        "build": "GRCh37",
+                        "filename": input_path.name,
+                        "sha256": input_sha256,
+                        "index_schema_version": INDEX_VERSION,
+                    }
+                    callback = (
+                        (
+                            lambda message, step_name=declared.step: progress(
+                                ProcessProgressEvent(
+                                    step_name,
+                                    int(message.rsplit(":", 1)[-1].split()[0].replace(",", ""))
+                                    if message.startswith("gnomAD frequency index:")
+                                    else 0,
+                                )
+                            )
+                        )
+                        if progress
+                        else None
+                    )
+                    index = (
+                        FrequencyIndex.open(output, expected=expected)
+                        if verify_only
+                        else FrequencyIndex.build(
+                            input_path,
+                            output=output,
+                            version=source.version,
+                            input_sha256=input_sha256,
+                            progress=callback,
+                        )
+                    )
+                    status = (
+                        ProcessStatus.VERIFIED
+                        if verify_only
+                        else ProcessStatus.ALREADY_PRESENT
+                        if present
+                        else ProcessStatus.CREATED
+                    )
+                    result = ProcessResult(
+                        declared.step, status, output_name, int(index.provenance["records"])
+                    )
+            elif declared.step == "extract_rsid_merge_table":
                 result = _run_merges(
                     declared,
                     source_dir,
@@ -2358,6 +2430,7 @@ def assert_registry_is_honest() -> None:
         "extract_build_anchors",
         "build_pca_marker_subset",
         "build_modern_reference_panel",
+        "build_gnomad_frequency_index",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:

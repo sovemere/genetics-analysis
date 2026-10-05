@@ -49,6 +49,7 @@ from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
 from genetics.external.plink2 import Plink2Error
 from genetics.health.clinvar import ClinVarError
+from genetics.health.frequencies import FrequencyError
 from genetics.ingest import IngestError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
@@ -77,6 +78,8 @@ def _error_kind(exc: Exception) -> str:
         return "ingest"
     if isinstance(exc, AncestryError):
         return "ancestry"
+    if isinstance(exc, FrequencyError):
+        return "frequency_reference"
     if isinstance(exc, ClinVarError):
         return "clinvar"
     if isinstance(

@@ -44,6 +44,7 @@ from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoes
 from markupsafe import Markup
 
 from genetics import __version__ as ENGINE_VERSION
+from genetics.engine.citations import citation_url
 from genetics.paths import UnsafeDataDirError
 from genetics.privacy import assert_no_genotype
 from genetics.run import store
@@ -442,6 +443,12 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         pages = max(1, (len(loci) + 99) // 100)
         number = max(1, min(page, pages))
         start = (number - 1) * 100
+        benchmark_urls = {
+            entry["variation_id"]: citation_url("doi", entry["reliability"]["empirical_ppv"]["doi"])
+            for locus in loci[start : start + 100]
+            for entry in locus["records"]
+            if entry.get("reliability", {}).get("empirical_ppv")
+        }
         return _render(
             shell,
             "clinvar.html",
@@ -449,6 +456,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             clinvar_page=number,
             clinvar_pages=pages,
             clinvar_start=start + 1,
+            clinvar_benchmark_urls=benchmark_urls,
         )
 
     @app.get("/runs/{run_id}/cards/{card_id}", response_class=HTMLResponse)

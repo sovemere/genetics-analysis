@@ -9,7 +9,8 @@ driven by exactly one of them.
 The stages are the ones the earlier milestones already built, in the only order they
 compose::
 
-    ingest -> infer_ancestry -> match_pack -> assemble_pack -> structure stages -> write_bundle
+    ingest -> infer_ancestry -> match_pack -> reference lookup -> assemble_pack
+        -> structure stages -> write_bundle
 
 **Ancestry runs before any card is assembled (M5.8), and that order is the requirement.**
 PRS confidence depends on it (AGENTS.md 4.4), so the stage that will consume it -- M9.5,
@@ -28,13 +29,13 @@ being explicit about why that is a decision rather than a default.
 without :class:`~genetics.engine.evidence.ObservationEvidence`, because assuming a direct
 call would score an imputed observation as perfect. At this milestone there is no
 imputation stage, and the ancestry stage's result has no mapping onto a card's study
-population yet (M9.5), so the honest observation is
-:attr:`~genetics.engine.confidence.CallSource.DIRECT` with no frequencies and no ancestry
-match -- and the caveat that produces on the card face ("no population frequency was
-available, so the rarity check could not be applied and confidence is capped") is the
-correct thing for a reader to see today, not a placeholder to be quietly removed.
+population yet (M9.5), so the observation remains
+:attr:`~genetics.engine.confidence.CallSource.DIRECT` with no ancestry match. M7.2 now
+supplies allele-specific gnomAD frequencies where an exact, usable reference record
+exists. Missing frequencies remain unknown and cap confidence; nothing assumes zero
+or infers personal ancestry from the population chosen for the conservative rarity screen.
 
-That constant is written here, once, where M8 and M5 have somewhere obvious to change it.
+That observation is supplied here, where M8 and M9 have somewhere obvious to change it.
 It is emphatically *not* a default inside ``assemble_card``: a card assembled without an
 observation is a card whose provenance nobody stated, and the refusal there is what makes
 this module have to say it out loud.
@@ -53,14 +54,22 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from genetics.ancestry.context import AncestryContext, AncestryStage, infer_ancestry
 from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import AssembledCard, ObservationEvidence, assemble_pack
-from genetics.engine.matcher import MatchResult, MatchStatus, match_pack, summarise
+from genetics.engine.matcher import (
+    MatchResult,
+    MatchStatus,
+    Strand,
+    complement,
+    match_pack,
+    summarise,
+)
 from genetics.health.clinvar import ClinVarLookup, lookup_default
+from genetics.health.frequencies import calibrate, default_index, select_frequencies
 from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
@@ -73,11 +82,11 @@ __all__ = ["Analysis", "analyse", "save"]
 
 
 _DIRECT = ObservationEvidence(call_source=CallSource.DIRECT)
-"""The whole observation layer at M4, shared because it is frozen and identical.
+"""The frozen observation for unavailable references or unmatched cards.
 
 One instance rather than one per card: :class:`ObservationEvidence` is immutable, so a
-per-card copy would differ only in identity, and a reader wondering whether two cards were
-observed differently deserves to see that they cannot be.
+per-card copy of this fallback would differ only in identity. Cards with usable M7.2
+frequencies receive their own explicit observations.
 """
 
 
@@ -145,7 +154,11 @@ class Analysis(NoGenotypeRepr):
         return sum(1 for card in self.cards if card.has_interpretation)
 
 
-def observations(pack: KnowledgePack) -> dict[str, ObservationEvidence]:
+def observations(
+    pack: KnowledgePack,
+    matches: tuple[MatchResult, ...] = (),
+    frequency_records: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
+) -> dict[str, ObservationEvidence]:
     """One observation per interpretation card. See this module's docstring for why.
 
     Computed and impossibility cards are excluded rather than given an empty observation:
@@ -154,7 +167,26 @@ def observations(pack: KnowledgePack) -> dict[str, ObservationEvidence]:
     card id because ``assemble_pack`` rejects a key naming a card the pack does not have,
     which is the check that catches this function drifting out of step with the pack.
     """
-    return {card.id: _DIRECT for card in pack.cards if card.kind is CardKind.INTERPRETATION}
+    by_id = {match.card_id: match for match in matches}
+    result: dict[str, ObservationEvidence] = {}
+    for card in pack.cards:
+        if card.kind is not CardKind.INTERPRETATION:
+            continue
+        assert card.match is not None
+        variant = card.match.variant.key
+        match = by_id.get(card.id)
+        if match is None or match.status is not MatchStatus.MATCHED:
+            result[card.id] = _DIRECT
+            continue
+        called = set(match.genotype or match.observed_genotype or "")
+        if match.strand is Strand.AMBIGUOUS:
+            called.update(complement(match.observed_genotype or ""))
+        records = (frequency_records or {}).get((variant.chrom.value, variant.pos_grch37), [])
+        frequencies = select_frequencies(records, alleles=set(variant.alleles), called=called)
+        result[card.id] = ObservationEvidence(
+            call_source=CallSource.DIRECT, frequencies=frequencies
+        )
+    return result
 
 
 def analyse(
@@ -190,11 +222,20 @@ def analyse(
     else:
         context = ancestry(result.table, result.qc)
     matches = match_pack(pack, result.table)
-    cards = assemble_pack(pack, matches, observations(pack))
+    clinvar = lookup_default(result.table, progress=progress)
+    frequency_index = default_index(progress=progress)
+    loci = {(locus["chrom"], locus["pos_grch37"]) for locus in clinvar.loci}
+    loci.update(
+        (c.match.variant.key.chrom.value, c.match.variant.key.pos_grch37)
+        for c in pack.cards
+        if c.match is not None
+    )
+    frequency_records = frequency_index.lookup(loci) if frequency_index else {}
+    clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
+    cards = assemble_pack(pack, matches, observations(pack, matches, frequency_records))
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
     cards = infer_sex_chromosome_cards(cards, result.table)
-    clinvar = lookup_default(result.table, progress=progress)
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,

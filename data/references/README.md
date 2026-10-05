@@ -54,6 +54,14 @@ The index contains the complete public reference, including alternate contigs, a
 never a sample-selected subset. The existing build-anchor output remains separate.
 Personal lookup results are saved outside the repository in `clinvar.run.json`.
 
+M7.2 executes `build_gnomad_frequency_index` after verifying the required gnomAD
+exomes download. `gnomad_frequencies.sqlite` indexes the complete public GRCh37
+sites VCF, with global and named-population AF/AC/AN/homozygote counts and FILTER.
+Its source/checkpoint/index checksums bind reuse to the exact reference, and committed
+checkpoints survive an interruption. Queries use memory-only sample coordinates.
+No array subset is written here. See [frequency matching and calibration](../../docs/health_frequencies.md)
+for missing/filtered records, split loci and the conservative population policy.
+
 ## Download resumability
 
 Publisher-checksummed sources resume with final digest verification, including M7.2's
@@ -70,7 +78,7 @@ complete verified partial can be promoted without requesting an invalid end-of-f
 range. Success and partial cleanup remove the sidecar. This relies on the declared
 publisher immutability contract; a local prefix hash is not a publisher checksum.
 
-See the [M7.2 handoff](../../docs/handoff.md) for the next implementation step.
+See the [handoff](../../docs/handoff.md) for full-reference acceptance and the next milestone.
 
 ## Adding a source
 

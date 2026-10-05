@@ -288,6 +288,14 @@ def runs_clinvar(
                 f"review: {info.get('CLNREVSTAT', 'not provided')}"
             )
             typer.echo(f"    {entry['reason']}")
+            if "reliability" in entry:
+                reliability = entry["reliability"]
+                typer.echo(
+                    f"    Measurement reliability: {reliability['tier']}; "
+                    f"frequency: {reliability['frequency']}; "
+                    f"population: {reliability['population']}"
+                )
+                typer.echo(f"    {reliability['reason']}")
     typer.echo("Use --json for all annotations, calls and source provenance.")
 
 

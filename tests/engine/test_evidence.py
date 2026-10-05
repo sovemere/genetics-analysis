@@ -100,6 +100,25 @@ def test_rare_low_confidence_finding_is_returned_not_filtered() -> None:
     assert result.has_interpretation
 
 
+@pytest.mark.parametrize("source", [CallSource.DIRECT, CallSource.IMPUTED])
+def test_missing_companion_frequency_cannot_erase_known_rare_allele(source: CallSource) -> None:
+    card = _pack().by_id("synthetic_dominant_trait")
+    assert card is not None
+    result = assemble_card(
+        card,
+        _matched(card.id),
+        ObservationEvidence(
+            call_source=source,
+            imputation_quality=0.99 if source is CallSource.IMPUTED else None,
+            frequencies=(PopulationFrequency("G", 0.000001, "global", "synthetic-reference-v1"),),
+        ),
+    )
+    assert result.confidence is not None
+    assert result.confidence.tier is ConfidenceTier.LIKELY_ARTIFACT
+    assert result.confidence.empirical_ppv is not None
+    assert "measured rare allele" in result.computed_caveats[-1]
+
+
 def test_confidence_placeholder_is_rendered_by_production_assembly() -> None:
     card = _pack().by_id("synthetic_dominant_trait")
     assert card is not None

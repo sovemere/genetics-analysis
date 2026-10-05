@@ -444,6 +444,9 @@ class Source:
                 sibling(f".{name}.provenance.json.part"),
                 sibling(f".{name}.part"),
                 sibling(f".{name}.chunks"),
+                sibling(f"{name}.building"),
+                sibling(f"{name}.building-journal"),
+                sibling(f"{name}.provenance.json.tmp"),
             }
             if merge_primary:
                 classified = f".{name}.classified.parquet"

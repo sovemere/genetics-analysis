@@ -125,6 +125,36 @@
       "opt_in_required": false,
       "version": "b157"
     },
+    "gnomad_exomes_r2_1_1_grch37": {
+      "files": {
+        "gnomad.exomes.r2.1.1.sites.vcf.bgz": {
+          "first_seen": "2026-10-05",
+          "sha256": "b5218277d30c0747cfef38bbc8ee4f735ba8b31695fd343cf9f31ff77cfaf9f3",
+          "size_bytes": 63145056967,
+          "url": "https://storage.googleapis.com/gcp-public-data--gnomad/release/2.1.1/vcf/exomes/gnomad.exomes.r2.1.1.sites.vcf.bgz"
+        }
+      },
+      "license": {
+        "attribution_required": false,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-gnomAD-Open-Access",
+        "name": "gnomAD open access (Broad Institute)",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": false,
+        "standing": "needs-review",
+        "terms_url": "https://gnomad.broadinstitute.org/policies"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "r2.1.1"
+    },
     "phylotree_17": {
       "files": {
         "mtDNA_tree_Build_17.zip": {
