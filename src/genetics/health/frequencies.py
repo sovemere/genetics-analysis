@@ -236,6 +236,8 @@ class FrequencyIndex:
         try:
             provenance_path = sidecar or path.with_name(path.name + ".provenance.json")
             saved = json.loads(provenance_path.read_text(encoding="utf-8"))
+            if not isinstance(saved, dict) or not isinstance(saved.get("provenance"), dict):
+                raise ValueError
             provenance = saved["provenance"]
             if any(provenance.get(k) != v for k, v in expected.items()):
                 raise ValueError
@@ -616,6 +618,11 @@ def validate_calibration(raw: Mapping[str, Any]) -> None:
         actual_tiers: Counter[str] = Counter()
         for locus in base["loci"]:
             for entry in locus["records"]:
+                # Calibration reads ALT[0] before the base lookup validator runs.
+                # Reject an empty/malformed list here so bundle readers receive the
+                # declared domain error rather than an uncaught IndexError.
+                if not isinstance(entry["alts"], list) or not entry["alts"]:
+                    raise ValueError
                 records = entry.pop("frequency_records")
                 recorded = entry.pop("reliability")
                 if not isinstance(records, list) or (reference["status"] == "not_run" and records):

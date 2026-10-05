@@ -62,13 +62,13 @@ checkpoints survive an interruption. Queries use memory-only sample coordinates.
 No array subset is written here. See [frequency matching and calibration](../../docs/health_frequencies.md)
 for missing/filtered records, split loci and the conservative population policy.
 
-## Download resumability
-
 M7.4 fetches `acmg_sf_v3_3`: the complete 84-gene ClinGen ACMG SF v3.3 roster and
 reporting guidance, under ClinGen's CC0 terms. The rolling API payload is pinned
 by size/SHA256, so updates require a reviewed manifest change. It is read offline
 without sample-selected reference files. Saved private runs retain the complete
 roster and provenance; see [ACMG surfacing](../../docs/secondary_findings.md).
+
+## Download resumability
 
 Publisher-checksummed sources resume with final digest verification, including M7.2's
 63 GB gnomAD exomes file. Frozen sources without a publisher digest must explicitly

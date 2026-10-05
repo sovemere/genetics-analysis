@@ -31,7 +31,7 @@ from genetics.health.secondary import (
 )
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.qc.report import QCReport
-from genetics.run.bundle import MANIFEST_NAME, BundleError, read_bundle, write_bundle
+from genetics.run.bundle import CLINVAR_NAME, MANIFEST_NAME, BundleError, read_bundle, write_bundle
 from genetics.web.app import create_app
 from genetics.web.config import WebConfig
 
@@ -400,6 +400,8 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
             assert "older run did not record ACMG" in page.text
             assert "older run did not record ACMG" in human.stdout
         else:
+            assert "<title>ACMG gene overlaps" in page.text
+            assert "all ClinVar reference overlaps" in page.text
             assert human.stdout.count("Measurement reliability: likely-artifact") == 101
             assert "Synthetic truncation restriction" in page.text
             assert "not_adjudicated" in page.text
@@ -417,3 +419,56 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
             (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
             with pytest.raises(BundleError, match="format 10"):
                 read_bundle(path)
+
+
+@pytest.mark.parametrize("schema", [2, 3, 4])
+def test_empty_saved_alt_is_a_bundle_error_and_dashboard_explanation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    sample_qc: QCReport,
+    sample_cards: tuple[AssembledCard, ...],
+    sample_pack: KnowledgePack,
+    schema: int,
+) -> None:
+    from genetics.health.frequencies import _legacy_reliability
+
+    original = lookup(tmp_path)
+    result = surface(original, reference()) if schema == 4 else original
+    data = tmp_path / "data"
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(data))
+    path = write_bundle(
+        qc=sample_qc,
+        cards=sample_cards,
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("synthetic"),
+        clinvar=result,
+        runs_root=data / "runs",
+        run_id="malformed-secondary",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    saved = result.to_dict()
+    if schema == 2:
+        saved["schema_version"] = 2
+        entry = saved["loci"][0]["records"][0]
+        entry["reliability"] = _legacy_reliability(entry, entry["frequency_records"])
+    validate_lookup(saved)
+    saved["loci"][0]["records"][0]["alts"] = []
+    with pytest.raises(ClinVarError, match="malformed"):
+        validate_lookup(saved)
+    payload_path = path / CLINVAR_NAME
+    payload_path.write_text(json.dumps(saved), encoding="utf-8")
+    manifest = json.loads((path / MANIFEST_NAME).read_text())
+    manifest["files"][CLINVAR_NAME] = hashlib.sha256(payload_path.read_bytes()).hexdigest()
+    (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(BundleError, match="malformed"):
+        read_bundle(path)
+    cli = CliRunner().invoke(app, ["runs", "secondary", path.name, "--json"])
+    assert cli.exit_code == 1
+    assert "malformed" in cli.stdout
+    with TestClient(
+        create_app(WebConfig(runs_root=data / "runs")), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{path.name}/secondary-findings")
+        assert page.status_code == 200
+        assert "malformed" in page.text

@@ -3,6 +3,8 @@
 As of 2026-10-05, M0-M6 and **M7.1-M7.4 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
 first, then [the roadmap](../phase1_roadmap.md). Next is M7.5.
+Implementation checkpoint: `4d537f0`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
+The [diff-driven session review](review_m7_session.md) records follow-up fixes.
 
 ## Current local acceptance
 
@@ -13,7 +15,7 @@ The complete `build_gnomad_frequency_index` transform parsed **17,209,972 public
 records**. The index is 23,837,532,160 bytes, schema generation 2, SHA256
 `1c8a5a4e4cd31de06a9fb7a05f0db255ceff4d1380af6069d3aba17cfeb8caf7`.
 `refs verify` rechecked the source and index successfully, with no pending steps or
-temporary build files. A synthetic-only run against the complete ClinVar and gnomAD
+temporary build files. At M7.2 acceptance, a synthetic-only run against the complete ClinVar and gnomAD
 caches passed with networking blocked: five synthetic lookup entries received
 frequencies, every card remained present, format-8 reloading matched the saved
 snapshot, and CLI JSON/dashboard parity passed. No personal export has been used.
@@ -84,8 +86,35 @@ roster. Networking was disabled; snapshot validation and the shared view passed.
 
 ## Next: M7.5
 
-M7.5 owns common-variant health cards
-with absolute-risk framing, and M7.6 coverage honesty. All low-confidence findings
+M7.5 owns cited common-variant health cards (APOE, HFE, F5 Leiden) with absolute-risk
+framing. No health interpretation pack exists yet: current ClinVar/ACMG records are
+reference lookups with a separate measurement-reliability screen. Keep those distinct
+from the new authored disease-association cards.
+
+1. Add declarative `knowledge/health/` entries for tractable single-marker claims first,
+   using dbSNP-verified GRCh37 keys and primary sources. Each card needs effect units,
+   population, sample size, replication, DOI/accession, and genotype-specific wording.
+2. State published absolute outcome rates, baseline, time horizon, and applicable
+   age/sex/population strata on the face. Do not turn a ClinVar classification or a
+   SNP-chip PPV into disease risk, or convert an odds ratio into absolute risk without
+   a defensible baseline. Explicitly state when a source supplies no applicable rate.
+3. APOE allele interpretation needs both rs429358 and rs7412, not a one-marker shortcut.
+   The current `Card.match.variant` contract is single-marker; extend declarative matching
+   and the shared engine to represent both observations before reporting a diplotype.
+   Preserve missing calls, discordance, and phase ambiguity as visible outcomes. The
+   rare fourth haplotype cannot be ruled out merely because the common three are more
+   frequent ([Seripa et al., 2011](https://doi.org/10.1089/rej.2011.1169)). Imputation/
+   phasing remains upcoming M8; do not assume it has run.
+   If multi-marker results change the saved payload contract, version it and preserve
+   existing readers/results; do not change the meaning of ClinVar schemas 1–4.
+
+Synthetic checks must cover all supported allele combinations, missing/discordant
+observations, phase ambiguity, unknown frequencies, rarity gating, and save/read/CLI/
+dashboard parity. Existing `{frequency}`/`{ppv}` placeholders and the confidence engine
+are available. Run full card lint against the cached dbSNP index and keep all personal
+outputs outside the checkout.
+
+M7.6 owns quantitative coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license
 audit remains M15.4. M6's missing chip/population calibration stays attached.
 
@@ -99,18 +128,21 @@ privacy, pinning or the pre-commit checks.
 
 ## Validation
 
-The full suite passed **2,064 tests, five existing Windows skips**, with pinned native
+The reviewed full suite passed **2,076 tests, five existing Windows skips**, with pinned native
 ROH enabled. Ruff/formatting, strict mypy on Windows/Linux and Python 3.11/3.13,
 fixture reproduction and full card lint pass (47 cards, 218 renders, 31 dbSNP keys).
 M7.3 adds 31 synthetic cases for exact BRCA/classification scope, numerical face/detail
 and CLI presentation, unavailable PPV, placeholder contexts and historical schema-2
-save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations, missing/filtered/split/duplicate
+save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations,
+missing/filtered/split/duplicate
 records, direct/imputed gating, malformed headers, checkpoint recovery/corruption,
 saved integrity, format-7 compatibility, CLI/dashboard parity and citation privacy.
 M7.4 adds 42 synthetic cases for exact gene membership, annotation/reportability
 separation, source completeness/checksum refusal, unsuppressed ambiguity and reliability
 states, missing-source/empty-screen honesty, saved metadata integrity, format-9
 compatibility and CLI/dashboard parity with 101-locus pagination.
+The review adds twelve malformed-cache/snapshot regressions, including schema-2/3/4
+bundle, CLI and dashboard error handling, and verifies the ACMG title/count scopes.
 
 Before committing, inspect `git status --porcelain`, stage only code/docs/reference
 metadata, run `genetics check-staged`, and keep the privacy hook enabled. Public

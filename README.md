@@ -17,8 +17,8 @@ ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencie
 confidence and a separate ClinVar measurement-reliability screen. M7.3 presents scoped
 confirmation benchmarks on the card face and in CLI output, including pathogenic BRCA
 annotations. M7.4 surfaces all ACMG SF v3.3 gene-list overlaps with their reliability,
-reportability limits and gene-specific guidance. New runs use bundle format **10**; formats 1–9 remain readable without
-reinterpreting saved findings.
+reportability limits and gene-specific guidance. New runs use bundle format **10**;
+formats 1–9 remain readable without reinterpreting saved findings.
 Imputation remains an upcoming milestone.
 
 **Next: M7.5, common-variant health cards with absolute-risk framing.**
@@ -28,10 +28,11 @@ offline run through the CLI and dashboard passed. Download resumability debt is 
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M7.4 implementation passed 2,064 tests with five existing Windows skips,
+The reviewed M7.4 implementation passed 2,076 tests with five existing Windows skips,
 including native ROH and privacy checks.
-The preceding verified checkpoint is `85197b9`, with
-[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37269364383).
+The M7.4 implementation checkpoint is `4d537f0`, with
+[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
+The [session review](docs/review_m7_session.md) records the follow-up fixes and handoff checks.
 
 ## Development and use
 
@@ -67,8 +68,8 @@ The dashboard links to each run's ClinVar reference lookup. These are reference
 annotations; its [ACMG view](docs/secondary_findings.md) retains likely artifacts and
 states that only clinical sequencing can establish or exclude a variant. Full lookup
 annotations carry explicit match states and a separate frequency reliability screen;
-they are not confirmed clinical findings. Missing frequencies stay unknown. Published PPV benchmarks
-retain their study scope and are never presented as individual posterior probabilities.
+they are not confirmed clinical findings. Missing frequencies stay unknown. Published
+PPV benchmarks retain their study scope and are never presented as individual posterior probabilities.
 
 See the [knowledge-pack guide](knowledge/README.md),
 [reference-data guide](data/references/README.md), [ROH](docs/roh.md),

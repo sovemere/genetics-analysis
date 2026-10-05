@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}ClinVar reference lookup · genetics{% endblock %}
+{% block title %}{{ "ACMG gene overlaps" if secondary_only else "ClinVar reference lookup" }} · genetics{% endblock %}
 {% block runselector %}{{ runselector_html }}{% endblock %}
 {% block banner %}{{ qcbanner_html }}{% endblock %}
 {% block nav %}{% include "_sectionnav.html" %}{% endblock %}
@@ -38,8 +38,8 @@
   {% endif %}
   {% if secondary_only %}<p><a href="{{ shell.run_url }}/clinvar">All ClinVar reference records</a></p>{% endif %}
   {% if lookup.get("frequency_reference") %}
-    <p>gnomAD frequency screen: {{ lookup.frequency_reference.status }}.</p>
-    <p>Observed alternates: {{ lookup.frequency_reference.counts["likely-artifact"] }} likely artifact;
+    <p>gnomAD frequency screen (all ClinVar reference overlaps): {{ lookup.frequency_reference.status }}.</p>
+    <p>Observed alternates across all ClinVar reference overlaps: {{ lookup.frequency_reference.counts["likely-artifact"] }} likely artifact;
       {{ lookup.frequency_reference.counts.frequency_screen_passed }} outside the rare-call band;
       {{ lookup.frequency_reference.counts.unknown }} with unknown reliability.</p>
     <p>{{ lookup.frequency_reference.policy }}</p>

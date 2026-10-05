@@ -244,6 +244,37 @@ def test_checksum_cache_reuse_and_corruption(tmp_path: Path) -> None:
         build(tmp_path)
 
 
+@pytest.mark.parametrize(
+    "damage", ["list", "null", "missing_count", "invalid_count", "boolean_schema"]
+)
+def test_wrong_cached_provenance_shape_raises_the_reference_error(
+    tmp_path: Path, damage: str
+) -> None:
+    index = build(tmp_path)
+    provenance: Any = dict(index.provenance)
+    if damage == "list":
+        provenance = []
+    elif damage == "null":
+        provenance = None
+    elif damage == "missing_count":
+        del provenance["records"]
+    elif damage == "invalid_count":
+        provenance["records"] = "invalid"
+    else:
+        provenance["index_schema_version"] = True
+    index.path.with_name(index.path.name + ".provenance.json").write_text(
+        json.dumps(
+            {
+                "provenance": provenance,
+                "index_sha256": hashlib.sha256(index.path.read_bytes()).hexdigest(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    with pytest.raises(ClinVarError, match="provenance"):
+        build(tmp_path)
+
+
 def test_missing_reference_is_explicit_and_exports_do_not_mutate_results() -> None:
     result = lookup_default(table())
     assert result.status == "not_run"
