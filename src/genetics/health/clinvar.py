@@ -184,6 +184,14 @@ class ClinVarIndex:
                 if not isinstance(saved, dict):
                     raise ValueError
                 provenance = saved["provenance"]
+                if (
+                    not isinstance(provenance, dict)
+                    or set(provenance) != PROVENANCE_KEYS
+                    or type(provenance["records"]) is not int
+                    or provenance["records"] <= 0
+                    or type(provenance["index_schema_version"]) is not int
+                ):
+                    raise ValueError
                 if all(provenance.get(k) == v for k, v in contract.items()):
                     if _hashes(destination)[0] != saved["index_sha256"]:
                         raise ClinVarError(

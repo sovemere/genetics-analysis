@@ -190,11 +190,15 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 9; formats 1–8 remain readable.
+attached to a computed card. New runs use bundle format 10; formats 1–9 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD
 frequencies to interpretation-card confidence; see [the frequency guide](../docs/health_frequencies.md).
+M7.3 enables `{frequency}` and `{ppv}` placeholders, including explicit unknown or
+unavailable states. M7.4 saves ACMG gene-list overlaps and their reporting guidance
+in the same private ClinVar payload; these are reference annotations, not authored
+clinical-risk cards. See [ACMG surfacing](../docs/secondary_findings.md).
 
 `structure/archaic.yaml` adds `neanderthal_f4` and `denisovan_f4` computations with
 the same authoring contract. These carry model-dependent array ranges, per-filter

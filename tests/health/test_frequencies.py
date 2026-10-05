@@ -231,6 +231,16 @@ def test_index_cache_binds_source_and_detects_corruption(tmp_path: Path) -> None
         FrequencyIndex.open(index.path, expected=index.provenance)
 
 
+@pytest.mark.parametrize("metadata", [[], None, {"provenance": []}, {"provenance": None}])
+def test_wrong_metadata_shape_raises_the_reference_error(tmp_path: Path, metadata: Any) -> None:
+    index = build(tmp_path)
+    index.path.with_name(index.path.name + ".provenance.json").write_text(
+        json.dumps(metadata), encoding="utf-8"
+    )
+    with pytest.raises(FrequencyError, match="provenance"):
+        FrequencyIndex.open(index.path, expected=index.provenance)
+
+
 @pytest.mark.parametrize(
     "before,after",
     [
