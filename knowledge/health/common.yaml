@@ -1,0 +1,157 @@
+schema_version: 2
+cards:
+  - id: hfe_c282y_iron_overload
+    section: physical_health
+    kind: interpretation
+    title: HFE C282Y and iron-overload disease
+    gene: HFE
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs1800562
+          chrom: "6"
+          pos_grch37: 26093141
+          alleles: [A, G]
+      genotypes:
+        AA: two_c282y
+        AG: one_c282y
+        GG: no_c282y
+    outcomes:
+      two_c282y:
+        summary: "The chip pattern is consistent with two C282Y copies; this is a susceptibility finding, not measured iron overload."
+        detail: >-
+          C282Y alters HFE. Allen et al. assessed 31,192 northern-European adults,
+          aged 40-69 at enrolment, over about 12 years. Documented iron overload plus
+          a specified clinical feature defined their disease endpoint; it was not
+          simply elevated ferritin. Rates differed markedly by sex. The cohort
+          included treatment and previously diagnosed cases, so the proportions are
+          neither untreated lifetime penetrance nor a new 12-year incidence forecast.
+        risk_context: >-
+          Allen 2008: documented iron-overload disease affected 28.4% of male and 1.2%
+          of female C282Y homozygotes (95% CIs 18.8-40.2% and 0.03-6.5%) after about
+          12 years in northern-European adults enrolled at 40-69. Comparator: only one
+          non-C282Y-homozygote had documented disease; no matched baseline percentage
+          is supplied here. These are cohort proportions, not your probability.
+      one_c282y:
+        summary: "The chip pattern is consistent with one C282Y copy; it does not establish HFE haemochromatosis."
+        detail: >-
+          This marker alone does not distinguish a simple heterozygote from a person
+          also carrying another HFE variant such as H63D. The homozygote disease
+          proportions in Allen et al. must not be applied to a one-copy observation.
+        risk_context: >-
+          No applicable absolute disease rate or age/sex-matched baseline is assigned
+          from this one-marker result. Allen 2008's homozygote proportions apply to
+          two C282Y copies, not one; H63D and other causes are not evaluated by this card.
+      no_c282y:
+        summary: "No C282Y copy is indicated at this marker; other genetic and acquired causes of iron overload remain possible."
+        detail: >-
+          This is a result for C282Y only, not a negative haemochromatosis screen.
+          The array does not measure iron stores, ferritin or transferrin saturation.
+        risk_context: >-
+          No calibrated absolute disease rate or matched baseline is assigned for this
+          result. Absence of C282Y is not zero risk; Allen 2008 also evaluated other
+          HFE genotypes, which this single-marker card does not resolve.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 31192
+      ancestry: [EUR]
+      effect:
+        measure: penetrance
+        value: 0.284
+        ci_low: 0.188
+        ci_high: 0.402
+        context: "Allen 2008's observed disease proportion in male C282Y homozygotes only; not a per-allele effect or a personal/lifetime risk. Women had 1.2%; the estimate does not apply to one-copy or no-copy results."
+    citations:
+      - type: doi
+        id: 10.1056/NEJMoa073286
+        title: Iron-Overload-Related Disease in HFE Hereditary Hemochromatosis
+      - type: doi
+        id: 10.1038/ng0896-399
+        title: A novel MHC class I-like gene is mutated in patients with hereditary haemochromatosis
+      - type: doi
+        id: 10.1136/bmj.k5222
+        title: "Common conditions associated with hereditary haemochromatosis genetic variants: cohort study in UK Biobank"
+    caveats:
+      - "SNP measurement reliability and disease penetrance are separate. A frequency-gated likely-artifact observation remains visible and cannot establish a variant or disease."
+      - "C282Y alone does not cover H63D, other HFE alleles, structural variants or non-HFE iron-overload disorders."
+      - "This multiallelic site requires the declared forward-strand alleles. Other bases remain unmatched; they are not complemented into a C282Y claim."
+      - "Published sex categories and northern-European cohort rates are preserved; age, clinical history and treatment are not inferred from this genome."
+
+  - id: f5_leiden_thromboembolism
+    section: physical_health
+    kind: interpretation
+    title: Factor V Leiden and venous thromboembolism
+    gene: F5
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs6025
+          chrom: "1"
+          pos_grch37: 169519049
+          alleles: [C, T]
+      genotypes:
+        CC: no_leiden
+        CT: one_leiden
+        TT: two_leiden
+    outcomes:
+      no_leiden:
+        summary: "No Leiden copy is indicated at this marker; this does not exclude venous thromboembolism or other thrombophilias."
+        detail: >-
+          Juul et al.'s comparator was noncarriers. Most clot risk is not explained by
+          this one marker. Their hazard ratios cannot be treated as probabilities.
+        risk_context: >-
+          No applicable absolute noncarrier rate is assigned: the cited abstract does
+          not give its age/BMI/smoking-stratified baseline percentages. A no-copy
+          result is not zero risk. The Danish cohort followed 9,253 adults for 23 years.
+      one_leiden:
+        summary: "The chip pattern is consistent with one Leiden copy, associated with greater venous clot susceptibility."
+        detail: >-
+          Juul 2004 estimated a venous-thromboembolism hazard ratio of 2.7 (95% CI
+          1.8-3.8) for heterozygotes versus noncarriers. Bertina 1994 demonstrated
+          impaired inactivation by activated protein C. Risk varies with exposures.
+        risk_context: >-
+          Juul 2004, Danish adults, both sexes: heterozygote 10-year VTE risks were
+          0.7% (95% CI 0.5-1.0%) in nonsmokers under 40 with BMI below 25, and 10%
+          (7-14%) in smokers over 60 with BMI above 30. Comparator: noncarriers;
+          matched absolute baseline percentages are not supplied in the abstract.
+          Your age, BMI and smoking are unknown; these strata are examples, not your risk.
+      two_leiden:
+        summary: "The chip pattern is consistent with two Leiden copies; the cohort estimate is large but imprecise."
+        detail: >-
+          Juul 2004 estimated a VTE hazard ratio of 18 (95% CI 4.1-41) for homozygotes
+          versus noncarriers, with very wide absolute-risk intervals. The heterozygote
+          hazard ratio shown in the evidence block does not describe this outcome.
+        risk_context: >-
+          Juul 2004, Danish adults, both sexes: homozygote 10-year VTE risks were 3%
+          (95% CI 1-8%) in nonsmokers under 40 with BMI below 25, and 51% (13-100%)
+          in smokers over 60 with BMI above 30. No matched noncarrier baseline
+          percentage is supplied in the abstract. These are uncertain cohort estimates;
+          your age, BMI and smoking are unknown.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 9253
+      ancestry: [EUR]
+      effect:
+        measure: hazard_ratio
+        value: 2.7
+        ci_low: 1.8
+        ci_high: 3.8
+        context: "Juul 2004: VTE in one-copy heterozygotes versus noncarriers, not a per-allele multiplier. Two-copy homozygotes had HR 18 (4.1-41). Absolute 10-year cohort risks are stated per outcome."
+    citations:
+      - type: doi
+        id: 10.7326/0003-4819-140-5-200403020-00008
+        title: Factor V Leiden and the risk for venous thromboembolism in the adult Danish population
+      - type: doi
+        id: 10.1038/369064a0
+        title: Mutation in blood coagulation factor V associated with resistance to activated protein C
+      - type: accession
+        id: rs6025
+        database: dbSNP
+        title: rs6025 RefSNP Report
+    caveats:
+      - "On GRCh37 the reference base is T, which is the Leiden allele; C is the non-Leiden allele. The transcript G-to-A convention is on the opposite strand. GRCh38 instead uses C as reference."
+      - "This multiallelic site requires the declared forward-strand alleles. Other bases remain unmatched; a reverse-strand assumption would be indistinguishable from another alternate at this position."
+      - "The endpoint was hospitalized or fatal VTE; the study's 23-year follow-up and modelled 10-year risk are distinct horizons."
+      - "A marker observation is not a clot diagnosis. Age, BMI, smoking, surgery, hormones and other thrombophilias are not measured by this card."

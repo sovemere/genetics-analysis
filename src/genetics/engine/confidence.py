@@ -135,6 +135,7 @@ _EVIDENCE_SCORES: Final[dict[EvidenceTier, float]] = {
     EvidenceTier.CLINICAL_GUIDELINE: 1.00,
     EvidenceTier.EXPERT_CURATED: 0.95,
     EvidenceTier.FUNCTIONAL: 0.90,
+    EvidenceTier.COHORT: 0.80,
     EvidenceTier.GWAS: 0.80,
     EvidenceTier.CANDIDATE_GENE: 0.35,
     EvidenceTier.ANECDOTAL: 0.10,

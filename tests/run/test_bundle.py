@@ -604,6 +604,8 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
             "authored_caveats",
             "computed_caveats",
             "computation",
+            "multi_marker",
+            "risk_context",
         }
     )
     expected_manifest = frozenset(
@@ -777,6 +779,8 @@ def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
         f"{card}.authored_caveats",
         f"{card}.computed_caveats",
         f"{card}.computation",
+        f"{card}.multi_marker",
+        f"{card}.risk_context",
     }, "card payload shape changed: bump BUNDLE_FORMAT_VERSION in the same commit"
 
 

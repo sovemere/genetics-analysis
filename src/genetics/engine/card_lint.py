@@ -333,7 +333,9 @@ def lint_pack(
             )
         )
     else:
-        variants = tuple(card.match.variant for card in interpretations if card.match is not None)
+        variants = tuple(
+            v for c in interpretations if c.match is not None for v in c.match.variants
+        )
         try:
             records = resolver.lookup(variants)
         except VariantResolverError as exc:
@@ -352,12 +354,12 @@ def lint_pack(
                         LintIssue("match-missing", "interpretation has no match", card.id)
                     )
                     continue
-                variant = card.match.variant
-                issue = _resolve_variant(variant, by_rsid, by_locus, card.id)
-                if issue is None:
-                    resolved += 1
-                else:
-                    issues.append(issue)
+                for variant in card.match.variants:
+                    issue = _resolve_variant(variant, by_rsid, by_locus, card.id)
+                    if issue is None:
+                        resolved += 1
+                    else:
+                        issues.append(issue)
 
     return LintReport(
         source=str(pack.source_dir),
@@ -436,7 +438,7 @@ def synthetic_context(card: Card) -> dict[str, object]:
     """
 
     assert card.match is not None and card.evidence is not None
-    variant = card.match.variant
+    variant = card.match.variants[0]
     effect = card.evidence.effect
     synthetic: dict[str, object] = {
         "genotype": "".join(variant.key.alleles),
@@ -494,7 +496,7 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
         return [LintIssue("match-missing", "interpretation has no match/evidence", card.id)], 0
 
     base_context = synthetic_context(card)
-    for genotype, outcome_name in card.match.genotypes.items():
+    for genotype, outcome_name in (card.match.genotypes or card.match.diplotypes).items():
         outcome: Outcome | None = card.outcomes.get(outcome_name)
         if outcome is None:
             issues.append(
@@ -508,6 +510,12 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
         context = {**base_context, "genotype": genotype}
         for field_name, template in (("summary", outcome.summary), ("detail", outcome.detail)):
             issue = _render_one(template, context, f"outcomes.{outcome_name}.{field_name}", card.id)
+            if issue is None:
+                rendered += 1
+            else:
+                issues.append(issue)
+        if outcome.risk_context is not None:
+            issue = _render_one(outcome.risk_context, {}, "risk_context", card.id)
             if issue is None:
                 rendered += 1
             else:

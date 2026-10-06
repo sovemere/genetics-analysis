@@ -49,11 +49,11 @@ as that module asks.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from typing import ClassVar, Final
 
-from genetics.engine.cards import Card, CardKind, KnowledgePack, Outcome
+from genetics.engine.cards import Card, CardKind, KnowledgePack, Match, Outcome
 from genetics.ingest.indels import IndelPolicy, matchable_mask
 from genetics.ingest.keys import (
     LocusKey,
@@ -82,6 +82,7 @@ class MatchStatus(StrEnum):
     """Why there is, or is not, an interpretation."""
 
     MATCHED = "matched"
+    PHASE_AMBIGUOUS = "phase_ambiguous"
     COMPUTED = "computed"
     NOT_RUN = "not_run"
     INSUFFICIENT_COVERAGE = "insufficient_coverage"
@@ -177,8 +178,11 @@ class MatchResult(NoGenotypeRepr):
     a rendered card unable to say which is which."""
 
     candidate_outcomes: tuple[str, ...] = ()
-    """The competing outcome names when :attr:`status` is ``STRAND_AMBIGUOUS``. Named
-    rather than summarised, so the card can show what the answer would be either way."""
+    """Competing interpretation names when strand or phase is unresolved."""
+    markers: tuple[MatchResult, ...] = ()
+    """Constituent observations for a multi-marker card, in its declared marker order."""
+    candidate_diplotypes: tuple[str, ...] = ()
+    """Every compatible unphased haplotype pair, including a unique resolved pair."""
 
 
 # ---------------------------------------------------------------------------
@@ -342,10 +346,10 @@ class Matcher:
         it is a named type a caller can report as such. Pass ``merges`` explicitly (for
         example ``MergeTable.empty()``) to keep the constructor pure.
         """
-        loci = [c.variant_key.locus for c in pack.cards if c.variant_key is not None]
+        loci = [v.key.locus for c in pack.cards if c.match is not None for v in c.match.variants]
         index = LocusIndex.build(table, loci, policy=policy or IndelPolicy.default())
         if merges is None:
-            authored = [card.match.variant.rsid for card in pack.cards if card.match is not None]
+            authored = [v.rsid for c in pack.cards if c.match is not None for v in c.match.variants]
             merges = MergeTable.default((*authored, *index.rsids))
         return cls(index=index, merges=merges)
 
@@ -364,6 +368,8 @@ class Matcher:
             )
 
         assert card.match is not None  # guaranteed by the schema for interpretation cards
+        if len(card.match.variants) > 1:
+            return self._multi(card)
         key = card.match.variant.key
         rows = self.index.get(key.locus)
         if not rows:
@@ -376,7 +382,11 @@ class Matcher:
                 ),
             )
 
-        resolved = _resolve_duplicates(rows, ambiguous_site=is_strand_ambiguous(key.alleles))
+        resolved = _resolve_duplicates(
+            rows,
+            ambiguous_site=is_strand_ambiguous(key.alleles),
+            forward_only=card.match.forward_only,
+        )
         if isinstance(resolved, _Conflict):
             return MatchResult(
                 card_id=card.id,
@@ -390,6 +400,69 @@ class Matcher:
         row, duplicate_note = resolved
 
         return self._evaluate(card, key, row, duplicate_note)
+
+    def _multi(self, card: Card) -> MatchResult:
+        assert card.match is not None
+        markers = tuple(self.match(marker_card(card, i)) for i in range(len(card.match.variants)))
+        markers = tuple(
+            replace(
+                marker,
+                status=MatchStatus.INSUFFICIENT_CALLS,
+                reason="This SNP diplotype requires two observed copies at every marker.",
+                genotype=None,
+                outcome_name=None,
+                outcome=None,
+            )
+            if marker.status is MatchStatus.MATCHED and marker.call_status is not CallStatus.CALLED
+            else marker
+            for marker in markers
+        )
+        caveats = tuple(note for marker in markers for note in marker.caveats)
+        unresolved = next((m for m in markers if m.status is not MatchStatus.MATCHED), None)
+        if unresolved is not None:
+            return MatchResult(
+                card.id,
+                unresolved.status,
+                "Multi-marker interpretation unresolved: " + unresolved.reason,
+                caveats=caveats,
+                markers=markers,
+            )
+        # Enumerate every phase assignment consistent with both observed allele pairs.
+        # No population prior, phasing, or imputation is silently substituted.
+        pairs = card.match.compatible_pairs([marker.genotype for marker in markers])
+        if not pairs:
+            return MatchResult(
+                card.id,
+                MatchStatus.ALLELE_MISMATCH,
+                "The observations do not support a diploid haplotype pair.",
+                markers=markers,
+                caveats=caveats,
+            )
+        outcomes = tuple(sorted({card.match.diplotypes[pair] for pair in pairs}))
+        if len(pairs) > 1:
+            return MatchResult(
+                card.id,
+                MatchStatus.PHASE_AMBIGUOUS,
+                "Phase unresolved: compatible diplotypes are "
+                + ", ".join(pairs)
+                + ". No diplotype or disease risk is assigned; "
+                "the rare haplotype remains possible.",
+                markers=markers,
+                candidate_diplotypes=tuple(pairs),
+                candidate_outcomes=outcomes,
+                caveats=caveats,
+            )
+        outcome = outcomes[0]
+        return MatchResult(
+            card.id,
+            MatchStatus.MATCHED,
+            "Both markers support one compatible diplotype.",
+            outcome_name=outcome,
+            outcome=card.outcomes[outcome],
+            markers=markers,
+            candidate_diplotypes=tuple(pairs),
+            caveats=caveats,
+        )
 
     # -- one row, one card -------------------------------------------------
 
@@ -466,7 +539,7 @@ class Matcher:
                 "represents one allele rather than two."
             )
 
-        genotype, strand, strand_caveat = _orient(row, key)
+        genotype, strand, strand_caveat = _orient(row, key, forward_only=card.match.forward_only)
         if strand_caveat:
             caveats.append(strand_caveat)
 
@@ -546,7 +619,7 @@ class _Conflict:
 
 
 def _resolve_duplicates(
-    rows: tuple[_Row, ...], *, ambiguous_site: bool
+    rows: tuple[_Row, ...], *, ambiguous_site: bool, forward_only: bool = False
 ) -> tuple[_Row, str | None] | _Conflict:
     """Pick the row to interpret, or report that the probes disagree.
 
@@ -575,7 +648,7 @@ def _resolve_duplicates(
     # shown would be whichever row the join happened to return first -- polars guarantees
     # no order. They may be one call on two strands or two different calls, and nothing
     # here can tell. Compared literally there, so a difference is reported as a difference.
-    key_of = (lambda g: g) if ambiguous_site else strand_canonical
+    key_of = (lambda g: g) if ambiguous_site or forward_only else strand_canonical
     distinct = {key_of(str(r.genotype)) for r in called}
     if len(distinct) > 1:
         return _Conflict(n_called=len(called))
@@ -587,7 +660,9 @@ def _resolve_duplicates(
     return called[0], note
 
 
-def _orient(row: _Row, key: VariantKey) -> tuple[str | None, Strand, str | None]:
+def _orient(
+    row: _Row, key: VariantKey, *, forward_only: bool = False
+) -> tuple[str | None, Strand, str | None]:
     """Put the observed genotype on the card's strand, or report that it cannot be.
 
     Returns ``(genotype, strand, caveat)``; a ``None`` genotype means the observed alleles
@@ -631,6 +706,9 @@ def _orient(row: _Row, key: VariantKey) -> tuple[str | None, Strand, str | None]
     if observed <= declared:
         return genotype, Strand.AS_WRITTEN, None
 
+    if forward_only:
+        return None, Strand.AS_WRITTEN, None
+
     flipped = frozenset(_COMPLEMENT[a] for a in observed if a in _COMPLEMENT)
     if len(flipped) == len(observed) and flipped <= declared:
         if len(observed) > 1:
@@ -650,6 +728,18 @@ def _orient(row: _Row, key: VariantKey) -> tuple[str | None, Strand, str | None]
         return complement(genotype), Strand.COMPLEMENTED, caveat
 
     return None, Strand.AS_WRITTEN, None
+
+
+def marker_card(card: Card, index: int) -> Card:
+    """A scalar matching/calibration view of one marker, with no diplotype inference.
+
+    Its outcome is a placeholder for the reusable scalar engine. Only marker observations
+    and confidence are consumed; its rendered interpretation is never published.
+    """
+    assert card.match is not None
+    variant = card.match.variants[index]
+    outcome = next(iter(card.outcomes))
+    return replace(card, match=Match((variant,), dict.fromkeys(variant.genotypes, outcome)))
 
 
 def match_pack(

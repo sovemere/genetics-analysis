@@ -1,0 +1,101 @@
+schema_version: 2
+cards:
+  - id: apoe_diplotype_dementia
+    section: physical_health
+    kind: interpretation
+    title: APOE two-marker pattern and dementia association
+    gene: APOE
+    match:
+      variants:
+        - rsid: rs429358
+          chrom: "19"
+          pos_grch37: 45411941
+          alleles: [C, T]
+        - rsid: rs7412
+          chrom: "19"
+          pos_grch37: 45412079
+          alleles: [C, T]
+      # Alleles follow the marker order above. All four possible haplotypes remain.
+      haplotypes:
+        e2: TT
+        e3: TC
+        e4: CC
+        e3r: CT
+      diplotypes:
+        e2/e2: e2_e2
+        e2/e3: e2_e3
+        e2/e3r: rare_pattern
+        e2/e4: e2_e4
+        e3/e3: e3_e3
+        e3/e3r: rare_pattern
+        e3/e4: e3_e4
+        e3r/e3r: rare_pattern
+        e3r/e4: rare_pattern
+        e4/e4: e4_e4
+    outcomes:
+      e2_e2:
+        summary: "Both markers support the APOE e2/e2 pattern; this does not establish or exclude dementia."
+        detail: "Farrer 1997's meta-analysis gave an Alzheimer-disease OR of 0.6 (95% CI 0.2-2.0) versus e3/e3 in its European clinic/autopsy stratum; the interval includes no association."
+        risk_context: &common_risk >-
+          No applicable personal absolute risk is assigned. Farrer 1997 is a
+          case-control meta-analysis without a calibrated age/sex-specific outcome
+          baseline or forecast horizon. Its e3/e3 comparator is not zero risk.
+          Rasmussen 2018 supplies age/sex-stratified 10-year curves, but this card
+          transcribes numerical rates only for e4/e4; those rates cannot be applied here.
+      e2_e3:
+        summary: "Both markers support the APOE e2/e3 pattern, associated with lower Alzheimer-disease odds in the cited meta-analysis."
+        detail: "Farrer 1997's European clinic/autopsy stratum estimated OR 0.6 (95% CI 0.5-0.8) versus e3/e3. This relative association neither guarantees protection nor gives a personal probability."
+        risk_context: *common_risk
+      e3_e3:
+        summary: "Both markers support the APOE e3/e3 pattern, the reference group in the cited dementia studies."
+        detail: "Being the comparison group does not mean absence of dementia susceptibility. APOE is one contributor among genetic, age-related and environmental factors."
+        risk_context: *common_risk
+      e2_e4:
+        summary: "The e2/e4 pattern is associated with greater Alzheimer-disease odds; unphased double heterozygotes cannot uniquely establish it."
+        detail: "Farrer 1997 estimated OR 2.6 (95% CI 1.6-4.0) versus e3/e3 in its European clinic/autopsy stratum. The same unphased observations also fit e3/e3r; this pipeline retains both candidates and assigns neither."
+        risk_context: *common_risk
+      e3_e4:
+        summary: "Both markers support the APOE e3/e4 pattern, associated with greater Alzheimer-disease odds in the cited meta-analysis."
+        detail: "Farrer 1997 estimated OR 3.2 (95% CI 2.8-3.8) versus e3/e3 in its European clinic/autopsy stratum. The e4/e4 effect in the evidence block is a cohort comparison, not this pattern's effect."
+        risk_context: *common_risk
+      e4_e4:
+        summary: "Both markers support the APOE e4/e4 pattern, associated with elevated dementia susceptibility; it does not establish disease."
+        detail: >-
+          Rasmussen 2018 included 104,537 white Danish adults, with 3,017 e4/e4
+          participants. Competing-risk models accounted for death. The Alzheimer-disease
+          HR versus e3/e3 was 8.74 (95% CI 7.08-10.79); it is not an absolute probability.
+        risk_context: >-
+          Rasmussen 2018's e4/e4 10-year Alzheimer-disease rates (women/men): 7%/6%
+          at 60-69, 16%/12% at 70-79, 24%/19% at 80+. For all dementia: 10%/8%,
+          22%/19%, 38%/33%. Baseline comparator: e3/e3; its numerical age/sex-specific
+          baseline is not transcribed here. These white-Danish cohort rates are not
+          lifetime risks or your probability; your age and clinical context are unknown.
+      rare_pattern:
+        summary: "Both markers imply a pattern including the rare APOE e3r haplotype; a common-isoform disease model cannot be applied."
+        detail: "Seripa 2011 reports the fourth haplotype. It must not be relabelled e3 or excluded to manufacture a common diplotype. Reliability here describes the constituent SNP readings; it does not calibrate the rarity of this haplotype."
+        risk_context: "No applicable absolute disease rate, baseline, time horizon or relative disease effect is available for e3r-containing diplotypes in the cited common-isoform cohorts. No dementia probability is assigned."
+    evidence:
+      tier: cohort
+      replication: meta_analysis
+      sample_size: 104537
+      ancestry: [EUR]
+      effect:
+        measure: hazard_ratio
+        value: 8.74
+        ci_low: 7.08
+        ci_high: 10.79
+        context: "Rasmussen 2018: Alzheimer disease in e4/e4 versus e3/e3 only. This is not an effect for other diplotypes or a per-e4-allele multiplier. Farrer 1997 independently meta-analysed the association; its ORs have different sampling and meaning."
+    citations:
+      - type: doi
+        id: 10.1503/cmaj.180066
+        title: "Absolute 10-year risk of dementia by age, sex and APOE genotype: a population-based cohort study"
+      - type: doi
+        id: 10.1001/jama.1997.03550160069041
+        title: "Effects of Age, Sex, and Ethnicity on the Association Between Apolipoprotein E Genotype and Alzheimer Disease: A Meta-analysis"
+      - type: doi
+        id: 10.1089/rej.2011.1169
+        title: The Genetics of the Human APOE Polymorphism
+    caveats:
+      - "The array is unphased. Double heterozygotes fit e2/e4 and e3/e3r; both remain visible and no diplotype-specific risk is assigned. No imputation or population-frequency prior supplies missing phase."
+      - "The two SNPs identify these isoform patterns only; other APOE variants and other dementia genes are not excluded."
+      - "Cohort ascertainment, diagnosis coding, age, sex and ancestry affect the association. Numerical study strata are preserved rather than chosen from inferred chromosomal sex."

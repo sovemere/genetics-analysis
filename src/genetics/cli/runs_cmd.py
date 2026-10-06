@@ -251,6 +251,8 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
                 "authored_caveats": list(card.authored_caveats),
                 "computed_caveats": list(card.computed_caveats),
                 "computation": None if card.computation is None else dict(card.computation),
+                "multi_marker": None if card.multi_marker is None else dict(card.multi_marker),
+                "risk_context": card.risk_context,
             }
             for card in bundle.cards
         ],
@@ -401,6 +403,11 @@ def runs_show(
         tier = card.confidence_tier or card.status
         typer.secho(f"  {tier:<16}", fg=typer.colors.CYAN, nl=False)
         typer.echo(f"{card.section:<14} {card.card_id:<34} {card.title}")
+        if card.risk_context is not None:
+            typer.echo(f"    {card.summary}")
+            typer.echo(f"    {card.risk_context}")
+        elif card.multi_marker is not None:
+            typer.echo(f"    {card.summary}")
         if card.confidence and card.confidence.get("empirical_ppv"):
             from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
 

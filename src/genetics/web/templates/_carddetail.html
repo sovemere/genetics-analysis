@@ -73,6 +73,7 @@
         you — see <em>{{ card.status_label }}</em> above.
       </p>
     {% endif %}
+    {% if card.risk_context %}<p class="caution">{{ card.risk_context }}</p>{% endif %}
     {% if card.effect %}
       <p class="figure">{{ card.effect.display }}</p>
       {% if card.effect.context %}
@@ -128,6 +129,24 @@
     </section>
   {% endif %}
 
+  {% if card.multi_marker %}
+    <section class="detailblock">
+      <h3>Multi-marker observations</h3>
+      <p>Phase: {{ card.multi_marker.phase }}. Compatible diplotypes:
+        {{ card.multi_marker.candidate_diplotypes | join(", ") or "unresolved" }}.</p>
+      {% for marker in card.multi_marker.markers %}
+        <p>{{ marker.variant.rsid }} · {{ marker.variant.chrom }}:{{ marker.variant.pos_grch37 }} (GRCh37)
+          · {{ marker.status.replace("_", " ") }} · observed {{ marker.match.observed_genotype or "no call" }}
+          · oriented {{ marker.match.genotype or "unresolved" }} · {{ marker.match.strand.replace("_", " ") }}
+          · {{ marker.confidence.tier if marker.confidence else "no tier" }}.</p>
+        {% for frequency in marker.frequencies %}
+          <p class="muted">{{ frequency.allele }}: {{ "%.4g" | format(100 * frequency.frequency) }}%
+            ({{ frequency.population }}; {{ frequency.source }})</p>
+        {% endfor %}
+        {% for caveat in marker.computed_caveats %}<p class="caution">{{ caveat }}</p>{% endfor %}
+      {% endfor %}
+    </section>
+  {% endif %}
   {% if card.has_a_call %}
     <section class="detailblock">
       <h3>How this was called</h3>

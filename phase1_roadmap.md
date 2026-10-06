@@ -32,9 +32,11 @@ about a minute with the reference PCAs cached.
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
-M7.1-M7.4 are complete: position/allele ClinVar lookup, allele-specific gnomAD
-calibration, scoped PPV and ACMG gene-list surfacing are saved and available to the CLI and dashboard.
-Next is [M7.5](#m7--monogenic-health--frequency-gating), common-variant health cards.**
+M7.1-M7.5 are complete: position/allele ClinVar lookup, allele-specific gnomAD
+calibration, scoped PPV, ACMG gene-list surfacing and common-variant health cards are saved
+and available to the CLI and dashboard. APOE preserves both markers and unresolved phase;
+HFE C282Y and F5 Leiden carry published cohort absolute-risk context.
+Next is [M7.6](#m7--monogenic-health--frequency-gating), quantitative coverage honesty.**
 The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
 The [session diff review](docs/review_m7_session.md) records validation-error fixes,
 current documentation contracts and the APOE matching prerequisite within M7.5.
@@ -42,7 +44,12 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 10**, with formats 1–9 preserved.
+**Current bundle format: 11**, with formats 1–10 preserved. The pack has 50 cards;
+full local dbSNP lint resolves all 35 authored marker references (266 template renders).
+M7.5 acceptance (2026-10-06): **2,135 tests passed, five existing Windows skips**,
+pinned native ROH enabled; ruff/format, strict mypy platform/Python matrix and fixture
+reproduction passed. Synthetic-only full-reference offline CLI/dashboard acceptance
+passed with format-11 save/read. No personal export was used.
 M7.4 review checkpoint (2026-10-05): **2,076 tests passed, five existing Windows skips**,
 with native ROH checks enabled. Ruff, formatting, strict mypy on Windows/Linux and
 Python 3.11/3.13, fixture reproduction and full card lint passed. The required gnomAD
@@ -2330,8 +2337,25 @@ section, that proves every layer.*
         Missing sources and no-overlap results cannot imply a negative clinical screen.
       - Format 10/schema 4 save the complete roster, guidance and overlap provenance;
         validation uses saved metadata only. Formats 1–9 remain unchanged.
-- [ ] **M7.5** Well-established common-variant health cards (APOE, HFE, F5 Leiden, etc.)
+- [x] **M7.5** Well-established common-variant health cards (APOE, HFE, F5 Leiden, etc.)
       with proper absolute-risk framing, not relative risk alone.
+      - Three declarative cards under `knowledge/health/`, with primary citations, cohort
+        populations/sample sizes, genotype-specific claims and literal outcome `risk_context`
+        on the face, detail view and CLI. Published absolute rates retain their endpoint,
+        strata and horizon; unprovided baselines and inapplicable rates are explicit. No
+        conversion of relative effects or measurement PPV into a person's disease risk.
+      - Schema 2 supports small unphased SNP diplotypes and preserves schema-1 single-marker
+        packs. APOE declares all four haplotypes and all ten pairs; the double heterozygote
+        remains `phase_ambiguous` with both candidates. Missing, conflicting and non-diploid
+        observations stay visible. Confidence inherits the weakest marker's locus-specific
+        calibration, including rare/unknown-frequency and imputation-quality gates.
+      - Full dbSNP lint verifies all four health loci, including GRCh37's F5 reference-state
+        inversion: T is the Leiden allele, C is non-Leiden. Bundle format 11 saves risk
+        context and multi-marker evidence; formats 1–10 and ClinVar schemas 1–4 keep their
+        original meanings. See [common health cards](docs/common_health.md).
+      - HFE and F5 declare `strand: forward_only`: both sites have additional dbSNP
+        alleles, so complementing an unexpected base could manufacture the target health
+        allele. Unexpected calls remain visible mismatches, with synthetic regressions.
 - [ ] **M7.6** Coverage honesty card: how many ClinVar positions the array covers
       (~76k), and what that does and does not mean.
 
@@ -2562,6 +2586,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-06 | M7.5 | Added declarative HFE C282Y, F5 Leiden and two-marker APOE cards with primary citations and outcome-specific absolute-risk context, including explicit baseline/rate gaps. Schema 2 keeps all four APOE haplotypes and ten diplotypes; unphased double heterozygotes retain both candidates. Per-marker observations/frequencies/quality remain separate, and resolved reliability inherits the weakest marker. Self-review caught GRCh37's F5 reference-state inversion and multiallelic strand/duplicate ambiguity; HFE/F5 now require forward alleles and preserve unexpected calls as mismatches/conflicts. Format 11 saves risk and multi-marker evidence; formats 1–10 and ClinVar schemas 1–4 remain unchanged. **2,135 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 50-card/266-render/35-marker dbSNP lint passed. Synthetic-only acceptance against complete ClinVar/gnomAD caches passed offline through save/read/CLI/dashboard; no personal export used. Next M7.6. |
 | 2026-10-05 | M7 session diff review | Reviewed `1a0eadb..4d537f0`, covering M7.1–M7.4 and download resumability. Fixed malformed cache provenance escaping as AttributeError and empty saved ALT lists escaping as IndexError; twelve synthetic regressions cover cache readers and schema-2/3/4 bundle/CLI/dashboard errors. Clarified ACMG versus full-ClinVar count scope and route title. Synchronized current format-10 guides/checkpoint links and expanded M7.5 handoff with absolute-risk sourcing and the two-marker APOE matching requirement. **2,076 tests passed, five existing Windows skips**, native ROH enabled; focused 411, strict mypy matrix, ruff/format, fixtures and full card lint passed. No personal export used. [Review record](docs/review_m7_session.md); next M7.5. |
 | 2026-10-05 | M7.4 | Fetched and verified the complete 84-gene ClinGen ACMG SF v3.3 roster/guidance under CC0. Shared saved-data dashboard and CLI views surface every overlap with existing reliability/PPV and explicit clinical-sequencing limits. Gene membership and P/LP annotations remain separate from unadjudicated clinical reportability; missing sources and empty views do not imply a negative screen. Format-10/schema-4 snapshots retain roster/guidance/provenance; formats 1–9 remain unchanged. **2,064 tests passed, five existing Windows skips**; strict mypy platform/Python matrix, ruff/format, fixtures and card lint passed. 42 additional synthetic cases plus offline fabricated-call acceptance against the complete public ClinVar/gnomAD caches and all three v3.3 additions. No personal export used. Next M7.5. |
 | 2026-10-05 | M7.3 | Scoped empirical PPV now appears before a detail click and in CLI summaries, with confirmed/unconfirmed percentages, study limitations and clinical-sequencing wording. Exact BRCA gene IDs plus germline pathogenic/likely-pathogenic classifications select the separate pooled-study benchmark; conflicting/uncertain/somatic/included-haplotype annotations do not. Missing frequency and imputation-quality-only artifacts receive no invented PPV. New format-9/schema-3 snapshots preserve scope/cohort/DOI, while formats 1–8 retain recorded results. Enabled `{frequency}`/`{ppv}` with explicit unavailable states. **2,022 tests passed, five existing Windows skips**; strict mypy platform/Python matrix, ruff/format, fixture reproduction and card lint pass. 31 additional synthetic cases; no personal export used. Next M7.4. |

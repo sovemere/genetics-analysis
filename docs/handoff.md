@@ -1,9 +1,9 @@
-# Handoff: M7.5 common-variant health cards
+# Handoff: M7.6 quantitative coverage honesty
 
-As of 2026-10-05, M0-M6 and **M7.1-M7.4 are complete**. Full local reference
+As of 2026-10-06, M0-M6 and **M7.1-M7.5 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M7.5.
-Implementation checkpoint: `4d537f0`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
+first, then [the roadmap](../phase1_roadmap.md). Next is M7.6.
+Prior M7.4 checkpoint: `4d537f0`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
 The [diff-driven session review](review_m7_session.md) records follow-up fixes.
 
 ## Current local acceptance
@@ -58,7 +58,7 @@ summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely
 included-haplotype annotations do not. Missing frequency or unresolved observations
 still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
 
-New bundles use **format 10**, with ClinVar lookup schema **4** in the existing private
+New bundles use **format 11**, with ClinVar lookup schema **4** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
 1-9 retain their original results and notices, including schema-2 BRCA entries with
 the original generic benchmark. See [the frequency guide](health_frequencies.md).
@@ -84,12 +84,14 @@ Offline acceptance passed against the complete ClinVar/gnomAD caches using five
 fabricated calls spanning BRCA1, TTN, ABCD1, CYP27A1 and PLN, with the full 84-gene
 roster. Networking was disabled; snapshot validation and the shared view passed.
 
-## Next: M7.5
+<a id="next-m75"></a>
 
-M7.5 owns cited common-variant health cards (APOE, HFE, F5 Leiden) with absolute-risk
-framing. No health interpretation pack exists yet: current ClinVar/ACMG records are
-reference lookups with a separate measurement-reliability screen. Keep those distinct
-from the new authored disease-association cards.
+## M7.5 implementation and accepted scope
+
+M7.5 adds three declarative cards under `knowledge/health/`: HFE C282Y, Factor V Leiden
+and APOE. These authored associations remain distinct from ClinVar/ACMG reference lookups.
+The following requirements are implemented; [the guide](common_health.md) records source
+scope and the numerical rates/baselines this curated pack does and does not transcribe.
 
 1. Add declarative `knowledge/health/` entries for tractable single-marker claims first,
    using dbSNP-verified GRCh37 keys and primary sources. Each card needs effect units,
@@ -98,21 +100,31 @@ from the new authored disease-association cards.
    age/sex/population strata on the face. Do not turn a ClinVar classification or a
    SNP-chip PPV into disease risk, or convert an odds ratio into absolute risk without
    a defensible baseline. Explicitly state when a source supplies no applicable rate.
-3. APOE allele interpretation needs both rs429358 and rs7412, not a one-marker shortcut.
-   The current `Card.match.variant` contract is single-marker; extend declarative matching
-   and the shared engine to represent both observations before reporting a diplotype.
+3. APOE allele interpretation uses both rs429358 and rs7412, not a one-marker shortcut.
+   Schema 2 extends declarative matching with exhaustive haplotypes/diplotypes, retaining
+   both observations before reporting a uniquely compatible SNP pattern.
    Preserve missing calls, discordance, and phase ambiguity as visible outcomes. The
    rare fourth haplotype cannot be ruled out merely because the common three are more
    frequent ([Seripa et al., 2011](https://doi.org/10.1089/rej.2011.1169)). Imputation/
    phasing remains upcoming M8; do not assume it has run.
-   If multi-marker results change the saved payload contract, version it and preserve
-   existing readers/results; do not change the meaning of ClinVar schemas 1–4.
+   Format 11 saves both marker observations, locus-specific frequency/calibration and
+   phase candidates. Formats 1–10 and ClinVar schemas 1–4 retain their original meanings.
 
 Synthetic checks must cover all supported allele combinations, missing/discordant
 observations, phase ambiguity, unknown frequencies, rarity gating, and save/read/CLI/
 dashboard parity. Existing `{frequency}`/`{ppv}` placeholders and the confidence engine
 are available. Run full card lint against the cached dbSNP index and keep all personal
 outputs outside the checkout.
+
+## Next: M7.6
+
+Add a quantitative coverage-honesty card: how many ClinVar positions the array actually
+covers and what that does and does not establish. Compute the denominator and overlap
+from the sample's chip positions and fetched reference; the roadmap's ~76k is an earlier
+chip measurement, not a universal constant. Distinguish positions from allele-specific
+matchable variants, markers present from calls obtained, and reference annotations from
+clinically confirmed findings. Missing references must stay explicit; an empty overlap
+cannot imply a negative clinical screen. Preserve the same saved CLI/dashboard contract.
 
 M7.6 owns quantitative coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license
@@ -128,9 +140,15 @@ privacy, pinning or the pre-commit checks.
 
 ## Validation
 
-The reviewed full suite passed **2,076 tests, five existing Windows skips**, with pinned native
+The M7.5 full suite passed **2,135 tests, five existing Windows skips**, with pinned native
 ROH enabled. Ruff/formatting, strict mypy on Windows/Linux and Python 3.11/3.13,
-fixture reproduction and full card lint pass (47 cards, 218 renders, 31 dbSNP keys).
+fixture reproduction and full card lint pass (50 cards, 266 renders, 35 dbSNP keys).
+Synthetic-only acceptance against the complete ClinVar/gnomAD caches passed with networking
+blocked, through format-11 save/read and CLI/dashboard parity. No personal export was used.
+M7.5 adds 59 cases covering all APOE observation combinations, rare-haplotype/phase
+preservation, missing/discordant/non-diploid calls, HFE/F5 forward-strand and duplicate
+matching, unknown/rare frequencies, per-marker quality, malformed saved evidence,
+format-10 compatibility and both interfaces.
 M7.3 adds 31 synthetic cases for exact BRCA/classification scope, numerical face/detail
 and CLI presentation, unavailable PPV, placeholder contexts and historical schema-2
 save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations,

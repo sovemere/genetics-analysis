@@ -15,7 +15,7 @@ The shared engine supplies the same measurement to the CLI and dashboard. Bundle
 **4 introduced** the card's `computation` block in `cards.run.json`, including raw
 segments, observability windows, parameters, tool versions, reference hashes, method
 evidence and reliability inputs. `genetics runs show <run-id> --json` exposes that whole
-record. New runs now use **format 10**; formats 1–9 remain readable, with no computation
+record. New runs now use **format 11**; formats 1–10 remain readable, with no computation
 record on formats 1–3. Saved results never re-render against a changed knowledge pack.
 The saved reader checks interval and segment consistency, totals, marker counts,
 observability, recorded policy, tool versions, reference digests and method evidence.

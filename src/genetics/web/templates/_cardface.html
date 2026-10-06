@@ -27,6 +27,7 @@
     </div>
     <h3 class="cardtitle">{{ card.title }}</h3>
     <p class="cardsummary">{{ card.summary }}</p>
+    {% if card.risk_context %}<p class="caution">{{ card.risk_context }}</p>{% endif %}
     {% if card.confidence and card.confidence.has_ppv %}
       <p class="caution">{{ card.confidence.ppv_display }}
         {{ card.confidence.ppv_applies_to }} {{ card.confidence.clinical_notice }}</p>

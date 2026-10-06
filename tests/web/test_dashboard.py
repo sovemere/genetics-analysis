@@ -795,7 +795,53 @@ CONDITIONAL_FIELDS = {
     "kind": "test_the_kind_of_card_decides_which_citations_sentence_is_shown",
     "bundle_format_version": "test_an_old_bundle_says_so_where_the_effect_size_would_be",
     "computation": "test_computed_measurement_metadata_reaches_the_detail_template",
+    "multi_marker": "test_multimarker_metadata_reaches_the_detail_template",
+    "risk_context": "test_absolute_risk_context_reaches_face_and_detail",
 }
+
+
+def test_multimarker_metadata_reaches_the_detail_template() -> None:
+    card = replace(
+        _full_card(),
+        multi_marker={
+            "phase": "unphased",
+            "candidate_diplotypes": ["HAPLOTYPE-FIRST", "HAPLOTYPE-SECOND"],
+            "markers": [
+                {
+                    "variant": {"rsid": "rs900000012", "chrom": "7", "pos_grch37": 9876543},
+                    "status": "no_call",
+                    "match": {
+                        "observed_genotype": None,
+                        "genotype": None,
+                        "strand": "not_applicable",
+                    },
+                    "confidence": None,
+                    "frequencies": [],
+                    "computed_caveats": ["MARKER-CAVEAT"],
+                }
+            ],
+        },
+    )
+    markup = _render_card(card, "_carddetail.html")
+    assert all(
+        value in markup
+        for value in (
+            "unphased",
+            "HAPLOTYPE-FIRST",
+            "HAPLOTYPE-SECOND",
+            "rs900000012",
+            "9876543",
+            "no call",
+            "MARKER-CAVEAT",
+        )
+    )
+
+
+def test_absolute_risk_context_reaches_face_and_detail() -> None:
+    card = replace(_full_card(), risk_context="ABSOLUTE-RISK-MARKER")
+    assert "ABSOLUTE-RISK-MARKER" in _render_card(card, "_cardface.html")
+    assert "ABSOLUTE-RISK-MARKER" in _render_card(card, "_carddetail.html")
+    assert card.base_rate_note and "personal probability" in card.base_rate_note
 
 
 def test_computed_measurement_metadata_reaches_the_detail_template() -> None:
