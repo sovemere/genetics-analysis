@@ -20,7 +20,8 @@ annotations. M7.4 surfaces all ACMG SF v3.3 gene-list overlaps with their reliab
 reportability limits and gene-specific guidance. M7.5 adds cited APOE, HFE C282Y and
 Factor V Leiden cards with cohort absolute-risk context and explicit baseline gaps.
 APOE uses both defining SNPs and preserves the rare fourth haplotype and unresolved phase.
-New runs use bundle format **11**; formats 1–10 remain readable without reinterpreting saved findings.
+The review corrects outcome-specific evidence and exposes each marker's quality inputs.
+New runs use bundle format **12**; formats 1–11 remain readable without reinterpreting saved findings.
 Imputation remains an upcoming milestone.
 
 **Next: M7.6, quantitative array/ClinVar coverage honesty.**
@@ -30,13 +31,13 @@ offline run through the CLI and dashboard passed. Download resumability debt is 
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M7.5 implementation passed **2,135 tests with five existing Windows skips**,
+The M7.5 review passed **2,158 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity.
-The M7.4 implementation checkpoint is `4d537f0`, with
-[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
-The [session review](docs/review_m7_session.md) records the follow-up fixes and handoff checks.
+The M7.5 implementation checkpoint is `537e3c5`, with
+[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
+The [session review](docs/review_m75_session.md) records the fixes and M7.6 handoff checks.
 
 ## Development and use
 

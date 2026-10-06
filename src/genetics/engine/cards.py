@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 2
+SCHEMA_VERSION: Final[int] = 3
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -917,7 +917,7 @@ class CardKind(StrEnum):
     do it."""
 
 
-_OUTCOME_KEYS: Final[frozenset[str]] = frozenset({"summary", "detail", "risk_context"})
+_OUTCOME_KEYS: Final[frozenset[str]] = frozenset({"summary", "detail", "risk_context", "evidence"})
 
 
 @dataclass(frozen=True)
@@ -933,6 +933,8 @@ class Outcome:
     summary: str
     detail: str
     risk_context: str | None = None
+    evidence: Evidence | None = None
+    overrides_evidence: bool = False
 
     @classmethod
     def parse(cls, raw: Any, where: str, available: frozenset[str] | None = None) -> Outcome:
@@ -940,6 +942,14 @@ class Outcome:
         _reject_unknown(data, _OUTCOME_KEYS, where)
         summary = str(_require(data, "summary", where))
         detail = str(_require(data, "detail", where))
+        overrides = "evidence" in data
+        evidence = (
+            Evidence.parse(data["evidence"], f"{where}.evidence")
+            if overrides and data["evidence"] is not None
+            else None
+        )
+        if overrides and evidence is None and available is not None:
+            available -= {"effect_value", "effect_units", "sample_size"}
         _check_template(summary, f"{where}.summary", available)
         _check_template(detail, f"{where}.detail", available)
         risk = data.get("risk_context")
@@ -947,7 +957,13 @@ class Outcome:
             if not isinstance(risk, str) or not risk.strip():
                 raise CardError(f"{where}.risk_context: expected nonempty text")
             _check_template(risk, f"{where}.risk_context", frozenset())
-        return cls(summary=summary, detail=detail, risk_context=risk)
+        return cls(
+            summary=summary,
+            detail=detail,
+            risk_context=risk,
+            evidence=evidence,
+            overrides_evidence=overrides,
+        )
 
 
 _FORBIDDEN_CARD_KEYS: Final[dict[str, str]] = {
@@ -1269,7 +1285,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1289,6 +1305,13 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 3:
+        for entry in entries:
+            outcomes = _mapping(entry, where).get("outcomes")
+            if isinstance(outcomes, Mapping) and any(
+                isinstance(o, Mapping) and "evidence" in o for o in outcomes.values()
+            ):
+                raise CardError(f"{where}: outcome-specific evidence requires schema_version 3")
 
     return tuple(Card.parse(entry, f"{where}.cards[{i}]") for i, entry in enumerate(entries))
 

@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 cards:
   - id: hfe_c282y_iron_overload
     section: physical_health
@@ -33,6 +33,7 @@ cards:
           non-C282Y-homozygote had documented disease; no matched baseline percentage
           is supplied here. These are cohort proportions, not your probability.
       one_c282y:
+        evidence: null
         summary: "The chip pattern is consistent with one C282Y copy; it does not establish HFE haemochromatosis."
         detail: >-
           This marker alone does not distinguish a simple heterozygote from a person
@@ -43,6 +44,7 @@ cards:
           from this one-marker result. Allen 2008's homozygote proportions apply to
           two C282Y copies, not one; H63D and other causes are not evaluated by this card.
       no_c282y:
+        evidence: null
         summary: "No C282Y copy is indicated at this marker; other genetic and acquired causes of iron overload remain possible."
         detail: >-
           This is a result for C282Y only, not a negative haemochromatosis screen.
@@ -96,6 +98,7 @@ cards:
         TT: two_leiden
     outcomes:
       no_leiden:
+        evidence: null
         summary: "No Leiden copy is indicated at this marker; this does not exclude venous thromboembolism or other thrombophilias."
         detail: >-
           Juul et al.'s comparator was noncarriers. Most clot risk is not explained by
@@ -117,11 +120,22 @@ cards:
           matched absolute baseline percentages are not supplied in the abstract.
           Your age, BMI and smoking are unknown; these strata are examples, not your risk.
       two_leiden:
+        evidence:
+          tier: functional
+          replication: independent
+          sample_size: 9253
+          ancestry: [EUR]
+          effect:
+            measure: hazard_ratio
+            value: 18
+            ci_low: 4.1
+            ci_high: 41
+            context: "Juul 2004: VTE in two-copy homozygotes versus noncarriers. This is not the heterozygote effect and not an absolute probability."
         summary: "The chip pattern is consistent with two Leiden copies; the cohort estimate is large but imprecise."
         detail: >-
           Juul 2004 estimated a VTE hazard ratio of 18 (95% CI 4.1-41) for homozygotes
-          versus noncarriers, with very wide absolute-risk intervals. The heterozygote
-          hazard ratio shown in the evidence block does not describe this outcome.
+          versus noncarriers, with very wide absolute-risk intervals. The evidence
+          block retains this homozygote estimate.
         risk_context: >-
           Juul 2004, Danish adults, both sexes: homozygote 10-year VTE risks were 3%
           (95% CI 1-8%) in nonsmokers under 40 with BMI below 25, and 51% (13-100%)

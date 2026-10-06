@@ -26,12 +26,16 @@ def confidence_payload(confidence: ConfidenceResult) -> dict[str, Any]:
         "tier": confidence.tier.value,
         "score": confidence.score,
         "inputs": {
-            "evidence_tier": inputs.evidence_tier.value,
+            "evidence_tier": inputs.evidence_tier.value
+            if inputs.evidence_tier is not None
+            else None,
             "evidence_score": inputs.evidence_score,
-            "effect_measure": inputs.effect_measure.value,
+            "effect_measure": inputs.effect_measure.value
+            if inputs.effect_measure is not None
+            else None,
             "effect_value": inputs.effect_value,
             "effect_score": inputs.effect_score,
-            "replication": inputs.replication.value,
+            "replication": inputs.replication.value if inputs.replication is not None else None,
             "replication_score": inputs.replication_score,
             "population_allele_frequency": inputs.population_allele_frequency,
             "frequency_score": inputs.frequency_score,

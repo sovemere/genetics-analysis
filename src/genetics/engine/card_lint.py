@@ -248,6 +248,7 @@ class LintReport:
     variant_resolution: VariantResolution
     resolver: str | None
     issues: tuple[LintIssue, ...] = ()
+    variant_count: int = 0
 
     @property
     def ok(self) -> bool:
@@ -259,6 +260,7 @@ class LintReport:
             "source": self.source,
             "card_count": self.card_count,
             "interpretation_count": self.interpretation_count,
+            "variant_count": self.variant_count,
             "rendered_templates": self.rendered_templates,
             "resolved_variants": self.resolved_variants,
             "variant_resolution": self.variant_resolution.value,
@@ -365,6 +367,7 @@ def lint_pack(
         source=str(pack.source_dir),
         card_count=len(pack),
         interpretation_count=len(interpretations),
+        variant_count=sum(len(c.match.variants) for c in interpretations if c.match is not None),
         rendered_templates=rendered,
         resolved_variants=resolved,
         variant_resolution=resolution,
@@ -508,6 +511,12 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
             )
             continue
         context = {**base_context, "genotype": genotype}
+        if outcome.overrides_evidence:
+            context.update(
+                effect_value=outcome.evidence.effect.value if outcome.evidence else "",
+                effect_units=(outcome.evidence.effect.units or "") if outcome.evidence else "",
+                sample_size=outcome.evidence.sample_size if outcome.evidence else "",
+            )
         for field_name, template in (("summary", outcome.summary), ("detail", outcome.detail)):
             issue = _render_one(template, context, f"outcomes.{outcome_name}.{field_name}", card.id)
             if issue is None:

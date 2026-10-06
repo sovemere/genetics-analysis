@@ -135,15 +135,31 @@
       <p>Phase: {{ card.multi_marker.phase }}. Compatible diplotypes:
         {{ card.multi_marker.candidate_diplotypes | join(", ") or "unresolved" }}.</p>
       {% for marker in card.multi_marker.markers %}
+        {% set marker_confidence = card.marker_confidences[loop.index0] %}
         <p>{{ marker.variant.rsid }} · {{ marker.variant.chrom }}:{{ marker.variant.pos_grch37 }} (GRCh37)
           · {{ marker.status.replace("_", " ") }} · observed {{ marker.match.observed_genotype or "no call" }}
           · oriented {{ marker.match.genotype or "unresolved" }} · {{ marker.match.strand.replace("_", " ") }}
           · {{ marker.confidence.tier if marker.confidence else "no tier" }}.</p>
+        <dl class="facts">
+          <div><dt>Call source</dt><dd>{{ marker.observation.call_source }}</dd></div>
+          {% if marker.observation.imputation_quality is not none %}<div><dt>Imputation quality</dt><dd>{{ "%.4g" | format(marker.observation.imputation_quality) }}</dd></div>{% endif %}
+          {% if marker.observation.ancestry_match is not none %}<div><dt>Ancestry match to the study</dt><dd>{{ "%.4g" | format(marker.observation.ancestry_match) }}</dd></div>{% endif %}
+          {% if marker.match.observed_rsid %}<div><dt>Array marker</dt><dd>{{ marker.match.observed_rsid }}</dd></div>{% endif %}
+        </dl>
         {% for frequency in marker.frequencies %}
           <p class="muted">{{ frequency.allele }}: {{ "%.4g" | format(100 * frequency.frequency) }}%
             ({{ frequency.population }}; {{ frequency.source }})</p>
         {% endfor %}
         {% for caveat in marker.computed_caveats %}<p class="caution">{{ caveat }}</p>{% endfor %}
+        {% if marker_confidence %}
+          <div class="tablescroll"><table class="breakdown">
+            <caption>{{ marker.variant.rsid }} reliability inputs</caption>
+            <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>
+            <tbody>{% for row in marker_confidence.rows %}<tr><th scope="row">{{ row.label }}</th><td>{{ row.observed }}</td><td class="num">{{ row.score_display }}</td></tr>{% endfor %}</tbody>
+          </table></div>
+          {% if marker_confidence.has_ppv %}<p class="caution">{{ marker_confidence.ppv_display }} {{ marker_confidence.ppv_applies_to }} {{ marker_confidence.clinical_notice }}</p>{% endif %}
+          {% if marker_confidence.tier == "likely-artifact" and not marker_confidence.has_ppv %}<p class="caution">No empirical PPV was recorded for this marker. {{ marker_confidence.clinical_notice }}</p>{% endif %}
+        {% endif %}
       {% endfor %}
     </section>
   {% endif %}

@@ -814,8 +814,14 @@ def test_multimarker_metadata_reaches_the_detail_template() -> None:
                         "observed_genotype": None,
                         "genotype": None,
                         "strand": "not_applicable",
+                        "observed_rsid": "ARRAY-MARKER",
                     },
                     "confidence": None,
+                    "observation": {
+                        "call_source": "imputed",
+                        "imputation_quality": 0.1234,
+                        "ancestry_match": 0.4321,
+                    },
                     "frequencies": [],
                     "computed_caveats": ["MARKER-CAVEAT"],
                 }
@@ -833,6 +839,10 @@ def test_multimarker_metadata_reaches_the_detail_template() -> None:
             "9876543",
             "no call",
             "MARKER-CAVEAT",
+            "imputed",
+            "0.1234",
+            "0.4321",
+            "ARRAY-MARKER",
         )
     )
 
@@ -948,10 +958,14 @@ def test_an_old_bundle_says_so_where_the_effect_size_would_be() -> None:
     card when the answer is to re-run the analysis."""
     old = replace(_full_card(), evidence=None, bundle_format_version=1)
     current = replace(_full_card(), evidence=None)
+    prior = replace(current, bundle_format_version=11)
 
     assert "bundle format 1" in _render_card(old, "_carddetail.html")
     assert "Re-run" in _render_card(old, "_carddetail.html"), "and what to do about it"
-    assert "records no published evidence" in _render_card(current, "_carddetail.html")
+    assert "No applicable phenotype-association estimate" in _render_card(
+        current, "_carddetail.html"
+    )
+    assert "records no published evidence" in _render_card(prior, "_carddetail.html")
     assert "bundle format" not in _render_card(current, "_carddetail.html")
 
 

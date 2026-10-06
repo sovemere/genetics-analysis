@@ -22,6 +22,7 @@ from genetics.engine.cards import Card, CardError, KnowledgePack, parse_file
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import (
     AssembledCard,
+    EvidenceAssemblyError,
     ObservationEvidence,
     PopulationFrequency,
     assemble_card,
@@ -85,6 +86,110 @@ def _assemble(
 
 def _apoe(pack: KnowledgePack) -> Card:
     return next(c for c in pack.cards if c.id == "apoe_diplotype_dementia")
+
+
+def test_confidence_uses_the_matched_outcomes_effect(health_pack: KnowledgePack) -> None:
+    card = _assemble(_apoe(health_pack), ("TT", "CT"))
+    assert card.confidence is not None
+    assert card.confidence.inputs.effect_value == 0.80
+    assert card.confidence.inputs.effect_value != 8.74
+
+
+def test_unestimated_rare_pattern_does_not_inherit_common_disease_evidence(
+    health_pack: KnowledgePack,
+) -> None:
+    card = _assemble(_apoe(health_pack), ("CC", "TT"))
+    assert card.card.evidence is None
+    assert card.confidence and card.confidence.inputs.effect_value is None
+    assert card.confidence.tier is ConfidenceTier.LIMITED
+
+
+def test_factor_v_homozygote_uses_its_cohort_estimate(health_pack: KnowledgePack) -> None:
+    authored = next(c for c in health_pack.cards if c.id == "f5_leiden_thromboembolism")
+    card = _assemble(authored, ("TT",))
+    assert card.confidence and card.confidence.inputs.effect_value == 18.0
+    assert card.card.evidence and card.card.evidence.effect.ci_low == 4.1
+
+
+@pytest.mark.parametrize(
+    "frequency,quality,tier",
+    [
+        (0.4, 0.95, ConfidenceTier.LIMITED),
+        (0.000001, 0.95, ConfidenceTier.LIKELY_ARTIFACT),
+        (0.4, 0.01, ConfidenceTier.LIKELY_ARTIFACT),
+    ],
+    ids=["common", "rare", "poor_quality"],
+)
+def test_absent_effect_retains_observation_reliability_gates(
+    health_pack: KnowledgePack, frequency: float, quality: float, tier: ConfidenceTier
+) -> None:
+    card = _assemble(
+        _apoe(health_pack),
+        ("CC", "TT"),
+        marker_evidence=(
+            ObservationEvidence(CallSource.DIRECT, (_frequency("C", frequency),)),
+            ObservationEvidence(
+                CallSource.IMPUTED, (_frequency("T", frequency),), imputation_quality=quality
+            ),
+        ),
+    )
+    assert card.confidence and card.confidence.tier is tier
+    assert card.confidence.inputs.effect_value is None
+    validate_snapshot(_card_payload(card))
+
+
+def test_constituent_matches_cannot_be_swapped(health_pack: KnowledgePack) -> None:
+    card = _apoe(health_pack)
+    pack = KnowledgePack((card,), Path("synthetic-memory"))
+    match = match_pack(pack, _table(card, ("CC", "CC")), merges=MergeTable.empty())[0]
+    evidence = observations(pack, (match,))[card.id]
+    with pytest.raises(EvidenceAssemblyError):
+        assemble_card(card, replace(match, markers=tuple(reversed(match.markers))), evidence)
+
+
+def test_lint_counts_every_constituent_marker(
+    health_pack: KnowledgePack, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genetics.engine.card_lint import InMemoryVariantResolver, ReferenceVariant, lint_pack
+
+    records = tuple(
+        ReferenceVariant(v.rsid, v.key)
+        for c in health_pack.cards
+        if c.match
+        for v in c.match.variants
+    )
+    report = lint_pack(health_pack, resolver=InMemoryVariantResolver(records))
+    assert report.ok
+    assert report.interpretation_count == 3
+    assert report.variant_count == report.resolved_variants == 4
+    assert report.to_dict()["variant_count"] == 4
+    monkeypatch.setattr(
+        "genetics.engine.card_lint.ParquetVariantResolver",
+        lambda *args, **kwargs: InMemoryVariantResolver(records),
+    )
+    result = CliRunner().invoke(app, ["cards", "lint", "--knowledge", str(health_pack.source_dir)])
+    assert result.exit_code == 0
+    assert "4/4 resolved" in result.stdout
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_outcome_evidence_requires_schema_three(version: int) -> None:
+    raw = _raw_apoe()
+    if version == 1:
+        raw = yaml.safe_load(
+            (Path(__file__).parents[2] / "knowledge/health/common.yaml").read_text(encoding="utf-8")
+        )["cards"][0]
+        raw["match"].pop("strand")
+    with pytest.raises(CardError, match="schema_version 3"):
+        parse_file(yaml.safe_dump({"schema_version": version, "cards": [raw]}), "old.yaml")
+
+
+@pytest.mark.parametrize("variable", ["effect_value", "effect_units", "sample_size"])
+def test_unestimated_outcomes_refuse_phenotype_templates(variable: str) -> None:
+    raw = _raw_apoe()
+    raw["outcomes"]["rare_pattern"]["summary"] = "{" + variable + "}"
+    with pytest.raises(CardError):
+        Card.parse(raw, "synthetic validation")
 
 
 @pytest.mark.parametrize(
@@ -200,8 +305,12 @@ def test_single_marker_outcomes_and_forward_strand_mapping(
         card = _assemble(authored, (pair,))
         assert card.match.outcome_name == outcome
         assert card.risk_context and "baseline" in card.risk_context.lower()
-        assert card.confidence and card.confidence.tier.rank >= ConfidenceTier.MODERATE.rank
-        assert card.citations and card.card.evidence
+        assert card.confidence and card.citations
+        if card.card.evidence is None:
+            assert card.confidence.inputs.effect_value is None
+            assert card.confidence.tier is ConfidenceTier.LIMITED
+        else:
+            assert card.confidence.inputs.effect_value == card.card.evidence.effect.value
 
 
 def _frequency(allele: str, value: float) -> PopulationFrequency:
@@ -327,6 +436,113 @@ def test_imputation_quality_is_retained_per_marker(health_pack: KnowledgePack) -
     validate_snapshot(_card_payload(card))
 
 
+@pytest.mark.parametrize(
+    "damage",
+    ["call_source", "effect", "common_companion", "rare_tier", "unknown_tier", "quality_tier"],
+)
+def test_saved_marker_calibration_cannot_contradict_its_observation(
+    health_pack: KnowledgePack, damage: str
+) -> None:
+    frequencies = (_frequency("C", 0.000001), _frequency("T", 0.4))
+    first = ObservationEvidence(CallSource.DIRECT, frequencies)
+    if damage == "unknown_tier":
+        first = ObservationEvidence(CallSource.DIRECT)
+    elif damage == "quality_tier":
+        first = ObservationEvidence(CallSource.IMPUTED, frequencies, imputation_quality=0.01)
+    card = _assemble(
+        _apoe(health_pack),
+        ("CT", "CC"),
+        marker_evidence=(first, ObservationEvidence(CallSource.DIRECT, (_frequency("C", 0.4),))),
+    )
+    payload = _card_payload(card)
+    marker = payload["multi_marker"]["markers"][0]
+    if damage == "call_source":
+        marker["observation"].update(call_source="imputed", imputation_quality=0.95)
+    elif damage == "effect":
+        marker["confidence"]["inputs"]["effect_value"] = 8.74
+    elif damage == "common_companion":
+        marker["confidence_frequency"] = marker["frequencies"][1]
+        marker["confidence"]["inputs"]["population_allele_frequency"] = 0.4
+    else:
+        for item in payload["multi_marker"]["markers"]:
+            item["confidence"].update(tier="well-established", score=0.95)
+        payload["confidence"] = marker["confidence"]
+    with pytest.raises(ValueError, match="invalid or inconsistent saved multi-marker evidence"):
+        validate_snapshot(payload)
+
+
+@pytest.mark.parametrize("ambiguous", [False, True], ids=["resolved", "unphased"])
+def test_marker_quality_and_benchmarks_reach_saved_detail(
+    health_pack: KnowledgePack, sample_qc: QCReport, tmp_path: Path, ambiguous: bool
+) -> None:
+    authored = _apoe(health_pack)
+    card = _assemble(
+        authored,
+        ("CT", "CT") if ambiguous else ("CC", "CC"),
+        marker_evidence=(
+            ObservationEvidence(
+                CallSource.DIRECT, (_frequency("C", 0.000001), _frequency("T", 0.4))
+            ),
+            ObservationEvidence(
+                CallSource.IMPUTED,
+                (_frequency("C", 0.4), _frequency("T", 0.4)),
+                imputation_quality=0.1234,
+                ancestry_match=0.4321,
+            ),
+        ),
+    )
+    root = tmp_path / "runs"
+    path = _write(KnowledgePack((authored,), health_pack.source_dir), (card,), sample_qc, root)
+    with TestClient(
+        create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1:8765"
+    ) as client:
+        detail = client.get(f"/runs/{path.name}/cards/{card.card_id}")
+    assert detail.status_code == 200
+    for text in ("imputed", "0.1234", "0.4321", "16%", "rs429358 reliability inputs"):
+        assert text in detail.text
+
+
+def test_format_eleven_preserves_historical_phenotype_calibration(
+    health_pack: KnowledgePack, sample_qc: QCReport, tmp_path: Path
+) -> None:
+    authored = _apoe(health_pack)
+    # Model the format-11 pack: every diplotype used the card-wide estimate.
+    authored = replace(
+        authored,
+        outcomes={
+            name: replace(outcome, overrides_evidence=False)
+            for name, outcome in authored.outcomes.items()
+        },
+    )
+    card = _assemble(authored, ("TT", "CT"))
+    assert card.confidence and card.confidence.inputs.effect_value == 8.74
+    assert isinstance(card.multi_marker, dict)
+    card.multi_marker["schema_version"] = 1
+    path = _write(KnowledgePack((authored,), health_pack.source_dir), (card,), sample_qc, tmp_path)
+    manifest_path = path / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = 11
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    loaded = read_bundle(path)
+    assert loaded.format_version == 11
+    assert loaded.cards[0].confidence == _card_payload(card)["confidence"]
+    assert loaded.cards[0].multi_marker == card.multi_marker
+
+
+def test_new_nullable_calibration_cannot_be_declared_format_eleven(
+    health_pack: KnowledgePack, sample_qc: QCReport, tmp_path: Path
+) -> None:
+    authored = next(c for c in health_pack.cards if c.id == "hfe_c282y_iron_overload")
+    card = _assemble(authored, ("AG",))
+    path = _write(KnowledgePack((authored,), health_pack.source_dir), (card,), sample_qc, tmp_path)
+    manifest_path = path / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["format_version"] = 11
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(BundleError, match="absent phenotype calibration"):
+        read_bundle(path)
+
+
 def test_doubled_single_copy_observations_do_not_become_diplotypes(
     health_pack: KnowledgePack,
 ) -> None:
@@ -443,7 +659,7 @@ def test_save_read_cli_and_dashboard_parity(
     root = tmp_path / "runs"
     path = _write(pack, (card,), sample_qc, root)
     bundle = read_bundle(path)
-    assert bundle.format_version == 11
+    assert bundle.format_version == 12
     assert bundle.cards[0].multi_marker == card.multi_marker
     assert bundle.cards[0].risk_context == card.risk_context
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))

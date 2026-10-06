@@ -10,7 +10,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from genetics.engine.cards import CardVariant, Match
-from genetics.engine.confidence import CallSource, ConfidenceTier
+from genetics.engine.confidence import RARE_CALL_FREQUENCY_CEILING, CallSource, ConfidenceTier
 from genetics.engine.evidence import ObservationEvidence, PopulationFrequency
 from genetics.engine.matcher import MatchStatus, Strand, complement
 from genetics.ingest.schema import CallStatus
@@ -35,7 +35,7 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
         card.get("multi_marker"),
         {"schema_version", "phase", "haplotypes", "diplotypes", "markers", "candidate_diplotypes"},
     )
-    if type(multi["schema_version"]) is not int or multi["schema_version"] != 1:
+    if type(multi["schema_version"]) is not int or multi["schema_version"] not in {1, 2}:
         raise ValueError("unsupported multi-marker schema")
     if multi["phase"] != "unphased" or card.get("kind") != "interpretation":
         raise ValueError("invalid multi-marker phase or kind")
@@ -141,6 +141,21 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
             selected not in frequencies or genotype is None or selected["allele"] not in genotype
         ):
             raise ValueError("marker confidence frequency is not an observed allele")
+        if status is MatchStatus.MATCHED:
+            assert genotype is not None
+            called = set(genotype)
+            known = [f for f in frequency_items if f.allele in called]
+            minimum = min((f.frequency for f in known), default=None)
+            incomplete = called - {f.allele for f in known}
+            expected_frequency = (
+                minimum
+                if not incomplete or (minimum is not None and minimum < RARE_CALL_FREQUENCY_CEILING)
+                else None
+            )
+            if (selected["frequency"] if selected is not None else None) != expected_frequency:
+                raise ValueError("marker calibration must use the rarest usable observed allele")
+        if any(f.allele not in variant["alleles"] for f in frequency_items):
+            raise ValueError("marker frequency belongs to another allele")
         confidence = record["confidence"]
         if (confidence is not None) != (status is MatchStatus.MATCHED):
             raise ValueError("marker confidence contradicts its match status")
@@ -159,6 +174,46 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
                 selected["frequency"] if selected is not None else None
             ):
                 raise ValueError("marker calibration and selected frequency disagree")
+            for key in ("call_source", "imputation_quality", "ancestry_match"):
+                if inputs.get(key) != observation[key]:
+                    raise ValueError("marker calibration and observation metadata disagree")
+            frequency = inputs["population_allele_frequency"]
+            quality = observation["imputation_quality"]
+            if (
+                (frequency is not None and frequency < RARE_CALL_FREQUENCY_CEILING)
+                or (quality is not None and quality < 0.30)
+            ) and tier != "likely-artifact":
+                raise ValueError("marker reliability cannot bypass rarity or quality gates")
+            if frequency is None and ConfidenceTier(tier).rank < ConfidenceTier.MODERATE.rank:
+                raise ValueError("unknown frequency cannot establish strong marker reliability")
+            if multi["schema_version"] == 1 and inputs.get("evidence_tier") is None:
+                raise ValueError("schema-1 calibration requires phenotype evidence")
+            if multi["schema_version"] == 2:
+                evidence = card.get("evidence")
+                if evidence is None:
+                    if any(
+                        inputs.get(key) is not None
+                        for key in (
+                            "evidence_tier",
+                            "effect_measure",
+                            "effect_value",
+                            "replication",
+                        )
+                    ):
+                        raise ValueError(
+                            "unestimated association cannot carry phenotype calibration"
+                        )
+                    if ConfidenceTier(tier).rank < ConfidenceTier.LIMITED.rank:
+                        raise ValueError("absent phenotype evidence limits confidence")
+                elif (
+                    not isinstance(evidence, Mapping)
+                    or not isinstance(evidence.get("effect"), Mapping)
+                    or inputs.get("evidence_tier") != evidence.get("tier")
+                    or inputs.get("replication") != evidence.get("replication")
+                    or inputs.get("effect_measure") != evidence["effect"].get("measure")
+                    or inputs.get("effect_value") != evidence["effect"].get("value")
+                ):
+                    raise ValueError("marker calibration uses another outcome's phenotype evidence")
             confidences.append(confidence)
         if not isinstance(record["computed_caveats"], list) or any(
             not isinstance(c, str) for c in record["computed_caveats"]

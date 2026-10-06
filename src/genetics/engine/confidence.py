@@ -105,12 +105,12 @@ class ConfidenceBreakdown:
     it carries quality.
     """
 
-    evidence_tier: EvidenceTier
+    evidence_tier: EvidenceTier | None
     evidence_score: float
-    effect_measure: EffectMeasure
-    effect_value: float
+    effect_measure: EffectMeasure | None
+    effect_value: float | None
     effect_score: float
-    replication: Replication
+    replication: Replication | None
     replication_score: float
     population_allele_frequency: float | None
     frequency_score: float
@@ -254,7 +254,7 @@ def _weaker_of(left: ConfidenceTier, right: ConfidenceTier) -> ConfidenceTier:
 
 
 def calculate_confidence(
-    evidence: Evidence,
+    evidence: Evidence | None,
     *,
     population_allele_frequency: float | None,
     call_source: CallSource,
@@ -288,9 +288,11 @@ def calculate_confidence(
     if call_source is CallSource.DIRECT and imputation is not None:
         raise ConfidenceError("a directly genotyped call cannot carry imputation_quality")
 
-    evidence_score = _EVIDENCE_SCORES[evidence.tier]
-    effect_score = _effect_score(evidence.effect)
-    replication_score = _REPLICATION_SCORES[evidence.replication]
+    # No applicable phenotype estimate is an absence, never another outcome's effect.
+    # Observation rarity/quality still apply; lack of evidence caps the result at limited.
+    evidence_score = _EVIDENCE_SCORES[evidence.tier] if evidence is not None else 0.0
+    effect_score = _effect_score(evidence.effect) if evidence is not None else 0.0
+    replication_score = _REPLICATION_SCORES[evidence.replication] if evidence is not None else 0.0
     frequency_score = _frequency_score(frequency)
     imputation_score = 1.0 if call_source is CallSource.DIRECT else imputation
     assert imputation_score is not None
@@ -308,12 +310,12 @@ def calculate_confidence(
     score = round(score, 4)
 
     inputs = ConfidenceBreakdown(
-        evidence_tier=evidence.tier,
+        evidence_tier=evidence.tier if evidence is not None else None,
         evidence_score=evidence_score,
-        effect_measure=evidence.effect.measure,
-        effect_value=evidence.effect.value,
+        effect_measure=evidence.effect.measure if evidence is not None else None,
+        effect_value=evidence.effect.value if evidence is not None else None,
         effect_score=round(effect_score, 4),
-        replication=evidence.replication,
+        replication=evidence.replication if evidence is not None else None,
         replication_score=replication_score,
         population_allele_frequency=frequency,
         frequency_score=frequency_score,
@@ -340,7 +342,11 @@ def calculate_confidence(
     tier = _score_tier(score)
     # A striking, common observation does not upgrade weak literature. These are claim-
     # evidence ceilings, parallel to the observation-reliability ceilings below.
-    if evidence.tier is EvidenceTier.ANECDOTAL or evidence.replication is Replication.CONFLICTING:
+    if (
+        evidence is None
+        or evidence.tier is EvidenceTier.ANECDOTAL
+        or evidence.replication is Replication.CONFLICTING
+    ):
         tier = _weaker_of(tier, ConfidenceTier.LIMITED)
     elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
         tier = _weaker_of(tier, ConfidenceTier.MODERATE)
