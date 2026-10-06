@@ -129,6 +129,26 @@ cards:
 Unknown keys are rejected everywhere. In a format this full of optional fields, a
 silently-ignored key looks exactly like one that had no effect.
 
+### Outcome-specific evidence (schema 3)
+
+Use `schema_version: 3` when outcomes need different phenotype estimates. An outcome's
+optional `evidence` block has the same complete shape as card-level evidence and replaces
+it for that matched result, before rendering, confidence calculation and serialization.
+Omitting the key retains card-level evidence. Explicit `evidence: null` assigns no
+applicable phenotype estimate; citations, observations and measurement-quality inputs
+remain available. Its phenotype inputs are null, their scoring components are zero,
+and confidence cannot exceed limited; rarity and poor quality still yield likely-artifact.
+The effect/sample-size placeholders are unavailable for such an outcome. Do not substitute
+an invented zero/unit effect or borrow a different genotype's disease association.
+
+Schema 2 introduced unphased small-SNP diplotypes and explicit forward-only matching;
+schema 1 and 2 files remain supported without outcome-evidence overrides. Multi-marker
+constituents use the selected parent's evidence and neutral internal marker outcomes,
+never an arbitrary first disease outcome. Phase-unresolved results assign no phenotype
+estimate and preserve locus-specific rarity and quality. The [common-health guide](../docs/common_health.md)
+documents the curated estimates and baseline gaps. New saves use format 12 / multi-marker
+schema 2; historical format-11 snapshots retain their original evidence and calibration.
+
 ## Impossibility cards
 
 A different shape, because they match nothing:
@@ -214,7 +234,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 11; formats 1–10 remain readable.
+attached to a computed card. New runs use bundle format 12; formats 1–11 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD

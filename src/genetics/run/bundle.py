@@ -74,8 +74,11 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 11
+BUNDLE_FORMAT_VERSION: Final[int] = 12
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 12 (M7.5 review) permits explicit absent phenotype evidence in confidence
+inputs and uses multi-marker schema 2. Formats 1-11 retain their saved estimates.
 
 Version 11 (M7.5) adds outcome-specific absolute-risk context and multi-marker
 observations, phase candidates and locus-specific calibration. Formats 1-10 retain
@@ -1197,6 +1200,24 @@ def read_bundle(path: Path) -> RunBundle:
         for e in entries
     ):
         raise BundleError("multi-marker and absolute-risk records require bundle format 11")
+    if declared < 12 and any(
+        isinstance(e, Mapping)
+        and isinstance(e.get("multi_marker"), Mapping)
+        and e["multi_marker"].get("schema_version") == 2
+        for e in entries
+    ):
+        raise BundleError("multi-marker schema 2 requires bundle format 12")
+    if declared < 12 and any(
+        isinstance(e, Mapping)
+        and isinstance(e.get("confidence"), Mapping)
+        and isinstance(e["confidence"].get("inputs"), Mapping)
+        and any(
+            key in e["confidence"]["inputs"] and e["confidence"]["inputs"][key] is None
+            for key in ("evidence_tier", "effect_measure", "effect_value", "replication")
+        )
+        for e in entries
+    ):
+        raise BundleError("absent phenotype calibration requires bundle format 12")
 
     ancestry: Mapping[str, Any] | None = None
     clinvar: Mapping[str, Any] | None = None

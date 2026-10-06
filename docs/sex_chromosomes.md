@@ -5,7 +5,7 @@ the normalized direct calls. It needs no reference download or external tool.
 The CLI and dashboard read the same saved result, including denominators, PAR
 exclusions, thresholds and caveats. No new output file is created: the measurement
 lives in the existing private `cards.run.json` payload, introduced in bundle format 6.
-New runs use format **11**. Versions 1–10 remain readable without reinterpreting their
+New runs use format **12**. Versions 1–11 remain readable without reinterpreting their
 saved QC or cards; formats 1–5 predate the saved sex-chromosome profile.
 Saved profiles are validated against their recorded thresholds and the structured
 direct-call, intensity and karyotype flags. Changing current display wording or source-link

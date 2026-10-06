@@ -3,8 +3,10 @@
 As of 2026-10-06, M0-M6 and **M7.1-M7.5 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
 first, then [the roadmap](../phase1_roadmap.md). Next is M7.6.
-Prior M7.4 checkpoint: `4d537f0`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
-The [diff-driven session review](review_m7_session.md) records follow-up fixes.
+M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
+The [M7.5 diff-driven review](review_m75_session.md) records outcome-calibration,
+saved-record validation, marker-detail and lint-denominator fixes. The earlier
+[M7.1–M7.4 review](review_m7_session.md) remains historical context.
 
 ## Current local acceptance
 
@@ -58,9 +60,9 @@ summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely
 included-haplotype annotations do not. Missing frequency or unresolved observations
 still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
 
-New bundles use **format 11**, with ClinVar lookup schema **4** in the existing private
+New bundles use **format 12**, with ClinVar lookup schema **4** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
-1-9 retain their original results and notices, including schema-2 BRCA entries with
+1–11 retain their original results and notices, including schema-2 BRCA entries with
 the original generic benchmark. See [the frequency guide](health_frequencies.md).
 
 M7.1's complete pinned ClinVar index contains **4,461,445 records** from 2026-08-04.
@@ -110,6 +112,22 @@ scope and the numerical rates/baselines this curated pack does and does not tran
    Format 11 saves both marker observations, locus-specific frequency/calibration and
    phase candidates. Formats 1–10 and ClinVar schemas 1–4 retain their original meanings.
 
+The review adds **knowledge schema 3**, supporting complete outcome-specific evidence
+overrides or explicit `evidence: null`. Evidence is selected before confidence is computed
+and saved. APOE common outcomes use their corresponding Rasmussen cohort effects;
+F5 homozygotes use the homozygote estimate. Comparator, rare-pattern and unestimated
+HFE/F5 outcomes carry no borrowed phenotype estimate and receive limited confidence,
+with rarity/quality gates still active. Unresolved APOE phase receives no phenotype
+estimate. Each marker's call source, quality, ancestry-match input, reliability inputs
+and available benchmark are visible in detail. Full lint counts marker references,
+giving **35/35**, rather than dividing them by 34 interpretation cards.
+
+**Format 12 / multi-marker schema 2** records these meanings. Saved validation binds
+marker confidence to recorded observation metadata, the rarest usable called allele,
+and the saved phenotype effect, preserving frequency/quality limits. Formats 1–11 remain
+immutable snapshots; a format-11 run keeps its original card-wide effect even when the
+current pack has a different outcome estimate. Re-run to obtain the correction.
+
 Synthetic checks must cover all supported allele combinations, missing/discordant
 observations, phase ambiguity, unknown frequencies, rarity gating, and save/read/CLI/
 dashboard parity. Existing `{frequency}`/`{ppv}` placeholders and the confidence engine
@@ -126,6 +144,31 @@ matchable variants, markers present from calls obtained, and reference annotatio
 clinically confirmed findings. Missing references must stay explicit; an empty overlap
 cannot imply a negative clinical screen. Preserve the same saved CLI/dashboard contract.
 
+Use the complete pinned GRCh37 ClinVar index through the existing shared pipeline,
+and save a source-bound counting record rather than counting again when a run is opened.
+Define the counters and denominators in that record:
+
+- Deduplicate reference positions by normalized chromosome/GRCh37 coordinate; multiple
+  records or alternate alleles at one site count once as a position. Define separate
+  variant/allele counters and disclose any reference filtering.
+- Deduplicate chip positions across probe aliases; disclose duplicate/conflicting probes.
+  A listed no-call position is present on the export but is not a successful call.
+- Report both reference-position coverage (overlap / reference positions) and the share
+  of chip positions annotated by ClinVar (overlap / chip positions). Label both denominators.
+- Separate present-position overlap, called-position overlap and allele-resolved matches.
+  Keep no-calls, indels, unresolved strand/ploidy and conflicting observations explicit;
+  positional overlap alone never establishes a particular allele.
+- Preserve classifications and the assay/rare-call limits. Coverage is neither sensitivity
+  nor a count of confirmed pathogenic findings. Scope the ACMG roster separately.
+- Distinguish missing source, empty reference, zero overlap and incomplete/bad input;
+  avoid division by zero or a fabricated negative screen.
+
+Synthetic regressions should exercise repeated reference alleles, duplicate chip probes,
+no-calls, excluded indels, missing/empty references, zero overlap, digest-consistent
+malformed counts, and save/read/CLI/dashboard equality. The saved reader must validate
+counter relationships and provenance using the snapshot, without consulting newer caches.
+M7.6 is open; this review does not implement it or claim a new measured overlap.
+
 M7.6 owns quantitative coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license
 audit remains M15.4. M6's missing chip/population calibration stays attached.
@@ -140,7 +183,7 @@ privacy, pinning or the pre-commit checks.
 
 ## Validation
 
-The M7.5 full suite passed **2,135 tests, five existing Windows skips**, with pinned native
+The M7.5 implementation suite passed **2,135 tests, five existing Windows skips**, with pinned native
 ROH enabled. Ruff/formatting, strict mypy on Windows/Linux and Python 3.11/3.13,
 fixture reproduction and full card lint pass (50 cards, 266 renders, 35 dbSNP keys).
 Synthetic-only acceptance against the complete ClinVar/gnomAD caches passed with networking
@@ -149,6 +192,10 @@ M7.5 adds 59 cases covering all APOE observation combinations, rare-haplotype/ph
 preservation, missing/discordant/non-diploid calls, HFE/F5 forward-strand and duplicate
 matching, unknown/rare frequencies, per-marker quality, malformed saved evidence,
 format-10 compatibility and both interfaces.
+The follow-up review passes **2,158 tests, five existing Windows skips**, including pinned
+native ROH. Its 23 new regressions cover outcome-specific and absent effects, rarity/quality
+gates, constituent identity, lint denominators, schema-3 boundaries, saved consistency,
+format-11 immutability and marker-detail metadata/PPV. See the review record for checks.
 M7.3 adds 31 synthetic cases for exact BRCA/classification scope, numerical face/detail
 and CLI presentation, unavailable PPV, placeholder contexts and historical schema-2
 save/read/CLI/dashboard compatibility. Tests also cover rare thresholds/counts/populations,

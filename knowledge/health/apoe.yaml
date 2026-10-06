@@ -1,4 +1,4 @@
-schema_version: 2
+schema_version: 3
 cards:
   - id: apoe_diplotype_dementia
     section: physical_health
@@ -34,6 +34,17 @@ cards:
         e4/e4: e4_e4
     outcomes:
       e2_e2:
+        evidence:
+          tier: cohort
+          replication: meta_analysis
+          sample_size: 104537
+          ancestry: [EUR]
+          effect:
+            measure: hazard_ratio
+            value: 0.60
+            ci_low: 0.29
+            ci_high: 1.27
+            context: "Rasmussen 2018, Table 2: all dementia in e2/e2 versus e3/e3; the interval includes no association. This is a cohort association, not a personal probability."
         summary: "Both markers support the APOE e2/e2 pattern; this does not establish or exclude dementia."
         detail: "Farrer 1997's meta-analysis gave an Alzheimer-disease OR of 0.6 (95% CI 0.2-2.0) versus e3/e3 in its European clinic/autopsy stratum; the interval includes no association."
         risk_context: &common_risk >-
@@ -43,20 +54,54 @@ cards:
           Rasmussen 2018 supplies age/sex-stratified 10-year curves, but this card
           transcribes numerical rates only for e4/e4; those rates cannot be applied here.
       e2_e3:
+        evidence:
+          tier: cohort
+          replication: meta_analysis
+          sample_size: 104537
+          ancestry: [EUR]
+          effect:
+            measure: hazard_ratio
+            value: 0.80
+            ci_low: 0.69
+            ci_high: 0.94
+            context: "Rasmussen 2018, Table 2: all dementia in e2/e3 versus e3/e3. Farrer 1997's Alzheimer-disease odds ratio below uses a different endpoint and sampling design."
         summary: "Both markers support the APOE e2/e3 pattern, associated with lower Alzheimer-disease odds in the cited meta-analysis."
         detail: "Farrer 1997's European clinic/autopsy stratum estimated OR 0.6 (95% CI 0.5-0.8) versus e3/e3. This relative association neither guarantees protection nor gives a personal probability."
         risk_context: *common_risk
       e3_e3:
+        evidence: null
         summary: "Both markers support the APOE e3/e3 pattern, the reference group in the cited dementia studies."
         detail: "Being the comparison group does not mean absence of dementia susceptibility. APOE is one contributor among genetic, age-related and environmental factors."
         risk_context: *common_risk
       e2_e4:
+        evidence:
+          tier: cohort
+          replication: meta_analysis
+          sample_size: 104537
+          ancestry: [EUR]
+          effect:
+            measure: hazard_ratio
+            value: 1.34
+            ci_low: 1.04
+            ci_high: 1.74
+            context: "Rasmussen 2018, Table 2: all dementia in e2/e4 versus e3/e3. An unphased double heterozygote does not uniquely establish this diplotype."
         summary: "The e2/e4 pattern is associated with greater Alzheimer-disease odds; unphased double heterozygotes cannot uniquely establish it."
         detail: "Farrer 1997 estimated OR 2.6 (95% CI 1.6-4.0) versus e3/e3 in its European clinic/autopsy stratum. The same unphased observations also fit e3/e3r; this pipeline retains both candidates and assigns neither."
         risk_context: *common_risk
       e3_e4:
+        evidence:
+          tier: cohort
+          replication: meta_analysis
+          sample_size: 104537
+          ancestry: [EUR]
+          effect:
+            measure: hazard_ratio
+            value: 2.03
+            ci_low: 1.85
+            ci_high: 2.23
+            context: "Rasmussen 2018, Table 2: all dementia in e3/e4 versus e3/e3. The Alzheimer-disease odds ratio in the detail text is a separate Farrer 1997 estimate."
         summary: "Both markers support the APOE e3/e4 pattern, associated with greater Alzheimer-disease odds in the cited meta-analysis."
-        detail: "Farrer 1997 estimated OR 3.2 (95% CI 2.8-3.8) versus e3/e3 in its European clinic/autopsy stratum. The e4/e4 effect in the evidence block is a cohort comparison, not this pattern's effect."
+        detail: "Farrer 1997 estimated Alzheimer-disease OR 3.2 (95% CI 2.8-3.8) versus e3/e3 in its European clinic/autopsy stratum. The evidence block uses this outcome's all-dementia cohort HR from Rasmussen 2018, rather than another diplotype's effect."
         risk_context: *common_risk
       e4_e4:
         summary: "Both markers support the APOE e4/e4 pattern, associated with elevated dementia susceptibility; it does not establish disease."
@@ -71,6 +116,7 @@ cards:
           baseline is not transcribed here. These white-Danish cohort rates are not
           lifetime risks or your probability; your age and clinical context are unknown.
       rare_pattern:
+        evidence: null
         summary: "Both markers imply a pattern including the rare APOE e3r haplotype; a common-isoform disease model cannot be applied."
         detail: "Seripa 2011 reports the fourth haplotype. It must not be relabelled e3 or excluded to manufacture a common diplotype. Reliability here describes the constituent SNP readings; it does not calibrate the rarity of this haplotype."
         risk_context: "No applicable absolute disease rate, baseline, time horizon or relative disease effect is available for e3r-containing diplotypes in the cited common-isoform cohorts. No dementia probability is assigned."

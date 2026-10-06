@@ -738,8 +738,12 @@ def marker_card(card: Card, index: int) -> Card:
     """
     assert card.match is not None
     variant = card.match.variants[index]
-    outcome = next(iter(card.outcomes))
-    return replace(card, match=Match((variant,), dict.fromkeys(variant.genotypes, outcome)))
+    return replace(
+        card,
+        id=f"{card.id}_marker_{index}",
+        match=Match((variant,), dict.fromkeys(variant.genotypes, "marker")),
+        outcomes={"marker": Outcome("Marker observed.", "Constituent SNP observation.")},
+    )
 
 
 def match_pack(

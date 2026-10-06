@@ -90,7 +90,7 @@ def lint(
         else:
             typer.echo(
                 f"  variant keys: {report.resolved_variants}/"
-                f"{report.interpretation_count} resolved via {report.resolver or 'no resolver'}"
+                f"{report.variant_count} resolved via {report.resolver or 'no resolver'}"
             )
         for issue in report.issues:
             owner = f" [{issue.card_id}]" if issue.card_id else ""

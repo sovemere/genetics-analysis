@@ -1098,7 +1098,21 @@ class CardView(NoGenotypeRepr):
                 "the effect size, sample size and study population were recorded. Re-run "
                 "the analysis to capture them."
             )
+        if self.bundle_format_version >= 12 and self.kind == "interpretation":
+            return (
+                "No applicable phenotype-association estimate is assigned to this outcome. "
+                "The cited literature and marker observations remain available."
+            )
         return "This card records no published evidence."
+
+    @property
+    def marker_confidences(self) -> tuple[ConfidenceView | None, ...]:
+        if self.multi_marker is None:
+            return ()
+        return tuple(
+            ConfidenceView.of(m["confidence"]) if m["confidence"] is not None else None
+            for m in self.multi_marker["markers"]
+        )
 
     @classmethod
     def of(cls, card: StoredCard, *, format_version: int, run_id: str | None = None) -> CardView:

@@ -38,14 +38,18 @@ and available to the CLI and dashboard. APOE preserves both markers and unresolv
 HFE C282Y and F5 Leiden carry published cohort absolute-risk context.
 Next is [M7.6](#m7--monogenic-health--frequency-gating), quantitative coverage honesty.**
 The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
-The [session diff review](docs/review_m7_session.md) records validation-error fixes,
-current documentation contracts and the APOE matching prerequisite within M7.5.
+The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
+confidence, saved-record consistency, marker-detail and lint-denominator fixes.
 Download resumability debt is resolved and gnomAD's 63 GB exome file is verified.
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 11**, with formats 1–10 preserved. The pack has 50 cards;
+**Current bundle format: 12**, with formats 1–11 preserved. The pack has 50 cards;
 full local dbSNP lint resolves all 35 authored marker references (266 template renders).
+M7.5 follow-up review: **2,158 tests passed, five existing Windows skips**, native ROH
+enabled; strict mypy matrix, ruff/format, fixtures and full dbSNP lint pass. Knowledge
+schema 3 / multi-marker schema 2 select outcome-specific phenotype evidence, retaining
+null estimates and observation quality without rescoring historical snapshots.
 M7.5 acceptance (2026-10-06): **2,135 tests passed, five existing Windows skips**,
 pinned native ROH enabled; ruff/format, strict mypy platform/Python matrix and fixture
 reproduction passed. Synthetic-only full-reference offline CLI/dashboard acceptance
@@ -2356,8 +2360,22 @@ section, that proves every layer.*
       - HFE and F5 declare `strand: forward_only`: both sites have additional dbSNP
         alleles, so complementing an unexpected base could manufacture the target health
         allele. Unexpected calls remain visible mismatches, with synthetic regressions.
+      - Follow-up review: knowledge schema 3 selects complete outcome-specific evidence
+        or null before scoring/saving; comparator and unestimated outcomes cannot borrow
+        a disease effect. Format 12 / multi-marker schema 2 bind saved confidence to the
+        recorded observation, allele frequency and phenotype evidence. Formats 1–11 remain
+        immutable. Marker details expose quality/calibration, and lint reports 35/35.
 - [ ] **M7.6** Coverage honesty card: how many ClinVar positions the array covers
       (~76k), and what that does and does not mean.
+      - Measure unique normalized GRCh37 positions from the chip and full pinned reference;
+        do not reuse ~76k as a constant. Disclose both overlap/reference and overlap/chip
+        denominators, distinct allele counts, probe duplicates and reference filters.
+      - Separate present, called and allele-resolved overlap. Preserve no-call, indel,
+        strand/ploidy and conflict states; coverage does not establish clinical sensitivity
+        or confirmed pathogenic findings. Missing/empty sources and zero overlap differ.
+      - Save counts, definitions and provenance once in the shared pipeline; validate
+        snapshot relationships without recounting newer references. Cover synthetic edge
+        cases and CLI/dashboard parity. See [the handoff](docs/handoff.md#next-m76).
 
 ---
 
@@ -2586,6 +2604,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-06 | M7.5 session diff review | Reviewed `1fc2f00..537e3c5`. Fixed card-wide disease effects leaking into other outcomes, incomplete saved marker consistency checks, omitted per-marker quality/calibration/PPV, and the lint denominator. Knowledge schema 3 / format 12 / multi-marker schema 2 support applicable outcome evidence or null; formats 1–11 retain historical results. **2,158 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 35/35-marker dbSNP lint pass. Twenty-three new synthetic regressions; no personal export. [Review record](docs/review_m75_session.md). Expanded M7.6 handoff; coverage remains open. |
 | 2026-10-06 | M7.5 | Added declarative HFE C282Y, F5 Leiden and two-marker APOE cards with primary citations and outcome-specific absolute-risk context, including explicit baseline/rate gaps. Schema 2 keeps all four APOE haplotypes and ten diplotypes; unphased double heterozygotes retain both candidates. Per-marker observations/frequencies/quality remain separate, and resolved reliability inherits the weakest marker. Self-review caught GRCh37's F5 reference-state inversion and multiallelic strand/duplicate ambiguity; HFE/F5 now require forward alleles and preserve unexpected calls as mismatches/conflicts. Format 11 saves risk and multi-marker evidence; formats 1–10 and ClinVar schemas 1–4 remain unchanged. **2,135 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 50-card/266-render/35-marker dbSNP lint passed. Synthetic-only acceptance against complete ClinVar/gnomAD caches passed offline through save/read/CLI/dashboard; no personal export used. Next M7.6. |
 | 2026-10-05 | M7 session diff review | Reviewed `1a0eadb..4d537f0`, covering M7.1–M7.4 and download resumability. Fixed malformed cache provenance escaping as AttributeError and empty saved ALT lists escaping as IndexError; twelve synthetic regressions cover cache readers and schema-2/3/4 bundle/CLI/dashboard errors. Clarified ACMG versus full-ClinVar count scope and route title. Synchronized current format-10 guides/checkpoint links and expanded M7.5 handoff with absolute-risk sourcing and the two-marker APOE matching requirement. **2,076 tests passed, five existing Windows skips**, native ROH enabled; focused 411, strict mypy matrix, ruff/format, fixtures and full card lint passed. No personal export used. [Review record](docs/review_m7_session.md); next M7.5. |
 | 2026-10-05 | M7.4 | Fetched and verified the complete 84-gene ClinGen ACMG SF v3.3 roster/guidance under CC0. Shared saved-data dashboard and CLI views surface every overlap with existing reliability/PPV and explicit clinical-sequencing limits. Gene membership and P/LP annotations remain separate from unadjudicated clinical reportability; missing sources and empty views do not imply a negative screen. Format-10/schema-4 snapshots retain roster/guidance/provenance; formats 1–9 remain unchanged. **2,064 tests passed, five existing Windows skips**; strict mypy platform/Python matrix, ruff/format, fixtures and card lint passed. 42 additional synthetic cases plus offline fabricated-call acceptance against the complete public ClinVar/gnomAD caches and all three v3.3 additions. No personal export used. Next M7.5. |

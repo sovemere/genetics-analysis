@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, ClassVar
 
 from genetics.engine.cards import Card, CardKind, KnowledgePack
@@ -202,9 +202,8 @@ def _template_values(
     """
 
     assert card.match is not None
-    assert card.evidence is not None
     variant = card.match.variants[0]
-    effect = card.evidence.effect
+    effect = card.evidence.effect if card.evidence is not None else None
     from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
 
     ppv = confidence.empirical_ppv
@@ -218,9 +217,9 @@ def _template_values(
         "gene": card.gene or "",
         "chrom": variant.key.chrom.value,
         "pos": variant.key.pos_grch37,
-        "effect_value": effect.value,
-        "effect_units": effect.units or "",
-        "sample_size": card.evidence.sample_size,
+        "effect_value": effect.value if effect is not None else "",
+        "effect_units": (effect.units or "") if effect is not None else "",
+        "sample_size": card.evidence.sample_size if card.evidence is not None else "",
         "confidence": confidence.tier.value,
         "frequency": (
             f"{100 * frequency.frequency:g}% ({frequency.allele}; {frequency.population})"
@@ -372,7 +371,16 @@ def assemble_card(
         )
 
     assert card.match is not None  # interpretation-card schema invariant
-    if len(card.match.variants) > 1:
+    is_multi = len(card.match.variants) > 1
+    if (
+        match.status is MatchStatus.MATCHED
+        and match.outcome is not None
+        and match.outcome.overrides_evidence
+    ):
+        card = replace(card, evidence=match.outcome.evidence)
+    elif is_multi and match.status is not MatchStatus.MATCHED:
+        card = replace(card, evidence=None)
+    if is_multi:
         return _assemble_multi(card, match, observation)
     if observation is None:
         raise EvidenceAssemblyError(
@@ -411,7 +419,7 @@ def assemble_card(
             computed_caveats=match.caveats,
         )
 
-    if card.evidence is None or match.outcome is None:
+    if match.outcome is None:
         raise EvidenceAssemblyError(
             f"matched interpretation card {card.id!r} lacks evidence or an outcome"
         )
@@ -426,6 +434,11 @@ def assemble_card(
     )
     template_values = _template_values(card, match, confidence, confidence_frequency)
     computed_caveats = match.caveats
+    if card.evidence is None:
+        computed_caveats += (
+            "No applicable phenotype effect is estimated for this outcome; confidence is "
+            "limited by missing association evidence. Observation rarity and quality still apply.",
+        )
     if unpriced_alleles:
         # Said on the card face rather than swallowed: the rarity inversion is the most
         # important thing this interface communicates (AGENTS.md 4.1), so a reader is owed
@@ -465,7 +478,7 @@ def _assemble_multi(
     card: Card, match: MatchResult, observation: ObservationEvidence | None
 ) -> AssembledCard:
     """Keep locus evidence separate and inherit the weakest marker's calibration."""
-    assert card.match is not None and card.evidence is not None
+    assert card.match is not None
     if observation is None or len(observation.markers) != len(card.match.variants):
         raise EvidenceAssemblyError("multi-marker cards require evidence for every marker")
     if len(match.markers) != len(card.match.variants):
@@ -475,7 +488,7 @@ def _assemble_multi(
         for i, (marker, observed) in enumerate(zip(match.markers, observation.markers, strict=True))
     )
     payload = {
-        "schema_version": 1,
+        "schema_version": 2,
         "phase": "unphased",
         "haplotypes": dict(card.match.haplotypes),
         "diplotypes": dict(card.match.diplotypes),
