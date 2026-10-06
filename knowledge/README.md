@@ -25,8 +25,9 @@ the other sections through the same schema and lint path.
 
 M6 adds four computed genome-structure cards under `structure/`: long ROH,
 Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns. The current
-pack has 47 cards: 31 single-variant interpretations, 12 assay-limit cards and four
-computed cards.
+pack now has 50 cards: 33 single-variant interpretations, one two-marker interpretation,
+12 assay-limit cards and four computed cards. M7.5 adds cited common health associations
+under `health/`, with outcome-specific `risk_context` on the card face and in CLI output.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -166,10 +167,33 @@ one set diverge unless something compares them.
 
 ## Multi-variant cards
 
-Schema v1 matches **one variant per card**. Haplotype and diplotype interpretation needs
-phase, which is M10.1–M10.2's work; a genotype cross-product would be a different and
-wrong answer. `variants:` is a list so the shape survives, and the validator refuses what
-the engine cannot honour.
+Schema v1 remains readable for single-marker cards. Schema v2 supports **two to four
+biallelic, strand-unambiguous autosomal SNPs**. Declare `haplotypes` (names mapped to
+allele strings in marker order) and `diplotypes` (unordered named pairs mapped to outcomes)
+instead of `genotypes`. Every possible haplotype and diplotype must be represented;
+rarity is not a reason to omit one. The engine enumerates all pairs consistent with the
+unphased observations. Multiple pairs yield `phase_ambiguous`, visible candidates and
+no assigned diplotype/risk. Missing, conflicting or non-diploid calls remain unresolved.
+
+`health/apoe.yaml` is the complete example, including e3r. Multi-marker templates cannot
+use scalar `{genotype}`, `{rsid}`, `{rsid_current}`, `{chrom}`, `{pos}` or `{frequency}`.
+The detail record carries each locus's original/oriented observation, strand, call source,
+frequency and confidence. A resolved diplotype inherits the weakest marker's reliability;
+frequencies are never pooled across loci. This is small SNP-pattern interpretation, not
+PGx star-allele calling, structural-variant inference or statistical phasing (M8/M10).
+
+Physical-health interpretation outcomes require a nonempty, literal `risk_context`.
+Schema-2 scalar matches may declare `strand: forward_only`. HFE and F5 use it because
+their multiallelic sites make an unexpected base indistinguishable from a reverse-strand
+reading; only the declared forward alleles are interpreted. The default `infer` preserves
+existing single-marker cards' strand behavior. Multi-marker definitions currently require
+strand-unambiguous biallelic sites and do not accept this scalar policy field.
+Include source-specific absolute rates, baseline/comparator, time horizon, population and
+strata; explicitly state unprovided baselines and inapplicable estimates. This text is
+saved and shown on the face, in the detail view and in `runs show`, without converting
+relative effects or measurement PPV into a person's disease risk. `cohort` is the evidence
+tier for prospective population outcome studies; it receives the same source-strength
+weight as GWAS. See [common health cards](../docs/common_health.md).
 
 ## Computed cards (M6.2–M6.4)
 
@@ -190,7 +214,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 10; formats 1–9 remain readable.
+attached to a computed card. New runs use bundle format 11; formats 1–10 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD

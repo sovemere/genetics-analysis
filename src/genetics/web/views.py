@@ -451,6 +451,7 @@ printed on the page. Asserted not to collide with any :class:`ConfidenceTier` me
 """
 
 _STATUS_LABELS: Mapping[str, str] = {
+    "phase_ambiguous": "Phase unresolved",
     MatchStatus.MATCHED.value: "Interpreted",
     MatchStatus.COMPUTED.value: "Computed measurement",
     MatchStatus.NOT_RUN.value: "Computation not run",
@@ -476,6 +477,7 @@ _EVIDENCE_TIER_LABELS: Mapping[str, str] = {
     EvidenceTier.CLINICAL_GUIDELINE.value: "Clinical guideline",
     EvidenceTier.EXPERT_CURATED.value: "Expert curated",
     EvidenceTier.FUNCTIONAL.value: "Functional",
+    EvidenceTier.COHORT.value: "Prospective cohort",
     EvidenceTier.GWAS.value: "GWAS",
     EvidenceTier.CANDIDATE_GENE.value: "Candidate gene",
     EvidenceTier.ANECDOTAL.value: "Anecdotal",
@@ -931,6 +933,8 @@ class CardView(NoGenotypeRepr):
     """This card's own address, id encoded. Built once here rather than in each template --
     see :func:`run_path` for the hostile id that made that a correctness question."""
     computation: Mapping[str, Any] | None = None
+    multi_marker: Mapping[str, Any] | None = None
+    risk_context: str | None = None
 
     @property
     def is_interpreted(self) -> bool:
@@ -994,6 +998,8 @@ class CardView(NoGenotypeRepr):
         if self.frequencies or self.confidence_frequency is not None:
             return None
         if not self.is_interpreted or self.is_computed:
+            return None
+        if self.multi_marker is not None:
             return None
         return (
             "No population frequency was available for this variant, so the rarity check "
@@ -1060,6 +1066,11 @@ class CardView(NoGenotypeRepr):
         if effect.is_absolute:
             return None
         if effect.is_relative:
+            if self.risk_context is not None:
+                return (
+                    "Published cohort rates and their applicability are shown above; "
+                    "this ratio is not a personal probability."
+                )
             return (
                 "This is a relative measure. Turning it into an absolute risk needs the base "
                 "rate of the outcome — how common it is without this variant — which no card "
@@ -1131,6 +1142,8 @@ class CardView(NoGenotypeRepr):
             bundle_format_version=format_version,
             url=card_path(run_id, card.card_id),
             computation=card.computation,
+            multi_marker=card.multi_marker,
+            risk_context=card.risk_context,
         )
 
 

@@ -53,6 +53,7 @@ import string
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from enum import StrEnum
+from itertools import combinations_with_replacement, product
 from pathlib import Path
 from typing import Any, Final
 
@@ -65,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 1
+SCHEMA_VERSION: Final[int] = 2
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -106,6 +107,9 @@ class EvidenceTier(StrEnum):
     FUNCTIONAL = "functional"
     """The mechanism is established experimentally, not only statistically."""
 
+    COHORT = "cohort"
+    """A population cohort with prospectively ascertained clinical outcomes."""
+
     GWAS = "gwas"
     """Genome-wide significant in a properly powered association study."""
 
@@ -127,6 +131,7 @@ _TIER_ORDER: Final[tuple[EvidenceTier, ...]] = (
     EvidenceTier.CLINICAL_GUIDELINE,
     EvidenceTier.EXPERT_CURATED,
     EvidenceTier.FUNCTIONAL,
+    EvidenceTier.COHORT,
     EvidenceTier.GWAS,
     EvidenceTier.CANDIDATE_GENE,
     EvidenceTier.ANECDOTAL,
@@ -747,7 +752,9 @@ class CardVariant:
         return cls(rsid=rsid, key=VariantKey(chrom, pos, upper))
 
 
-_MATCH_KEYS: Final[frozenset[str]] = frozenset({"variants", "genotypes"})
+_MATCH_KEYS: Final[frozenset[str]] = frozenset(
+    {"variants", "genotypes", "haplotypes", "diplotypes", "strand"}
+)
 
 
 @dataclass(frozen=True)
@@ -762,11 +769,31 @@ class Match:
 
     variants: tuple[CardVariant, ...]
     genotypes: Mapping[str, str]
+    haplotypes: Mapping[str, str] = field(default_factory=dict)
+    diplotypes: Mapping[str, str] = field(default_factory=dict)
+    forward_only: bool = False
 
     @property
     def variant(self) -> CardVariant:
-        """The single variant. Valid because v1 refuses multi-variant cards."""
+        """The single variant; refuse accidental first-marker interpretation."""
+        if len(self.variants) != 1:
+            raise CardError("multi-marker matching has no single variant")
         return self.variants[0]
+
+    def compatible_pairs(self, genotypes: Sequence[str | None]) -> tuple[str, ...]:
+        """Every haplotype pair compatible with the complete unphased observation."""
+        if len(genotypes) != len(self.variants):
+            raise CardError("diplotype matching requires one observation per marker")
+        pairs = []
+        for pair in self.diplotypes:
+            left, right = pair.split("/")
+            sequences = (self.haplotypes[left], self.haplotypes[right])
+            if all(
+                "".join(sorted((sequences[0][i], sequences[1][i]))) == genotype
+                for i, genotype in enumerate(genotypes)
+            ):
+                pairs.append(pair)
+        return tuple(pairs)
 
     @classmethod
     def parse(cls, raw: Any, where: str) -> Match:
@@ -778,19 +805,16 @@ class Match:
             raise CardError(f"{where}.variants: expected a list")
         if not raw_variants:
             raise CardError(f"{where}.variants: a card must match at least one variant")
-        if len(raw_variants) > 1:
-            raise CardError(
-                f"{where}.variants: schema v{SCHEMA_VERSION} matches one variant per card, "
-                f"got {len(raw_variants)}. Multi-variant interpretation is haplotype and "
-                "diplotype calling, which is M10.1-M10.2's job and needs phase -- a "
-                "genotype cross-product would be a different, wrong answer. The field is a "
-                "list so the shape survives; the validator refuses what the engine cannot "
-                "honour."
-            )
-
         variants = tuple(
             CardVariant.parse(v, f"{where}.variants[{i}]") for i, v in enumerate(raw_variants)
         )
+        if len(variants) > 1:
+            return cls._multi(data, variants, where)
+        if "haplotypes" in data or "diplotypes" in data:
+            raise CardError(f"{where}: haplotypes/diplotypes require multiple variants")
+        strand = data.get("strand", "infer")
+        if not isinstance(strand, str) or strand not in {"infer", "forward_only"}:
+            raise CardError(f"{where}: strand must be infer or forward_only")
 
         raw_map = _mapping(_require(data, "genotypes", where), f"{where}.genotypes")
         expected = set(variants[0].genotypes)
@@ -819,7 +843,64 @@ class Match:
                 "If there is genuinely nothing to say, say that in an outcome."
             )
 
-        return cls(variants=variants, genotypes=seen)
+        return cls(variants=variants, genotypes=seen, forward_only=strand == "forward_only")
+
+    @classmethod
+    def _multi(
+        cls, data: Mapping[str, Any], variants: tuple[CardVariant, ...], where: str
+    ) -> Match:
+        """Enumerate phase possibilities, never infer phase from common haplotypes.
+
+        All possible haplotypes must be represented, including rare fourth alleles.
+        This supports small SNP diplotypes, not PGx star alleles or structural variation.
+        """
+        if "genotypes" in data:
+            raise CardError(
+                f"{where}: multi-marker cards need haplotypes/diplotypes, not genotypes"
+            )
+        if "strand" in data:
+            raise CardError(
+                f"{where}: per-card strand policy is supported for scalar matching only"
+            )
+        if not 2 <= len(variants) <= 4:
+            raise CardError(f"{where}: small SNP diplotypes support two to four markers")
+        if len({v.key.locus for v in variants}) != len(variants):
+            raise CardError(f"{where}: repeated marker position")
+        if len({v.key.chrom for v in variants}) != 1:
+            raise CardError(f"{where}: haplotypes must lie on one chromosome")
+        if any(set(v.key.alleles) in ({"A", "T"}, {"C", "G"}) for v in variants):
+            raise CardError(f"{where}: diplotypes require strand-unambiguous markers")
+        if any(not v.key.chrom.is_autosome for v in variants):
+            raise CardError(f"{where}: diploid SNP diplotypes require autosomal markers")
+        if any(len(v.key.alleles) != 2 for v in variants):
+            raise CardError(f"{where}: small SNP diplotypes require biallelic markers")
+        expected = {"".join(p) for p in product(*(v.key.alleles for v in variants))}
+        haplotypes: dict[str, str] = {}
+        for raw_name, raw_sequence in _mapping(_require(data, "haplotypes", where), where).items():
+            name = _outcome_name(raw_name, where)
+            if not _ID_RE.fullmatch(name) or name in haplotypes:
+                raise CardError(f"{where}: invalid or duplicate haplotype name")
+            if not isinstance(raw_sequence, str) or raw_sequence not in expected:
+                raise CardError(f"{where}: haplotype alleles must follow the declared marker order")
+            haplotypes[name] = raw_sequence
+        if set(haplotypes.values()) != expected or len(haplotypes) != len(expected):
+            raise CardError(
+                f"{where}: every possible haplotype needs one name, including rare ones"
+            )
+        expected_pairs = {
+            "/".join(pair) for pair in combinations_with_replacement(sorted(haplotypes), 2)
+        }
+        diplotypes: dict[str, str] = {}
+        for raw_pair, raw_outcome in _mapping(_require(data, "diplotypes", where), where).items():
+            if not isinstance(raw_pair, str):
+                raise CardError(f"{where}: diplotype keys must be named pairs")
+            pair = "/".join(sorted(raw_pair.split("/")))
+            if pair not in expected_pairs or pair in diplotypes:
+                raise CardError(f"{where}: invalid or duplicate diplotype pair")
+            diplotypes[pair] = _outcome_name(raw_outcome, where)
+        if set(diplotypes) != expected_pairs:
+            raise CardError(f"{where}: every diplotype needs an outcome")
+        return cls(variants, {}, haplotypes, diplotypes)
 
 
 # ---------------------------------------------------------------------------
@@ -836,7 +917,7 @@ class CardKind(StrEnum):
     do it."""
 
 
-_OUTCOME_KEYS: Final[frozenset[str]] = frozenset({"summary", "detail"})
+_OUTCOME_KEYS: Final[frozenset[str]] = frozenset({"summary", "detail", "risk_context"})
 
 
 @dataclass(frozen=True)
@@ -851,6 +932,7 @@ class Outcome:
 
     summary: str
     detail: str
+    risk_context: str | None = None
 
     @classmethod
     def parse(cls, raw: Any, where: str, available: frozenset[str] | None = None) -> Outcome:
@@ -860,7 +942,12 @@ class Outcome:
         detail = str(_require(data, "detail", where))
         _check_template(summary, f"{where}.summary", available)
         _check_template(detail, f"{where}.detail", available)
-        return cls(summary=summary, detail=detail)
+        risk = data.get("risk_context")
+        if risk is not None:
+            if not isinstance(risk, str) or not risk.strip():
+                raise CardError(f"{where}.risk_context: expected nonempty text")
+            _check_template(risk, f"{where}.risk_context", frozenset())
+        return cls(summary=summary, detail=detail, risk_context=risk)
 
 
 _FORBIDDEN_CARD_KEYS: Final[dict[str, str]] = {
@@ -917,7 +1004,7 @@ class Card:
 
     @property
     def variant_key(self) -> VariantKey | None:
-        return self.match.variant.key if self.match else None
+        return self.match.variant.key if self.match and len(self.match.variants) == 1 else None
 
     @classmethod
     def parse(cls, raw: Any, where: str) -> Card:
@@ -1108,6 +1195,9 @@ class Card:
         evidence = Evidence.parse(_require(data, "evidence", where), f"{where}.evidence")
 
         available = _available_vars(CardKind.INTERPRETATION, has_gene=gene is not None)
+        if len(match.variants) > 1:
+            # No scalar marker can honestly describe a multi-marker observation.
+            available -= {"genotype", "rsid", "rsid_current", "chrom", "pos", "frequency"}
         raw_outcomes = _mapping(_require(data, "outcomes", where), f"{where}.outcomes")
         outcomes: dict[str, Outcome] = {}
         for raw_name, body in raw_outcomes.items():
@@ -1123,8 +1213,10 @@ class Card:
                     "silently discarded."
                 )
             outcomes[name] = Outcome.parse(body, f"{where}.outcomes.{raw_name}", available)
+            if section is Section.PHYSICAL_HEALTH and outcomes[name].risk_context is None:
+                raise CardError(f"{where}: health outcomes require absolute-risk context")
 
-        referenced = set(match.genotypes.values())
+        referenced = set(match.genotypes.values()) | set(match.diplotypes.values())
         unknown = sorted(referenced - set(outcomes))
         if unknown:
             raise CardError(
@@ -1177,7 +1269,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if version != SCHEMA_VERSION:
+    if type(version) is not int or version not in {1, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1188,6 +1280,15 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
         raise CardError(f"{where}.cards: expected a list")
     if not entries:
         raise CardError(f"{where}.cards: file declares no cards")
+
+    if version == 1:
+        for entry in entries:
+            match = _mapping(entry, where).get("match")
+            variants = match.get("variants") if isinstance(match, Mapping) else None
+            if isinstance(variants, list) and len(variants) > 1:
+                raise CardError(f"{where}: multi-marker cards require schema_version 2")
+            if isinstance(match, Mapping) and "strand" in match:
+                raise CardError(f"{where}: explicit strand policy requires schema_version 2")
 
     return tuple(Card.parse(entry, f"{where}.cards[{i}]") for i, entry in enumerate(entries))
 

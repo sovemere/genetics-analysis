@@ -344,7 +344,7 @@ def test_a_monomorphic_variant_is_refused() -> None:
     assert "distinct" in str(caught.value)
 
 
-def test_multi_variant_cards_are_refused_with_a_pointer_to_m10() -> None:
+def test_multi_variant_genotype_cross_products_are_refused() -> None:
     """Declared shape, refused data -- the M2.1 precedent. A genotype cross-product is not
     haplotype calling, and pretending otherwise would give a different, wrong answer."""
     raw = _interpretation()
@@ -353,7 +353,7 @@ def test_multi_variant_cards_are_refused_with_a_pointer_to_m10() -> None:
     )
     with pytest.raises(CardError) as caught:
         Card.parse(raw, "t")
-    assert "M10" in str(caught.value)
+    assert "haplotypes/diplotypes" in str(caught.value)
 
 
 # ---------------------------------------------------------------------------

@@ -174,8 +174,28 @@ def observations(
         if card.kind is not CardKind.INTERPRETATION:
             continue
         assert card.match is not None
-        variant = card.match.variant.key
         match = by_id.get(card.id)
+        if len(card.match.variants) > 1:
+            marker_observations = []
+            for i, card_variant in enumerate(card.match.variants):
+                marker = match.markers[i] if match is not None else None
+                called = set(marker.genotype or "") if marker is not None else set()
+                records = (frequency_records or {}).get(
+                    (card_variant.key.chrom.value, card_variant.key.pos_grch37), []
+                )
+                frequencies = (
+                    select_frequencies(
+                        records, alleles=set(card_variant.key.alleles), called=called
+                    )
+                    if marker is not None and marker.status is MatchStatus.MATCHED
+                    else ()
+                )
+                marker_observations.append(ObservationEvidence(CallSource.DIRECT, frequencies))
+            result[card.id] = ObservationEvidence(
+                call_source=CallSource.DIRECT, markers=tuple(marker_observations)
+            )
+            continue
+        variant = card.match.variant.key
         if match is None or match.status is not MatchStatus.MATCHED:
             result[card.id] = _DIRECT
             continue
@@ -227,9 +247,10 @@ def analyse(
     frequency_index = default_index(progress=progress)
     loci = {(locus["chrom"], locus["pos_grch37"]) for locus in clinvar.loci}
     loci.update(
-        (c.match.variant.key.chrom.value, c.match.variant.key.pos_grch37)
+        (v.key.chrom.value, v.key.pos_grch37)
         for c in pack.cards
         if c.match is not None
+        for v in c.match.variants
     )
     frequency_records = frequency_index.lookup(loci) if frequency_index else {}
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)

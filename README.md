@@ -17,19 +17,23 @@ ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencie
 confidence and a separate ClinVar measurement-reliability screen. M7.3 presents scoped
 confirmation benchmarks on the card face and in CLI output, including pathogenic BRCA
 annotations. M7.4 surfaces all ACMG SF v3.3 gene-list overlaps with their reliability,
-reportability limits and gene-specific guidance. New runs use bundle format **10**;
-formats 1–9 remain readable without reinterpreting saved findings.
+reportability limits and gene-specific guidance. M7.5 adds cited APOE, HFE C282Y and
+Factor V Leiden cards with cohort absolute-risk context and explicit baseline gaps.
+APOE uses both defining SNPs and preserves the rare fourth haplotype and unresolved phase.
+New runs use bundle format **11**; formats 1–10 remain readable without reinterpreting saved findings.
 Imputation remains an upcoming milestone.
 
-**Next: M7.5, common-variant health cards with absolute-risk framing.**
+**Next: M7.6, quantitative array/ClinVar coverage honesty.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The reviewed M7.4 implementation passed 2,076 tests with five existing Windows skips,
-including native ROH and privacy checks.
+The M7.5 implementation passed **2,135 tests with five existing Windows skips**,
+including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
+reproduction and full dbSNP card lint passed; synthetic-only full-reference offline
+acceptance verified saved CLI/dashboard parity.
 The M7.4 implementation checkpoint is `4d537f0`, with
 [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37276996509).
 The [session review](docs/review_m7_session.md) records the follow-up fixes and handoff checks.
@@ -72,5 +76,6 @@ they are not confirmed clinical findings. Missing frequencies stay unknown. Publ
 PPV benchmarks retain their study scope and are never presented as individual posterior probabilities.
 
 See the [knowledge-pack guide](knowledge/README.md),
+[common health-card guide](docs/common_health.md),
 [reference-data guide](data/references/README.md), [ROH](docs/roh.md),
 [archaic estimation](docs/archaic.md) and [sex-chromosome reporting](docs/sex_chromosomes.md).

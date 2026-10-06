@@ -20,8 +20,9 @@ from typing import Any, ClassVar
 from genetics.engine.cards import Card, CardKind, KnowledgePack
 from genetics.engine.citations import Citation
 from genetics.engine.confidence import CallSource, ConfidenceResult, calculate_confidence
-from genetics.engine.matcher import MatchResult, MatchStatus, Strand, complement
+from genetics.engine.matcher import MatchResult, MatchStatus, Strand, complement, marker_card
 from genetics.engine.sections import Section
+from genetics.engine.serialization import marker_payload
 from genetics.privacy import NoGenotypeRepr
 
 
@@ -89,11 +90,25 @@ class ObservationEvidence:
     frequencies: tuple[PopulationFrequency, ...] = ()
     imputation_quality: float | None = None
     ancestry_match: float | None = None
+    markers: tuple[ObservationEvidence, ...] = ()
 
     def __post_init__(self) -> None:
         if not isinstance(self.call_source, CallSource):
             raise EvidenceAssemblyError(
                 "call_source must be CallSource.DIRECT or CallSource.IMPUTED"
+            )
+        try:
+            markers = tuple(self.markers)
+        except TypeError:
+            raise EvidenceAssemblyError(
+                "marker evidence must be an iterable of observations"
+            ) from None
+        if any(not isinstance(m, ObservationEvidence) or m.markers for m in markers):
+            raise EvidenceAssemblyError("marker evidence must contain scalar observations")
+        object.__setattr__(self, "markers", markers)
+        if markers and self.frequencies:
+            raise EvidenceAssemblyError(
+                "multi-marker frequencies must remain attached to each locus"
             )
         try:
             frequencies = tuple(self.frequencies)
@@ -164,6 +179,8 @@ class AssembledCard(NoGenotypeRepr):
     authored_caveats: tuple[str, ...]
     computed_caveats: tuple[str, ...]
     computation: Mapping[str, Any] | None = None
+    multi_marker: Mapping[str, Any] | None = None
+    risk_context: str | None = None
 
     @property
     def has_interpretation(self) -> bool:
@@ -186,7 +203,7 @@ def _template_values(
 
     assert card.match is not None
     assert card.evidence is not None
-    variant = card.match.variant
+    variant = card.match.variants[0]
     effect = card.evidence.effect
     from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
 
@@ -263,7 +280,7 @@ def _confidence_frequency(
                 f"frequency allele {item.allele!r} is not declared by card {card.id!r}; "
                 "using it would attach another variant's calibration"
             )
-    if match.status is not MatchStatus.MATCHED or not observation.frequencies:
+    if match.status is not MatchStatus.MATCHED:
         return None, ()
 
     genotype = match.genotype or match.observed_genotype
@@ -355,6 +372,8 @@ def assemble_card(
         )
 
     assert card.match is not None  # interpretation-card schema invariant
+    if len(card.match.variants) > 1:
+        return _assemble_multi(card, match, observation)
     if observation is None:
         raise EvidenceAssemblyError(
             f"interpretation card {card.id!r} requires ObservationEvidence; silently "
@@ -438,6 +457,69 @@ def assemble_card(
         citations=card.citations,
         authored_caveats=card.caveats,
         computed_caveats=computed_caveats,
+        risk_context=match.outcome.risk_context,
+    )
+
+
+def _assemble_multi(
+    card: Card, match: MatchResult, observation: ObservationEvidence | None
+) -> AssembledCard:
+    """Keep locus evidence separate and inherit the weakest marker's calibration."""
+    assert card.match is not None and card.evidence is not None
+    if observation is None or len(observation.markers) != len(card.match.variants):
+        raise EvidenceAssemblyError("multi-marker cards require evidence for every marker")
+    if len(match.markers) != len(card.match.variants):
+        raise EvidenceAssemblyError("multi-marker matches require every marker observation")
+    assembled = tuple(
+        assemble_card(marker_card(card, i), marker, observed)
+        for i, (marker, observed) in enumerate(zip(match.markers, observation.markers, strict=True))
+    )
+    payload = {
+        "schema_version": 1,
+        "phase": "unphased",
+        "haplotypes": dict(card.match.haplotypes),
+        "diplotypes": dict(card.match.diplotypes),
+        "markers": [marker_payload(item) for item in assembled],
+        "candidate_diplotypes": list(match.candidate_diplotypes),
+    }
+    confidence = None
+    if match.status is MatchStatus.MATCHED:
+        confidences = [a.confidence for a in assembled if a.confidence is not None]
+        if len(confidences) != len(assembled):
+            raise EvidenceAssemblyError(
+                "a resolved diplotype requires every marker to be calibrated"
+            )
+        confidence = max(confidences, key=lambda c: (c.tier.rank, -c.score))
+    summary = detail = match.reason
+    if confidence is not None and match.outcome is not None:
+        values = _template_values(card, match, confidence)
+        summary = render_template(match.outcome.summary, values)
+        detail = render_template(match.outcome.detail, values)
+    caveats = tuple(dict.fromkeys(note for a in assembled for note in a.computed_caveats))
+    if confidence is not None:
+        caveats += (
+            "Diplotype reliability uses the weakest marker; frequencies remain locus-specific.",
+        )
+    risk = match.outcome.risk_context if match.outcome is not None else None
+    return AssembledCard(
+        card_id=card.id,
+        section=card.section,
+        kind=card.kind,
+        title=card.title,
+        status=match.status,
+        summary=summary,
+        detail=detail,
+        card=card,
+        match=match,
+        observation=None,
+        confidence=confidence,
+        frequencies=(),
+        confidence_frequency=None,
+        citations=card.citations,
+        authored_caveats=card.caveats,
+        computed_caveats=caveats,
+        multi_marker=payload,
+        risk_context=risk,
     )
 
 

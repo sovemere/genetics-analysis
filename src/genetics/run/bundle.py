@@ -59,8 +59,9 @@ from genetics import __version__ as ENGINE_VERSION
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
 from genetics.engine.cards import Card, CardError, KnowledgePack, parse_method_evidence
 from genetics.engine.citations import Citation
-from genetics.engine.confidence import ConfidenceResult
-from genetics.engine.evidence import AssembledCard, PopulationFrequency
+from genetics.engine.evidence import AssembledCard
+from genetics.engine.serialization import confidence_payload as _confidence_payload
+from genetics.engine.serialization import frequency_payload as _frequency_payload
 from genetics.paths import UnsafeDataDirError, is_inside_repo, reference_lock, runs_dir, tools_dir
 from genetics.privacy import NoGenotypeRepr, assert_no_genotype
 from genetics.qc.report import QCReport
@@ -73,8 +74,12 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 10
+BUNDLE_FORMAT_VERSION: Final[int] = 11
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 11 (M7.5) adds outcome-specific absolute-risk context and multi-marker
+observations, phase candidates and locus-specific calibration. Formats 1-10 retain
+their recorded results. ClinVar schemas 1-4 are unchanged.
 
 Version 10 (M7.4) adds a saved ACMG SF v3.3 roster, guidance and gene-list overlaps
 in ClinVar schema 4. Versions 1-9 retain their original results without reannotation.
@@ -278,53 +283,6 @@ def _citation_payload(citation: Citation) -> dict[str, Any]:
     }
 
 
-def _frequency_payload(frequency: PopulationFrequency) -> dict[str, Any]:
-    return {
-        "allele": frequency.allele,
-        "frequency": frequency.frequency,
-        "population": frequency.population,
-        "source": frequency.source,
-    }
-
-
-def _confidence_payload(confidence: ConfidenceResult) -> dict[str, Any]:
-    """Tier, score and every numeric input that produced them.
-
-    The breakdown travels in full because M13.4 requires an agent to be able to explain
-    *why* a card is low confidence, and because a tier without its inputs is exactly the
-    unaccountable number AGENTS.md 6 forbids a card from authoring in the first place.
-    """
-    inputs = confidence.inputs
-    ppv = confidence.empirical_ppv
-    return {
-        "tier": confidence.tier.value,
-        "score": confidence.score,
-        "inputs": {
-            "evidence_tier": inputs.evidence_tier.value,
-            "evidence_score": inputs.evidence_score,
-            "effect_measure": inputs.effect_measure.value,
-            "effect_value": inputs.effect_value,
-            "effect_score": inputs.effect_score,
-            "replication": inputs.replication.value,
-            "replication_score": inputs.replication_score,
-            "population_allele_frequency": inputs.population_allele_frequency,
-            "frequency_score": inputs.frequency_score,
-            "call_source": inputs.call_source.value,
-            "imputation_quality": inputs.imputation_quality,
-            "imputation_score": inputs.imputation_score,
-            "ancestry_match": inputs.ancestry_match,
-            "ancestry_score": inputs.ancestry_score,
-        },
-        "empirical_ppv": None
-        if ppv is None
-        else {
-            "estimate": ppv.estimate,
-            "population_frequency_ceiling": ppv.population_frequency_ceiling,
-            "applies_to": ppv.applies_to,
-        },
-    }
-
-
 def _evidence_payload(card: Card) -> dict[str, Any] | None:
     """The published claim behind a card: what was measured, in whom, and how large.
 
@@ -371,7 +329,9 @@ def _evidence_payload(card: Card) -> dict[str, Any] | None:
 def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
     card = assembled.card
     match = assembled.match
-    variant = card.match.variant if card.match is not None else None
+    variant = (
+        card.match.variant if card.match is not None and len(card.match.variants) == 1 else None
+    )
     return {
         "card_id": assembled.card_id,
         "section": assembled.section.value,
@@ -426,6 +386,8 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "authored_caveats": list(assembled.authored_caveats),
         "computed_caveats": list(assembled.computed_caveats),
         "computation": assembled.computation,
+        "multi_marker": assembled.multi_marker,
+        "risk_context": assembled.risk_context,
     }
 
 
@@ -451,6 +413,8 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "authored_caveats",
         "computed_caveats",
         "computation",
+        "multi_marker",
+        "risk_context",
     }
 )
 
@@ -609,6 +573,8 @@ class StoredCard(NoGenotypeRepr):
     authored_caveats: tuple[str, ...]
     computed_caveats: tuple[str, ...]
     computation: Mapping[str, Any] | None = None
+    multi_marker: Mapping[str, Any] | None = None
+    risk_context: str | None = None
 
 
 @dataclass(frozen=True)
@@ -936,6 +902,22 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     variant = data.get("variant")
     observation = data.get("observation")
     computation = data.get("computation")
+    multi_marker = data.get("multi_marker")
+    if multi_marker is not None:
+        from genetics.engine.multimarker import validate_snapshot
+
+        try:
+            validate_snapshot(data)
+        except ValueError as exc:
+            raise BundleError(f"{where}: {exc}") from exc
+    risk_context = data.get("risk_context")
+    if risk_context is not None and (
+        not isinstance(risk_context, str)
+        or not risk_context.strip()
+        or data.get("kind") != "interpretation"
+        or data.get("status") != "matched"
+    ):
+        raise BundleError(f"{where}: invalid absolute-risk context")
     computation_map = None if computation is None else _mapping(computation, f"{where}.computation")
     if computation_map is not None:
         _reject_unknown(
@@ -1149,6 +1131,8 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         authored_caveats=tuple(str(c) for c in data.get("authored_caveats") or ()),
         computed_caveats=tuple(str(c) for c in data.get("computed_caveats") or ()),
         computation=computation_map,
+        multi_marker=None if multi_marker is None else _mapping(multi_marker, where),
+        risk_context=risk_context,
     )
 
 
@@ -1207,6 +1191,12 @@ def read_bundle(path: Path) -> RunBundle:
     entries = _require(cards_raw, "cards", CARDS_NAME)
     if not isinstance(entries, Sequence) or isinstance(entries, str):
         raise BundleError(f"{CARDS_NAME}.cards: expected a list")
+    if declared < 11 and any(
+        isinstance(e, Mapping)
+        and (e.get("multi_marker") is not None or e.get("risk_context") is not None)
+        for e in entries
+    ):
+        raise BundleError("multi-marker and absolute-risk records require bundle format 11")
 
     ancestry: Mapping[str, Any] | None = None
     clinvar: Mapping[str, Any] | None = None
