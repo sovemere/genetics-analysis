@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **14**; formats 1–13 remain readable without reinterpreting saved findings.
+New runs use bundle format **15**; formats 1–14 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -42,16 +42,22 @@ dosages/DR2 with explicit biological ploidy, source and missing-quality states. 
 jobs and observations are verified before reuse. See the [pipeline guide](docs/imputation_pipeline.md).
 **M8.4 makes imputation default-on in `genetics run`:** `--no-impute` is an explicit
 development/testing mode recorded in the run and every card. Format 14 preserves the
-execution summary, CLI/dashboard mode parity and historical unknown states. Current
-findings still use original array calls; [the mode guide](docs/imputation_mode.md) explains
-the boundary. **Next: M8.5, quality-aware imputed observation/scoring integration.**
+execution summary, CLI/dashboard mode parity and historical unknown states.
+**M8.5 propagates imputed dosage quality into card confidence:** absent/no-call
+biallelic SNVs can supply observations; direct calls remain original. Low DR2 lowers
+confidence, phase-filled unknown quality caps it at limited, and every finding remains
+visible. Native ploidy, per-ALT dosages/DR2 and source survive format-15 snapshots.
+See [quality propagation](docs/imputation_quality.md) and [the mode guide](docs/imputation_mode.md).
+**Next: M8.6, durable full dosages and exact used-panel/tool/parameter provenance.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M8.4 suite passed **2,417 tests with five existing Windows skips**,
+M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and
+native Beagle acceptance. The full local suite retains five existing Windows skips.
+The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one

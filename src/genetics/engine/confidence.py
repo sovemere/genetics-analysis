@@ -101,8 +101,8 @@ class ConfidenceBreakdown:
     never has to reverse-engineer what, for example, ``evidence_score=0.8`` meant.  A
     missing frequency or ancestry match remains ``None`` and receives the explicitly
     visible neutral score of 0.5; absence is never made to look like measured agreement.
-    ``call_source`` makes a direct call explicit, while an imputed call is invalid unless
-    it carries quality.
+    ``call_source`` makes a direct call explicit. Explicit unestimated imputed quality
+    stays None, receives a zero quality component and a limited confidence ceiling.
     """
 
     evidence_tier: EvidenceTier | None
@@ -259,6 +259,7 @@ def calculate_confidence(
     population_allele_frequency: float | None,
     call_source: CallSource,
     imputation_quality: float | None = None,
+    imputation_quality_unknown: bool = False,
     ancestry_match: float | None = None,
 ) -> ConfidenceResult:
     """Compute a finding's confidence without hiding low-confidence findings.
@@ -269,8 +270,9 @@ def calculate_confidence(
             frequency reference has no value. Rarity always lowers confidence.
         call_source: Whether the call was directly genotyped or imputed. Required so
             missing imputation metadata cannot masquerade as a perfect direct call.
-        imputation_quality: Per-variant r2/DR2 as a fraction. Required for imputed calls
-            and forbidden for direct calls.
+        imputation_quality: Per-variant r2/DR2 as a fraction; forbidden for direct calls.
+        imputation_quality_unknown: Explicit unestimated imputed quality. Raw quality
+            remains None; its contribution is zero and confidence cannot exceed limited.
         ancestry_match: Numeric study-to-sample match in [0, 1], or ``None`` until
             ancestry is available.
 
@@ -283,7 +285,12 @@ def calculate_confidence(
     ancestry = _finite_fraction(ancestry_match, "ancestry_match")
     if not isinstance(call_source, CallSource):
         raise ConfidenceError("call_source must be CallSource.DIRECT or CallSource.IMPUTED")
-    if call_source is CallSource.IMPUTED and imputation is None:
+    if type(imputation_quality_unknown) is not bool or (
+        imputation_quality_unknown
+        and (call_source is not CallSource.IMPUTED or imputation is not None)
+    ):
+        raise ConfidenceError("unknown imputation quality requires an imputed unestimated call")
+    if call_source is CallSource.IMPUTED and imputation is None and not imputation_quality_unknown:
         raise ConfidenceError("an imputed call requires imputation_quality")
     if call_source is CallSource.DIRECT and imputation is not None:
         raise ConfidenceError("a directly genotyped call cannot carry imputation_quality")
@@ -294,7 +301,7 @@ def calculate_confidence(
     effect_score = _effect_score(evidence.effect) if evidence is not None else 0.0
     replication_score = _REPLICATION_SCORES[evidence.replication] if evidence is not None else 0.0
     frequency_score = _frequency_score(frequency)
-    imputation_score = 1.0 if call_source is CallSource.DIRECT else imputation
+    imputation_score = 1.0 if call_source is CallSource.DIRECT else (imputation or 0.0)
     assert imputation_score is not None
     ancestry_score = 0.5 if ancestry is None else ancestry
 
@@ -340,6 +347,8 @@ def calculate_confidence(
         )
 
     tier = _score_tier(score)
+    if imputation_quality_unknown:
+        tier = _weaker_of(tier, ConfidenceTier.LIMITED)
     # A striking, common observation does not upgrade weak literature. These are claim-
     # evidence ceilings, parallel to the observation-reliability ceilings below.
     if (

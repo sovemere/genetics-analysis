@@ -45,7 +45,9 @@
       {%- endif %}</dd></div>
   </dl>
   {% if shell.banner.imputation_mode in ("enabled", "disabled") %}
-    <p class="muted">Card findings use the original array observations.
+    <p class="muted">{% if shell.banner.imputation_card_input == "original_array_with_imputed" %}
+      Card findings use original array calls plus imputed observations with recorded quality.
+      {% else %}Card findings use the original array observations.{% endif %}
       {% if shell.banner.imputation_mode == "disabled" %}
         Imputation was explicitly disabled for this run.
       {% else %}

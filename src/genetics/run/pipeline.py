@@ -5,9 +5,9 @@ full-panel stage unless the caller explicitly supplies no_impute=True. Failures 
 reported; there is no automatic direct-overlap fallback. Analysis writes private job
 caches, while save() publishes the immutable run bundle.
 
-Current card matching, ClinVar, coverage and genome-structure modules consume the
-original array observations. Imputed dosages remain separate on Analysis for M8.5's
-quality-aware integration. The requested execution mode is separate from call_source:
+Card matching uses original calls plus exact biallelic imputed SNVs for absent or
+no-call loci, retaining native dosage quality. ClinVar, coverage and genome-structure
+modules continue to consume the original array. Execution mode is separate from call_source:
 an enabled run does not make an original observed call an imputed observation.
 Missing allele frequencies remain unknown, and ancestry-to-study mapping remains M9.5.
 """
@@ -23,7 +23,12 @@ from typing import Any, ClassVar
 from genetics.ancestry.context import AncestryContext, AncestryStage, infer_ancestry
 from genetics.engine.cards import CardKind, KnowledgePack
 from genetics.engine.confidence import CallSource, ConfidenceTier
-from genetics.engine.evidence import AssembledCard, ObservationEvidence, assemble_pack
+from genetics.engine.evidence import (
+    AssembledCard,
+    ObservationEvidence,
+    PopulationFrequency,
+    assemble_pack,
+)
 from genetics.engine.matcher import (
     MatchResult,
     MatchStatus,
@@ -38,8 +43,12 @@ from genetics.health.frequencies import calibrate, default_index, select_frequen
 from genetics.health.secondary import default_reference, surface
 from genetics.imputation import ImputationResult, impute
 from genetics.imputation.context import ImputationContext
+from genetics.imputation.observations import card_input, mark_imputed
+from genetics.imputation.quality import ImputationEvidence
 from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestResult, SourceInfo, ingest
+from genetics.ingest.keys import LocusKey
+from genetics.ingest.schema import Chrom
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
@@ -48,15 +57,6 @@ from genetics.structure.interpretation import infer_roh_cards
 from genetics.structure.sex_chromosomes import infer_sex_chromosome_cards
 
 __all__ = ["Analysis", "analyse", "save"]
-
-
-_DIRECT = ObservationEvidence(call_source=CallSource.DIRECT)
-"""The frozen observation for unavailable references or unmatched cards.
-
-One instance rather than one per card: :class:`ObservationEvidence` is immutable, so a
-per-card copy of this fallback would differ only in identity. Cards with usable M7.2
-frequencies receive their own explicit observations.
-"""
 
 
 @dataclass(frozen=True)
@@ -129,6 +129,7 @@ def observations(
     pack: KnowledgePack,
     matches: tuple[MatchResult, ...] = (),
     frequency_records: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
+    imputed: dict[tuple[str, int], ImputationEvidence] | None = None,
 ) -> dict[str, ObservationEvidence]:
     """One observation per interpretation card. See this module's docstring for why.
 
@@ -139,6 +140,18 @@ def observations(
     which is the check that catches this function drifting out of step with the pack.
     """
     by_id = {match.card_id: match for match in matches}
+
+    def observed(
+        locus: tuple[str, int], frequencies: tuple[PopulationFrequency, ...]
+    ) -> ObservationEvidence:
+        detail = (imputed or {}).get(locus)
+        return ObservationEvidence(
+            call_source=CallSource.DIRECT if detail is None else CallSource.IMPUTED,
+            frequencies=frequencies,
+            imputation_quality=None if detail is None else detail.card_quality,
+            imputation=detail,
+        )
+
     result: dict[str, ObservationEvidence] = {}
     for card in pack.cards:
         if card.kind is not CardKind.INTERPRETATION:
@@ -160,23 +173,25 @@ def observations(
                     if marker is not None and marker.status is MatchStatus.MATCHED
                     else ()
                 )
-                marker_observations.append(ObservationEvidence(CallSource.DIRECT, frequencies))
+                marker_observations.append(
+                    observed(
+                        (card_variant.key.chrom.value, card_variant.key.pos_grch37), frequencies
+                    )
+                )
             result[card.id] = ObservationEvidence(
                 call_source=CallSource.DIRECT, markers=tuple(marker_observations)
             )
             continue
         variant = card.match.variant.key
         if match is None or match.status is not MatchStatus.MATCHED:
-            result[card.id] = _DIRECT
+            result[card.id] = observed((variant.chrom.value, variant.pos_grch37), ())
             continue
         called = set(match.genotype or match.observed_genotype or "")
         if match.strand is Strand.AMBIGUOUS:
             called.update(complement(match.observed_genotype or ""))
         records = (frequency_records or {}).get((variant.chrom.value, variant.pos_grch37), [])
         frequencies = select_frequencies(records, alleles=set(variant.alleles), called=called)
-        result[card.id] = ObservationEvidence(
-            call_source=CallSource.DIRECT, frequencies=frequencies
-        )
+        result[card.id] = observed((variant.chrom.value, variant.pos_grch37), frequencies)
     return result
 
 
@@ -188,7 +203,7 @@ def analyse(
     progress: Callable[[str], None] | None = None,
     no_impute: bool = False,
 ) -> Analysis:
-    """Parse, QC, infer ancestry, impute by default, then evaluate original-array cards.
+    """Parse, QC, infer ancestry, impute by default, then evaluate quality-aware cards.
 
     Writes no run bundle.
 
@@ -224,8 +239,36 @@ def analyse(
         imputation_result = impute(result.table, sex=result.qc.sex.inferred, progress=progress)
         if imputation_result.original is not result.table:
             raise ImputationError("Imputation returned observations for a different target.")
-        imputation_context = ImputationContext.enabled(imputation_result.summary())
-    matches = match_pack(pack, result.table)
+        imputation_context = ImputationContext.enabled(
+            imputation_result.summary(), quality_aware=True
+        )
+    matching_table, imputed = (
+        (result.table, {})
+        if imputation_result is None
+        else card_input(pack, imputation_result, sex=result.qc.sex.inferred)
+    )
+    matches = match_pack(
+        pack,
+        matching_table,
+        reference_forward_loci=frozenset(LocusKey(Chrom(c), p) for c, p in imputed),
+    )
+    updated = []
+    for card, match in zip(pack.cards, matches, strict=True):
+        if card.match is not None:
+            if match.markers:
+                match = replace(
+                    match,
+                    markers=tuple(
+                        mark_imputed(marker)
+                        if (variant.key.chrom.value, variant.key.pos_grch37) in imputed
+                        else marker
+                        for marker, variant in zip(match.markers, card.match.variants, strict=True)
+                    ),
+                )
+            elif (card.match.variant.key.chrom.value, card.match.variant.key.pos_grch37) in imputed:
+                match = mark_imputed(match)
+        updated.append(match)
+    matches = tuple(updated)
     clinvar = lookup_default(result.table, progress=progress)
     frequency_index = default_index(progress=progress)
     loci = {(locus["chrom"], locus["pos_grch37"]) for locus in clinvar.loci}
@@ -238,7 +281,7 @@ def analyse(
     frequency_records = frequency_index.lookup(loci) if frequency_index else {}
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
     clinvar = surface(clinvar, default_reference())
-    cards = assemble_pack(pack, matches, observations(pack, matches, frequency_records))
+    cards = assemble_pack(pack, matches, observations(pack, matches, frequency_records, imputed))
     cards = tuple(
         assemble_coverage_card(c.card, clinvar.coverage)
         if c.card.computation == "clinvar_coverage"

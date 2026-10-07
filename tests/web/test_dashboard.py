@@ -322,6 +322,7 @@ def test_every_fact_the_banner_collects_reaches_the_page() -> None:
         "imputation_status": ("computed", "computed"),
         "imputation_jobs": (17, "17 region jobs"),
         "imputation_records": (42424, "42424 dosage records"),
+        "imputation_card_input": ("original_array_with_imputed", "plus imputed observations"),
     }
     assert set(cases) == {f.name for f in fields(QCBanner)}, (
         "a QCBanner field has no expected rendering; decide how it appears on the page"
@@ -801,6 +802,7 @@ CONDITIONAL_FIELDS = {
     "computation": "test_computed_measurement_metadata_reaches_the_detail_template",
     "multi_marker": "test_multimarker_metadata_reaches_the_detail_template",
     "risk_context": "test_absolute_risk_context_reaches_face_and_detail",
+    "imputation": "test_imputation_metadata_reaches_face_and_detail",
 }
 
 
@@ -856,6 +858,27 @@ def test_absolute_risk_context_reaches_face_and_detail() -> None:
     assert "ABSOLUTE-RISK-MARKER" in _render_card(card, "_cardface.html")
     assert "ABSOLUTE-RISK-MARKER" in _render_card(card, "_carddetail.html")
     assert card.base_rate_note and "personal probability" in card.base_rate_note
+
+
+def test_imputation_metadata_reaches_face_and_detail() -> None:
+    card = replace(
+        _full_card(),
+        imputation={
+            "source": "imputed_no_call",
+            "quality_scope": "not_estimated",
+            "ploidy": 1,
+            "ref": "A",
+            "alt": ["G"],
+            "dosage": [0.7],
+            "dr2": None,
+        },
+        imputation_quality=None,
+    )
+    detail = _render_card(card, "_carddetail.html")
+    face = _render_card(card, "_cardface.html")
+    assert "imputed_no_call" in detail and "not_estimated" in detail
+    assert "0.7" in detail and "unknown" in detail and "REF / ALT" in detail
+    assert "Native ploidy" in detail and "quality unknown" in face
 
 
 def test_computed_measurement_metadata_reaches_the_detail_template() -> None:

@@ -19,21 +19,20 @@ is one document and contains the execution record.
 
 ## What findings consume
 
-M8.4 runs imputation and retains its private dosages/quality, but current knowledge
-cards, ClinVar lookup, array coverage, ROH, archaic and sex-chromosome modules continue
-to consume the original array table. The dashboard and CLI state that basis. Execution
-mode is not observation source: enabling imputation does not turn a measured call into
-an imputed observation or improve its reliability. Original missing calls stay missing
-in these findings. Imputed-card/scoring integration belongs to M8.5, including unknown
-quality for phase-filled no-calls, per-ALT DR2 and native haploid model scope.
+M8.4 snapshots use original array observations. M8.5 introduces quality-aware card
+matching for absent/no-call biallelic SNVs, with original direct calls preserved.
+ClinVar lookup, array coverage, ROH, archaic and sex-chromosome modules continue to
+consume the original array table. Execution mode is separate from observation source.
+See [quality propagation](imputation_quality.md) for the per-ALT/native-ploidy contract
+and explicit unknown-quality confidence ceiling.
 
 The library keeps the complete `ImputationResult` on `Analysis.imputation_result` for
-that next step. Explicit opt-out sets it to `None`. The independent `genetics impute`
+quality-aware matching and future scoring. Explicit opt-out sets it to `None`. The independent `genetics impute`
 command uses the same stage and remains available for direct inspection.
 
 ## Saved execution contract
 
-Bundle **format 14** adds the private `imputation.run.json` payload (schema 1), containing
+Bundle **format 14** added the private `imputation.run.json` payload (schema 1), containing
 requested mode, execution status, original-array card-input basis and a validated stage
 summary. Every card records its run's `enabled` or `disabled` mode separately from
 `observation.call_source`. Reader/writer checks require agreement with the run, including
@@ -48,8 +47,11 @@ they do not invent an opt-out or a successful stage. Formats **1–13** preserve
 saved meanings and expose null execution/mode as “not recorded.” Saved reads use only
 the bundle, even after its cache or current references disappear.
 
+Format **15** adds native dosage evidence and schema 2's `original_array_with_imputed`
+card-input basis for enabled quality-aware execution. Format-14/schema-1 snapshots
+retain their original-array meaning. Disabled and unrecorded execution retain schema 1.
 The CLI `runs show --json`, human summary, dashboard banner, card face and detail read
-the same saved record. The mode and original-array basis are visible before opening a
+the same saved record. The mode and recorded observation basis are visible before opening a
 card. No topic confirmation gate is added.
 
 This payload records execution mode/outcome. Full used-panel/tool/parameter provenance

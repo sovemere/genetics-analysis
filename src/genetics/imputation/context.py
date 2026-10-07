@@ -122,8 +122,11 @@ class ImputationContext(NoGenotypeRepr):
     mode: str
     status: str
     summary: Mapping[str, Any] | None = None
+    quality_aware: bool = False
 
     def __post_init__(self) -> None:
+        if type(self.quality_aware) is not bool or (self.quality_aware and self.mode != "enabled"):
+            raise ImputationError("Quality-aware card input requires enabled imputation.")
         if (
             not isinstance(self.mode, str)
             or not isinstance(self.status, str)
@@ -158,15 +161,19 @@ class ImputationContext(NoGenotypeRepr):
         return cls("not_recorded", "not_recorded")
 
     @classmethod
-    def enabled(cls, summary: Mapping[str, Any]) -> ImputationContext:
-        return cls("enabled", summary["status"], summary)
+    def enabled(
+        cls, summary: Mapping[str, Any], *, quality_aware: bool = False
+    ) -> ImputationContext:
+        return cls("enabled", summary["status"], summary, quality_aware)
 
     def to_dict(self) -> dict[str, Any]:
         result = {
-            "schema_version": 1,
+            "schema_version": 2 if self.quality_aware else 1,
             "mode": self.mode,
             "status": self.status,
-            "card_input": "not_recorded" if self.mode == "not_recorded" else "original_array",
+            "card_input": "original_array_with_imputed"
+            if self.quality_aware
+            else ("not_recorded" if self.mode == "not_recorded" else "original_array"),
             "summary": None if self.summary is None else dict(self.summary),
         }
         # Deep copy: nested mutable region reports must not alias a saved snapshot.
@@ -180,10 +187,10 @@ class ImputationContext(NoGenotypeRepr):
         if (
             set(raw) != {"schema_version", "mode", "status", "card_input", "summary"}
             or type(raw["schema_version"]) is not int
-            or raw["schema_version"] != 1
+            or raw["schema_version"] not in {1, 2}
         ):
             raise ImputationError("Imputation execution record has invalid schema.")
-        result = cls(raw["mode"], raw["status"], raw["summary"])
+        result = cls(raw["mode"], raw["status"], raw["summary"], raw["schema_version"] == 2)
         if result.to_dict() != dict(raw):
             raise ImputationError("Imputation execution record has inconsistent card inputs.")
         return result

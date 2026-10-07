@@ -23,6 +23,7 @@ from genetics.engine.confidence import CallSource, ConfidenceResult, calculate_c
 from genetics.engine.matcher import MatchResult, MatchStatus, Strand, complement, marker_card
 from genetics.engine.sections import Section
 from genetics.engine.serialization import marker_payload
+from genetics.imputation.quality import ImputationEvidence
 from genetics.privacy import NoGenotypeRepr
 
 
@@ -83,7 +84,8 @@ class ObservationEvidence:
     genotype, assembly deterministically uses the rarest observed allele, so a common
     reference frequency cannot conceal a rare heterozygous call and an unobserved rare
     alternate cannot weaken a common homozygous call. ``call_source`` is mandatory;
-    imputed observations require quality and direct observations forbid it.
+    imputed observations require numeric quality or explicit native unestimated
+    imputation detail. Direct observations forbid imputation quality/detail.
     """
 
     call_source: CallSource
@@ -91,6 +93,7 @@ class ObservationEvidence:
     imputation_quality: float | None = None
     ancestry_match: float | None = None
     markers: tuple[ObservationEvidence, ...] = ()
+    imputation: ImputationEvidence | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.call_source, CallSource):
@@ -143,7 +146,18 @@ class ObservationEvidence:
                     f"{name} must be finite and between 0 and 1; got {value!r}"
                 )
             object.__setattr__(self, name, numeric)
-        if self.call_source is CallSource.IMPUTED and self.imputation_quality is None:
+        if self.imputation is not None and (
+            not isinstance(self.imputation, ImputationEvidence)
+            or self.call_source is not CallSource.IMPUTED
+            or self.markers
+            or self.imputation_quality != self.imputation.card_quality
+        ):
+            raise EvidenceAssemblyError("imputation detail and observation quality disagree")
+        if (
+            self.call_source is CallSource.IMPUTED
+            and self.imputation_quality is None
+            and self.imputation is None
+        ):
             raise EvidenceAssemblyError("an imputed observation requires imputation_quality")
         if self.call_source is CallSource.DIRECT and self.imputation_quality is not None:
             raise EvidenceAssemblyError(
@@ -435,10 +449,23 @@ def assemble_card(
         ),
         call_source=observed.call_source,
         imputation_quality=observed.imputation_quality,
+        imputation_quality_unknown=observed.call_source is CallSource.IMPUTED
+        and observed.imputation_quality is None,
         ancestry_match=observed.ancestry_match,
     )
     template_values = _template_values(card, match, confidence, confidence_frequency)
     computed_caveats = match.caveats
+    if observed.call_source is CallSource.IMPUTED:
+        computed_caveats += (
+            "Imputed observation; dosage quality is "
+            + (
+                "unknown, so confidence is capped at limited."
+                if observed.imputation_quality is None
+                else f"DR2 {observed.imputation_quality:g}; low quality lowers confidence "
+                "without hiding the finding."
+            ),
+            "DR2 is reference-model dosage quality, not this person's genotype probability.",
+        )
     if card.evidence is None:
         computed_caveats += (
             "No applicable phenotype effect is estimated for this outcome; confidence is "
