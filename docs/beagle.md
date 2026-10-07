@@ -1,10 +1,10 @@
 # Beagle subprocess jobs (M8.1)
 
 M8.1 implements the Beagle wrapper, Java/readiness checks and verified job reuse.
-`genetics run` still does not perform imputation: full-panel preparation belongs to
-M8.2, pipeline integration to M8.3, quality propagation to M8.5 and bundle provenance
-to M8.6. Existing bundles retain format 13; the new private job checkpoints use their
-own schema 1.
+`genetics impute` now performs shared-stage phasing/imputation in M8.3; see the
+[pipeline guide](imputation_pipeline.md). `genetics run` integration and its recorded
+escape hatch remain M8.4, quality propagation M8.5 and bundle provenance M8.6.
+Existing bundles retain format 13; private job checkpoints use their own schema 1.
 
 ## Installation and execution
 
@@ -39,6 +39,11 @@ memory and threads; the fixed thread default makes results reproducible across h
 CPU counts. Beagle's accuracy-related algorithm defaults are retained. No run timeout
 is imposed unless requested. JVM option-injection environment variables are removed
 so inherited settings cannot override the recorded heap or load unrecorded JVM agents.
+
+`target_ploidy=2` is the wrapper's default output contract. A native haploid job uses
+`target_ploidy=1` and a target VCF containing single-index GTs; the wrapper verifies the
+same copy count during publication and reuse. M8.3 selects this contract per X region.
+The option validates representation; Beagle infers ploidy from the target VCF itself.
 
 `BeagleOptions(impute=False)` explicitly suppresses untyped reference markers; it
 does not prevent Beagle from filling sporadic missing calls during phasing. This is
@@ -80,9 +85,9 @@ overwritten. Checkpoints, fingerprints, VCFs and logs are genotype-derived priva
 outputs and must never be committed or pasted into remote prompts.
 
 Windows process-tree termination falls back to direct termination/reaping if the
-`taskkill` command is unavailable or times out. M8.3 must additionally validate eligible
-typed-marker retention, dosage/DR2 fields and biological ploidy; structural VCF validation
-alone does not establish those scientific contracts.
+`taskkill` command is unavailable or times out. The M8.3 stage additionally validates
+eligible typed-marker retention, dosage/DR2 fields and biological ploidy; structural
+VCF validation alone does not establish those scientific contracts.
 
 ## Verification
 

@@ -160,6 +160,7 @@ class BeagleOptions:
     seed: int = -99999
     impute: bool = True
     chrom: str | None = None
+    target_ploidy: int = 2
 
     def __post_init__(self) -> None:
         if type(self.memory_mb) is not int or self.memory_mb < 512:
@@ -170,6 +171,8 @@ class BeagleOptions:
             raise BeagleError("seed must be a signed 64-bit integer.")
         if type(self.impute) is not bool:
             raise BeagleError("impute must be a boolean.")
+        if type(self.target_ploidy) is not int or self.target_ploidy not in (1, 2):
+            raise BeagleError("target_ploidy must be one or two copies for this job.")
         if self.chrom is not None and (
             not isinstance(self.chrom, str)
             or not re.fullmatch(r"[A-Za-z0-9_]+(?::[0-9]*-[0-9]*)?", self.chrom)
@@ -276,7 +279,11 @@ def _target_samples(path: Path) -> tuple[str, ...]:
 
 
 def _validate_vcf(
-    path: Path, *, expected_samples: tuple[str, ...], chrom: str | None = None
+    path: Path,
+    *,
+    expected_samples: tuple[str, ...],
+    chrom: str | None = None,
+    target_ploidy: int = 2,
 ) -> None:
     """Stream all BGZF/gzip bytes to verify CRCs and a complete phased GT table."""
     try:
@@ -317,7 +324,8 @@ def _validate_vcf(
                 allele_count = len(fields[4].split(",")) + 1
                 for call in fields[9:]:
                     genotype = call.split(":")[gt_index]
-                    if not re.fullmatch(r"[0-9]+\|[0-9]+", genotype) or any(
+                    pattern = r"[0-9]+" if target_ploidy == 1 else r"[0-9]+\|[0-9]+"
+                    if not re.fullmatch(pattern, genotype) or any(
                         int(a) >= allele_count for a in genotype.split("|")
                     ):
                         raise ValueError
@@ -495,7 +503,12 @@ class Beagle:
             started = time.monotonic()
             self._execute(args, attempt / "console.log", emit, timeout, progress_interval)
             vcf, log = attempt / "result.vcf.gz", attempt / "result.log"
-            _validate_vcf(vcf, expected_samples=expected_samples, chrom=options.chrom)
+            _validate_vcf(
+                vcf,
+                expected_samples=expected_samples,
+                chrom=options.chrom,
+                target_ploidy=options.target_ploidy,
+            )
             if not log.is_file() or not log.stat().st_size:
                 raise BeagleRunError("Beagle did not produce its completion log.")
             # Changing inputs during a job cannot produce a reusable completed checkpoint.
@@ -567,6 +580,7 @@ class Beagle:
                 complete / "result.vcf.gz",
                 expected_samples=expected_samples,
                 chrom=contract["options"]["chrom"],
+                target_ploidy=contract["options"]["target_ploidy"],
             )
             return BeagleResult(
                 complete / "result.vcf.gz", complete / "result.log", checkpoint, True, saved

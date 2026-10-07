@@ -2435,10 +2435,30 @@ default-on.*
         partial recovery, corruption/metadata forgery, source/tool contracts and native
         Beagle consumption. Strict type matrix, ruff/format, fixtures and full card lint
         pass. No personal export. See [reference preparation](docs/imputation_reference.md).
-- [ ] **M8.3** Phasing then imputation pipeline; write dosages plus per-variant quality
+- [x] **M8.3** Phasing then imputation pipeline; write dosages plus per-variant quality
       (r²/DR²).
+      - **Completed 2026-10-07.** Shared `imputation.impute` and `genetics impute` decode
+        complete source-bound bref3 markers, harmonize targets, then phase and impute
+        against the full panel with matching maps. Exact eligible typed-call retention,
+        sample/region/allele identity and finite per-ALT DS/DR2 are required. X PAR and
+        non-PAR jobs use QC ploidy and native haploid targets/dosage/DR2; wrong-copy-count
+        output is refused. Printed dosage sums permit the pinned writer's rounding.
+        Direct, phase-filled no-call and
+        untyped-imputed sources stay separate; phase-filled quality remains unknown and
+        low DR2 is preserved. Atomic private outputs, kernel locks and regenerated
+        observation checks support verified reuse; no partial-window splicing.
+        **2,369 passed, five existing Windows skips**; 77 new cases, including native
+        male/female synthetic targets with 800 records each over autosomal/PAR/non-PAR
+        jobs, unchanged full panels and completed reuse. Four-way typing, lint/format,
+        fixtures and full card lint pass. All installed panels/maps validate read-only.
+        No personal export. Application default-on orchestration/escape hatch remain M8.4;
+        quality propagation and bundle provenance remain M8.5/M8.6. Format 13 unchanged.
+        See [the stage guide](docs/imputation_pipeline.md).
 - [ ] **M8.4** `--no-impute` escape hatch for dev/testing. Never the default, never
       silent — the run bundle and every affected card record which mode was used.
+      - Integrate the M8.3 shared stage into default-on `analyse`/`genetics run` here.
+        The independent `genetics impute` command already writes private observations;
+        preserve original direct calls and its explicit no-call/haploid quality limits.
 - [ ] **M8.5** Carry imputation quality through to scoring so poorly imputed variants
       degrade confidence rather than silently entering sums.
 - [ ] **M8.6** Record panel version, tool version and parameters in the run bundle.
@@ -2652,6 +2672,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-07 | M8.3 | Shared full-panel phasing then imputation and `genetics impute`, with exact eligible typed retention, source-separated per-ALT dosages/DR2, X PAR/ploidy handling and explicit phase-filled unknown quality. Atomic private completion, stable jobs and regenerated semantic reuse checks. **2,369 tests passed, five existing Windows skips**, native tools enabled; 77 new cases, including male/female synthetic native targets producing 800 records each, full panel preservation and completed reuse. Strict four-way types, lint/format, fixtures and full card lint pass. Read-only default validation passes all 23 installed panels and 25 maps. No personal export. Next M8.4 integrates default-on application orchestration; existing bundle format 13 and analysis behavior remain pending that step. [Guide](docs/imputation_pipeline.md). |
 | 2026-10-07 | M7.6–M8.2 session diff review | Reviewed `5f2c75d..f0c756d`. Fixed Beagle output target-sample/region validation on publication/reuse, Windows cleanup fallback, reference kind/transform/input-set/producer validation, lost-catalog recovery without the original Java/tools, reordered contig build metadata, and Java-executable drift before completion. Prepared public panels/maps pass stricter source/catalog/companion checks without reconversion. **2,292 tests passed, five existing Windows skips**, native tools enabled; 15 new regressions, strict four-way mypy, ruff/format, fixtures and full 51-card/268-render/35-marker lint pass. M7.6 count/snapshot/CLI/dashboard contract has no additional identified defect. M8.3 handoff now requires typed-marker retention, dosage/DR2 and biological-ploidy checks beyond valid VCF/sample identity. No personal export. [Review](docs/review_m8_session.md). |
 | 2026-10-07 | M8.2 | Implemented full chromosome bref3 preparation with separately pinned converter/decoder, Java 11+ checks, exact decoded marker/allele/GT comparison, atomic completion, source/tool/runtime provenance and crash-safe kernel locks. Current manifest/lock contracts support reference consumers without raw VCF reads. Prepared all 23 supported 1000 Genomes chromosomes: **84,739,838 records over 2,504 samples each; 8,312,115,275 bref3 bytes**, no array/LD/MAF/sample filtering. X haploid storage doubling is explicit; M8.3 owns PAR/ploidy handling. Y is fetched but not prepared because its reference has missing haploid calls and no supplied map; MT absent. Fetched and verified every **25-map / 3,395,051-row GRCh37 HapMap map**, with source license and SHA pinned, actual-file counter checks and no rate fallback. **2,277 tests passed, five existing Windows skips**, native ROH/Beagle/converter/decoder enabled; strict four-way typing, ruff/format, fixtures and full card lint pass. Fifty-one new synthetic cases, including native Beagle consumption and interruption recovery. Public full-release preparation uses no consumer export. Bundle format 13 and application imputation behavior remain unchanged; next M8.3. [Guide](docs/imputation_reference.md). |
 | 2026-10-07 | M8.1 | Added the pinned Beagle subprocess wrapper, shared doctor readiness, configurable heap/threads/seed/mode, required genetic map, safe stage/window/heartbeat progress and private diagnostics. Schema-1 checkpoints bind full input/tool/runtime identity and validated output; atomic directory publication prevents partial results becoming complete. Kernel locks release after process death; interrupted jobs restart and completed chromosome jobs are verified/reused. Added privacy ignores with a knowledge-allowlist regression. **2,226 passed, five existing Windows skips**, native ROH and Beagle enabled; strict Windows/Linux × Python 3.11/3.13 type matrix, ruff/format, fixtures and full 51-card/268-render/35-marker dbSNP lint pass. Thirty-eight new synthetic cases; native pinned jar on Java 8 phases/imputes one generated target against twenty generated reference samples, retains DR2/dosages, checks phase-only mode and reuses completion. CI installs Java 17 and the pinned jar on both OSes. No personal export or real reference individual. App imputation remains upcoming; next M8.2. [Guide](docs/beagle.md). |

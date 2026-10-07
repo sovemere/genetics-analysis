@@ -546,3 +546,16 @@ def test_native_pinned_beagle_phases_imputes_and_reuses_complete_job(
         phase_rows = [line for line in handle if not line.startswith("#")]
     assert len(phase_rows) == 100
     assert phase.provenance["contract"]["options"]["impute"] is False
+
+
+@pytest.mark.parametrize("value", [0, 3, True, None])
+def test_job_target_ploidy_requires_supported_copy_count(value: Any) -> None:
+    with pytest.raises(BeagleError, match="target_ploidy"):
+        BeagleOptions(target_ploidy=value)
+
+
+def test_wrong_copy_count_cannot_complete_a_haploid_job(
+    runner: Beagle, inputs: BeagleInputs, tmp_path: Path
+) -> None:
+    with pytest.raises(BeagleRunError, match="damaged, unphased"):
+        runner.run(**inputs, out=tmp_path / "haploid-job", options=BeagleOptions(target_ploidy=1))
