@@ -48,6 +48,9 @@ from genetics.refs.postprocess import (
     _write_provenance,
     validate_provenance,
 )
+from genetics.refs.postprocess import (
+    get as process_step,
+)
 
 AUTOSOMES = tuple(str(n) for n in range(1, 23))
 SUPPORTED = (*AUTOSOMES, "X")
@@ -113,9 +116,23 @@ def _vcf_stream(
                 rb"GRCh38|hg38", line, flags=re.IGNORECASE
             ):
                 raise ProcessError("Reference VCF declares a build other than GRCh37")
-            contig = re.match(rb"##contig=<ID=" + chrom.encode() + rb",length=([0-9]+)", line)
-            if contig and int(contig[1]) != GRCH37_LENGTHS[Chrom(chrom)]:
-                raise ProcessError("Reference VCF contig length contradicts GRCh37")
+            if line.startswith(b"##contig=<"):
+                attributes = {
+                    m[1].strip(): m[2].strip().strip(b'"')
+                    for m in re.finditer(
+                        rb'(?:^|,)\s*([^=,]+)=("(?:\\.|[^"\\])*"|[^,]*)', line[10:-1]
+                    )
+                }
+                if attributes.get(b"ID") == chrom.encode():
+                    if re.search(rb"GRCh38|hg38", attributes.get(b"assembly", b""), re.IGNORECASE):
+                        raise ProcessError(
+                            "Reference VCF contig declares a build other than GRCh37"
+                        )
+                    if (
+                        b"length" in attributes
+                        and int(attributes[b"length"]) != GRCH37_LENGTHS[Chrom(chrom)]
+                    ):
+                        raise ProcessError("Reference VCF contig length contradicts GRCh37")
             if consume:
                 consume(line + b"\n")
             continue
@@ -476,6 +493,26 @@ def _map_stats(path: Path, chrom: str, size: int, modified: int) -> tuple[int, i
         return _map_stream(stream, chrom)
 
 
+def _producer_valid(identity: Mapping[str, Any]) -> bool:
+    manifest = tools.load()
+    for name in ("bref3", "unbref3"):
+        pinned = manifest.get(name)
+        build = pinned.build_for("any")
+        if build is None or identity["tools"][name] != {
+            "version": pinned.version,
+            "sha256": build.sha256,
+        }:
+            return False
+    java = identity["tools"]["java"]
+    version = java["version"]
+    if not isinstance(version, str) or re.fullmatch(r'(?:1\.)?\d+[^"\r\n]*', version) is None:
+        return False
+    match = re.match(r"(?:1\.)?(\d+)", version)
+    assert match is not None
+    major = int(match[1])
+    return major >= 11 and re.fullmatch(r"[0-9a-f]{64}", java["executable_sha256"]) is not None
+
+
 def validate_catalog(output: Path, *, expected: Mapping[str, Any] | None = None) -> dict[str, Any]:
     """Verify all companions, not just a valid-looking JSON catalog."""
     try:
@@ -511,6 +548,19 @@ def validate_catalog(output: Path, *, expected: Mapping[str, Any] | None = None)
             ):
                 raise ValueError
         provenance = validate_provenance(output, expected=expected)
+        step = "convert_to_bref3" if raw["kind"] == "bref3_panel" else "prepare_genetic_maps"
+        if (
+            provenance["step"] != step
+            or type(provenance["transform_version"]) is not int
+            or provenance["transform_version"] != process_step(step).transform_version
+        ):
+            raise ValueError
+        if raw["kind"] == "bref3_panel" and (
+            not isinstance(provenance["inputs"], list)
+            or provenance["input"]["sha256"]
+            != hashlib.sha256(_canonical_bytes(provenance["inputs"])).hexdigest()
+        ):
+            raise ValueError
         scopes: set[str] = set()
         referenced: set[str] = set()
         for entry in raw["entries"]:
@@ -558,28 +608,19 @@ def validate_catalog(output: Path, *, expected: Mapping[str, Any] | None = None)
                     checkpoint["round_trip_verified"] is not True
                     or checkpoint["summary"] != stats
                     or identity["schema_version"] != 1
+                    or type(identity["schema_version"]) is not int
                     or identity["policy"] != POLICY
                     or identity["source_version"] != provenance["source_version"]
                     or identity["source_id"] != provenance["source_id"]
                     or identity["source"] not in provenance["inputs"]
                     or identity["source"]["chromosome"] != entry["chromosome"]
                     or identity["memory_mb"] != provenance["params"].get("memory_mb", 8192)
+                    or type(identity["memory_mb"]) is not int
                     or checkpoint["panel_sha256"]
                     != next(f["sha256"] for f in raw["files"] if f["path"] == entry["path"])
                 ):
                     raise ValueError
-                for tool_id in ("bref3", "unbref3"):
-                    pinned = tools.load().get(tool_id)
-                    build = pinned.build_for("any")
-                    if build is None or identity["tools"][tool_id] != {
-                        "version": pinned.version,
-                        "sha256": build.sha256,
-                    }:
-                        raise ValueError
-                java = identity["tools"]["java"]
-                if not isinstance(java["version"], str) or not re.fullmatch(
-                    r"[0-9a-f]{64}", java["executable_sha256"]
-                ):
+                if not _producer_valid(identity):
                     raise ValueError
             elif (
                 entry["path"] != f"plink.chr{entry['chromosome']}.GRCh37.map"
@@ -677,7 +718,7 @@ def _prepare_panel(
             output_name,
             detail="full bref3 panels not built yet",
         )
-    converter = BrefTools.discover()
+    converter: BrefTools | None = None
     output.parent.mkdir(parents=True, exist_ok=True)
     entries = []
     files = []
@@ -691,7 +732,6 @@ def _prepare_panel(
             "source": item,
             "source_version": source.version,
             "source_id": source.id,
-            "tools": converter.identities,
             "memory_mb": memory,
             "policy": POLICY,
         }
@@ -708,7 +748,11 @@ def _prepare_panel(
                     )
                     panel = completed / "panel.bref3"
                     if (
-                        _canonical_bytes(saved["identity"]) != _canonical_bytes(identity)
+                        _canonical_bytes(
+                            {k: v for k, v in saved["identity"].items() if k != "tools"}
+                        )
+                        != _canonical_bytes(identity)
+                        or not _producer_valid(saved["identity"])
                         or saved["round_trip_verified"] is not True
                         or _sha256(panel) != saved["panel_sha256"]
                     ):
@@ -720,6 +764,9 @@ def _prepare_panel(
                         "remove only that chromosome workspace to rebuild"
                     ) from None
             else:
+                if converter is None:
+                    converter = BrefTools.discover()
+                identity["tools"] = converter.identities
                 work = root / f"attempt-{uuid.uuid4().hex}"
                 work.mkdir()
                 panel = work / "panel.bref3"
@@ -743,8 +790,12 @@ def _prepare_panel(
                     _sha256(_inside(source_dir, item["filename"], label="input")) != item["sha256"]
                     or _sha256(converter.converter) != converter.identities["bref3"]["sha256"]
                     or _sha256(converter.decoder) != converter.identities["unbref3"]["sha256"]
+                    or _sha256(converter.java.path)
+                    != converter.identities["java"]["executable_sha256"]
                 ):
-                    raise ProcessError("Reference source or tool changed during preparation")
+                    raise ProcessError(
+                        "Reference source, tool or runtime changed during preparation"
+                    )
                 _write_json(
                     work / "checkpoint.bref3.json",
                     {

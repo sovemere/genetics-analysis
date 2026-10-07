@@ -43,13 +43,15 @@ offline run through the CLI and dashboard passed. Download resumability debt is 
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M8.2 suite passed **2,277 tests with five existing Windows skips**,
+The reviewed M8.2 suite passed **2,292 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one
 synthetic target and twenty generated reference samples; CI enables it on Windows/Linux.
 New native reference tests cover full conversion, exact round trips, interruption,
 checkpoint recovery, corruption refusal and Beagle consumption of the prepared bref3.
+The [session review](docs/review_m8_session.md) records fixes to output identity/region
+checks, cleanup, runtime drift, build metadata and reference-catalog validation/recovery.
 The M7.5 implementation checkpoint is `537e3c5`, with
 [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 The [M7.5 session review](docs/review_m75_session.md) records the preceding fixes;
