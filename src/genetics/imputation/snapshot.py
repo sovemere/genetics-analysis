@@ -362,7 +362,7 @@ def _payloads(
     progress: Callable[[str], None] | None = None,
 ) -> None:
     wanted = _wanted(cards)
-    found: Counter[tuple[str, int]] = Counter()
+    found: Counter[tuple[tuple[str, int], int]] = Counter()
     for job, file in zip(stage["jobs"], stage["files"], strict=True):
         emit = progress or (lambda _: None)
         emit("Validating saved imputation dosage evidence")
@@ -411,7 +411,7 @@ def _payloads(
                 retained.add(pos)
             counts[source] += 1
             locus = (record.chrom, pos)
-            for card in wanted.get(locus, []):
+            for card_index, card in enumerate(wanted.get(locus, [])):
                 detail = card["observation"]["imputation"]
                 if record.ref != detail["ref"] or list(record.alt) != detail["alt"]:
                     continue
@@ -424,20 +424,18 @@ def _payloads(
                     genotype *= 2
                 if card["match"]["observed_genotype"] != genotype:
                     raise ValueError
-                # Count once per record, even when multiple cards name the same locus.
-            if locus in wanted and any(
-                record.ref == c["observation"]["imputation"]["ref"]
-                and list(record.alt) == c["observation"]["imputation"]["alt"]
-                for c in wanted[locus]
-            ):
-                found[locus] += 1
+                found[locus, card_index] += 1
         if (
             retained != eligible
             or dict(counts) != file["sources"]
             or sum(counts.values()) != file["records"]
         ):
             raise ValueError
-    if any(found[locus] != 1 for locus in wanted):
+    if any(
+        found[locus, card_index] != 1
+        for locus, cards_at_locus in wanted.items()
+        for card_index in range(len(cards_at_locus))
+    ):
         raise ValueError
 
 
@@ -539,7 +537,7 @@ def publish(
                 raise ValueError
         validate_snapshot(directory, raw, execution, cards, hashes, progress)
         return raw, hashes
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration):
         raise ImputationError(
             "Imputation snapshot could not be published from its verified stage."
         ) from None

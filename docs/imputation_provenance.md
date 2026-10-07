@@ -52,8 +52,11 @@ array basis. M9 owns score computation and before/after coverage reporting.
 Save checks the stage against its checkpoint and original target, copies independent
 bytes into the bundle's staging directory, verifies digests and validates native dosage
 records. Region decisions, retained typed markers, source counts, allele/dosage/quality
-cardinality, biological ploidy and phase/imputation options must agree. Imputed card
-observations must match the full dosage records, including hard call and quality.
+cardinality, biological ploidy and phase/imputation options must agree. Every imputed
+card or multi-marker observation must match its own allele identity, hard call and quality
+in exactly one full dosage record, even when several claims share a locus. Native storage
+vectors reject boolean values rather than accepting numeric equality with allele indices
+or dosages. Malformed stages fail with a categorical publication error.
 Publication uses the existing atomic directory rename; a failed copy leaves no completed
 bundle and preserves its source stage. Genotype-free copy/validation progress goes to
 CLI stderr, with heartbeat messages during long validation passes.

@@ -16,8 +16,8 @@ from typer.testing import CliRunner
 
 from genetics.cli.main import app
 from genetics.imputation import ImputationError, ImputationResult
-from genetics.imputation.dosages import DosageRecord
-from genetics.imputation.snapshot import CATALOG_NAMES, PROVENANCE_NAME, digest
+from genetics.imputation.dosages import DosageRecord, parse_record
+from genetics.imputation.snapshot import CATALOG_NAMES, PROVENANCE_NAME, digest, validate_snapshot
 from genetics.ingest.schema import GenotypeTable
 from genetics.privacy import assert_no_genotype
 from genetics.run import pipeline, store
@@ -361,6 +361,57 @@ def test_iterator_detects_a_change_after_open(
     data.write_bytes(data.read_bytes() + b"damage")
     with pytest.raises(ImputationError, match="changed"):
         list(bundle.iter_dosages())
+
+
+@pytest.mark.parametrize("multi", [False, True])
+def test_each_card_or_marker_at_a_shared_locus_requires_its_own_full_record_match(
+    prepared: tuple[pipeline.Analysis, ImputationResult], multi: bool
+) -> None:
+    path = pipeline.save(prepared[0])
+    bundle = read_bundle(path)
+    entries = json.loads((path / "cards.run.json").read_text())["cards"]
+    card = next(c for c in entries if c.get("observation", {}).get("imputation"))
+    first, second = copy.deepcopy(card), copy.deepcopy(card)
+    cards = [{"multi_marker": {"markers": [first, second]}}] if multi else [first, second]
+    assert bundle.imputation_provenance is not None and bundle.imputation is not None
+    recorded = json.loads((path / "manifest.json").read_text())["files"]
+    # Two claims can legitimately share one saved record.
+    validate_snapshot(path, bundle.imputation_provenance, bundle.imputation, cards, recorded)
+    # A second allele identity at that locus must not borrow the first claim's match.
+    second["observation"]["imputation"]["alt"] = ["T"]
+    second["variant"]["alleles"] = ["A", "T"]
+    second["match"]["observed_genotype"] = "AT"
+    with pytest.raises(ImputationError):
+        validate_snapshot(path, bundle.imputation_provenance, bundle.imputation, cards, recorded)
+
+
+@pytest.mark.parametrize("field", ["storage_genotype", "storage_dosage"])
+def test_native_storage_vectors_reject_boolean_values(field: str) -> None:
+    record = replace(
+        anchors("7")[0],
+        genotype=(0, 1),
+        storage_genotype=(0, 1),
+        dosage=(1.0,),
+        storage_dosage=(1.0,),
+    ).to_dict()
+    record[field] = [False, True] if field == "storage_genotype" else [True]
+    with pytest.raises(ImputationError):
+        parse_record(record)
+
+
+def test_unknown_stage_region_is_a_private_publication_error(
+    prepared: tuple[pipeline.Analysis, ImputationResult], tmp_path: Path
+) -> None:
+    analysis, stage = prepared
+    metadata = copy.deepcopy(stage.metadata)
+    metadata["jobs"][0]["region"]["name"] = "unknown"
+    (stage.directory / "imputation.run.json").write_text(json.dumps(metadata))
+    analysis = replace(analysis, imputation_result=replace(stage, metadata=metadata))
+    root = tmp_path / "store"
+    with pytest.raises(BundleError) as caught:
+        pipeline.save(analysis, runs_root=root)
+    assert_no_genotype(str(caught.value))
+    assert list(root.iterdir()) == []
 
 
 def test_invalid_deflate_data_is_a_domain_error_after_rehash(
