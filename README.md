@@ -24,12 +24,12 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **13**; formats 1–12 remain readable without reinterpreting saved findings.
+New runs use bundle format **14**; formats 1–13 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
 their inputs. The [Beagle guide](docs/beagle.md) documents the private checkpoint contract.
-Imputation is not yet integrated into `genetics run`.
+`genetics run` now executes the shared imputation stage by default (M8.4).
 
 **M8.2 implements full per-chromosome reference preparation:** pinned bref3
 conversion and full decoded verification, resumable chromosome checkpoints, source/tool
@@ -40,14 +40,18 @@ for setup, Java 11+ and explicit X/Y/MT scope.
 preserves eligible typed calls, partitions X PAR/non-PAR jobs, and writes private per-ALT
 dosages/DR2 with explicit biological ploidy, source and missing-quality states. Completed
 jobs and observations are verified before reuse. See the [pipeline guide](docs/imputation_pipeline.md).
-**Next: M8.4, default-on `genetics run` orchestration and its recorded `--no-impute` mode.**
+**M8.4 makes imputation default-on in `genetics run`:** `--no-impute` is an explicit
+development/testing mode recorded in the run and every card. Format 14 preserves the
+execution summary, CLI/dashboard mode parity and historical unknown states. Current
+findings still use original array calls; [the mode guide](docs/imputation_mode.md) explains
+the boundary. **Next: M8.5, quality-aware imputed observation/scoring integration.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M8.3 suite passed **2,369 tests with five existing Windows skips**,
+The M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one
@@ -92,6 +96,11 @@ Runs default to the OS user-data directory outside this checkout. Missing struct
 prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions
 fail explicitly. Standalone `genetics roh` exposes the same ROH engine with custom
 reference and policy options.
+
+Default imputation requires the full prepared panels/maps and pinned Java tools;
+[setup](docs/imputation_reference.md) describes installation. Missing imputation
+prerequisites fail explicitly. Development/testing can select `--no-impute`, which is
+visible in the saved run and cards; it is never selected automatically.
 
 The dashboard links to each run's ClinVar reference lookup. These are reference
 annotations; its [ACMG view](docs/secondary_findings.md) retains likely artifacts and

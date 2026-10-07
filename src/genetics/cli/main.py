@@ -182,11 +182,18 @@ def run(
         ),
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+    no_impute: Annotated[
+        bool,
+        typer.Option(
+            "--no-impute",
+            help="Explicitly disable default imputation; recorded in the run and cards.",
+        ),
+    ] = False,
 ) -> None:
-    """Analyse an export and save it as a run bundle (M4.0).
+    """Analyse an export and save it as a run bundle.
 
-    The shared pipeline: ingest/QC, ancestry, matching, evidence, genome structure,
-    then save. Prints counts and the new run id; never a genotype. Read the cards
+    The shared pipeline: ingest/QC, ancestry, default-on imputation, original-array
+    findings, then save. Prints counts and the new run id; never a genotype. Read the cards
     with `genetics runs show <run-id>`.
     """
     # Lazy for the same reason as `ingest` below: this reaches the Polars-backed ingest
@@ -194,7 +201,7 @@ def run(
     # for any of them.
     from genetics.cli.run_cmd import run as run_pipeline
 
-    run_pipeline(input_path=input_path, knowledge=knowledge, as_json=as_json)
+    run_pipeline(input_path=input_path, knowledge=knowledge, as_json=as_json, no_impute=no_impute)
 
 
 @app.command()

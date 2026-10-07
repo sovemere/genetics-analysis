@@ -2454,11 +2454,19 @@ default-on.*
         No personal export. Application default-on orchestration/escape hatch remain M8.4;
         quality propagation and bundle provenance remain M8.5/M8.6. Format 13 unchanged.
         See [the stage guide](docs/imputation_pipeline.md).
-- [ ] **M8.4** `--no-impute` escape hatch for dev/testing. Never the default, never
+- [x] **M8.4** `--no-impute` escape hatch for dev/testing. Never the default, never
       silent — the run bundle and every affected card record which mode was used.
-      - Integrate the M8.3 shared stage into default-on `analyse`/`genetics run` here.
-        The independent `genetics impute` command already writes private observations;
-        preserve original direct calls and its explicit no-call/haploid quality limits.
+      - **Completed 2026-10-07.** Default-on shared stage after ancestry, with explicit
+        opt-out and failure reporting, never silent fallback. Format 14 records requested
+        mode/execution outcome and per-card mode, validated for counts/status/ploidy and
+        card/run agreement. Historical formats 1–13 retain unknown mode. CLI/dashboard
+        banner, face and detail read the same snapshot. Original-array card/ClinVar/
+        structure observations stay separate pending M8.5; full provenance remains M8.6.
+        **2,417 passed, five existing Windows skips**; 48 new synthetic cases include
+        default native CLI execution, 800-record save and completed-job reuse. Native
+        acceptance fixed Windows long-working-directory launches without changing paths
+        or contracts. Four-way types, lint/format, fixture reproduction and full card
+        lint pass. No personal export. [Guide](docs/imputation_mode.md).
 - [ ] **M8.5** Carry imputation quality through to scoring so poorly imputed variants
       degrade confidence rather than silently entering sums.
 - [ ] **M8.6** Record panel version, tool version and parameters in the run bundle.
@@ -2672,6 +2680,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-07 | M8.4 | Default-on shared imputation after ancestry, explicit recorded --no-impute, and categorical failure without fallback. Format 14 / execution schema 1 saves requested mode, outcome and per-card mode with count/ploidy/status/source consistency. CLI/dashboard snapshots agree; historical formats retain unknown mode. Current findings retain original array observations pending M8.5. Native default CLI generates 800 records and reuses jobs; fixed Windows long working-directory launches with stable paths/contracts. **2,417 tests passed, five existing Windows skips**; 48 new cases, strict four-way types, lint/format, fixtures and full card lint pass. No personal export. Next M8.5. [Guide](docs/imputation_mode.md). |
 | 2026-10-07 | M8.3 | Shared full-panel phasing then imputation and `genetics impute`, with exact eligible typed retention, source-separated per-ALT dosages/DR2, X PAR/ploidy handling and explicit phase-filled unknown quality. Atomic private completion, stable jobs and regenerated semantic reuse checks. **2,369 tests passed, five existing Windows skips**, native tools enabled; 77 new cases, including male/female synthetic native targets producing 800 records each, full panel preservation and completed reuse. Strict four-way types, lint/format, fixtures and full card lint pass. Read-only default validation passes all 23 installed panels and 25 maps. No personal export. Next M8.4 integrates default-on application orchestration; existing bundle format 13 and analysis behavior remain pending that step. [Guide](docs/imputation_pipeline.md). |
 | 2026-10-07 | M7.6–M8.2 session diff review | Reviewed `5f2c75d..f0c756d`. Fixed Beagle output target-sample/region validation on publication/reuse, Windows cleanup fallback, reference kind/transform/input-set/producer validation, lost-catalog recovery without the original Java/tools, reordered contig build metadata, and Java-executable drift before completion. Prepared public panels/maps pass stricter source/catalog/companion checks without reconversion. **2,292 tests passed, five existing Windows skips**, native tools enabled; 15 new regressions, strict four-way mypy, ruff/format, fixtures and full 51-card/268-render/35-marker lint pass. M7.6 count/snapshot/CLI/dashboard contract has no additional identified defect. M8.3 handoff now requires typed-marker retention, dosage/DR2 and biological-ploidy checks beyond valid VCF/sample identity. No personal export. [Review](docs/review_m8_session.md). |
 | 2026-10-07 | M8.2 | Implemented full chromosome bref3 preparation with separately pinned converter/decoder, Java 11+ checks, exact decoded marker/allele/GT comparison, atomic completion, source/tool/runtime provenance and crash-safe kernel locks. Current manifest/lock contracts support reference consumers without raw VCF reads. Prepared all 23 supported 1000 Genomes chromosomes: **84,739,838 records over 2,504 samples each; 8,312,115,275 bref3 bytes**, no array/LD/MAF/sample filtering. X haploid storage doubling is explicit; M8.3 owns PAR/ploidy handling. Y is fetched but not prepared because its reference has missing haploid calls and no supplied map; MT absent. Fetched and verified every **25-map / 3,395,051-row GRCh37 HapMap map**, with source license and SHA pinned, actual-file counter checks and no rate fallback. **2,277 tests passed, five existing Windows skips**, native ROH/Beagle/converter/decoder enabled; strict four-way typing, ruff/format, fixtures and full card lint pass. Fifty-one new synthetic cases, including native Beagle consumption and interruption recovery. Public full-release preparation uses no consumer export. Bundle format 13 and application imputation behavior remain unchanged; next M8.3. [Guide](docs/imputation_reference.md). |

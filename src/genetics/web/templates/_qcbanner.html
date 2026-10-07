@@ -23,6 +23,8 @@
       <dd class="{% if shell.banner.inferred_sex == 'ambiguous' %}flagged{% endif %}">
         {{ shell.banner.inferred_sex or "-" }}</dd></div>
     <div><dt>Build</dt><dd>{{ shell.banner.build_verdict or "-" }}</dd></div>
+    <div><dt>Imputation</dt><dd>{{ (shell.banner.imputation_mode or "not recorded") | replace("_", " ") }}
+      {% if shell.banner.imputation_status %} · {{ shell.banner.imputation_status | replace("_", " ") }}{% endif %}</dd></div>
     {#
       Shown as counts rather than left to the warnings below, because a warning only fires
       above a threshold: `het_haploid_calls: 0` produces no warning at all, and "zero" is a
@@ -42,6 +44,20 @@
         ({{ shell.card_count - shell.placed_cards }} not placed in any section below)
       {%- endif %}</dd></div>
   </dl>
+  {% if shell.banner.imputation_mode in ("enabled", "disabled") %}
+    <p class="muted">Card findings use the original array observations.
+      {% if shell.banner.imputation_mode == "disabled" %}
+        Imputation was explicitly disabled for this run.
+      {% else %}
+        {% if shell.banner.imputation_status == "computed" %}
+          Imputation generated {{ shell.banner.imputation_records }} dosage records
+          across {{ shell.banner.imputation_jobs }} region jobs.
+        {% else %}
+          Imputation found no eligible region jobs; no dosages were generated.
+        {% endif %}
+      {% endif %}
+    </p>
+  {% endif %}
 
   {% if shell.banner.warnings %}
     <ul class="warnings" aria-label="QC warnings">

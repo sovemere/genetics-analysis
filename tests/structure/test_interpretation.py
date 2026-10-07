@@ -302,7 +302,7 @@ def test_stage_runs_native_engine_once_and_preserves_result(
         return measured()
 
     monkeypatch.setattr(interpretation, "compute_roh", engine)
-    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir)
+    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir, no_impute=True)
     assert len(calls) == 1
     assert analysis.cards[0].computation is not None
     assert analysis.cards[0].computation["result"] == measured().as_dict()
@@ -397,7 +397,7 @@ def test_not_run_card_survives_pipeline_save(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(interpretation, "references_dir", lambda: tmp_path / "missing")
-    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir)
+    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir, no_impute=True)
     assert analysis.cards[0].status is MatchStatus.NOT_RUN
     path = save(
         analysis,

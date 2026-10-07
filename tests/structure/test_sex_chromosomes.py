@@ -217,7 +217,7 @@ def test_pipeline_saved_cli_and_http_share_the_same_measurements(
     pack: KnowledgePack, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path / "data"))
-    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir)
+    analysis = analyse(EXPORT, knowledge_dir=pack.source_dir, no_impute=True)
     card = analysis.cards[0]
     assert card.computation is not None and card.computation["source"] == SOURCE
     data = card.computation["result"]

@@ -97,11 +97,11 @@ Completed-stage reuse also regenerates observations from the validated Beagle ou
 and compares them with the saved metadata/files. Damaged outputs or changed contracts
 are refused; partial Beagle windows are never spliced.
 
-M8.3 provides the callable stage and independent CLI. `genetics run` and saved bundle
-format 13 retain their existing behavior pending M8.4's default-on orchestration and
-explicit `--no-impute` mode. M8.5 owns card/score quality propagation, M8.6 owns bundle
-provenance and M8.7 owns imputed rare-variant gate regressions. A dashboard caller uses
-the same library/result summary; this milestone adds no separate UI computation.
+M8.3 provides the callable stage and independent CLI. M8.4 now calls it by default from
+`genetics run`, with an explicit recorded `--no-impute` mode and format-14 execution
+snapshots. See [the mode guide](imputation_mode.md). Current findings retain original
+array observations. M8.5 owns imputed-card/score quality propagation, M8.6 full bundle
+provenance and M8.7 imputed rare-variant gate regressions. All front ends use this stage.
 
 Native offline acceptance generates a full two-chromosome, twenty-sample reference
 from fixed-seed frequencies and independent male/female targets. Each target produces

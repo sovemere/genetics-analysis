@@ -3,8 +3,9 @@
 M8.1 implements the Beagle wrapper, Java/readiness checks and verified job reuse.
 `genetics impute` now performs shared-stage phasing/imputation in M8.3; see the
 [pipeline guide](imputation_pipeline.md). `genetics run` integration and its recorded
-escape hatch remain M8.4, quality propagation M8.5 and bundle provenance M8.6.
-Existing bundles retain format 13; private job checkpoints use their own schema 1.
+escape hatch are delivered in M8.4; see [the mode guide](imputation_mode.md).
+Quality propagation remains M8.5 and full used provenance M8.6. New bundles use
+format 14; private job checkpoints retain schema 1.
 
 ## Installation and execution
 
@@ -47,7 +48,7 @@ The option validates representation; Beagle infers ploidy from the target VCF it
 
 `BeagleOptions(impute=False)` explicitly suppresses untyped reference markers; it
 does not prevent Beagle from filling sporadic missing calls during phasing. This is
-a wrapper option, not the upcoming application's `--no-impute` mode. The preparation
+a wrapper option, distinct from the application's recorded `--no-impute` mode. The preparation
 of correct builds, allele order, chromosome/PAR splits and ploidy remains M8.2/M8.3's
 responsibility. The wrapper does not invent that missing preparation.
 

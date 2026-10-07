@@ -62,6 +62,8 @@ from genetics.engine.citations import Citation
 from genetics.engine.evidence import AssembledCard
 from genetics.engine.serialization import confidence_payload as _confidence_payload
 from genetics.engine.serialization import frequency_payload as _frequency_payload
+from genetics.imputation.context import ImputationContext
+from genetics.imputation.target import ImputationError
 from genetics.paths import UnsafeDataDirError, is_inside_repo, reference_lock, runs_dir, tools_dir
 from genetics.privacy import NoGenotypeRepr, assert_no_genotype
 from genetics.qc.report import QCReport
@@ -74,8 +76,11 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 13
+BUNDLE_FORMAT_VERSION: Final[int] = 14
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 14 (M8.4) records imputation mode and execution summary in a private payload
+and the requested mode on every card. Formats 1-13 mean mode not recorded.
 
 Version 13 (M7.6) saves quantitative ClinVar coverage in lookup schema 5 and a
 physical-health computed card. Formats 1-12 retain their original snapshots.
@@ -184,6 +189,7 @@ QC_NAME: Final[str] = "qc.run.json"
 CARDS_NAME: Final[str] = "cards.run.json"
 ANCESTRY_NAME: Final[str] = "ancestry.run.json"
 CLINVAR_NAME: Final[str] = "clinvar.run.json"
+IMPUTATION_NAME: Final[str] = "imputation.run.json"
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -200,7 +206,13 @@ INCOMING_PREFIX: Final[str] = ".incoming-"
 shape rather than by remembering to, and so a killed process leaves something visibly
 unfinished rather than a run id with half a payload under it."""
 
-PAYLOAD_FILES: Final[tuple[str, ...]] = (QC_NAME, CARDS_NAME, ANCESTRY_NAME, CLINVAR_NAME)
+PAYLOAD_FILES: Final[tuple[str, ...]] = (
+    QC_NAME,
+    CARDS_NAME,
+    ANCESTRY_NAME,
+    CLINVAR_NAME,
+    IMPUTATION_NAME,
+)
 """Every payload file this format version writes, and so every file a bundle may hold.
 
 Which of them a bundle *must* record depends on the version it was written at -- see
@@ -215,6 +227,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     CARDS_NAME: 1,
     ANCESTRY_NAME: ANCESTRY_FORMAT_VERSION,
     CLINVAR_NAME: 7,
+    IMPUTATION_NAME: 14,
 }
 
 
@@ -394,7 +407,27 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "computation": assembled.computation,
         "multi_marker": assembled.multi_marker,
         "risk_context": assembled.risk_context,
+        "imputation_mode": assembled.imputation_mode,
     }
+
+
+def _array_observations(data: Mapping[str, Any]) -> bool:
+    """The original-array claim applies to scalar and multi-marker observations."""
+    observations = [data.get("observation")]
+    multi = data.get("multi_marker")
+    if isinstance(multi, Mapping):
+        markers = multi.get("markers", ())
+        if not isinstance(markers, Sequence) or isinstance(markers, str | bytes):
+            return False
+        for marker in markers:
+            if not isinstance(marker, Mapping):
+                return False
+            observations.append(marker.get("observation"))
+    return all(
+        observation is None
+        or (isinstance(observation, Mapping) and observation.get("call_source") == "direct")
+        for observation in observations
+    )
 
 
 CARD_KEYS: Final[frozenset[str]] = frozenset(
@@ -421,6 +454,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "computation",
         "multi_marker",
         "risk_context",
+        "imputation_mode",
     }
 )
 
@@ -581,6 +615,7 @@ class StoredCard(NoGenotypeRepr):
     computation: Mapping[str, Any] | None = None
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
+    imputation_mode: str | None = None
 
 
 @dataclass(frozen=True)
@@ -602,6 +637,7 @@ class RunBundle(NoGenotypeRepr):
     the stage not running says so inside the mapping, with a reason."""
     clinvar: Mapping[str, Any] | None = None
     """Reference lookup snapshot; None means not recorded by a pre-v7 writer."""
+    imputation: Mapping[str, Any] | None = None
 
     @property
     def card_count(self) -> int:
@@ -704,6 +740,7 @@ def write_bundle(
     pack: KnowledgePack,
     ancestry: AncestryContext,
     clinvar: ClinVarLookup | None = None,
+    imputation: ImputationContext | None = None,
     runs_root: Path | None = None,
     run_id: str | None = None,
     created_at: datetime | None = None,
@@ -750,10 +787,28 @@ def write_bundle(
     staging.mkdir(parents=True)
 
     try:
+        try:
+            execution = (imputation or ImputationContext.not_recorded()).to_dict()
+            # Revalidate even a mapping changed after its context was constructed.
+            execution = ImputationContext.from_dict(execution).to_dict()
+        except (ImputationError, TypeError) as exc:
+            raise BundleError("Imputation execution record is invalid") from exc
+        card_payloads = []
+        for card in cards:
+            if card.imputation_mode is not None and card.imputation_mode != execution["mode"]:
+                raise BundleError("Card imputation mode disagrees with its run")
+            payload = _card_payload(card)
+            if execution["card_input"] == "original_array" and not _array_observations(payload):
+                raise BundleError("Array-only card execution has an imputed observation")
+            payload["imputation_mode"] = (
+                None if execution["mode"] == "not_recorded" else execution["mode"]
+            )
+            card_payloads.append(payload)
+        _write_text(staging / IMPUTATION_NAME, _render(execution))
         _write_text(staging / QC_NAME, _render(qc.to_dict()))
         _write_text(
             staging / CARDS_NAME,
-            _render({"cards": [_card_payload(card) for card in cards]}),
+            _render({"cards": card_payloads}),
         )
         ancestry_text = _render(ancestry.to_dict())
         # Scanned like the QC report and for the same reason: it is a derived summary with
@@ -1168,6 +1223,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         computation=computation_map,
         multi_marker=None if multi_marker is None else _mapping(multi_marker, where),
         risk_context=risk_context,
+        imputation_mode=data.get("imputation_mode"),
     )
 
 
@@ -1262,6 +1318,28 @@ def read_bundle(path: Path) -> RunBundle:
 
     ancestry: Mapping[str, Any] | None = None
     clinvar: Mapping[str, Any] | None = None
+    imputation: Mapping[str, Any] | None = None
+    if declared >= 14:
+        try:
+            imputation = ImputationContext.from_dict(
+                _load_json(directory / IMPUTATION_NAME)
+            ).to_dict()
+        except (ImputationError, TypeError) as exc:
+            raise BundleError("Saved imputation execution record is invalid") from exc
+        expected_mode = None if imputation["mode"] == "not_recorded" else imputation["mode"]
+        if any(
+            not isinstance(e, Mapping)
+            or "imputation_mode" not in e
+            or e["imputation_mode"] != expected_mode
+            for e in entries
+        ):
+            raise BundleError("Saved card imputation mode disagrees with its run")
+        if imputation["card_input"] == "original_array" and any(
+            not _array_observations(e) for e in entries
+        ):
+            raise BundleError("Array-only card execution has an imputed observation")
+    elif any(isinstance(e, Mapping) and e.get("imputation_mode") is not None for e in entries):
+        raise BundleError("Recorded imputation modes require bundle format 14")
     if declared >= ANCESTRY_FORMAT_VERSION:
         ancestry = _load_json(directory / ANCESTRY_NAME)
         _reject_unknown(ancestry, ANCESTRY_KEYS, ANCESTRY_NAME)
@@ -1304,4 +1382,5 @@ def read_bundle(path: Path) -> RunBundle:
         ),
         ancestry=ancestry,
         clinvar=clinvar,
+        imputation=imputation,
     )

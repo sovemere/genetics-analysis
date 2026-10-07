@@ -189,6 +189,10 @@ class QCBanner:
     duplicate_positions: int | None
     build_verdict: str | None
     warnings: tuple[str, ...]
+    imputation_mode: str | None = None
+    imputation_status: str | None = None
+    imputation_jobs: int | None = None
+    imputation_records: int | None = None
 
     @property
     def call_rate_percent(self) -> str:
@@ -232,6 +236,10 @@ def banner_for(bundle: RunBundle) -> QCBanner:
         duplicate_positions=_count(_get(qc, "duplicates", "duplicate_positions")),
         build_verdict=_get(qc, "build", "verdict"),
         warnings=_warnings(qc.get("warnings")),
+        imputation_mode=_text(_get(bundle.imputation or {}, "mode")),
+        imputation_status=_text(_get(bundle.imputation or {}, "status")),
+        imputation_jobs=_count(_get(bundle.imputation or {}, "summary", "jobs")),
+        imputation_records=_count(_get(bundle.imputation or {}, "summary", "records")),
     )
 
 
@@ -935,6 +943,11 @@ class CardView(NoGenotypeRepr):
     computation: Mapping[str, Any] | None = None
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
+    imputation_mode: str | None = None
+
+    @property
+    def imputation_mode_label(self) -> str:
+        return (self.imputation_mode or "not recorded").replace("_", " ")
 
     @property
     def is_interpreted(self) -> bool:
@@ -1158,6 +1171,7 @@ class CardView(NoGenotypeRepr):
             computation=card.computation,
             multi_marker=card.multi_marker,
             risk_context=card.risk_context,
+            imputation_mode=card.imputation_mode,
         )
 
 

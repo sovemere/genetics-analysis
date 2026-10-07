@@ -60,7 +60,8 @@ def export(tmp_path: Path) -> Path:
 
 def _run(export: Path, *args: str) -> Result:
     return runner.invoke(
-        app, ["run", "--input", str(export), "--knowledge", str(SYNTHETIC_CARDS), *args]
+        app,
+        ["run", "--no-impute", "--input", str(export), "--knowledge", str(SYNTHETIC_CARDS), *args],
     )
 
 
@@ -121,6 +122,7 @@ def test_a_run_with_no_interpretation_says_so_rather_than_looking_broken(
         app,
         [
             "run",
+            "--no-impute",
             "--input",
             str(SYNTHETIC_DIR / "ancestry_v2_male.txt"),
             "--knowledge",
@@ -150,7 +152,7 @@ def test_the_default_knowledge_pack_is_the_committed_one(export: Path, store_roo
     from genetics.engine.cards import KnowledgePack, default_knowledge_dir
     from genetics.run.bundle import knowledge_provenance
 
-    result = runner.invoke(app, ["run", "--input", str(export), "--json"])
+    result = runner.invoke(app, ["run", "--no-impute", "--input", str(export), "--json"])
     assert result.exit_code == 0, result.output
 
     (saved,) = list(store_root.iterdir())
@@ -173,6 +175,7 @@ def test_a_malformed_export_is_reported_as_an_ingest_failure(store_root: Path) -
         app,
         [
             "run",
+            "--no-impute",
             "--input",
             str(SYNTHETIC_DIR / "ancestry_v2_malformed_header.txt"),
             "--knowledge",
@@ -192,6 +195,7 @@ def test_a_wrong_build_export_is_refused_rather_than_analysed(store_root: Path) 
         app,
         [
             "run",
+            "--no-impute",
             "--input",
             str(SYNTHETIC_DIR / "ancestry_v2_wrong_build.txt"),
             "--knowledge",
@@ -209,7 +213,15 @@ def test_a_missing_knowledge_pack_is_reported_as_a_knowledge_failure(
     """Distinguished from a bad export: the user's next action is completely different."""
     result = runner.invoke(
         app,
-        ["run", "--input", str(export), "--knowledge", str(tmp_path / "absent"), "--json"],
+        [
+            "run",
+            "--no-impute",
+            "--input",
+            str(export),
+            "--knowledge",
+            str(tmp_path / "absent"),
+            "--json",
+        ],
     )
     assert result.exit_code == 2
     assert json.loads(result.stdout)["error"]["kind"] == "knowledge"
@@ -220,6 +232,7 @@ def test_a_refusal_prints_a_sentence_rather_than_a_traceback(store_root: Path) -
         app,
         [
             "run",
+            "--no-impute",
             "--input",
             str(SYNTHETIC_DIR / "ancestry_v2_malformed_header.txt"),
             "--knowledge",
