@@ -136,7 +136,7 @@ def test_an_absent_marker_still_records_that_it_was_not_imputed(plain_export: Pa
     A card whose marker is not on the array has no confidence, so without the observation a
     saved run cannot tell "not on this array" from "imputation was attempted and failed".
     """
-    analysis = analyse(plain_export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(plain_export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     absent = [c for c in analysis.cards if c.status is MatchStatus.MARKER_ABSENT]
 
     assert absent, "the committed fixture carries none of the pack's markers"
@@ -158,7 +158,7 @@ def test_analyse_returns_one_card_per_pack_card_in_pack_order(export: Path) -> N
     missing or why, so "did not match" would be indistinguishable from "was dropped".
     """
     pack = KnowledgePack.load(SYNTHETIC_CARDS)
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
 
     assert [c.card_id for c in analysis.cards] == [c.id for c in pack.cards]
     assert [m.card_id for m in analysis.matches] == [c.id for c in pack.cards]
@@ -171,7 +171,7 @@ def test_analyse_produces_a_real_interpretation(export: Path) -> None:
     "nothing matched" is a legitimate result. This is the test that fails if the stages are
     composed in a way that never reaches an outcome.
     """
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     matched = {c.card_id: c for c in analysis.cards if c.status is MatchStatus.MATCHED}
 
     assert set(matched) == {"synthetic_dominant_trait", "synthetic_haploid_marker"}
@@ -195,7 +195,7 @@ def test_confidence_records_the_two_inputs_this_milestone_cannot_supply(
     contribution can still be beaten upward by strong evidence -- so the assertion is on
     the recorded inputs, which are the honest claim, and not on the tier they produce.
     """
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     card = next(c for c in analysis.cards if c.card_id == "synthetic_dominant_trait")
 
     assert card.confidence is not None
@@ -225,7 +225,9 @@ def test_a_broken_knowledge_pack_is_reported_before_the_export_is_parsed(
 
     monkeypatch.setattr(pipeline, "ingest", refuse)
     with pytest.raises(CardError):
-        analyse(tmp_path / "absent-export.txt", knowledge_dir=tmp_path / "absent-pack")
+        analyse(
+            tmp_path / "absent-export.txt", knowledge_dir=tmp_path / "absent-pack", no_impute=True
+        )
 
 
 def test_analyse_writes_nothing(export: Path, store_root: Path) -> None:
@@ -234,13 +236,13 @@ def test_analyse_writes_nothing(export: Path, store_root: Path) -> None:
     M4.10 runs the pipeline with networking disabled and any future ``--dry-run`` wants the
     result without a bundle; both need analysis to be free of side effects.
     """
-    analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     assert list(store_root.iterdir()) == []
 
 
 def test_analyse_reports_which_sections_have_no_cards(export: Path) -> None:
     """No silent empty sections: the pack knows, so the pipeline's caller can be told."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     covered = {c.section for c in analysis.cards}
 
     assert covered.isdisjoint(analysis.pack.empty_sections)
@@ -249,7 +251,7 @@ def test_analyse_reports_which_sections_have_no_cards(export: Path) -> None:
 
 def test_status_and_tier_counts_keep_their_zeros(export: Path) -> None:
     """A status that vanishes when empty makes "none" look like "not checked"."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
 
     assert set(analysis.status_counts) == set(MatchStatus)
     assert analysis.status_counts[MatchStatus.MATCHED] == 2
@@ -259,7 +261,7 @@ def test_status_and_tier_counts_keep_their_zeros(export: Path) -> None:
 
 def test_the_analysis_repr_does_not_carry_a_genotype(export: Path) -> None:
     """It holds every assembled card, so the default dataclass repr would print calls."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     text = repr(analysis)
 
     assert SPIKED_GENOTYPE not in text
@@ -273,7 +275,7 @@ def test_the_analysis_repr_does_not_carry_a_genotype(export: Path) -> None:
 
 def test_save_round_trips_what_was_analysed(export: Path, store_root: Path) -> None:
     """What a reader gets back months later is what this run produced."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     path = save(analysis)
     bundle = read_bundle(path)
 
@@ -289,7 +291,7 @@ def test_save_round_trips_what_was_analysed(export: Path, store_root: Path) -> N
 
 def test_two_runs_of_the_same_export_get_two_ids(export: Path, store_root: Path) -> None:
     """Immutability is refusal, not overwrite: re-running never rewrites a saved run."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     first = save(analysis)
     second = save(analysis)
 
@@ -322,7 +324,7 @@ def test_ancestry_is_inferred_before_any_card_is_assembled(
         return assemble_pack(*args, **kwargs)
 
     monkeypatch.setattr("genetics.run.pipeline.assemble_pack", assemble)
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage, no_impute=True)
 
     assert order == ["ancestry", "assemble"]
     assert analysis.ancestry is placed_ancestry
@@ -336,7 +338,7 @@ def test_the_stage_is_handed_the_ploidy_resolved_table_and_its_qc(export: Path) 
         seen["table"], seen["qc"] = table, qc
         return AncestryContext.not_run("recording what it was handed")
 
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage, no_impute=True)
     assert seen["qc"] is analysis.qc
     assert seen["table"].frame.get_column("call_status").null_count() == 0
 
@@ -344,7 +346,7 @@ def test_the_stage_is_handed_the_ploidy_resolved_table_and_its_qc(export: Path) 
 def test_the_default_stage_runs_and_says_why_it_inferred_nothing(export: Path) -> None:
     """With nothing fetched -- the suite pins that, see conftest -- the default stage still
     runs and records the reason, rather than the pipeline skipping it."""
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS)
+    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True)
     assert analysis.ancestry.status is PlacementStatus.NOT_RUN
     assert "genetics refs fetch" in analysis.ancestry.population.reason
 
@@ -356,12 +358,14 @@ def test_an_ancestry_failure_stops_the_run(export: Path) -> None:
         raise AncestryError("the modern reference panel fails verification")
 
     with pytest.raises(AncestryError):
-        analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage)
+        analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage, no_impute=True)
 
 
 def test_save_keeps_the_ancestry_record(
     export: Path, store_root: Path, placed_ancestry: AncestryContext
 ) -> None:
-    analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=lambda t, q: placed_ancestry)
+    analysis = analyse(
+        export, knowledge_dir=SYNTHETIC_CARDS, ancestry=lambda t, q: placed_ancestry, no_impute=True
+    )
     bundle = read_bundle(save(analysis))
     assert bundle.ancestry == placed_ancestry.to_dict()

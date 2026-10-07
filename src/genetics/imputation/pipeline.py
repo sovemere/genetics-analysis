@@ -117,7 +117,7 @@ def impute(
     target are considered; X regions are separate jobs with the matching PAR maps.
     Reference availability fails explicitly; no direct-overlap scoring fallback exists.
     Each job has a stable checkpoint, and interruption restarts only incomplete jobs.
-    M8.4 owns analyse()/run integration; M8.5-M8.7 own evidence and bundle propagation.
+    M8.4 calls this stage from analyse()/run; M8.5-M8.7 own evidence and full provenance.
     """
     if not isinstance(sex, InferredSex):
         raise ImputationError("Supply the inferred-sex enum from QC.")

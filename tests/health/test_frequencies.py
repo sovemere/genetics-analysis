@@ -398,7 +398,7 @@ def test_pipeline_uses_reference_frequency_without_dropping_any_card(
         encoding="utf-8",
     )
     knowledge = Path(__file__).parents[1] / "fixtures" / "cards"
-    result = analyse(export, knowledge_dir=knowledge)
+    result = analyse(export, knowledge_dir=knowledge, no_impute=True)
     card = next(c for c in result.cards if c.card_id == "synthetic_dominant_trait")
     assert len(result.cards) == len(result.pack.cards)
     assert card.confidence is not None and card.confidence.tier is ConfidenceTier.LIKELY_ARTIFACT

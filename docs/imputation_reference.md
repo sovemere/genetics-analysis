@@ -109,7 +109,7 @@ and attribution to those transforms. The numerical maps are fetched, not vendore
 the archive and README texts also remain uncommitted.
 
 M8.2 prepares references only. M8.3 supplies sample harmonization and phasing/imputation
-through the [shared stage and `genetics impute`](imputation_pipeline.md). M8.4 owns
+through the [shared stage and `genetics impute`](imputation_pipeline.md). M8.4 delivers
 default-on application integration, M8.5 quality propagation and M8.6 bundle provenance.
 Bundle format 13 and `genetics run` behavior are unchanged by reference preparation.
 

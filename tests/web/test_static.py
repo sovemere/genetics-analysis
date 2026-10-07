@@ -471,7 +471,7 @@ def card_page(tmp_path_factory: pytest.TempPathFactory) -> tuple[str, str]:
         render_fixture(replace(base, spike_ins=spike_ins)), encoding="utf-8", newline="\n"
     )
     cards = Path(__file__).parents[1] / "fixtures" / "cards"
-    saved = save(analyse(export, knowledge_dir=cards), runs_root=runs)
+    saved = save(analyse(export, knowledge_dir=cards, no_impute=True), runs_root=runs)
 
     url = f"/runs/{saved.name}/cards/synthetic_dominant_trait"
     with TestClient(

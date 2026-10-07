@@ -776,7 +776,7 @@ def test_full_pipeline_queries_every_authored_locus(
             )
     export = tmp_path / "synthetic-export.txt"
     export.write_text(render_fixture(replace(spec, spike_ins=spike_ins)), encoding="utf-8")
-    analysis = analyse(export, knowledge_dir=health_pack.source_dir)
+    analysis = analyse(export, knowledge_dir=health_pack.source_dir, no_impute=True)
     assert len(analysis.cards) == len(health_pack.cards)
     assert all(c.status is MatchStatus.MATCHED for c in analysis.cards if c.card.match is not None)
     assert all(c.status is MatchStatus.NOT_RUN for c in analysis.cards if c.card.match is None)

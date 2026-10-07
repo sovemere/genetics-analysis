@@ -606,6 +606,7 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
             "computation",
             "multi_marker",
             "risk_context",
+            "imputation_mode",
         }
     )
     expected_manifest = frozenset(
@@ -699,6 +700,7 @@ def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
     assert _shape(cards_payload) == {
         "cards",
         f"{card}.card_id",
+        f"{card}.imputation_mode",
         f"{card}.section",
         f"{card}.kind",
         f"{card}.title",
@@ -1245,6 +1247,14 @@ def _set_format_version(directory: Path, version: int, *, drop: str | None = Non
     manifest_path = directory / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = version
+    if version < 14:
+        cards_path = directory / CARDS_NAME
+        payload = json.loads(cards_path.read_text(encoding="utf-8"))
+        for card in payload["cards"]:
+            card.pop("imputation_mode", None)
+        text = json.dumps(payload)
+        cards_path.write_text(text, encoding="utf-8")
+        manifest["files"][CARDS_NAME] = hashlib.sha256(text.encode()).hexdigest()
     if drop is not None:
         del manifest["files"][drop]
         (directory / drop).unlink()

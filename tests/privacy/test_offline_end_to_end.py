@@ -159,7 +159,7 @@ def offline_run(
     """
     data_dir = tmp_path_factory.mktemp("offline") / "data"
     completed = isolation.run(
-        _child("run", "--input", str(FIXTURE), "--json"),
+        _child("run", "--no-impute", "--input", str(FIXTURE), "--json"),
         env=os.environ | {"GENETICS_DATA_DIR": str(data_dir)},
         timeout=600,
     )

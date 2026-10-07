@@ -1,8 +1,44 @@
-# Handoff: M8.4 default-on application imputation
+# Handoff: M8.5 imputation quality propagation
 
-As of 2026-10-07, **M0-M7 and M8.1-M8.3 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1-M8.4 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.4.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.5.
+
+## Implemented M8.4 and next scope
+
+`analyse` / `genetics run` now execute the M8.3 stage by default after ancestry and
+before card assembly. `--no-impute` is explicit, defaults false, skips stage/reference/
+tool discovery, and records disabled mode on the run and every card. Prerequisite and
+execution failures report an imputation error without a saved bundle or automatic
+fallback. Existing development fixtures now choose the escape hatch explicitly.
+
+Format 14 adds private `imputation.run.json` schema 1 and per-card mode. It distinguishes
+enabled/computed, enabled/no-eligible-jobs, explicit disabled and not-recorded execution.
+Source/region/job counts, ploidy and status are validated; reader/writer require card/run
+mode and observation-basis consistency. Formats 1–13 keep null mode, never an inferred
+opt-out. Low-level writers without a stage context record unknown mode. CLI JSON/human
+output, dashboard banner, card face/detail read the same saved snapshot without caches.
+
+**2,417 tests passed, five existing Windows skips**, native tools enabled; 48 new cases
+cover default ordering, explicit opt-out, missing prerequisites, failures, saved damage,
+historical formats, privacy, CLI/dashboard parity and a native default CLI run producing
+800 records and reusing completed jobs. Native acceptance exposed Windows error 267
+at a 265-character working directory; the wrapper selects a shorter ancestor while
+keeping absolute job paths/contracts unchanged. Synthetic preparation is shared with
+M8.3 acceptance. Strict four-way types, lint/format, fixtures and full card lint pass.
+No personal export was opened. See [the mode guide](imputation_mode.md).
+
+**Next M8.5:** consume the separate `Analysis.imputation_result` through quality-aware
+card/score observations. Current findings, ClinVar, coverage and structure still use the
+original array table; the UI states that basis. Do not replace original direct calls,
+price phase-filled no-calls as perfectly typed, average per-ALT DR2 without an allele
+contract, convert native haploid quality into diploid quality, or filter low-quality
+findings. `ObservationEvidence` currently requires numeric imputed quality, so its
+unknown-quality contract must be resolved before phase-filled calls enter cards.
+Context schema 1 currently records `card_input=original_array`; extend that contract
+when findings begin using imputed observations. M8.6 owns durable full dosages and
+exact used-panel/tool/parameter provenance; current mode snapshots promise execution
+outcome only. M8.7 owns explicit imputed rare-variant gate regressions.
 
 ## Implemented M8.3 and next scope
 
@@ -40,7 +76,7 @@ sandbox. Strict four-way types, lint/format, fixture reproduction and full card 
 pass. All installed 23 panels / 84,739,838 records and 25 maps / 3,395,051 rows pass
 read-only default-contract validation. No personal export was opened.
 
-**Next M8.4:** integrate the stage into default-on `analyse`/`genetics run`, add the
+**M8.3 handoff (implemented in M8.4):** integrate the stage into default-on `analyse`/`genetics run`, add the
 explicit recorded `--no-impute` escape hatch, and ensure every affected card/run states
 the mode. The M8.3 command/stage is already available; do not build another imputation
 engine. Existing analysis and bundle format 13 remain unchanged until that integration.
@@ -178,7 +214,7 @@ These are full-reference properties, not measurements of a person's chip coverag
 **M8.1-M8.3 are implemented.** Next integrate default-on imputation and
 save panel/tool/parameter provenance. Imputation must be
 default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call reliability
-must remain frequency-gated after imputation. M8.4–M8.7 remain upcoming.
+must remain frequency-gated after imputation. M8.5–M8.7 remain upcoming.
 
 ## Prior checkpoint
 M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
@@ -238,7 +274,7 @@ summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely
 included-haplotype annotations do not. Missing frequency or unresolved observations
 still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
 
-New bundles use **format 13**, with ClinVar lookup schema **5** in the existing private
+New bundles use **format 14**, with ClinVar lookup schema **5** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
 1–12 retain their original results and notices, including schema-2 BRCA entries with
 the original generic benchmark. See [the frequency guide](health_frequencies.md).

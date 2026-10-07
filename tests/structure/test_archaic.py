@@ -257,7 +257,7 @@ def test_primary_failure_never_replaced_by_unrestricted_sharing(pack: KnowledgeP
 
 
 def test_pipeline_missing_dependencies_keep_both_cards_visible(pack: KnowledgePack) -> None:
-    result = analyse(EXPORT, knowledge_dir=pack.source_dir)
+    result = analyse(EXPORT, knowledge_dir=pack.source_dir, no_impute=True)
     assert len(result.cards) == 2
     assert all(
         c.status is MatchStatus.NOT_RUN and "fetch --only aadr" in c.summary for c in result.cards
@@ -477,7 +477,16 @@ def test_reference_loader_refuses_missing_archaic_and_malformed_stage(
     with pytest.raises(ArchaicError):
         archaic.infer_archaic_cards(assemble_pack(pack, match_pack(pack, table)), table)
     response = CliRunner().invoke(
-        app, ["run", "--input", str(EXPORT), "--knowledge", str(pack.source_dir), "--json"]
+        app,
+        [
+            "run",
+            "--no-impute",
+            "--input",
+            str(EXPORT),
+            "--knowledge",
+            str(pack.source_dir),
+            "--json",
+        ],
     )
     assert response.exit_code == 2
     error = json.loads(response.stdout)

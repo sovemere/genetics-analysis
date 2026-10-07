@@ -605,6 +605,16 @@ class Beagle:
         process: subprocess.Popen[str] | None = None
         thread: threading.Thread | None = None
         try:
+            working_directory = console.parent
+            # CreateProcess rejects a long current directory even when Python and Java
+            # can read/write those long paths. Every job argument is absolute, so a
+            # shorter ancestor changes no input/output or checkpoint identity.
+            if os.name == "nt":
+                while len(str(working_directory).encode("utf-16-le")) // 2 >= 240:
+                    parent = working_directory.parent
+                    if parent == working_directory:
+                        break
+                    working_directory = parent
             process = subprocess.Popen(
                 args,
                 stdout=subprocess.PIPE,
@@ -612,7 +622,7 @@ class Beagle:
                 text=True,
                 encoding="utf-8",
                 errors="replace",
-                cwd=console.parent,
+                cwd=working_directory,
                 env=_java_env(),
                 creationflags=_CREATION_FLAGS,
             )

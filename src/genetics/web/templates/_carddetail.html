@@ -23,6 +23,7 @@
       <span class="statusbadge">{{ card.status_label }}</span>
     </div>
     <h2 class="detailtitle" id="carddetail-title">{{ card.title }}</h2>
+    <p class="muted">Imputation {{ card.imputation_mode_label }} for this run.</p>
     <p class="muted">
       {# Linked rather than printed, so the section is a way back to the rest of the run
          rather than a label. `#section-<key>` is the anchor the grid renders when it is

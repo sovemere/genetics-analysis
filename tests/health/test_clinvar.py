@@ -527,7 +527,7 @@ def test_pipeline_saves_the_shared_lookup_stage(
 
     monkeypatch.setattr("genetics.run.pipeline.lookup_default", stage)
     export = Path(__file__).parents[1] / "fixtures" / "synthetic" / "ancestry_v2_male.txt"
-    analysis = analyse(export, knowledge_dir=sample_pack.source_dir)
+    analysis = analyse(export, knowledge_dir=sample_pack.source_dir, no_impute=True)
     assert len(received) == 1
     assert analysis.clinvar.status == "complete"
     path = save(

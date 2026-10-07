@@ -181,6 +181,7 @@ class AssembledCard(NoGenotypeRepr):
     computation: Mapping[str, Any] | None = None
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
+    imputation_mode: str | None = None
 
     @property
     def has_interpretation(self) -> bool:

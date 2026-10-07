@@ -95,7 +95,7 @@ def interpreted(runs_root: Path, tmp_path: Path) -> Path:
     export.write_text(
         render_fixture(replace(base, spike_ins=SPIKE_INS)), encoding="utf-8", newline="\n"
     )
-    return save(analyse(export, knowledge_dir=SYNTHETIC_CARDS), runs_root=runs_root)
+    return save(analyse(export, knowledge_dir=SYNTHETIC_CARDS, no_impute=True), runs_root=runs_root)
 
 
 # ---------------------------------------------------------------------------
@@ -318,6 +318,10 @@ def test_every_fact_the_banner_collects_reaches_the_page() -> None:
         "duplicate_positions": (655, "655"),
         "build_verdict": ("consistent", "consistent"),
         "warnings": (("a distinctive warning",), "a distinctive warning"),
+        "imputation_mode": ("enabled", "enabled"),
+        "imputation_status": ("computed", "computed"),
+        "imputation_jobs": (17, "17 region jobs"),
+        "imputation_records": (42424, "42424 dosage records"),
     }
     assert set(cases) == {f.name for f in fields(QCBanner)}, (
         "a QCBanner field has no expected rendering; decide how it appears on the page"
@@ -926,6 +930,7 @@ def test_every_field_a_card_view_collects_reaches_a_rendered_card() -> None:
         "ancestry_match": "0.66",
         "strand": "complemented",
         "url": "/runs/a-run/cards/everything",
+        "imputation_mode": "not recorded",
     }
     declared = {field.name for field in fields(views.CardView)}
     assert set(expected) | set(CONDITIONAL_FIELDS) == declared, (

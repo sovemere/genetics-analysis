@@ -226,6 +226,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         # itself distinguishes from a stage that ran and recorded not_run.
         "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
         "clinvar": None if bundle.clinvar is None else dict(bundle.clinvar),
+        "imputation": None if bundle.imputation is None else dict(bundle.imputation),
         "cards": [
             {
                 "card_id": card.card_id,
@@ -253,6 +254,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
                 "computation": None if card.computation is None else dict(card.computation),
                 "multi_marker": None if card.multi_marker is None else dict(card.multi_marker),
                 "risk_context": card.risk_context,
+                "imputation_mode": card.imputation_mode,
             }
             for card in bundle.cards
         ],
@@ -412,12 +414,16 @@ def runs_show(
         typer.echo(f"  input       {source.get('vendor')}, {source.get('markers')} markers")
     typer.echo(f"  ancestry    {_ancestry_line(bundle.ancestry)}")
     typer.echo(f"  ClinVar     {bundle.clinvar['status'] if bundle.clinvar else 'not recorded'}")
+    typer.echo(
+        f"  imputation  {bundle.imputation['mode'] if bundle.imputation else 'not recorded'}"
+    )
     typer.echo("")
 
     for card in bundle.cards:
         tier = card.confidence_tier or card.status
         typer.secho(f"  {tier:<16}", fg=typer.colors.CYAN, nl=False)
         typer.echo(f"{card.section:<14} {card.card_id:<34} {card.title}")
+        typer.echo(f"    Imputation mode: {card.imputation_mode or 'not recorded'}")
         if card.risk_context is not None:
             typer.echo(f"    {card.summary}")
             typer.echo(f"    {card.risk_context}")

@@ -200,6 +200,9 @@ def test_every_banner_field_is_populated_by_a_real_qc_report(sample_qc: QCReport
 
     banner = banner_for(_bundle((), qc=dict(sample_qc.to_dict())))
     for field in fields(QCBanner):
+        if field.name.startswith("imputation_"):
+            assert getattr(banner, field.name) is None  # This fixture predates recorded mode.
+            continue
         assert getattr(banner, field.name) is not None, (
             f"QCBanner.{field.name} reads a key a real QC report does not contain"
         )

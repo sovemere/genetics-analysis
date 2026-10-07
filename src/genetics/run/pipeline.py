@@ -1,57 +1,21 @@
-"""The analysis pipeline: an export in, a saved run bundle out (roadmap M4.0).
+"""One analysis engine: ingest/QC, ancestry, default-on imputation, cards and save.
 
-This is the function ``genetics run`` calls and the one M4.10 will run with networking
-disabled at the OS level. It exists as a module rather than as the body of a CLI command
-because the dashboard, the agent surface (AGENTS.md section 3) and the offline test all
-need to *produce* a run, and a pipeline that only exists inside a Typer callback can be
-driven by exactly one of them.
+Ancestry runs before imputation and any finding assembly. M8.4 executes the shared
+full-panel stage unless the caller explicitly supplies no_impute=True. Failures are
+reported; there is no automatic direct-overlap fallback. Analysis writes private job
+caches, while save() publishes the immutable run bundle.
 
-The stages are the ones the earlier milestones already built, in the only order they
-compose::
-
-    ingest -> infer_ancestry -> match_pack -> reference lookup -> assemble_pack
-        -> structure stages -> write_bundle
-
-**Ancestry runs before any card is assembled (M5.8), and that order is the requirement.**
-PRS confidence depends on it (AGENTS.md 4.4), so the stage that will consume it -- M9.5,
-turning a placement into ``ancestry_match`` -- has to find it already computed. What the
-stage returns is :class:`~genetics.ancestry.context.AncestryContext`, whose statuses keep
-"not inferred" and "inferred, and no reference population fits" apart; see that module for
-why the difference is load-bearing. Nothing in this module yet reads it back into a card.
-
-Nothing here reshapes what those return. That is deliberate: every adapter written at this
-seam would be a second description of a format that already has one, and the failure this
-project keeps meeting (M0.4, M3.7, M4.1, M4.2) is two names for one thing drifting apart.
-
-**The one thing this module actually decides is the observation layer**, and it is worth
-being explicit about why that is a decision rather than a default.
-:func:`~genetics.engine.evidence.assemble_pack` refuses to assemble an interpretation card
-without :class:`~genetics.engine.evidence.ObservationEvidence`, because assuming a direct
-call would score an imputed observation as perfect. At this milestone there is no
-imputation stage, and the ancestry stage's result has no mapping onto a card's study
-population yet (M9.5), so the observation remains
-:attr:`~genetics.engine.confidence.CallSource.DIRECT` with no ancestry match. M7.2 now
-supplies allele-specific gnomAD frequencies where an exact, usable reference record
-exists. Missing frequencies remain unknown and cap confidence; nothing assumes zero
-or infers personal ancestry from the population chosen for the conservative rarity screen.
-
-That observation is supplied here, where M8 and M9 have somewhere obvious to change it.
-It is emphatically *not* a default inside ``assemble_card``: a card assembled without an
-observation is a card whose provenance nobody stated, and the refusal there is what makes
-this module have to say it out loud.
-
-**A DIRECT observation is recorded even for a card whose marker is absent**, which reads
-oddly until you read it as a statement about the run rather than the card: this pipeline
-has no imputation stage, so no genotype in this run could have been imputed. That is
-exactly the distinction M4.1 added ``observation`` to the bundle to preserve -- "the marker
-is not on this array" against "imputation was attempted and failed" -- and dropping the
-record for unmatched cards would throw it away for the only cards it can distinguish.
+Current card matching, ClinVar, coverage and genome-structure modules consume the
+original array observations. Imputed dosages remain separate on Analysis for M8.5's
+quality-aware integration. The requested execution mode is separate from call_source:
+an enabled run does not make an original observed call an imputed observation.
+Missing allele frequencies remain unknown, and ancestry-to-study mapping remains M9.5.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -72,6 +36,9 @@ from genetics.health.clinvar import ClinVarLookup, lookup_default
 from genetics.health.coverage import assemble_coverage_card
 from genetics.health.frequencies import calibrate, default_index, select_frequencies
 from genetics.health.secondary import default_reference, surface
+from genetics.imputation import ImputationResult, impute
+from genetics.imputation.context import ImputationContext
+from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
@@ -114,6 +81,8 @@ class Analysis(NoGenotypeRepr):
     cards: tuple[AssembledCard, ...]
     ancestry: AncestryContext
     clinvar: ClinVarLookup
+    imputation: ImputationContext
+    imputation_result: ImputationResult | None = None
 
     @property
     def vendor(self) -> str:
@@ -217,8 +186,9 @@ def analyse(
     knowledge_dir: Path | None = None,
     ancestry: AncestryStage | None = None,
     progress: Callable[[str], None] | None = None,
+    no_impute: bool = False,
 ) -> Analysis:
-    """Parse, QC, infer ancestry, match, assemble and compute structure cards.
+    """Parse, QC, infer ancestry, impute by default, then evaluate original-array cards.
 
     Writes no run bundle.
 
@@ -237,12 +207,24 @@ def analyse(
     # typo in a card file is reported after a full parse of somebody's genome, which is the
     # slowest possible way to learn about the cheapest possible mistake -- and card
     # authoring is exactly when that mistake gets made.
+    if type(no_impute) is not bool:
+        raise ImputationError("no_impute must be an explicit boolean.")
     pack = KnowledgePack.load(knowledge_dir)
     result: IngestResult = ingest(input_path)
     if ancestry is None:
         context = infer_ancestry(result.table, result.qc, progress=progress)
     else:
         context = ancestry(result.table, result.qc)
+    imputation_result = None
+    if no_impute:
+        imputation_context = ImputationContext.disabled()
+        if progress:
+            progress("Imputation disabled by explicit --no-impute request")
+    else:
+        imputation_result = impute(result.table, sex=result.qc.sex.inferred, progress=progress)
+        if imputation_result.original is not result.table:
+            raise ImputationError("Imputation returned observations for a different target.")
+        imputation_context = ImputationContext.enabled(imputation_result.summary())
     matches = match_pack(pack, result.table)
     clinvar = lookup_default(result.table, progress=progress)
     frequency_index = default_index(progress=progress)
@@ -266,6 +248,7 @@ def analyse(
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
     cards = infer_sex_chromosome_cards(cards, result.table)
+    cards = tuple(replace(card, imputation_mode=imputation_context.mode) for card in cards)
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,
@@ -275,6 +258,8 @@ def analyse(
         cards=cards,
         ancestry=context,
         clinvar=clinvar,
+        imputation=imputation_context,
+        imputation_result=imputation_result,
     )
 
 
@@ -301,6 +286,7 @@ def save(
         pack=analysis.pack,
         ancestry=analysis.ancestry,
         clinvar=analysis.clinvar,
+        imputation=analysis.imputation,
         runs_root=runs_root,
         run_id=run_id,
         created_at=created_at,

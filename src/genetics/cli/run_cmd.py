@@ -47,12 +47,15 @@ from genetics.ancestry.context import AncestryContext, AncestryError
 from genetics.ancestry.eigenstrat import EigenstratError
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
+from genetics.external.beagle import BeagleError
 from genetics.external.plink2 import Plink2Error
 from genetics.health.clinvar import ClinVarError
 from genetics.health.frequencies import FrequencyError
+from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
+from genetics.refs.postprocess import ProcessError
 from genetics.run.bundle import BundleError
 from genetics.run.pipeline import Analysis, analyse, save
 from genetics.structure.archaic import ArchaicError
@@ -74,6 +77,8 @@ def _error_kind(exc: Exception) -> str:
     three different things for an agent to do next, and prose is not something it can
     branch on.
     """
+    if isinstance(exc, ImputationError | BeagleError | ProcessError):
+        return "imputation"
     if isinstance(exc, IngestError | AnchorError):
         return "ingest"
     if isinstance(exc, AncestryError):
@@ -130,6 +135,7 @@ def _payload(analysis: Analysis, path: Path) -> dict[str, Any]:
         "qc": analysis.qc.to_dict(),
         "ancestry": analysis.ancestry.summary(),
         "clinvar": {"status": analysis.clinvar.status},
+        "imputation": analysis.imputation.to_dict(),
         "cards": {
             "total": analysis.n_cards,
             "with_interpretation": analysis.with_interpretation,
@@ -163,6 +169,13 @@ def run(
         ),
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+    no_impute: Annotated[
+        bool,
+        typer.Option(
+            "--no-impute",
+            help="Explicitly disable default imputation; recorded in the run and cards.",
+        ),
+    ] = False,
 ) -> None:
     """Analyse an export and save the result as an immutable run bundle.
 
@@ -176,7 +189,9 @@ def run(
         _echo(f"  {message}", err=True, dim=True)
 
     try:
-        analysis = analyse(input_path, knowledge_dir=knowledge, progress=progress)
+        analysis = analyse(
+            input_path, knowledge_dir=knowledge, progress=progress, no_impute=no_impute
+        )
         path = save(analysis)
     except (
         IngestError,
@@ -192,6 +207,9 @@ def run(
         SexChromosomeError,
         EigenstratError,
         Plink2Error,
+        ImputationError,
+        BeagleError,
+        ProcessError,
     ) as exc:
         _fail(exc, as_json=as_json)
 
@@ -221,6 +239,12 @@ def _render(analysis: Analysis, path: Path) -> None:
             _echo(f"  ! {warning}", fg=typer.colors.YELLOW)
 
     _render_ancestry(analysis.ancestry)
+    _echo("")
+    _echo(
+        f"  imputation  {analysis.imputation.mode}: {analysis.imputation.status}",
+        fg=typer.colors.YELLOW if analysis.imputation.mode == "disabled" else None,
+    )
+    _echo("  Card findings use the original array observations.")
 
     _echo("")
     _echo(f"  {analysis.n_cards} card(s) from {analysis.pack.source_dir}")
