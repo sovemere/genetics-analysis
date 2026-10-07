@@ -68,7 +68,7 @@ Alzheimer-disease HR 8.74 (7.08–10.79). Neither the e3/e3 comparator nor e3r-c
 outcomes receives an invented disease estimate. Unresolved phase assigns no phenotype
 effect, while retaining each marker's rarity/quality calibration.
 
-Bundle format **15** saves literal risk context and the multi-marker definition,
+Bundle format **16** saves literal risk context and the multi-marker definition,
 observations, phase candidates and locus-specific calibration. Scalar fields remain
 empty for multi-marker observations. Saved validation checks the recorded definitions
 and weakest-marker aggregation, call-source/quality consistency and the rarest usable

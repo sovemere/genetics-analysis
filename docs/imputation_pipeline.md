@@ -101,7 +101,7 @@ M8.3 provides the callable stage and independent CLI. M8.4 now calls it by defau
 `genetics run`, with an explicit recorded `--no-impute` mode and format-14 execution
 snapshots. See [the mode guide](imputation_mode.md). M8.5 supplies quality-aware card
 observations while retaining original direct calls; [the quality guide](imputation_quality.md)
-describes native dosage/quality and the future score-consumer contract. M8.6 owns full bundle
+describes native dosage/quality and the future score-consumer contract. M8.6 supplies full bundle
 provenance and M8.7 imputed rare-variant gate regressions. All front ends use this stage.
 
 Native offline acceptance generates a full two-chromosome, twenty-sample reference

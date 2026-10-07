@@ -36,6 +36,7 @@ from genetics.run.bundle import (
     write_bundle,
 )
 from genetics.run.pipeline import analyse, save
+from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
 from genetics.web.app import create_app
 from genetics.web.config import WebConfig
 
@@ -411,6 +412,7 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
                 original_manifest = manifest_path.read_bytes()
                 manifest = json.loads(original_manifest)
                 manifest["format_version"] = 8
+                remove_snapshot_for_historical_fixture(path, manifest)
                 manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
                 with pytest.raises(BundleError, match="format 9"):
                     read_bundle(path)
@@ -442,6 +444,7 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
             manifest_path = path / MANIFEST_NAME
             old_manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
             old_manifest["format_version"] = 7
+            remove_snapshot_for_historical_fixture(path, old_manifest)
             manifest_path.write_text(json.dumps(old_manifest), encoding="utf-8")
             assert read_bundle(path).clinvar == snapshot
             assert "Frequency-based reliability" in client.get(f"/runs/{path.name}/clinvar").text
@@ -473,6 +476,7 @@ def test_old_v6_bundles_remain_readable(
     )
     manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
     manifest["format_version"] = 6
+    remove_snapshot_for_historical_fixture(path, manifest)
     del manifest["files"][CLINVAR_NAME]
     (path / CLINVAR_NAME).unlink()
     (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")

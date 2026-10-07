@@ -2483,7 +2483,21 @@ default-on.*
         strict four-way typing, lint/format, fixture reproduction and full card lint
         verify the integration. No personal export. Next M8.6 full provenance and
         M8.7 dedicated rare-call gates. [Guide](docs/imputation_quality.md).
-- [ ] **M8.6** Record panel version, tool version and parameters in the run bundle.
+- [x] **M8.6** Record panel version, tool version and parameters in the run bundle.
+      - **Completed 2026-10-07.** Format 16 / full provenance schema 1 durably copies
+        complete native dosages and byte-identical panel/map catalogs, binding exact
+        used releases, artifact/tool/runtime hashes and phase/imputation parameters
+        to the saved stage. Card/full-dosage agreement, native ploidy/per-ALT quality,
+        typed retention, source/count/region arithmetic and phase handoff are validated
+        without current caches or manifests. Atomic independent copies reject changed
+        inputs and failed publication; progress is genotype-free. Historical formats
+        1–15 retain their meanings. Shared saved iterator, CLI imputation/provenance/
+        dosage access and dashboard status use the same snapshot. Opt-out, zero jobs
+        and unrecorded low-level writers remain explicit. Synthetic corruption/privacy/
+        historical checks and native 800-record saved acceptance cover the contract.
+        **2,524 passed, five existing Windows skips**; 53 added cases, strict four-way
+        types, lint/format, fixtures and full card lint pass. No personal export.
+        Next M8.7. [Guide](docs/imputation_provenance.md).
 - [ ] **M8.7** Assert the rare-variant frequency gate still applies to imputed calls —
       imputation does **not** rescue rare-variant reliability.
 
@@ -2694,6 +2708,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-07 | M8.6 | Format 16 / full provenance schema 1 durably stores independent full native dosages and byte-identical panel/map catalogs, with exact used source/tool/runtime identities and per-region phase/imputation parameters. Saved validation binds native per-ALT quality, typed retention, source/count/region arithmetic, phase handoff and card/full-dosage evidence without caches or current manifests. Atomic publication refuses changed stage inputs and failed copies. Shared saved iterator, CLI provenance/JSONL dosages and dashboard recording status retain historical formats 1–15. Genotype-free progress; explicit opt-out, zero-job and not-recorded states. **2,524 tests passed, five existing Windows skips**; 53 added synthetic cases and native 800-record save/reuse acceptance, strict four-way types, lint/format, fixtures and full card lint pass. Historical fixtures now represent their original recorded contracts. No personal export. Next M8.7. [Guide](docs/imputation_provenance.md). |
 | 2026-10-07 | M8.5 | Quality-aware card observations retain original direct probes and consume exact biallelic imputed SNVs, with native per-ALT dosage/DR2, source and ploidy scope. Low quality uses existing confidence gates; phase-filled unknown quality contributes zero and caps confidence at limited. Reference allele contracts resolve imputed palindromic strand while original checks remain intact. Multi-marker findings inherit the weakest marker without assuming phase. Format 15 / execution schema 2 preserves observation basis and validates saved quality; formats 1–14 retain original meanings. CLI/dashboard parity, 54 new synthetic cases, native Beagle acceptance, full native suite, strict four-way types, lint/format, fixtures and full card lint pass. The added format-13 downgrade guard passes separately. M8.4 CI passes all five jobs after retrying one transient Windows Java discovery failure. No personal export. Next M8.6 full provenance, then M8.7 rare-call gate regressions. [Guide](docs/imputation_quality.md). |
 | 2026-10-07 | M8.4 | Default-on shared imputation after ancestry, explicit recorded --no-impute, and categorical failure without fallback. Format 14 / execution schema 1 saves requested mode, outcome and per-card mode with count/ploidy/status/source consistency. CLI/dashboard snapshots agree; historical formats retain unknown mode. Current findings retain original array observations pending M8.5. Native default CLI generates 800 records and reuses jobs; fixed Windows long working-directory launches with stable paths/contracts. **2,417 tests passed, five existing Windows skips**; 48 new cases, strict four-way types, lint/format, fixtures and full card lint pass. No personal export. Next M8.5. [Guide](docs/imputation_mode.md). |
 | 2026-10-07 | M8.3 | Shared full-panel phasing then imputation and `genetics impute`, with exact eligible typed retention, source-separated per-ALT dosages/DR2, X PAR/ploidy handling and explicit phase-filled unknown quality. Atomic private completion, stable jobs and regenerated semantic reuse checks. **2,369 tests passed, five existing Windows skips**, native tools enabled; 77 new cases, including male/female synthetic native targets producing 800 records each, full panel preservation and completed reuse. Strict four-way types, lint/format, fixtures and full card lint pass. Read-only default validation passes all 23 installed panels and 25 maps. No personal export. Next M8.4 integrates default-on application orchestration; existing bundle format 13 and analysis behavior remain pending that step. [Guide](docs/imputation_pipeline.md). |

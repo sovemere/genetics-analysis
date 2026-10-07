@@ -192,7 +192,7 @@ def run(
         analysis = analyse(
             input_path, knowledge_dir=knowledge, progress=progress, no_impute=no_impute
         )
-        path = save(analysis)
+        path = save(analysis, progress=progress)
     except (
         IngestError,
         AnchorError,

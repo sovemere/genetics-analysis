@@ -25,6 +25,9 @@
     <div><dt>Build</dt><dd>{{ shell.banner.build_verdict or "-" }}</dd></div>
     <div><dt>Imputation</dt><dd>{{ (shell.banner.imputation_mode or "not recorded") | replace("_", " ") }}
       {% if shell.banner.imputation_status %} · {{ shell.banner.imputation_status | replace("_", " ") }}{% endif %}</dd></div>
+    <div><dt>Full imputation provenance</dt><dd>{{ (shell.banner.imputation_provenance_status or "not recorded") | replace("_", " ") }}
+      {% if shell.banner.imputation_panel_version %} · panel {{ shell.banner.imputation_panel_version }}{% endif %}
+      {% if shell.banner.imputation_beagle_version %} · Beagle {{ shell.banner.imputation_beagle_version }}{% endif %}</dd></div>
     {#
       Shown as counts rather than left to the warnings below, because a warning only fires
       above a threshold: `het_haploid_calls: 0` produces no warning at all, and "zero" is a

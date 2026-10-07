@@ -38,6 +38,7 @@ from genetics.run.bundle import (
     read_bundle,
     write_bundle,
 )
+from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
 from genetics.web.app import create_app
 from genetics.web.config import WebConfig
 
@@ -398,7 +399,7 @@ def test_saved_card_cli_and_dashboard_agree_and_never_recount(
     snapshot = lookup.to_dict()
     index.path.unlink()  # All readers must work with the source removed.
     saved = read_bundle(path)
-    assert saved.format_version == 15 and saved.clinvar == snapshot
+    assert saved.format_version == 16 and saved.clinvar == snapshot
     assert saved.cards[0].computation is not None
     assert saved.cards[0].computation["result"] == snapshot["coverage"]
     cli = CliRunner().invoke(app, ["runs", "clinvar", path.name, "--json"])
@@ -450,6 +451,7 @@ def test_historical_lookup_retains_original_meaning(
     manifest_path = path / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 12
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     saved = read_bundle(path)
     assert saved.clinvar == lookup.to_dict()
@@ -475,6 +477,7 @@ def test_schema_five_cannot_be_labelled_an_older_bundle(
     manifest_path = path / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 12
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(BundleError, match="format 13"):
         read_bundle(path)

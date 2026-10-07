@@ -45,6 +45,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import Any, ClassVar
 
+from genetics.imputation.snapshot import CATALOG_NAMES, is_dosage_name
 from genetics.privacy import NoGenotypeRepr
 from genetics.run.bundle import (
     BUNDLE_FORMAT_VERSION,
@@ -61,7 +62,7 @@ from genetics.run.bundle import (
     resolve_runs_root,
 )
 
-BUNDLE_MEMBERS: frozenset[str] = frozenset({MANIFEST_NAME, *PAYLOAD_FILES})
+BUNDLE_MEMBERS: frozenset[str] = frozenset({MANIFEST_NAME, *PAYLOAD_FILES, *CATALOG_NAMES})
 """Every filename a bundle may contain.
 
 Used only to recognise *wreckage* -- a bundle whose manifest is gone, which has nothing
@@ -503,7 +504,11 @@ def load_run(run_id: str, runs_root: Path | None = None) -> RunBundle:
 
 
 def _unexpected_members(directory: Path) -> list[str]:
-    return sorted(item.name for item in directory.iterdir() if item.name not in BUNDLE_MEMBERS)
+    return sorted(
+        item.name
+        for item in directory.iterdir()
+        if item.name not in BUNDLE_MEMBERS and not is_dosage_name(item.name)
+    )
 
 
 def _declares_itself_a_bundle(directory: Path) -> bool:

@@ -49,7 +49,7 @@ import math
 import os
 import secrets
 import shutil
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -64,6 +64,7 @@ from genetics.engine.observation_snapshot import validate_imputation_snapshot
 from genetics.engine.serialization import confidence_payload as _confidence_payload
 from genetics.engine.serialization import frequency_payload as _frequency_payload
 from genetics.engine.serialization import observation_payload
+from genetics.imputation import snapshot as imputation_snapshot
 from genetics.imputation.context import ImputationContext
 from genetics.imputation.target import ImputationError
 from genetics.paths import UnsafeDataDirError, is_inside_repo, reference_lock, runs_dir, tools_dir
@@ -75,11 +76,18 @@ from genetics.refs import tools as refs_tools
 if TYPE_CHECKING:
     # Type-only: reading a bundle must not import the whole ancestry stack, which pulls in
     # the reference machinery. Writing only calls `to_dict()` on what it is handed.
+    from collections.abc import Iterator
+
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
+    from genetics.imputation import ImputationResult
+    from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 15
+BUNDLE_FORMAT_VERSION: Final[int] = 16
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 16 (M8.6) adds durable full dosages, byte-identical reference catalogs and
+exact used tool/runtime/parameter provenance. Formats 1-15 retain their snapshots.
 
 Version 15 (M8.5) adds native allele dosage/quality evidence, including explicit
 unestimated phase-filled quality, and execution schema 2 for quality-aware card inputs.
@@ -196,6 +204,7 @@ CARDS_NAME: Final[str] = "cards.run.json"
 ANCESTRY_NAME: Final[str] = "ancestry.run.json"
 CLINVAR_NAME: Final[str] = "clinvar.run.json"
 IMPUTATION_NAME: Final[str] = "imputation.run.json"
+IMPUTATION_PROVENANCE_NAME: Final[str] = imputation_snapshot.PROVENANCE_NAME
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -218,6 +227,7 @@ PAYLOAD_FILES: Final[tuple[str, ...]] = (
     ANCESTRY_NAME,
     CLINVAR_NAME,
     IMPUTATION_NAME,
+    IMPUTATION_PROVENANCE_NAME,
 )
 """Every payload file this format version writes, and so every file a bundle may hold.
 
@@ -234,6 +244,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     ANCESTRY_NAME: ANCESTRY_FORMAT_VERSION,
     CLINVAR_NAME: 7,
     IMPUTATION_NAME: 14,
+    IMPUTATION_PROVENANCE_NAME: 16,
 }
 
 
@@ -640,6 +651,11 @@ class RunBundle(NoGenotypeRepr):
     clinvar: Mapping[str, Any] | None = None
     """Reference lookup snapshot; None means not recorded by a pre-v7 writer."""
     imputation: Mapping[str, Any] | None = None
+    imputation_provenance: Mapping[str, Any] | None = None
+
+    def iter_dosages(self) -> Iterator[DosageRecord]:
+        """Stream validated native full dosages from this bundle, without a stage cache."""
+        yield from imputation_snapshot.iter_saved(self.path, self.imputation_provenance)
 
     @property
     def card_count(self) -> int:
@@ -743,6 +759,8 @@ def write_bundle(
     ancestry: AncestryContext,
     clinvar: ClinVarLookup | None = None,
     imputation: ImputationContext | None = None,
+    imputation_result: ImputationResult | None = None,
+    progress: Callable[[str], None] | None = None,
     runs_root: Path | None = None,
     run_id: str | None = None,
     created_at: datetime | None = None,
@@ -813,6 +831,13 @@ def write_bundle(
             )
             card_payloads.append(payload)
         _write_text(staging / IMPUTATION_NAME, _render(execution))
+        try:
+            imputation_record, dosage_hashes = imputation_snapshot.publish(
+                staging, execution, imputation_result, card_payloads, progress
+            )
+        except ImputationError as exc:
+            raise BundleError(str(exc)) from exc
+        _write_text(staging / IMPUTATION_PROVENANCE_NAME, _render(imputation_record))
         _write_text(staging / QC_NAME, _render(qc.to_dict()))
         _write_text(
             staging / CARDS_NAME,
@@ -860,7 +885,7 @@ def write_bundle(
                 "cards": len(cards),
                 "with_interpretation": sum(1 for card in cards if card.has_interpretation),
             },
-            "files": {name: _digest(staging / name) for name in PAYLOAD_FILES},
+            "files": {name: _digest(staging / name) for name in PAYLOAD_FILES} | dosage_hashes,
         }
         manifest_text = _render(manifest)
 
@@ -1279,6 +1304,8 @@ def read_bundle(path: Path) -> RunBundle:
         raise BundleError(f"{MANIFEST_NAME}.files: no digest recorded for {', '.join(missing)}")
     for name, expected in sorted(recorded.items()):
         target = directory / payload_name(name, f"{MANIFEST_NAME}.files")
+        if declared >= 16 and target.is_symlink():
+            raise BundleIntegrityError("Saved payloads cannot be symbolic links")
         if not target.is_file():
             raise BundleIntegrityError(f"{name} is recorded in the manifest but absent from {path}")
         actual = _digest(target)
@@ -1343,6 +1370,7 @@ def read_bundle(path: Path) -> RunBundle:
     ancestry: Mapping[str, Any] | None = None
     clinvar: Mapping[str, Any] | None = None
     imputation: Mapping[str, Any] | None = None
+    imputation_provenance: Mapping[str, Any] | None = None
     if declared >= 14:
         try:
             imputation = ImputationContext.from_dict(
@@ -1373,6 +1401,21 @@ def read_bundle(path: Path) -> RunBundle:
                 raise BundleError(str(exc)) from exc
     elif any(isinstance(e, Mapping) and e.get("imputation_mode") is not None for e in entries):
         raise BundleError("Recorded imputation modes require bundle format 14")
+    if declared >= 16:
+        assert imputation is not None
+        imputation_provenance = _load_json(directory / IMPUTATION_PROVENANCE_NAME)
+        try:
+            imputation_snapshot.validate_snapshot(
+                directory, imputation_provenance, imputation, entries, recorded
+            )
+        except ImputationError as exc:
+            raise BundleError(str(exc)) from exc
+    elif any(
+        name in {IMPUTATION_PROVENANCE_NAME, *imputation_snapshot.CATALOG_NAMES}
+        or imputation_snapshot.is_dosage_name(name)
+        for name in recorded
+    ):
+        raise BundleError("Full dosage provenance requires bundle format 16")
     if declared >= ANCESTRY_FORMAT_VERSION:
         ancestry = _load_json(directory / ANCESTRY_NAME)
         _reject_unknown(ancestry, ANCESTRY_KEYS, ANCESTRY_NAME)
@@ -1416,4 +1459,5 @@ def read_bundle(path: Path) -> RunBundle:
         ancestry=ancestry,
         clinvar=clinvar,
         imputation=imputation,
+        imputation_provenance=imputation_provenance,
     )

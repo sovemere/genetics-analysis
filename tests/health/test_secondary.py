@@ -32,6 +32,7 @@ from genetics.health.secondary import (
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.qc.report import QCReport
 from genetics.run.bundle import CLINVAR_NAME, MANIFEST_NAME, BundleError, read_bundle, write_bundle
+from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
 from genetics.web.app import create_app
 from genetics.web.config import WebConfig
 
@@ -381,6 +382,7 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
     if legacy:
         manifest = json.loads((path / MANIFEST_NAME).read_text())
         manifest["format_version"] = 9
+        remove_snapshot_for_historical_fixture(path, manifest)
         (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
     assert read_bundle(path).clinvar == snapshot
     json_result = CliRunner().invoke(app, ["runs", "secondary", path.name, "--json"])
@@ -416,6 +418,7 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
             assert "likely-artifact" in last.text
             manifest = json.loads((path / MANIFEST_NAME).read_text())
             manifest["format_version"] = 9
+            remove_snapshot_for_historical_fixture(path, manifest)
             (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
             with pytest.raises(BundleError, match="format 10"):
                 read_bundle(path)

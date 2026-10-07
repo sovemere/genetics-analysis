@@ -50,7 +50,7 @@ No overlap does not exclude a variant or a condition. The array does not sequenc
 these genes, and its structural-variant blind spots remain. M7.6 supplies the separate
 [quantitative coverage card](clinvar_coverage.md).
 
-New analyses save ClinVar schema **5** in bundle format **15**, preserving the underlying
+New analyses save ClinVar schema **5** in bundle format **16**, preserving the underlying
 ACMG generation as `lookup_schema_version: 4`, including the complete
 source roster, guidance, source/access/license provenance, surfacing policy, counts
 and annotations. Integrity checks reconstruct annotations from that saved roster,

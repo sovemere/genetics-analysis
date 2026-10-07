@@ -227,6 +227,9 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
         "clinvar": None if bundle.clinvar is None else dict(bundle.clinvar),
         "imputation": None if bundle.imputation is None else dict(bundle.imputation),
+        "imputation_provenance": None
+        if bundle.imputation_provenance is None
+        else dict(bundle.imputation_provenance),
         "cards": [
             {
                 "card_id": card.card_id,
@@ -268,6 +271,48 @@ def runs_clinvar(
 ) -> None:
     """Read ClinVar reference lookup; classifications are not calibrated findings."""
     _show_clinvar(run_id, as_json=as_json, secondary_only=False)
+
+
+@runs_app.command("imputation")
+def runs_imputation(
+    run_id: Annotated[str, typer.Argument(help="Saved run id.")],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit private saved provenance.")] = False,
+    dosages: Annotated[
+        bool, typer.Option("--dosages", help="Stream private full dosages as JSON Lines.")
+    ] = False,
+) -> None:
+    """Inspect exact used imputation provenance or stream native dosage evidence."""
+    from genetics.imputation.target import ImputationError
+
+    try:
+        bundle = store.load_run(run_id)
+        if dosages:
+            for dosage in bundle.iter_dosages():
+                typer.echo(json.dumps(dosage.to_dict(), allow_nan=False))
+            return
+    except (BundleError, ImputationError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    record = bundle.imputation_provenance
+    if as_json:
+        typer.echo(
+            json.dumps(
+                {"run_id": bundle.run_id, "execution": bundle.imputation, "provenance": record},
+                indent=2,
+            )
+        )
+    elif record is None or record["status"] != "recorded":
+        typer.echo(f"Full imputation provenance: {record['status'] if record else 'not recorded'}")
+    else:
+        stage = record["stage"]
+        typer.echo(f"Panel: {stage['panel_source']['id']} / {stage['panel_source']['version']}")
+        typer.echo(f"Maps: {stage['map_source']['id']} / {stage['map_source']['version']}")
+        typer.echo(f"Beagle: {stage['contract']['beagle']['version']}")
+        typer.echo(f"Java: {stage['contract']['beagle']['java']['version']}")
+        typer.echo(f"Parameters: {json.dumps(stage['contract']['options'], sort_keys=True)}")
+        typer.echo(
+            f"Saved: {stage['records']} native dosage records / {len(stage['jobs'])} region jobs"
+        )
+        typer.echo("Each region's phase/imputation parameters are in --json provenance.")
 
 
 @runs_app.command("secondary")

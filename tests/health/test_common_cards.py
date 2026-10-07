@@ -43,6 +43,7 @@ from genetics.run.bundle import (
 )
 from genetics.run.pipeline import observations
 from genetics.testing.fixtures import FIXTURES, render_fixture
+from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
 from genetics.web import WebConfig, create_app
 
 
@@ -523,6 +524,7 @@ def test_format_eleven_preserves_historical_phenotype_calibration(
     manifest_path = path / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 11
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     loaded = read_bundle(path)
     assert loaded.format_version == 11
@@ -539,6 +541,7 @@ def test_new_nullable_calibration_cannot_be_declared_format_eleven(
     manifest_path = path / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 11
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(BundleError, match="absent phenotype calibration"):
         read_bundle(path)
@@ -576,6 +579,7 @@ def test_saved_scalar_format_ten_results_are_not_reinterpreted(
     manifest_path = path / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 10
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest["files"][CARDS_NAME] = hashlib.sha256(cards_path.read_bytes()).hexdigest()
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     loaded = read_bundle(path)

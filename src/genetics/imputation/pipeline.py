@@ -23,7 +23,7 @@ from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import InferredSex
 from genetics.refs.imputation import SUPPORTED, BrefTools, VcfSummary, _canonical_bytes, _write_json
 
-from .dosages import DosageRecord, read_output
+from .dosages import DosageRecord, iter_records, read_output
 from .reference import PreparedReference, read_markers
 from .target import ImputationError, Target, prepare_target, regions
 
@@ -53,15 +53,7 @@ class ImputationResult(NoGenotypeRepr):
     def iter_dosages(self) -> Iterator[DosageRecord]:
         """Stream private records; no whole-genome DataFrame or genotype repr."""
         for path in self.dosage_files:
-            with gzip.open(path, "rt", encoding="utf-8") as stream:
-                for line in stream:
-                    raw = json.loads(line)
-                    for name in ("alt", "storage_genotype", "dosage", "storage_dosage"):
-                        raw[name] = tuple(raw[name])
-                    for name in ("genotype", "dr2"):
-                        if raw[name] is not None:
-                            raw[name] = tuple(raw[name])
-                    yield DosageRecord(**raw)
+            yield from iter_records(path)
 
 
 def _publish_file(pending: Path, destination: Path) -> None:

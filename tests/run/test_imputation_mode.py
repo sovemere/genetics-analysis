@@ -21,6 +21,7 @@ from genetics.external.beagle import Beagle, BeagleError, BeagleOptions
 from genetics.health.clinvar import lookup_default
 from genetics.imputation import ImputationError, ImputationResult, impute
 from genetics.imputation.context import ImputationContext
+from genetics.imputation.dosages import DosageRecord
 from genetics.ingest.schema import GenotypeTable
 from genetics.privacy import assert_no_genotype
 from genetics.qc.report import InferredSex
@@ -30,6 +31,7 @@ from genetics.run import pipeline
 from genetics.run.bundle import BundleError, read_bundle
 from genetics.testing.fixtures import FIXTURES, _ancestry_header, render_fixture
 from genetics.testing.imputation_inputs import native_reference
+from genetics.testing.imputation_snapshots import anchors, synthetic_stage
 from genetics.web import create_app
 from genetics.web.config import WebConfig
 
@@ -75,13 +77,53 @@ def export(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
 
 def fake_result(table: GenotypeTable, root: Path, *, empty: bool = False) -> ImputationResult:
     directory = root / "synthetic.imputation-work/complete"
-    data = summary(empty=empty)
-    files = () if empty else (directory / "chr1.dosages.jsonl.gz",)
-    metadata = {
-        k: data[k]
-        for k in ("records", "sources", "ploidy_conflicts", "regions", "unsupported_positions")
-    }
-    return ImputationResult(table, directory, files, metadata, False)
+    records = (
+        ()
+        if empty
+        else (
+            *anchors(),
+            DosageRecord(
+                "1",
+                30,
+                "A",
+                ("G",),
+                (0, 1),
+                (0, 1),
+                (1.0,),
+                (1.0,),
+                None,
+                2,
+                "imputed_no_call",
+                "resolved",
+                "no_call",
+                "phased_hardcall_only",
+                "not_estimated",
+            ),
+            DosageRecord(
+                "1",
+                40,
+                "A",
+                ("G",),
+                (0, 1),
+                (0, 1),
+                (1.1,),
+                (1.1,),
+                (0.8,),
+                2,
+                "imputed_untyped",
+                "resolved",
+                None,
+                "beagle_DS",
+                "beagle_diploid_dosage",
+            ),
+        )
+    )
+    return synthetic_stage(
+        table,
+        directory,
+        records=records,
+        empty_report=summary(empty=True)["regions"][0] if empty else None,
+    )
 
 
 def install_fake(
@@ -143,11 +185,13 @@ def test_recorded_enabled_mode_and_execution_survive_without_cache(
     analysis = pipeline.analyse(export, knowledge_dir=PACK)
     path = pipeline.save(analysis)
     bundle = read_bundle(path)
-    assert bundle.format_version == 15 and bundle.imputation == analysis.imputation.to_dict()
+    assert bundle.format_version == 16 and bundle.imputation == analysis.imputation.to_dict()
     assert bundle.imputation["status"] == ("no_eligible_jobs" if empty else "computed")
     assert all(c.imputation_mode == "enabled" for c in bundle.cards)
     assert analysis.imputation_result is not None
-    assert not analysis.imputation_result.directory.exists()  # No cached data is consulted on read.
+    import shutil
+
+    shutil.rmtree(analysis.imputation_result.directory)
     assert read_bundle(path).imputation == bundle.imputation
 
 
@@ -322,6 +366,8 @@ def test_historical_formats_do_not_infer_disabled_or_enabled_mode(
     manifest_path = path / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["format_version"] = version
+    manifest["files"].pop("imputation.provenance.run.json")
+    (path / "imputation.provenance.run.json").unlink()
     if 7 <= version < 13:
         from genetics.health.clinvar import ClinVarLookup
 
@@ -453,6 +499,13 @@ def test_native_default_cli_runs_and_saves_mode_offline(
     assert record["summary"]["records"] == 800
     bundle = read_bundle(Path(payload["path"]))
     assert bundle.imputation == record and all(c.imputation_mode == "enabled" for c in bundle.cards)
+    dosages = list(bundle.iter_dosages())
+    assert len(dosages) == 800
+    assert sum(r.source == "direct" for r in dosages) == 396
+    assert sum(r.source == "imputed_no_call" for r in dosages) == 4
+    assert sum(r.source == "imputed_untyped" for r in dosages) == 400
+    assert any(len(r.alt) > 1 for r in dosages)
+    assert any(r.ploidy == 1 and r.quality_scope == "beagle_haploid_dosage" for r in dosages)
     second = CliRunner().invoke(app, args)
     assert second.exit_code == 0, second.output
     assert json.loads(second.stdout)["imputation"]["summary"]["resumed"] is True

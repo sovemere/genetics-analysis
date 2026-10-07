@@ -323,6 +323,9 @@ def test_every_fact_the_banner_collects_reaches_the_page() -> None:
         "imputation_jobs": (17, "17 region jobs"),
         "imputation_records": (42424, "42424 dosage records"),
         "imputation_card_input": ("original_array_with_imputed", "plus imputed observations"),
+        "imputation_provenance_status": ("recorded", "recorded"),
+        "imputation_panel_version": ("panel-version-marker", "panel-version-marker"),
+        "imputation_beagle_version": ("beagle-version-marker", "beagle-version-marker"),
     }
     assert set(cases) == {f.name for f in fields(QCBanner)}, (
         "a QCBanner field has no expected rendering; decide how it appears on the page"

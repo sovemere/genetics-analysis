@@ -314,6 +314,7 @@ def save(
     created_at: datetime | None = None,
     lock_path: Path | None = None,
     tools_root: Path | None = None,
+    progress: Callable[[str], None] | None = None,
 ) -> Path:
     """Write ``analysis`` as an immutable bundle and return its directory.
 
@@ -323,6 +324,10 @@ def save(
     ``write_bundle``'s own, and restating its defaults here would be a second set to keep
     in step.
     """
+    if analysis.imputation.mode == "enabled" and analysis.imputation_result is None:
+        raise ImputationError(
+            "Enabled analysis cannot be saved without its completed imputation stage."
+        )
     return write_bundle(
         qc=analysis.qc,
         cards=analysis.cards,
@@ -330,6 +335,8 @@ def save(
         ancestry=analysis.ancestry,
         clinvar=analysis.clinvar,
         imputation=analysis.imputation,
+        imputation_result=analysis.imputation_result,
+        progress=progress,
         runs_root=runs_root,
         run_id=run_id,
         created_at=created_at,

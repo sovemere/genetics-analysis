@@ -55,9 +55,10 @@ the same saved record. The mode and recorded observation basis are visible befor
 card. No topic confirmation gate is added.
 
 This payload records execution mode/outcome. Full used-panel/tool/parameter provenance
-and durable dosage inclusion belong to M8.6. Existing schema-1 job contracts already
-retain those exact identities privately in the outside-repo cache. `*.run.json` and its
-knowledge-pack re-ignore already cover the new payload; in-repo output remains refused.
+and durable dosage inclusion are delivered by format 16 / M8.6; see [the provenance
+guide](imputation_provenance.md). Job contracts remain in the outside-repo cache, while
+new runs also preserve them and independent dosage/catalog copies in the bundle.
+Existing ignore rules cover these private payloads; in-repo output remains refused.
 
 ## Native acceptance and Windows launch paths
 
