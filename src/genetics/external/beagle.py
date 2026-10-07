@@ -19,7 +19,7 @@ import threading
 import time
 import uuid
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, ClassVar, TypeVar
@@ -249,7 +249,35 @@ def _input(path: Path | None, role: str) -> dict[str, Any] | None:
         raise BeagleError(f"Beagle {role} input is missing, empty or unreadable.") from None
 
 
-def _validate_vcf(path: Path) -> None:
+def _target_samples(path: Path) -> tuple[str, ...]:
+    """Read sample identity privately; never include identifiers in diagnostics."""
+    try:
+        with path.open("rb") as probe:
+            compressed = probe.read(2) == b"\x1f\x8b"
+        opener = gzip.open if compressed else open
+        with opener(path, "rt", encoding="utf-8") as handle:
+            for line in handle:
+                if line.startswith("##"):
+                    continue
+                fields = line.rstrip("\r\n").split("\t")
+                if (
+                    fields[:9]
+                    != ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
+                    or len(fields) < 10
+                ):
+                    raise ValueError
+                samples = tuple(fields[9:])
+                if any(not value for value in samples) or len(set(samples)) != len(samples):
+                    raise ValueError
+                return samples
+        raise ValueError
+    except (OSError, EOFError, UnicodeError, ValueError):
+        raise BeagleRunError("Beagle target has no valid unique sample header.") from None
+
+
+def _validate_vcf(
+    path: Path, *, expected_samples: tuple[str, ...], chrom: str | None = None
+) -> None:
     """Stream all BGZF/gzip bytes to verify CRCs and a complete phased GT table."""
     try:
         columns = 0
@@ -269,6 +297,7 @@ def _validate_vcf(path: Path) -> None:
                         or fields[:9]
                         != ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
                         or len(set(fields[9:])) != len(fields[9:])
+                        or tuple(fields[9:]) != expected_samples
                     ):
                         raise ValueError
                     columns = len(fields)
@@ -278,6 +307,11 @@ def _validate_vcf(path: Path) -> None:
                 pos = int(fields[1])
                 if pos <= 0 or pos < last.get(fields[0], 0):
                     raise ValueError
+                if chrom is not None:
+                    region, _, interval = chrom.partition(":")
+                    lo, _, hi = interval.partition("-")
+                    if fields[0] != region or (lo and pos < int(lo)) or (hi and pos > int(hi)):
+                        raise ValueError
                 last[fields[0]] = pos
                 gt_index = fields[8].split(":").index("GT")
                 allele_count = len(fields[4].split(",")) + 1
@@ -292,7 +326,7 @@ def _validate_vcf(path: Path) -> None:
             raise ValueError
     except (OSError, EOFError, UnicodeError, ValueError, IndexError):
         raise BeagleRunError(
-            "Beagle output is missing, truncated or not a complete phased VCF."
+            "Beagle output is damaged, unphased or inconsistent with target samples/region."
         ) from None
 
 
@@ -309,20 +343,21 @@ def _stop(process: subprocess.Popen[_ProcessText]) -> None:
     if process.poll() is None:
         if sys.platform == "win32":
             # A Windows launcher can own a child JVM. Kill this process tree only.
-            subprocess.run(
-                [
-                    str(Path(os.environ["SYSTEMROOT"]) / "System32" / "taskkill.exe"),
-                    "/PID",
-                    str(process.pid),
-                    "/T",
-                    "/F",
-                ],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                timeout=10,
-                check=False,
-                creationflags=subprocess.CREATE_NO_WINDOW,
-            )
+            with suppress(OSError, subprocess.TimeoutExpired):
+                subprocess.run(
+                    [
+                        str(Path(os.environ["SYSTEMROOT"]) / "System32" / "taskkill.exe"),
+                        "/PID",
+                        str(process.pid),
+                        "/T",
+                        "/F",
+                    ],
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    timeout=10,
+                    check=False,
+                    creationflags=subprocess.CREATE_NO_WINDOW,
+                )
             if process.poll() is not None:
                 return
         process.terminate()
@@ -393,18 +428,20 @@ class Beagle:
         map_input = _input(genetic_map, "genetic map")
         if target_input is None or map_input is None:
             raise BeagleError("A target VCF and genetic map are required.")
+        expected_samples = _target_samples(Path(target_input["path"]))
         inputs = {
             "gt": target_input,
             "ref": _input(ref, "reference"),
             "map": map_input,
         }
+        java_sha256 = _digest(self.java.path)
         contract = {
             "schema_version": 1,
             "beagle": {"version": self.version, "sha256": self.sha256},
             "java": {
                 "version": self.java.version,
                 "major": self.java.major,
-                "executable_sha256": _digest(self.java.path),
+                "executable_sha256": java_sha256,
             },
             "inputs": inputs,
             "options": asdict(options),
@@ -428,7 +465,7 @@ class Beagle:
         with _job_lock(lock):
             complete = root / "complete"
             if complete.exists() or complete.is_symlink():
-                result = self._resume(complete, contract)
+                result = self._resume(complete, contract, expected_samples)
                 emit("Reusing verified completed Beagle job")
                 return result
             attempt = root / f"attempt-{uuid.uuid4().hex}"
@@ -458,7 +495,7 @@ class Beagle:
             started = time.monotonic()
             self._execute(args, attempt / "console.log", emit, timeout, progress_interval)
             vcf, log = attempt / "result.vcf.gz", attempt / "result.log"
-            _validate_vcf(vcf)
+            _validate_vcf(vcf, expected_samples=expected_samples, chrom=options.chrom)
             if not log.is_file() or not log.stat().st_size:
                 raise BeagleRunError("Beagle did not produce its completion log.")
             # Changing inputs during a job cannot produce a reusable completed checkpoint.
@@ -470,9 +507,11 @@ class Beagle:
                     "map": _input(genetic_map, "genetic map"),
                 }
                 or _digest(self.jar) != self.sha256
+                or _digest(self.java.path) != java_sha256
             ):
                 raise BeagleCheckpointError(
-                    "Beagle inputs or jar changed during execution; no completion was published."
+                    "Beagle inputs, jar or runtime changed during execution; "
+                    "no completion was published."
                 )
             saved = {
                 "contract": contract,
@@ -497,7 +536,9 @@ class Beagle:
                 complete / vcf.name, complete / log.name, complete / checkpoint.name, False, saved
             )
 
-    def _resume(self, complete: Path, contract: Mapping[str, Any]) -> BeagleResult:
+    def _resume(
+        self, complete: Path, contract: Mapping[str, Any], expected_samples: tuple[str, ...]
+    ) -> BeagleResult:
         try:
             if complete.is_symlink() or any(p.is_symlink() for p in complete.iterdir()):
                 raise ValueError
@@ -522,7 +563,11 @@ class Beagle:
                     or _digest(path) != info["sha256"]
                 ):
                     raise ValueError
-            _validate_vcf(complete / "result.vcf.gz")
+            _validate_vcf(
+                complete / "result.vcf.gz",
+                expected_samples=expected_samples,
+                chrom=contract["options"]["chrom"],
+            )
             return BeagleResult(
                 complete / "result.vcf.gz", complete / "result.log", checkpoint, True, saved
             )

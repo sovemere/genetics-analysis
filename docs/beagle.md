@@ -67,14 +67,22 @@ their complete contract. A supplied `out` is a stable job prefix; its workspace 
 ignored, including inside the knowledge-pack allowlist. Failed attempts are retained
 privately for inspection and do not become completed results.
 
-After success, the wrapper streams the output VCF to validate gzip integrity and
-phased, nonmissing GTs. It verifies inputs stayed unchanged, hashes the VCF and tool
+Before launch, the wrapper privately reads the target's unique sample header. After
+success, it validates gzip integrity, phased nonmissing GTs, exact target sample order,
+and any requested chromosome/position bounds. Reuse repeats these checks, including
+when an output and its recorded digest are both changed. It verifies inputs, jar and
+Java executable stayed unchanged, hashes the VCF and tool
 log, writes/fsyncs `beagle.run.json`, then publishes the whole completed directory in
 one rename. The checkpoint binds full input hashes, exact jar identity, observed Java
 version/executable hash, memory, threads, seed and mode. Reuse verifies that contract
 and every recorded output; changed or damaged completed jobs are refused instead of
 overwritten. Checkpoints, fingerprints, VCFs and logs are genotype-derived private
 outputs and must never be committed or pasted into remote prompts.
+
+Windows process-tree termination falls back to direct termination/reaping if the
+`taskkill` command is unavailable or times out. M8.3 must additionally validate eligible
+typed-marker retention, dosage/DR2 fields and biological ploidy; structural VCF validation
+alone does not establish those scientific contracts.
 
 ## Verification
 

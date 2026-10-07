@@ -58,6 +58,14 @@ A missing final catalog can be rebuilt from valid checkpoints. Corrupt or stale 
 checkpoints fail explicitly; remove only the identified chromosome workspace to rebuild.
 Do not splice binary output or reuse an interrupted converter stream.
 
+Catalog recovery retains each completed chromosome's original producer identity and
+does not require its original Java installation or installed jars. Current pinned tool
+identities, source/configuration and companion checksums must still match. Java discovery
+is deferred until a chromosome actually needs conversion. Artifact kind and transform
+must agree; panel input-set digests and producer schema/runtime metadata are validated.
+Contig assembly/length checks accept attribute order changes and reject contradictory
+GRCh38 metadata. Publication also rejects Java-executable drift during preparation.
+
 `refs verify` is read-only. It hashes all catalog companions, validates checkpoint and
 source contracts, and reports unbuilt outputs as pending without launching Java. Reuse
 requires the same input/parameter contract and current pinned converter/decoder. These

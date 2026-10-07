@@ -6,6 +6,14 @@ first, then [the roadmap](../phase1_roadmap.md). Next is M8.3.
 
 ## Implemented M8.2 and next scope
 
+The [session diff review](review_m8_session.md) covers M7.6 through M8.2 and fixes
+Beagle output sample/region binding, cleanup fallback, reference kind/transform/input-set
+validation, catalog recovery without the original Java installation, reordered build
+metadata and runtime drift before publication. Prepared references remain intact.
+The reviewed suite passes **2,292 tests, five existing Windows skips**, with native
+tools enabled; strict four-way types, lint/format, fixtures and full card lint pass.
+Fifteen added regressions cover the fixes. Full panel/map verification passes.
+
 `refs/imputation.py` and executable reference post-processing prepare the full 1000
 Genomes autosomes and X as chromosome bref3 panels. No array intersection, LD/MAF
 filter or sample removal is permitted. Converter and decoder are independently pinned
@@ -45,6 +53,16 @@ DR2, and test the full stage offline with generated targets. Reuse completed job
 never splice interrupted Beagle windows. M8.5 owns quality propagation into scores;
 M8.6 owns saved run-bundle provenance and M8.7 owns imputed rare-call gate regressions.
 M8.2 changes neither bundle format 13 nor `genetics run` behavior.
+
+M8.3 acceptance must check exact target sample identity and requested regions (now
+enforced by the wrapper), preservation of every eligible typed marker, explicit exclusions,
+dosage scale/allele orientation and finite per-variant DR2. Keep original direct calls
+separate from imputed calls and preserve the source/quality needed by M8.5–M8.7. Verify
+PAR/non-PAR output against biological ploidy before interpreting doubled X storage.
+Exercise missing references/tools/maps, malformed output, cancellation, recovery and
+shared CLI/dashboard behavior. Do not infer correct dosage or marker retention merely
+from a valid phased VCF. Application `--no-impute` remains the separately recorded M8.4
+escape hatch; Beagle phase-only mode can still fill sporadic missing target calls.
 
 Validation: **2,277 passed, five existing Windows skips**, with native ROH, Beagle,
 converter and decoder enabled. Fifty-one new synthetic cases cover exact full-record

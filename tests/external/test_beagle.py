@@ -8,10 +8,11 @@ import json
 import os
 import random
 import subprocess
+import sys
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any, TypedDict
+from typing import Any, TypedDict, cast
 
 import pytest
 
@@ -59,6 +60,10 @@ if mode in ('fail', 'heap'):
     sys.exit(4)
 header = ['##fileformat=VCFv4.3', '\t'.join(['#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT','synthetic'])]
 row = '\t'.join(['7','100','rs900000001','A','G','.','PASS','.','GT','0|1'])
+if mode == 'wrong-sample':
+    header[1] = header[1].replace('synthetic', 'unrelated')
+if mode == 'wrong-chrom':
+    row = row.replace('7\t100', '8\t100')
 vcf = Path(str(out) + '.vcf.gz')
 with gzip.open(vcf, 'wt', encoding='utf-8') as h:
     h.write('bad' if mode == 'invalid' else '\n'.join(header + [row]) + '\n')
@@ -92,6 +97,14 @@ def inputs(tmp_path: Path) -> BeagleInputs:
         path = tmp_path / f"synthetic {role}.tmp"
         path.write_text(f"synthetic {role} input", encoding="utf-8")
         result[role] = path
+    result["gt"].write_text(
+        "##fileformat=VCFv4.3\n"
+        + "\t".join(
+            ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT", "synthetic"]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
     return BeagleInputs(gt=result["gt"], ref=result["ref"], genetic_map=result["genetic_map"])
 
 
@@ -346,6 +359,88 @@ def test_explicit_phase_only_and_genetic_map_requirement(
     assert result.provenance["contract"]["options"]["impute"] is False
     with pytest.raises(BeagleError, match="input"):
         runner.run(gt=inputs["gt"], ref=inputs["ref"], genetic_map=tmp_path / "missing")
+
+
+@pytest.mark.parametrize(
+    "mode,chrom", [("wrong-sample", None), ("wrong-chrom", "7"), ("", "7:101-200")]
+)
+def test_output_must_belong_to_target_samples_and_requested_region(
+    runner: Beagle,
+    inputs: BeagleInputs,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+    chrom: str | None,
+) -> None:
+    monkeypatch.setenv("BEAGLE_STUB_MODE", mode)
+    with pytest.raises(BeagleRunError, match="samples/region"):
+        runner.run(**inputs, out=tmp_path / "wrong", options=BeagleOptions(chrom=chrom))
+    assert not (tmp_path / "wrong.beagle-work/complete").exists()
+
+
+def test_resume_rejects_wrong_sample_even_with_updated_output_digest(
+    runner: Beagle, inputs: BeagleInputs, tmp_path: Path
+) -> None:
+    result = runner.run(**inputs, out=tmp_path / "job")
+    with gzip.open(result.vcf, "rt") as handle:
+        text = handle.read().replace("synthetic", "unrelated")
+    with gzip.open(result.vcf, "wt") as handle:
+        handle.write(text)
+    saved = json.loads(result.checkpoint.read_bytes())
+    saved["files"][result.vcf.name] = {
+        "sha256": mod._digest(result.vcf),
+        "size_bytes": result.vcf.stat().st_size,
+    }
+    result.checkpoint.write_text(json.dumps(saved))
+    with pytest.raises(mod.BeagleCheckpointError):
+        runner.run(**inputs, out=tmp_path / "job")
+
+
+def test_runtime_drift_prevents_completion(
+    runner: Beagle, inputs: BeagleInputs, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    execute = Beagle._execute
+
+    def changed(self: Beagle, *args: Any, **kwargs: Any) -> None:
+        execute(self, *args, **kwargs)
+        self.java.path.write_bytes(b"changed synthetic runtime")
+
+    monkeypatch.setattr(Beagle, "_execute", changed)
+    with pytest.raises(mod.BeagleCheckpointError, match="runtime changed"):
+        runner.run(**inputs, out=tmp_path / "job")
+    assert not (tmp_path / "job.beagle-work/complete").exists()
+
+
+@pytest.mark.parametrize(
+    "failure", [OSError("unavailable"), subprocess.TimeoutExpired("taskkill", 10)]
+)
+def test_windows_tree_kill_failure_still_terminates_and_reaps_process(
+    monkeypatch: pytest.MonkeyPatch,
+    failure: Exception,
+) -> None:
+    class Process:
+        pid = 123456
+        terminated = False
+
+        def poll(self) -> int | None:
+            return None
+
+        def terminate(self) -> None:
+            self.terminated = True
+
+        def wait(self, timeout: int) -> int:
+            return 0
+
+    def failed(*args: Any, **kwargs: Any) -> None:
+        raise failure
+
+    process = Process()
+    monkeypatch.setattr(sys, "platform", "win32")
+    monkeypatch.setenv("SYSTEMROOT", str(Path.cwd()))
+    monkeypatch.setattr(subprocess, "CREATE_NO_WINDOW", 0, raising=False)
+    monkeypatch.setattr(subprocess, "run", failed)
+    mod._stop(cast(subprocess.Popen[str], process))
+    assert process.terminated
 
 
 @pytest.mark.privacy

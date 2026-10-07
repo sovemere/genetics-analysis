@@ -123,6 +123,8 @@ def test_stream_retains_all_markers_alleles_samples_and_explicit_x_encoding() ->
         "empty",
         "build-header",
         "contig-length",
+        "contig-reordered",
+        "contig-assembly",
     ],
 )
 def test_invalid_reference_is_rejected_without_echoing_observations(change: str) -> None:
@@ -133,6 +135,10 @@ def test_invalid_reference_is_rejected_without_echoing_observations(change: str)
         lines.insert(1, b"##reference=GRCh38")
     elif change == "contig-length":
         lines.insert(1, b"##contig=<ID=1,length=248956422>")
+    elif change == "contig-reordered":
+        lines.insert(1, b'##contig=<assembly="GRCh37",length=248956422,ID=1>')
+    elif change == "contig-assembly":
+        lines.insert(1, b'##contig=<length=249250621,ID=1,assembly="GRCh38">')
     elif change == "duplicate-header":
         lines.insert(3, lines[1])
     elif change == "duplicate-sample":
@@ -238,6 +244,56 @@ def test_all_maps_preserved_bound_and_verified(tmp_path: Path) -> None:
     assert not (tmp_path / "never-extract").exists()
     (index.parent / catalog["entries"][0]["path"]).write_bytes(b"corrupted")
     assert prepare(source, tmp_path, verify=True).status is ProcessStatus.FAILED
+
+
+def test_map_catalog_cannot_claim_to_be_a_panel_preparation(tmp_path: Path) -> None:
+    source = map_source(tmp_path)
+    assert prepare(source, tmp_path).status is ProcessStatus.CREATED
+    index = tmp_path / source.id / "maps/index.bref3.json"
+    provenance = postprocess.validate_provenance(index)
+    provenance["step"] = "convert_to_bref3"
+    postprocess._write_provenance(index, provenance, provenance["rows"])
+    with pytest.raises(ProcessError):
+        mod.validate_catalog(index, expected={"step": "convert_to_bref3"})
+
+
+def test_catalog_recovery_reuses_verified_original_producer_without_java(
+    tmp_path: Path, native_preparer: mod.BrefTools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = panel_source(tmp_path, ("1",))
+    assert prepare(source, tmp_path).status is ProcessStatus.CREATED
+    index = tmp_path / source.id / "bref3/panel.bref3.json"
+    index.unlink()
+
+    def no_runtime() -> None:
+        pytest.fail("completed chromosomes must recover without current Java/tools")
+
+    monkeypatch.setattr(mod.BrefTools, "discover", no_runtime)
+    assert prepare(source, tmp_path).status is ProcessStatus.CREATED
+    assert prepare(source, tmp_path, verify=True).status is ProcessStatus.VERIFIED
+
+
+def test_reference_runtime_drift_prevents_completion(
+    tmp_path: Path, native_preparer: mod.BrefTools, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    source = panel_source(tmp_path, ("1",))
+    verify = mod.BrefTools.verify_round_trip
+    sha = postprocess._sha256
+    changed = False
+
+    def verify_then_change(self: mod.BrefTools, *args: Any, **kwargs: Any) -> None:
+        nonlocal changed
+        verify(self, *args, **kwargs)
+        changed = True
+
+    def digest(path: Path) -> str:
+        return "0" * 64 if changed and path == native_preparer.java.path else sha(path)
+
+    monkeypatch.setattr(mod.BrefTools, "verify_round_trip", verify_then_change)
+    monkeypatch.setattr(mod, "_sha256", digest)
+    result = prepare(source, tmp_path)
+    assert result.status is ProcessStatus.FAILED and "runtime changed" in result.detail
+    assert not (tmp_path / source.id / "bref3/chr1.bref3-work/complete").exists()
 
 
 @pytest.mark.parametrize(
@@ -463,6 +519,9 @@ def test_interruption_reuses_completed_chromosomes_only(
         "checkpoint",
         "runtime",
         "pin",
+        "old-java",
+        "schema-bool",
+        "set-digest",
     ],
 )
 def test_digest_consistent_malformed_catalog_is_rejected(
@@ -487,6 +546,8 @@ def test_digest_consistent_malformed_catalog_is_rejected(
         catalog["par_grch37"] = []
     elif change == "companions":
         catalog["files"] = catalog["files"][:1]
+    elif change == "set-digest":
+        provenance["input"]["sha256"] = "0" * 64
     else:
         checkpoint_record = catalog["files"][1]
         checkpoint_path = index.parent / checkpoint_record["path"]
@@ -497,6 +558,10 @@ def test_digest_consistent_malformed_catalog_is_rejected(
             checkpoint["identity"]["tools"]["java"]["executable_sha256"] = "invalid"
         elif change == "pin":
             checkpoint["identity"]["tools"]["bref3"]["version"] = "other-release"
+        elif change == "old-java":
+            checkpoint["identity"]["tools"]["java"]["version"] = "1.8.0_491"
+        elif change == "schema-bool":
+            checkpoint["identity"]["schema_version"] = True
         mod._write_json(checkpoint_path, checkpoint)
         catalog["files"][1] = mod._file_record(checkpoint_path, index.parent)
     mod._write_json(index, catalog)
