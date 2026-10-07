@@ -82,6 +82,8 @@ jobs:
           uv run genetics tools install --only plink2
           uv run genetics tools install --only plink19
           uv run genetics tools install --only beagle
+          uv run genetics tools install --only bref3
+          uv run genetics tools install --only unbref3
         env:
           GENETICS_DATA_DIR: ${{ runner.temp }}/genetics-native
 
@@ -118,7 +120,7 @@ jobs:
             \( -name '*.vcf' -o -name '*.vcf.gz' -o -name '*.bed' -o -name '*.bim' \
                -o -name '*.fam' -o -name '*.pgen' -o -name '*.eigenvec' \
                -o -name '*.sscore' -o -name '*.run.json' -o -name '*.hom' \
-               -o -name '*.hom.*' -o -name '*.roh.json' \) -print)
+               -o -name '*.hom.*' -o -name '*.roh.json' -o -name '*.bref3' \) -print)
           if [ -n "$hits" ]; then
             echo "::error::genotype-derived artifacts present:"
             echo "$hits"

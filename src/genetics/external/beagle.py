@@ -22,7 +22,7 @@ from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeVar
 
 from genetics.paths import cache_dir, is_inside_repo, tools_dir
 from genetics.privacy import NoGenotypeRepr
@@ -302,7 +302,10 @@ def _progress_line(line: str) -> str | None:
     return f"Beagle window {match[1]}" if match else None
 
 
-def _stop(process: subprocess.Popen[str]) -> None:
+_ProcessText = TypeVar("_ProcessText", str, bytes)
+
+
+def _stop(process: subprocess.Popen[_ProcessText]) -> None:
     if process.poll() is None:
         if sys.platform == "win32":
             # A Windows launcher can own a child JVM. Kill this process tree only.

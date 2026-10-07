@@ -183,6 +183,36 @@
       "opt_in_required": false,
       "version": "r2.1.1"
     },
+    "hapmap_genetic_maps_grch37": {
+      "files": {
+        "plink.GRCh37.map.zip": {
+          "first_seen": "2026-10-07",
+          "sha256": "8e88141345844571bc63efac6c043ee29e8ca41f26087dc51b7f1918943a077b",
+          "size_bytes": 23913120,
+          "url": "https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/plink.GRCh37.map.zip"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-HapMap-Public-Domain",
+        "name": "HapMap numerical data, public domain",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "permissive",
+        "terms_url": "https://www.genome.gov/11511175/about-the-international-hapmap-project-fact-sheet"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "2013-06-08"
+    },
     "phylotree_17": {
       "files": {
         "mtDNA_tree_Build_17.zip": {

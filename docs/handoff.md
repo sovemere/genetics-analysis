@@ -1,8 +1,59 @@
-# Handoff: M8.2 full reference-panel preparation
+# Handoff: M8.3 phasing and imputation pipeline
 
-As of 2026-10-07, **M0-M7 and M8.1 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1-M8.2 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.2.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.3.
+
+## Implemented M8.2 and next scope
+
+`refs/imputation.py` and executable reference post-processing prepare the full 1000
+Genomes autosomes and X as chromosome bref3 panels. No array intersection, LD/MAF
+filter or sample removal is permitted. Converter and decoder are independently pinned
+to `27Feb25.75f`; the converter requires Java 11+, even though Beagle itself supports
+Java 8. Local acceptance uses a checksum-verified portable Temurin Java 17 runtime,
+configured through `JAVA_HOME` for the work commands; system Java remains unchanged.
+
+Each completed chromosome has full source-to-decoder semantic comparison, sample-order
+identity, input/tool/runtime hashes and an atomic checkpoint. Incomplete attempts restart;
+completed chromosomes are reused after verification. Source/tool drift, corruption,
+stale contracts and malformed catalogs fail explicitly. Kernel locks prevent concurrent
+writers. `refs verify` remains read-only and validates all catalog companions.
+
+The separate pinned HapMap archive supplies all **25 GRCh37 maps / 3,395,051 rows**.
+Maps are preserved byte-for-byte and checked for labels, ordering, cM validity and
+physical bounds. Catalog counts are checked against actual map files. Source version,
+archive SHA and companion hashes bind map reuse; no constant-rate map is invented.
+See [the reference guide](imputation_reference.md).
+
+Full-release acceptance completed **23 chromosomes / 84,739,838 records / 2,504 samples
+each**, preserving sample order and producing **8,312,115,275 bref3 bytes**. Every
+chromosome passed decoded semantic comparison and input/tool-drift checks. Final
+source/catalog/companion verification passed. These are public-reference properties;
+no consumer export was used. All reference payloads and workspaces remain ignored.
+
+X haploid reference calls are explicitly doubled for storage and counted in metadata.
+This does not establish diploid consumer ploidy. Y is fetched but excluded from Beagle
+preparation because of missing haploid calls and no supplied genetic map; MT is absent.
+Those limitations are explicit in the panel catalog. Existing direct-call and haplogroup
+engines retain their scope.
+
+**Next: M8.3.** Start with consumer-target VCF harmonization against the prepared
+GRCh37 reference alleles, using the existing strand/indel/QC rules. Partition X PAR and
+non-PAR jobs using sample ploidy, recorded bounds and matching maps. Call the M8.1
+wrapper through a shared phasing/imputation stage, write private dosages and per-variant
+DR2, and test the full stage offline with generated targets. Reuse completed jobs;
+never splice interrupted Beagle windows. M8.5 owns quality propagation into scores;
+M8.6 owns saved run-bundle provenance and M8.7 owns imputed rare-call gate regressions.
+M8.2 changes neither bundle format 13 nor `genetics run` behavior.
+
+Validation: **2,277 passed, five existing Windows skips**, with native ROH, Beagle,
+converter and decoder enabled. Fifty-one new synthetic cases cover exact full-record
+retention, multiallelic/indel/symbolic alleles, X encoding, malformed inputs/build metadata,
+map corruption and counter forgery, cancellation, lock release, checkpoint recovery,
+stale tools, Java readiness and native Beagle consumption. Default consumer contracts
+bind the current manifest and lock without reading raw VCFs. Strict Windows/Linux ×
+Python 3.11/3.13 typing, ruff/format, fixture reproduction and full card lint pass
+(51 cards, 268 renders, 35/35 marker references). No personal export was used.
 
 ## Implemented M8.1 and next scope
 
@@ -26,13 +77,8 @@ reference samples, retains DR2/dosages, checks phase-only mode and reuses comple
 CI installs Java 17 and the same pinned jar for Windows/Linux acceptance. No personal
 export or real reference individual was used. See [the wrapper guide](beagle.md).
 
-**Next: M8.2**, prepare the full 1000 Genomes reference by chromosome as bref3.
-The existing Beagle jar is not the bref3 converter: add a separately pinned, fetched
-converter tool and GRCh37 genetic-map source as needed. Keep complete panels separate
-from the ancestry/ROH marker subsets, record source/transform/checksum provenance and
-make preprocessing resumable. M8.3 owns sample harmonization and pipeline jobs; M8.5
-owns per-variant quality propagation; M8.6 owns run-bundle provenance. M8.1 changes no
-existing bundle format or `genetics run` imputation behavior.
+M8.2 implements the full-panel preparation described above. The original M8.1 checkpoint
+changes no existing bundle format or `genetics run` imputation behavior.
 
 ## Implemented M7.6 and next scope
 
@@ -66,11 +112,10 @@ The pinned ClinVar release contains **3,933,850 primary-chromosome positions**,
 eight alternate/unplaced-contig records are excluded from this position denominator.
 These are full-reference properties, not measurements of a person's chip coverage.
 
-**M8.1 is implemented.** Next prepare the full per-chromosome reference
-panel as bref3 (never subset it to array positions), phase/impute, retain dosages and
+**M8.1/M8.2 are implemented.** Next phase/impute, retain dosages and
 per-variant quality, and save panel/tool/parameter provenance. Imputation must be
 default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call reliability
-must remain frequency-gated after imputation. M8.2–M8.7 remain upcoming.
+must remain frequency-gated after imputation. M8.3–M8.7 remain upcoming.
 
 ## Prior checkpoint
 M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).

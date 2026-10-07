@@ -200,6 +200,11 @@ analysis_*.json
 # M8.1 private Beagle attempts, completion checkpoints, and kernel lock files.
 *.beagle-work/
 *.beagle.lock
+*.bref3-work/
+*.bref3.json
+*.bref3.json.provenance.json
+*.bref3.json.tmp
+*.bref3.json.provenance.json.tmp
 *.bak
 *.swp
 plink.*
@@ -278,6 +283,11 @@ gnomad_frequencies.sqlite*
 /knowledge/**/*.run.json
 # M8.1: the directory allowlist above must not reopen private Beagle attempts.
 /knowledge/**/*.beagle-work/
+/knowledge/**/*.bref3-work/
+/knowledge/**/*.bref3.json
+/knowledge/**/*.bref3.json.provenance.json
+/knowledge/**/*.bref3.json.tmp
+/knowledge/**/*.bref3.json.provenance.json.tmp
 
 # Synthetic test fixtures ONLY. See AGENTS.md: fixtures must be generated,
 # never produced by subsetting a real person's file.

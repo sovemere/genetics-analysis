@@ -123,6 +123,20 @@ class LicenseTerms:
 
 _ENTRIES: tuple[LicenseTerms, ...] = (
     LicenseTerms(
+        id="LicenseRef-HapMap-Public-Domain",
+        name="HapMap numerical data, public domain",
+        terms_url="https://www.genome.gov/11511175/about-the-international-hapmap-project-fact-sheet",
+        commercial_ok=True,
+        derivative_ok=True,
+        redistribution_ok=True,
+        share_alike=False,
+        attribution_required=True,
+        review_status="confirmed",
+        notes="NHGRI states that HapMap data were released into the public domain. "
+        "The GRCh37 numerical maps are Auton/Browning's coordinate/PLINK transformations; "
+        "retain source attribution and do not vendor the archive or its README prose.",
+    ),
+    LicenseTerms(
         id="CC0-1.0",
         name="Creative Commons Zero v1.0 Universal",
         terms_url="https://creativecommons.org/publicdomain/zero/1.0/",

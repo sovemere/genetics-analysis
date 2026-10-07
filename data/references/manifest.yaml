@@ -317,7 +317,9 @@ sources:
           output: pca_markers_ldpruned.pgen
       - step: convert_to_bref3
         params:
-          output: bref3/
+          output: bref3/panel.bref3.json
+          chromosomes: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12", "13", "14", "15", "16", "17", "18", "19", "20", "21", "22", "X"]
+          memory_mb: 8192
     files:
       - url: https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
         filename: ALL.chr1.phase3_shapeit2_mvncall_integrated_v5b.20130502.genotypes.vcf.gz
@@ -445,6 +447,31 @@ sources:
         sha256: b4023dc6ee2d62ee89c8d4d347db4d348e65518d66d346574cdae7a4bbd76858
 
   # --------------------------------------------------------------------------
+  # Full-panel imputation maps (not selected from any user's array).
+  - id: hapmap_genetic_maps_grch37
+    name: HapMap Phase II GRCh37 genetic maps in PLINK cM format
+    tier: A
+    required: false
+    version: "2013-06-08"
+    homepage: https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/
+    license: LicenseRef-HapMap-Public-Domain
+    enables: ["GRCh37 recombination maps for Beagle imputation (M8)"]
+    notes: >-
+      Publisher README attributes the GRCh37 liftOver/negative-rate correction to Adam
+      Auton and PLINK formatting to Brian Browning. HapMap numerical data are public domain
+      according to NHGRI. All 25 maps (autosomes, X, X_PAR1, X_PAR2) are preserved and checked.
+      No Y/MT map is supplied and no constant-rate substitute is invented.
+    post_process:
+      - step: prepare_genetic_maps
+        params:
+          input: plink.GRCh37.map.zip
+          output: maps/index.bref3.json
+    files:
+      - url: https://bochet.gcc.biostat.washington.edu/beagle/genetic_maps/plink.GRCh37.map.zip
+        filename: plink.GRCh37.map.zip
+        sha256: 8e88141345844571bc63efac6c043ee29e8ca41f26087dc51b7f1918943a077b
+        size_bytes: 23913120
+
   # Association corpora.
   # --------------------------------------------------------------------------
   - id: gwas_catalog

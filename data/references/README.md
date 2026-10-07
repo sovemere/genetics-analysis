@@ -70,6 +70,14 @@ roster and provenance; see [ACMG surfacing](../../docs/secondary_findings.md).
 
 ## Download resumability
 
+M8.2 prepares the complete 1000 Genomes autosomal/X VCFs as chromosome-level bref3
+panels and extracts all 25 pinned GRCh37 HapMap maps. It never uses a consumer array
+marker list or the separate pruned PCA panel. Completed chromosomes have full decoded
+round-trip verification, source/tool/runtime identity and atomic resumable checkpoints.
+See [imputation-reference preparation](../../docs/imputation_reference.md) for commands,
+the Java 11+ converter requirement, X haploid storage encoding and explicit Y/MT limits.
+The maps have **3,395,051 rows** across the entire fetched collection.
+
 Publisher-checksummed sources resume with final digest verification, including M7.2's
 63 GB gnomAD exomes file. Frozen sources without a publisher digest must explicitly
 declare `immutable: true` and a fixed size in the manifest; this is not inferred from

@@ -169,7 +169,18 @@ _STEPS: tuple[Step, ...] = (
         name="convert_to_bref3",
         summary="Convert an imputation reference panel to Beagle's bref3 format.",
         required_params=("output",),
+        optional_params=("chromosomes", "memory_mb"),
+        implemented=True,
         milestone="M8.2",
+        workspace_multiplier=1.5,
+    ),
+    Step(
+        name="prepare_genetic_maps",
+        summary="Validate/extract complete GRCh37 HapMap PLINK genetic maps.",
+        required_params=("input", "output"),
+        implemented=True,
+        milestone="M8.2",
+        workspace_multiplier=4.0,
     ),
     Step(
         name="parse_pgs_score_licenses",
@@ -394,6 +405,10 @@ def declared_artifact_provenance(
                 f"{output_param}={output_name!r}, found {len(candidates)}"
             )
         declared = candidates[0]
+        if declared.step == "convert_to_bref3":
+            from genetics.refs.imputation import declared_panel_provenance
+
+            return declared_panel_provenance(source, declared)
         input_name = str(declared.params["input"])
         remote = next((item for item in source.files if item.filename == input_name), None)
         if remote is None:
@@ -432,12 +447,15 @@ def declared_artifact_provenance(
 
     source_dir = (paths.references_dir() / source_id).resolve()
     input_path = _inside(source_dir, input_name, label="input")
-    return _expected_provenance(
+    expected = _expected_provenance(
         declared,
         input_path,
         locked_file.sha256,
         output_param=output_param,
     )
+    if declared.step == "prepare_genetic_maps":
+        expected.update(source_id=source.id, source_version=source.version, build="GRCh37")
+    return expected
 
 
 def _read_provenance(output: Path) -> dict[str, Any]:
@@ -481,6 +499,10 @@ def _artifact_rows(output: Path) -> int:
             anchors = payload.get("anchors") if isinstance(payload, dict) else None
             if isinstance(anchors, list):
                 return len(anchors)
+            if isinstance(payload, dict) and payload.get("kind") in {"bref3_panel", "genetic_maps"}:
+                if type(payload.get("rows")) is not int or payload["rows"] < 0:
+                    raise ProcessError("Malformed prepared-reference row count")
+                return int(payload["rows"])
         if output.suffix == ".pgen":
             # A pgen is opaque binary whose variant count lives in the companion .pvar, so
             # "rows" is read from there. That is not a workaround: it also means a .pvar
@@ -2258,6 +2280,22 @@ def run(
             )
             continue
         try:
+            if declared.step in {"convert_to_bref3", "prepare_genetic_maps"}:
+                from genetics.refs.imputation import run_preparation
+
+                results.append(
+                    run_preparation(
+                        declared,
+                        source,
+                        source_dir,
+                        verify_only=verify_only,
+                        progress=progress,
+                        input_digests=input_digests,
+                    )
+                )
+                if results[-1].status is ProcessStatus.FAILED:
+                    break
+                continue
             if declared.step == "build_pca_marker_subset":
                 # Routed before the input resolution below, which assumes one named input
                 # file: this step's input is the whole set of per-autosome VCFs and its
@@ -2431,6 +2469,8 @@ def assert_registry_is_honest() -> None:
         "build_pca_marker_subset",
         "build_modern_reference_panel",
         "build_gnomad_frequency_index",
+        "convert_to_bref3",
+        "prepare_genetic_maps",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:

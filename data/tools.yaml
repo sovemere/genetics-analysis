@@ -97,6 +97,43 @@ tools:
         sha256: 7319f4af9638be05c18dcc1bfb8fb41a58a09293507ebf0d54617d0e40df5a70
         size_bytes: 316844
 
+  - id: bref3
+    name: Beagle bref3 converter
+    version: 27Feb25.75f
+    homepage: https://faculty.washington.edu/browning/beagle/beagle.html
+    license: GPL-3.0-or-later
+    kind: jar
+    required_from: M8.2
+    notes: >-
+      Converts full phased references to bref3. Output is binary stdout, never console text.
+      Requires Java 11+ (class-file version 55); the Beagle imputation jar supports Java 8.
+      Publisher artifact downloaded and SHA256 measured on 2026-10-07.
+    builds:
+      - platform: any
+        url: https://faculty.washington.edu/browning/beagle/bref3.27Feb25.75f.jar
+        filename: bref3.27Feb25.75f.jar
+        sha256: 6166426f63b2c1cfed9e2cda2f9ba59ef3b3c19fdfc988a9ec6036358457e3f2
+        size_bytes: 112536
+
+  - id: unbref3
+    name: Beagle bref3 decoder
+    version: 27Feb25.75f
+    homepage: https://faculty.washington.edu/browning/beagle/beagle.html
+    license: GPL-3.0-or-later
+    kind: jar
+    required_from: M8.2
+    notes: >-
+      Streams a converted reference back to VCF for full marker/allele/genotype round-trip
+      verification. Output remains local and is never echoed. Publisher artifact downloaded
+      and SHA256 measured on 2026-10-07.
+      Requires Java 11+ (class-file version 55).
+    builds:
+      - platform: any
+        url: https://faculty.washington.edu/browning/beagle/unbref3.27Feb25.75f.jar
+        filename: unbref3.27Feb25.75f.jar
+        sha256: db8998ff212b19f72fd0e36e8cd9ef9b4e414d6a6c295fe89ee77858970cfb4a
+        size_bytes: 95110
+
   - id: plink19
     name: PLINK 1.9
     version: v1.9.0-rc3
