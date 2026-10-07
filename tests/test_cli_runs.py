@@ -375,6 +375,9 @@ def test_show_of_a_run_from_before_the_stage_says_not_recorded(saved: Path) -> N
     """Not "not run": the stage did not exist, which is a different fact about the run."""
     manifest = json.loads((saved / MANIFEST_NAME).read_text(encoding="utf-8"))
     del manifest["files"][ANCESTRY_NAME]
+    from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
+
+    remove_snapshot_for_historical_fixture(saved, manifest)
     (saved / ANCESTRY_NAME).unlink()
     _edit_manifest(saved, files=manifest["files"], format_version=ANCESTRY_FORMAT_VERSION - 1)
 

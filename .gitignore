@@ -287,6 +287,8 @@ gnomad_frequencies.sqlite*
 *.imputation-work/
 *.imputation.lock
 *.dosages.jsonl.gz
+# M8.6 bundles reuse *.dosages.jsonl.gz and *.run.json for full dosage/provenance
+# snapshots, including byte-identical panel/map catalogs. Do not re-include these.
 /knowledge/**/*.imputation-work/
 /knowledge/**/*.bref3.json
 /knowledge/**/*.bref3.json.provenance.json

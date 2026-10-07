@@ -1,8 +1,46 @@
-# Handoff: M8.6 full imputation bundle provenance
+# Handoff: M8.7 imputed rare-variant frequency gates
 
-As of 2026-10-07, **M0-M7 and M8.1-M8.5 are implemented**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1-M8.6 are implemented**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.6.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.7.
+
+## Implemented M8.6 and next scope
+
+Format 16 adds durable full dosage files, byte-identical panel/map catalogs and
+`imputation.provenance.run.json` schema 1. Used source releases, catalog/target/tool/
+runtime hashes and each region's actual phase/imputation parameters come from the
+completed stage. The general installed-reference/tool inventory does not substitute
+for them. Independent copies and atomic staging preserve the source and reject partial
+publication. Normal enabled analysis saves require their complete stage; disabled,
+no-eligible-job and low-level not-recorded states remain distinct.
+
+Readers validate saved bytes without caches or current manifests: counts, typed
+retention, region/ploidy/native dosage contracts, source/quality, phase handoff,
+catalog/artifact identities and card/full-dosage agreement. Full multiallelic records
+and native haploid quality remain intact. Formats 1–15 retain original meanings.
+`RunBundle.iter_dosages()` and `runs imputation --dosages` share the native record
+contract. `runs imputation --json`, `runs show` and the dashboard expose saved provenance.
+Copy/validation progress is genotype-free. See [the provenance guide](imputation_provenance.md).
+
+Synthetic verification covers cache removal, installed-inventory differences,
+corruption after rehash, failed copies, zero-job execution, opt-out, historic shapes,
+privacy ignores and native/multiallelic contracts. Native CLI acceptance saves all
+800 records over four jobs, verifies 396 direct/four phase-filled/400 untyped sources,
+per-ALT/native haploid scope and completed reuse. No personal export was opened.
+
+Validation: **2,524 tests passed, five existing Windows skips**, with native tools
+enabled. Fifty-three new synthetic cases cover the full snapshot contract. All four
+strict Windows/Linux × Python 3.11/3.13 type checks, lint/format, fixture reproduction
+and full dbSNP card lint pass (51 cards, 268 renders, 35 marker references).
+
+**Next M8.7:** add dedicated regressions proving the frequency gate applies to
+imputed observations, regardless of high DR2, strong literature or enabled mode.
+Cover untyped and phase-filled sources, native haploid/diploid observations, missing
+frequency companions and multi-marker inheritance. Show rare findings as likely artifacts;
+never filter them. Keep the 16%/BRCA 4.2% chip benchmarks scoped to their studies and
+explicitly uncalibrated for imputation, never an imputed-call posterior probability.
+Current ClinVar/QC/coverage/structure still use original array input. M9 owns PGS sums,
+coverage and ancestry portability; preserve the native effect-allele dose/quality contract.
 
 ## Implemented M8.5 and next scope
 
@@ -28,7 +66,7 @@ lint/format, fixture reproduction and full dbSNP card lint cover the changes. Th
 additional format-13 downgrade guard is checked separately from the full local run.
 No personal export was opened.
 
-**Next M8.6:** durably copy full dosage records into the private bundle with exact
+**M8.5 handoff (implemented in M8.6):** durably copy full dosage records into the private bundle with exact
 used-panel/map/tool/runtime versions, hashes and parameters from the stage contract,
 including per-region/ploidy options. Current execution summaries and used-card evidence
 are not full provenance. Validate publication/reuse and preserve historical formats;

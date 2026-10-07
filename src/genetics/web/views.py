@@ -194,6 +194,9 @@ class QCBanner:
     imputation_status: str | None = None
     imputation_jobs: int | None = None
     imputation_records: int | None = None
+    imputation_provenance_status: str | None = None
+    imputation_panel_version: str | None = None
+    imputation_beagle_version: str | None = None
 
     @property
     def call_rate_percent(self) -> str:
@@ -242,6 +245,13 @@ def banner_for(bundle: RunBundle) -> QCBanner:
         imputation_status=_text(_get(bundle.imputation or {}, "status")),
         imputation_jobs=_count(_get(bundle.imputation or {}, "summary", "jobs")),
         imputation_records=_count(_get(bundle.imputation or {}, "summary", "records")),
+        imputation_provenance_status=_text(_get(bundle.imputation_provenance or {}, "status")),
+        imputation_panel_version=_text(
+            _get(bundle.imputation_provenance or {}, "stage", "panel_source", "version")
+        ),
+        imputation_beagle_version=_text(
+            _get(bundle.imputation_provenance or {}, "stage", "contract", "beagle", "version")
+        ),
     )
 
 

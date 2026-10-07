@@ -1247,6 +1247,9 @@ def _set_format_version(directory: Path, version: int, *, drop: str | None = Non
     manifest_path = directory / MANIFEST_NAME
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = version
+    if version < 16:
+        manifest["files"].pop("imputation.provenance.run.json", None)
+        (directory / "imputation.provenance.run.json").unlink(missing_ok=True)
     if version < 14:
         cards_path = directory / CARDS_NAME
         payload = json.loads(cards_path.read_text(encoding="utf-8"))

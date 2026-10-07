@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import gzip
+import json
 import math
-from collections.abc import Iterator
+import zlib
+from collections.abc import Iterator, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from genetics.external.harmonize import SAMPLE_ID
 from genetics.privacy import NoGenotypeRepr
@@ -37,6 +39,86 @@ class DosageRecord(NoGenotypeRepr):
     def to_dict(self) -> dict[str, object]:
         """Private: contains genotype-derived observations."""
         return asdict(self)
+
+
+def parse_record(raw: Mapping[str, Any]) -> DosageRecord:
+    """Validate private saved native dosage records without echoing their contents."""
+    try:
+        if set(raw) != set(DosageRecord.__dataclass_fields__) - {"_repr_fields"}:
+            raise ValueError
+        values = dict(raw)
+        for name in ("alt", "genotype", "storage_genotype", "dosage", "storage_dosage", "dr2"):
+            if values[name] is not None:
+                if not isinstance(values[name], list | tuple):
+                    raise ValueError
+                values[name] = tuple(values[name])
+        record = DosageRecord(**values)
+        if (
+            record.chrom not in {*(str(i) for i in range(1, 23)), "X"}
+            or type(record.pos_grch37) is not int
+            or record.pos_grch37 < 1
+            or type(record.ploidy) is not int
+            or record.ploidy not in {1, 2}
+            or record.status != "resolved"
+            or record.source not in {"direct", "imputed_no_call", "imputed_untyped"}
+            or not isinstance(record.ref, str)
+            or not record.ref
+            or not record.alt
+            or any(not isinstance(a, str) or not a or a == "." for a in record.alt)
+            or len(set((record.ref, *record.alt))) != len(record.alt) + 1
+            or record.genotype is None
+            or len(record.genotype) != record.ploidy
+            or record.storage_genotype != record.genotype
+            or record.storage_dosage != record.dosage
+            or any(type(a) is not int or not 0 <= a <= len(record.alt) for a in record.genotype)
+            or len(record.dosage) != len(record.alt)
+        ):
+            raise ValueError
+        for vector, upper in ((record.dosage, record.ploidy), (record.dr2, 1)):
+            if vector is not None and (
+                len(vector) != len(record.alt)
+                or any(
+                    isinstance(v, bool)
+                    or not isinstance(v, int | float)
+                    or not math.isfinite(v)
+                    or not 0 <= v <= upper
+                    for v in vector
+                )
+            ):
+                raise ValueError
+        if sum(record.dosage) > record.ploidy + 0.005 * len(record.alt) + 0.000001:
+            raise ValueError
+        method = {
+            "direct": "observed_allele_count",
+            "imputed_no_call": "phased_hardcall_only",
+            "imputed_untyped": "beagle_DS",
+        }[record.source]
+        scope = "beagle_haploid_dosage" if record.ploidy == 1 else "beagle_diploid_dosage"
+        if record.dosage_method != method or record.quality_scope != (
+            "not_estimated" if record.dr2 is None else scope
+        ):
+            raise ValueError
+        if record.source == "imputed_untyped" and record.dr2 is None:
+            raise ValueError
+        if record.source != "imputed_untyped" and record.dosage != tuple(
+            float(record.genotype.count(i)) for i in range(1, len(record.alt) + 1)
+        ):
+            raise ValueError
+        if record.source == "imputed_no_call" and record.dr2 is not None:
+            raise ValueError
+        return record
+    except (ValueError, TypeError, KeyError, AttributeError):
+        raise ImputationError("Saved dosage observation is malformed or inconsistent.") from None
+
+
+def iter_records(path: Path) -> Iterator[DosageRecord]:
+    """Stream a gzip JSONL payload; failures contain no observations."""
+    try:
+        with gzip.open(path, "rt", encoding="utf-8") as stream:
+            for line in stream:
+                yield parse_record(json.loads(line))
+    except (OSError, EOFError, UnicodeError, ValueError, TypeError, zlib.error):
+        raise ImputationError("Saved dosage payload is malformed or unreadable.") from None
 
 
 def _vector(value: str, cardinality: int, upper: float) -> tuple[float, ...]:

@@ -5,8 +5,9 @@ M8.1 implements the Beagle wrapper, Java/readiness checks and verified job reuse
 [pipeline guide](imputation_pipeline.md). `genetics run` integration and its recorded
 escape hatch are delivered in M8.4; see [the mode guide](imputation_mode.md).
 Quality propagation is delivered in M8.5; [the quality guide](imputation_quality.md)
-describes its native allele contract. Full used provenance remains M8.6. New bundles
-use format 15; private job checkpoints retain schema 1.
+describes its native allele contract. M8.6 saves full used provenance and dosages;
+see [the provenance guide](imputation_provenance.md). New bundles use format 16;
+private job checkpoints retain schema 1.
 
 ## Installation and execution
 

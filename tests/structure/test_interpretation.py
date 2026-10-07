@@ -361,6 +361,9 @@ def test_bundle_cli_and_http_share_the_same_computation(
     manifest_path = path / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["format_version"] = 4
+    from genetics.testing.imputation_snapshots import remove_snapshot_for_historical_fixture
+
+    remove_snapshot_for_historical_fixture(path, manifest)
     manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
     assert read_bundle(path).cards[0].computation == card.computation
     assert bundle.cards[0].confidence_tier == "limited"

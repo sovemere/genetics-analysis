@@ -584,9 +584,10 @@ def test_the_wreckage_member_set_is_pinned_to_what_the_writer_writes() -> None:
     file's presence enough to refuse the wreckage of a bundle it wrote itself. Pinned
     against the writer's own list so the drift fails in the commit that causes it.
     """
+    from genetics.imputation.snapshot import CATALOG_NAMES
     from genetics.run import bundle
 
-    assert {bundle.MANIFEST_NAME, *bundle.PAYLOAD_FILES} == BUNDLE_MEMBERS
+    assert {bundle.MANIFEST_NAME, *bundle.PAYLOAD_FILES, *CATALOG_NAMES} == BUNDLE_MEMBERS
 
 
 def test_delete_refuses_a_link_pointing_out_of_the_runs_root(

@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **15**; formats 1–14 remain readable without reinterpreting saved findings.
+New runs use bundle format **16**; formats 1–15 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -48,7 +48,11 @@ biallelic SNVs can supply observations; direct calls remain original. Low DR2 lo
 confidence, phase-filled unknown quality caps it at limited, and every finding remains
 visible. Native ploidy, per-ALT dosages/DR2 and source survive format-15 snapshots.
 See [quality propagation](docs/imputation_quality.md) and [the mode guide](docs/imputation_mode.md).
-**Next: M8.6, durable full dosages and exact used-panel/tool/parameter provenance.**
+**M8.6 saves full imputation dosages and exact used provenance:** independent dosage
+and catalog copies, used panel/map/tool/runtime identities and per-region parameters
+remain readable without stage caches. CLI `runs imputation` and the dashboard use the
+same saved snapshot. See [full provenance](docs/imputation_provenance.md).
+**Next: M8.7, dedicated imputed rare-variant frequency-gate regressions.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
@@ -57,6 +61,8 @@ Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and
 native Beagle acceptance. The full local suite retains five existing Windows skips.
+M8.6 adds 53 full-snapshot checks; its final native suite passed **2,524 tests**, with
+those same five skips, strict four-way typing, privacy gates and full card lint.
 The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline

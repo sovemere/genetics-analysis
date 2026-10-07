@@ -71,6 +71,8 @@ per-ALT contracts, haploid scope, weakest-marker inheritance, historical snapsho
 damaged saved metadata and CLI/dashboard parity. Native acceptance runs the pinned
 Beagle stage and checks both untyped quality and phase-filled unknown quality.
 
-M8.6 owns durable full dosage files and exact used-panel/tool/parameter provenance.
+M8.6 supplies durable full dosage files and exact used-panel/tool/parameter provenance;
+see [the provenance guide](imputation_provenance.md). Format 16 retains this format-15
+card/marker contract while adding the full snapshot.
 M8.7 adds the dedicated imputed rare-variant gate regression set. No personal export
 was used for this milestone.

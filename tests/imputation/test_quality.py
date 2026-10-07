@@ -38,9 +38,10 @@ from genetics.privacy import assert_no_genotype
 from genetics.qc.report import InferredSex
 from genetics.refs.imputation import BrefTools
 from genetics.run import pipeline
-from genetics.run.bundle import BundleError, _card_payload, read_bundle
+from genetics.run.bundle import BundleError, _card_payload, read_bundle, write_bundle
 from genetics.testing.fixtures import FIXTURES, render_fixture
 from genetics.testing.imputation_inputs import native_reference
+from genetics.testing.imputation_snapshots import anchors, synthetic_stage
 from genetics.web import WebConfig, create_app
 
 PACK = Path(__file__).parents[1] / "fixtures/cards"
@@ -475,10 +476,19 @@ def test_format_14_execution_and_observation_basis_are_preserved(
         imputation=context,
         cards=tuple(replace(c, imputation_mode="enabled") for c in analysis.cards),
     )
-    path = pipeline.save(historical)
+    path = write_bundle(
+        qc=historical.qc,
+        pack=historical.pack,
+        cards=historical.cards,
+        ancestry=historical.ancestry,
+        clinvar=historical.clinvar,
+        imputation=historical.imputation,
+    )
     manifest_path = path / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     manifest["format_version"] = 14
+    manifest["files"].pop("imputation.provenance.run.json")
+    (path / "imputation.provenance.run.json").unlink()
     manifest_path.write_text(json.dumps(manifest))
     bundle = read_bundle(path)
     assert bundle.imputation == context.to_dict()
@@ -500,7 +510,9 @@ def install_stage(monkeypatch: pytest.MonkeyPatch, root: Path, record: DosageRec
     install_records(monkeypatch, (record,))
 
     def stage(original: GenotypeTable, **kwargs: Any) -> ImputationResult:
-        return result(original, root, record.source)
+        return synthetic_stage(
+            original, root / "synthetic-complete", records=(*anchors(record.chrom), record)
+        )
 
     monkeypatch.setattr(pipeline, "impute", stage)
 
@@ -528,7 +540,7 @@ def test_cli_dashboard_snapshot_parity_with_low_quality_and_no_cache(
     path = Path(json.loads(invocation.stdout)["path"])
     bundle = read_bundle(path)
     assert bundle.imputation is not None
-    assert bundle.format_version == 15 and bundle.imputation["schema_version"] == 2
+    assert bundle.format_version == 16 and bundle.imputation["schema_version"] == 2
     assert bundle.imputation["card_input"] == "original_array_with_imputed"
     card = bundle.cards[0]
     assert card.observation is not None and card.observation["imputation_quality"] == 0.1
