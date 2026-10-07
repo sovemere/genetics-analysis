@@ -192,6 +192,8 @@
       {% include "_rohdetail.html" %}
     {% elif card.computation.source == "sex_chromosome_profile" %}
       {% include "_sexchromdetail.html" %}
+    {% elif card.computation.source == "clinvar_coverage" %}
+      {% include "_coveragedetail.html" %}
     {% else %}
       {% include "_archaicdetail.html" %}
     {% endif %}

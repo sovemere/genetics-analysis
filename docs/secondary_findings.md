@@ -47,13 +47,14 @@ and displayed, including restrictions on TTN, HFE and recessive conditions; no
 automated positive clinical report, penetrance or absolute risk is inferred here.
 
 No overlap does not exclude a variant or a condition. The array does not sequence
-these genes, and its structural-variant blind spots remain. M7.6 owns the separate
-quantitative coverage card.
+these genes, and its structural-variant blind spots remain. M7.6 supplies the separate
+[quantitative coverage card](clinvar_coverage.md).
 
-New analyses save ClinVar schema **4** in bundle format **12**, including the complete
+New analyses save ClinVar schema **5** in bundle format **13**, preserving the underlying
+ACMG generation as `lookup_schema_version: 4`, including the complete
 source roster, guidance, source/access/license provenance, surfacing policy, counts
 and annotations. Integrity checks reconstruct annotations from that saved roster,
-without consulting a newer reference cache. Formats 1–11 retain their original results;
+without consulting a newer reference cache. Formats 1–12 retain their original results;
 the ACMG view explicitly says when an older run did not record this stage.
 
 Verification uses invented loci/calls and synthetic public-reference stubs. Local

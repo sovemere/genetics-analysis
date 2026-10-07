@@ -13,6 +13,17 @@
   {% set lookup = shell.clinvar %}
   <p class="problem">{{ lookup.notice }}</p>
   <p>Status: {{ lookup.status }}. {{ lookup.reason }}</p>
+  {% if not secondary_only %}
+    {% if lookup.get("coverage") %}
+      {% set coverage = lookup.coverage %}
+      <section class="card" aria-label="Quantitative ClinVar coverage">
+        <h2>What this array covers in ClinVar</h2>
+        {% include "_coveragecounts.html" %}
+      </section>
+    {% else %}
+      <p>This older run did not record quantitative ClinVar coverage; saved results have not been recounted.</p>
+    {% endif %}
+  {% endif %}
   {% if lookup.get("secondary_reference") %}
     {% set secondary = lookup.secondary_reference %}
     <section aria-label="ACMG source and limitations">

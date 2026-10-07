@@ -33,6 +33,7 @@ from genetics.ingest.keys import MergeTable
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.qc.report import QCReport
 from genetics.run.bundle import (
+    BUNDLE_FORMAT_VERSION,
     CARDS_NAME,
     MANIFEST_NAME,
     BundleError,
@@ -659,7 +660,7 @@ def test_save_read_cli_and_dashboard_parity(
     root = tmp_path / "runs"
     path = _write(pack, (card,), sample_qc, root)
     bundle = read_bundle(path)
-    assert bundle.format_version == 12
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION
     assert bundle.cards[0].multi_marker == card.multi_marker
     assert bundle.cards[0].risk_context == card.risk_context
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
@@ -764,7 +765,8 @@ def test_full_pipeline_queries_every_authored_locus(
     # These are independently invented calls, assembled at runtime, never copied from a person.
     spike_ins = {}
     for card in health_pack.cards:
-        assert card.match
+        if card.match is None:
+            continue  # Assay coverage is computed, not a marker interpretation.
         for variant in card.match.variants:
             spike_ins[variant.rsid] = (
                 int(variant.key.chrom.value),
@@ -776,5 +778,6 @@ def test_full_pipeline_queries_every_authored_locus(
     export.write_text(render_fixture(replace(spec, spike_ins=spike_ins)), encoding="utf-8")
     analysis = analyse(export, knowledge_dir=health_pack.source_dir)
     assert len(analysis.cards) == len(health_pack.cards)
-    assert all(c.status is MatchStatus.MATCHED for c in analysis.cards)
+    assert all(c.status is MatchStatus.MATCHED for c in analysis.cards if c.card.match is not None)
+    assert all(c.status is MatchStatus.NOT_RUN for c in analysis.cards if c.card.match is None)
     assert ("19", 45411941) in seen and ("19", 45412079) in seen

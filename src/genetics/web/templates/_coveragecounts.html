@@ -1,0 +1,52 @@
+<p>Status: {{ coverage.status }}. {{ coverage.notice }}</p>
+<dl>
+  <dt>Chip positions (including no-calls)</dt><dd>{{ coverage.chip_counts.positions }}</dd>
+  <dt>Chip probes</dt><dd>{{ coverage.chip_counts.markers }}</dd>
+  <dt>Positions with duplicate probes</dt><dd>{{ coverage.chip_counts.duplicate_positions }}</dd>
+  <dt>Extra probes at repeated positions</dt><dd>{{ coverage.chip_counts.extra_probes }}</dd>
+</dl>
+{% if coverage.reference_counts is not none %}
+  <table>
+    <caption>Each coverage fraction has its own denominator</caption>
+    <thead><tr><th scope="col">Measure</th><th scope="col">Overlap / denominator</th><th scope="col">Percent</th></tr></thead>
+    <tbody>
+      {% for key, label in [("reference_position_coverage", "ClinVar reference positions covered"), ("chip_position_annotation_share", "Chip positions annotated by ClinVar")] %}
+        {% set ratio = coverage.ratios[key] %}
+        <tr><th scope="row">{{ label }}</th><td>{{ ratio.numerator }} / {{ ratio.denominator }}</td>
+          <td>{{ "%.2f%%" | format(ratio.fraction * 100) if ratio.fraction is not none else "Undefined (empty denominator)" }}</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <dl>
+    <dt>Overlapping positions with at least one call</dt><dd>{{ coverage.overlap_counts.called_positions }}</dd>
+    <dt>Allele-resolved positions</dt><dd>{{ coverage.overlap_counts.allele_resolved_positions }}</dd>
+    <dt>Allele-resolved REF/ALT variants</dt><dd>{{ coverage.overlap_counts.allele_resolved_variants }}</dd>
+    <dt>Observed alternate variants</dt><dd>{{ coverage.overlap_counts.alternate_observed_variants }}</dd>
+    <dt>Reference-only variants</dt><dd>{{ coverage.overlap_counts.reference_only_variants }}</dd>
+    <dt>Reference records / distinct REF/ALT variants</dt><dd>{{ coverage.reference_counts.records }} / {{ coverage.reference_counts.variants }}</dd>
+    <dt>Primary-chromosome positions</dt><dd>{{ coverage.reference_counts.positions }}</dd>
+    <dt>Excluded alternate/unplaced-contig records</dt><dd>{{ coverage.reference_counts.excluded_contig_records }}</dd>
+    <dt>Matchable biallelic SNV variants in reference</dt><dd>{{ coverage.reference_counts.matchable_snv_variants }}</dd>
+    <dt>Compatible records excluded for unresolved strand</dt><dd>{{ coverage.overlap_counts.strand_unresolved_records }}</dd>
+  </dl>
+{% else %}
+  <p>ClinVar reference unavailable; overlap counts and coverage fractions are unknown.</p>
+{% endif %}
+<table>
+  <caption>Position states (exclusive, in the declared priority order)</caption>
+  <thead><tr><th scope="col">State</th><th scope="col">All chip positions</th><th scope="col">Overlapping positions</th></tr></thead>
+  <tbody>
+    {% for state in ["conflicting_probes", "no_call", "indel_excluded", "ploidy_unresolved", "called_snp"] %}
+      <tr><th scope="row">{{ state.replace("_", " ") }}</th><td>{{ coverage.chip_counts[state] }}</td>
+        <td>{{ coverage.overlap_counts[state] if coverage.overlap_counts is not none else "Unknown" }}</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+<details><summary>Counting policy and source provenance</summary>
+  <dl>{% for key, value in coverage.policy.items() %}<dt>{{ key.replace("_", " ") }}</dt><dd>{{ value }}</dd>{% endfor %}</dl>
+  <p>QC ploidy assumption: {{ coverage.qc_inferred_sex }}.</p>
+  {% if coverage.provenance %}
+    <p>ClinVar {{ coverage.provenance.version }} · {{ coverage.provenance.build }} · {{ coverage.provenance.filename }}.</p>
+    <p>Source SHA256: <code>{{ coverage.provenance.sha256 }}</code>.</p>
+  {% endif %}
+</details>

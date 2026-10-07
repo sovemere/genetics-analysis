@@ -1,0 +1,10 @@
+{% set coverage = card.computation.result %}
+<section class="detailblock" aria-label="ClinVar coverage counts and definitions">
+  <h3>Coverage and its limits</h3>
+  <p>{{ card.computation.reliability.reason }}</p>
+  {% if coverage %}
+    {% include "_coveragecounts.html" %}
+  {% else %}
+    <p>{{ card.computation.reason }}</p>
+  {% endif %}
+</section>

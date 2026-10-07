@@ -74,8 +74,11 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 12
+BUNDLE_FORMAT_VERSION: Final[int] = 13
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 13 (M7.6) saves quantitative ClinVar coverage in lookup schema 5 and a
+physical-health computed card. Formats 1-12 retain their original snapshots.
 
 Version 12 (M7.5 review) permits explicit absent phenotype evidence in confidence
 inputs and uses multi-marker schema 2. Formats 1-11 retain their saved estimates.
@@ -766,6 +769,13 @@ def write_bundle(
             or ClinVarLookup.not_run("ClinVar lookup was not supplied to the bundle writer.")
         ).to_dict()
         validate_lookup(clinvar_payload)
+        for card in cards:
+            if (
+                card.computation is not None
+                and card.computation.get("source") == "clinvar_coverage"
+                and card.computation.get("result") != clinvar_payload.get("coverage")
+            ):
+                raise BundleError("ClinVar coverage card disagrees with supplied lookup")
         _write_text(staging / CLINVAR_NAME, _render(clinvar_payload))
 
         manifest = {
@@ -932,13 +942,24 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             data.get("kind") != "computed"
             or not isinstance(computation_map.get("source"), str)
             or computation_map.get("source")
-            not in {"long_roh", "neanderthal_f4", "denisovan_f4", "sex_chromosome_profile"}
+            not in {
+                "long_roh",
+                "neanderthal_f4",
+                "denisovan_f4",
+                "sex_chromosome_profile",
+                "clinvar_coverage",
+            }
         ):
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
             raise BundleError(f"{where}: computation and card statuses disagree")
         if (
-            data.get("section") != "genome_structure"
+            data.get("section")
+            != (
+                "physical_health"
+                if computation_map["source"] == "clinvar_coverage"
+                else "genome_structure"
+            )
             or any(
                 data.get(k) is not None
                 for k in (
@@ -984,6 +1005,17 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 or not computation_map["reason"].strip()
             ):
                 raise BundleError(f"{where}: not-run computation needs a reason and no tier")
+        elif computation_map["source"] == "clinvar_coverage":
+            from genetics.health.clinvar import ClinVarError
+            from genetics.health.coverage import coverage_reliability, validate_coverage
+
+            try:
+                validate_coverage(_mapping(measured, where))
+            except ClinVarError as exc:
+                raise BundleError(f"{where}: {exc}") from exc
+            expected_status = "not_run" if measured["status"] == "not_run" else "computed"
+            if data["status"] != expected_status or reliability != coverage_reliability(measured):
+                raise BundleError(f"{where}: inconsistent coverage status or reliability")
         elif computation_map["source"] == "sex_chromosome_profile":
             from genetics.structure.sex_chromosomes import SexChromosomeError
             from genetics.structure.sex_chromosomes import validate_result as validate_sex_result
@@ -1200,6 +1232,15 @@ def read_bundle(path: Path) -> RunBundle:
         for e in entries
     ):
         raise BundleError("multi-marker and absolute-risk records require bundle format 11")
+    coverage_entries = [
+        e
+        for e in entries
+        if isinstance(e, Mapping)
+        and isinstance(e.get("computation"), Mapping)
+        and e["computation"].get("source") == "clinvar_coverage"
+    ]
+    if coverage_entries and declared < 13:
+        raise BundleError("ClinVar coverage cards require bundle format 13")
     if declared < 12 and any(
         isinstance(e, Mapping)
         and isinstance(e.get("multi_marker"), Mapping)
@@ -1230,6 +1271,8 @@ def read_bundle(path: Path) -> RunBundle:
         from genetics.health.clinvar import ClinVarError, validate_lookup
 
         clinvar = _load_json(directory / CLINVAR_NAME)
+        if declared < 13 and clinvar.get("schema_version") == 5:
+            raise BundleError("ClinVar quantitative coverage requires bundle format 13")
         if declared < 8 and clinvar.get("schema_version") == 2:
             raise BundleError("ClinVar frequency calibration requires bundle format 8")
         if declared < 9 and clinvar.get("schema_version") == 3:
@@ -1240,6 +1283,12 @@ def read_bundle(path: Path) -> RunBundle:
             validate_lookup(clinvar)
         except ClinVarError as exc:
             raise BundleError(str(exc)) from exc
+
+    for entry in coverage_entries:
+        if entry["computation"].get("result") != (
+            None if clinvar is None else clinvar.get("coverage")
+        ):
+            raise BundleError("ClinVar coverage card disagrees with saved lookup")
 
     return RunBundle(
         path=directory,
