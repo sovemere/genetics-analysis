@@ -144,6 +144,13 @@
         <dl class="facts">
           <div><dt>Call source</dt><dd>{{ marker.observation.call_source }}</dd></div>
           {% if marker.observation.imputation_quality is not none %}<div><dt>Imputation quality</dt><dd>{{ "%.4g" | format(marker.observation.imputation_quality) }}</dd></div>{% endif %}
+          {% if marker.observation.get("imputation") %}
+          <div><dt>Imputation source</dt><dd>{{ marker.observation.imputation.source }}</dd></div>
+          <div><dt>Quality model</dt><dd>{{ marker.observation.imputation.quality_scope }}</dd></div>
+          <div><dt>Native ploidy</dt><dd>{{ marker.observation.imputation.ploidy }}</dd></div>
+          <div><dt>REF / ALT</dt><dd>{{ marker.observation.imputation.ref }} / {{ marker.observation.imputation.alt | join(", ") }}</dd></div>
+          <div><dt>ALT dosages / DR2</dt><dd>{{ marker.observation.imputation.dosage }} / {{ marker.observation.imputation.dr2 if marker.observation.imputation.dr2 is not none else "unknown" }}</dd></div>
+          {% endif %}
           {% if marker.observation.ancestry_match is not none %}<div><dt>Ancestry match to the study</dt><dd>{{ "%.4g" | format(marker.observation.ancestry_match) }}</dd></div>{% endif %}
           {% if marker.match.observed_rsid %}<div><dt>Array marker</dt><dd>{{ marker.match.observed_rsid }}</dd></div>{% endif %}
         </dl>
@@ -176,6 +183,13 @@
         {% endif %}
         {% if card.imputation_quality is not none %}
           <div><dt>Imputation quality</dt><dd>{{ "%.2f" | format(card.imputation_quality) }}</dd></div>
+        {% endif %}
+        {% if card.imputation %}
+          <div><dt>Imputation source</dt><dd>{{ card.imputation.source }}</dd></div>
+          <div><dt>Quality model</dt><dd>{{ card.imputation.quality_scope }}</dd></div>
+          <div><dt>Native ploidy</dt><dd>{{ card.imputation.ploidy }}</dd></div>
+          <div><dt>REF / ALT</dt><dd>{{ card.imputation.ref }} / {{ card.imputation.alt | join(", ") }}</dd></div>
+          <div><dt>ALT dosages / DR2</dt><dd>{{ card.imputation.dosage }} / {{ card.imputation.dr2 if card.imputation.dr2 is not none else "unknown" }}</dd></div>
         {% endif %}
         {% if card.ancestry_match is not none %}
           <div><dt>Ancestry match to the study</dt><dd>{{ "%.2f" | format(card.ancestry_match) }}</dd></div>

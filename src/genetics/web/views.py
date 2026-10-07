@@ -190,6 +190,7 @@ class QCBanner:
     build_verdict: str | None
     warnings: tuple[str, ...]
     imputation_mode: str | None = None
+    imputation_card_input: str | None = None
     imputation_status: str | None = None
     imputation_jobs: int | None = None
     imputation_records: int | None = None
@@ -237,6 +238,7 @@ def banner_for(bundle: RunBundle) -> QCBanner:
         build_verdict=_get(qc, "build", "verdict"),
         warnings=_warnings(qc.get("warnings")),
         imputation_mode=_text(_get(bundle.imputation or {}, "mode")),
+        imputation_card_input=_text(_get(bundle.imputation or {}, "card_input")),
         imputation_status=_text(_get(bundle.imputation or {}, "status")),
         imputation_jobs=_count(_get(bundle.imputation or {}, "summary", "jobs")),
         imputation_records=_count(_get(bundle.imputation or {}, "summary", "records")),
@@ -944,10 +946,29 @@ class CardView(NoGenotypeRepr):
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
     imputation_mode: str | None = None
+    imputation: Mapping[str, Any] | None = None
 
     @property
     def imputation_mode_label(self) -> str:
         return (self.imputation_mode or "not recorded").replace("_", " ")
+
+    @property
+    def imputation_quality_note(self) -> str | None:
+        observations = (
+            [m.get("observation", {}) for m in self.multi_marker.get("markers", [])]
+            if self.multi_marker is not None
+            else [{"call_source": self.call_source, "imputation_quality": self.imputation_quality}]
+        )
+        qualities = [
+            o.get("imputation_quality") for o in observations if o.get("call_source") == "imputed"
+        ]
+        if not qualities:
+            return None
+        known = [q for q in qualities if isinstance(q, int | float)]
+        text = f"Imputed · lowest DR2 {min(known):g}" if known else "Imputed"
+        if None in qualities:
+            text += " · quality unknown; confidence capped"
+        return text
 
     @property
     def is_interpreted(self) -> bool:
@@ -991,7 +1012,11 @@ class CardView(NoGenotypeRepr):
         card that did not match. Neither is true of an impossibility card, which has no
         position at all.
         """
-        return self.observed_rsid is not None or self.imputation_quality is not None
+        return (
+            self.observed_rsid is not None
+            or self.imputation_quality is not None
+            or self.imputation is not None
+        )
 
     @property
     def frequency_absence(self) -> str | None:
@@ -1172,6 +1197,7 @@ class CardView(NoGenotypeRepr):
             multi_marker=card.multi_marker,
             risk_context=card.risk_context,
             imputation_mode=card.imputation_mode,
+            imputation=(card.observation or {}).get("imputation"),
         )
 
 

@@ -98,6 +98,7 @@ def install_fake(
         return fake_result(table, root, empty=empty)
 
     monkeypatch.setattr(pipeline, "impute", stage)
+    monkeypatch.setattr(ImputationResult, "iter_dosages", lambda self: iter(()))
     return calls
 
 
@@ -142,7 +143,7 @@ def test_recorded_enabled_mode_and_execution_survive_without_cache(
     analysis = pipeline.analyse(export, knowledge_dir=PACK)
     path = pipeline.save(analysis)
     bundle = read_bundle(path)
-    assert bundle.format_version == 14 and bundle.imputation == analysis.imputation.to_dict()
+    assert bundle.format_version == 15 and bundle.imputation == analysis.imputation.to_dict()
     assert bundle.imputation["status"] == ("no_eligible_jobs" if empty else "computed")
     assert all(c.imputation_mode == "enabled" for c in bundle.cards)
     assert analysis.imputation_result is not None
@@ -182,7 +183,7 @@ def test_cli_mode_and_saved_dashboard_match_without_outputting_calls(
     with TestClient(create_app(WebConfig()), base_url="http://127.0.0.1") as client:
         body = client.get(f"/runs/{path.name}").text
         assert f"Imputation {mode}" in body
-        assert "Card findings use the original array observations" in body
+        assert "Card findings use" in body
         card = bundle.cards[0]
         detail = client.get(f"/runs/{path.name}/cards/{card.card_id}").text
         assert f"Imputation {mode} for this run" in detail

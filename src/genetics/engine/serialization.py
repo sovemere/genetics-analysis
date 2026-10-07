@@ -6,7 +6,18 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from genetics.engine.confidence import ConfidenceResult
-    from genetics.engine.evidence import AssembledCard, PopulationFrequency
+    from genetics.engine.evidence import AssembledCard, ObservationEvidence, PopulationFrequency
+
+
+def observation_payload(observed: ObservationEvidence) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "call_source": observed.call_source.value,
+        "imputation_quality": observed.imputation_quality,
+        "ancestry_match": observed.ancestry_match,
+    }
+    if observed.imputation is not None:
+        result["imputation"] = observed.imputation.to_dict()
+    return result
 
 
 def frequency_payload(frequency: PopulationFrequency) -> dict[str, Any]:
@@ -79,11 +90,7 @@ def marker_payload(assembled: AssembledCard) -> dict[str, Any]:
             "outcome_name": None,
             "candidate_outcomes": [],
         },
-        "observation": {
-            "call_source": observed.call_source.value,
-            "imputation_quality": observed.imputation_quality,
-            "ancestry_match": observed.ancestry_match,
-        },
+        "observation": observation_payload(observed),
         "frequencies": [frequency_payload(f) for f in assembled.frequencies],
         "confidence_frequency": None
         if assembled.confidence_frequency is None

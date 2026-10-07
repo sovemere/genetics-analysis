@@ -398,7 +398,7 @@ def test_saved_card_cli_and_dashboard_agree_and_never_recount(
     snapshot = lookup.to_dict()
     index.path.unlink()  # All readers must work with the source removed.
     saved = read_bundle(path)
-    assert saved.format_version == 14 and saved.clinvar == snapshot
+    assert saved.format_version == 15 and saved.clinvar == snapshot
     assert saved.cards[0].computation is not None
     assert saved.cards[0].computation["result"] == snapshot["coverage"]
     cli = CliRunner().invoke(app, ["runs", "clinvar", path.name, "--json"])

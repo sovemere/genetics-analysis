@@ -1,8 +1,40 @@
-# Handoff: M8.5 imputation quality propagation
+# Handoff: M8.6 full imputation bundle provenance
 
-As of 2026-10-07, **M0-M7 and M8.1-M8.4 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1-M8.5 are implemented**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.5.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.6.
+
+## Implemented M8.5 and next scope
+
+Quality-aware interpretation cards retain original direct probes and can use exact
+biallelic SNV imputation for absent/no-call loci. Native DS/per-ALT DR2, source, biological
+ploidy, method and quality scope remain attached to each marker. Low DR2 uses existing
+confidence ceilings without filtering; phase-filled no-calls stay unknown quality with
+a zero quality contribution and limited ceiling. Multi-marker confidence inherits its
+weakest marker, without assuming phase. ClinVar/QC/coverage/structure retain original
+array input. The allele-dose interface for M9 scoring preserves each ALT's quality;
+multiallelic REF quality remains unknown without covariance, never averaged.
+
+Format 15 / execution schema 2 saves the quality-aware observation basis and scalar/
+marker evidence. Saved validation binds native quality/source/ploidy and confidence
+ceilings; CLI/dashboard use the same snapshots. Formats 1–14 retain original meanings.
+See [the quality guide](imputation_quality.md).
+
+Validation adds 54 synthetic cases, including native Beagle quality propagation,
+saved unknown quality, direct-probe preservation, per-ALT contracts, native haploid
+scope, weakest-marker inheritance, reference-oriented palindromic sites, corruption
+and CLI/dashboard parity. Full native tests and all four strict type combinations,
+lint/format, fixture reproduction and full dbSNP card lint cover the changes. The
+additional format-13 downgrade guard is checked separately from the full local run.
+No personal export was opened.
+
+**Next M8.6:** durably copy full dosage records into the private bundle with exact
+used-panel/map/tool/runtime versions, hashes and parameters from the stage contract,
+including per-region/ploidy options. Current execution summaries and used-card evidence
+are not full provenance. Validate publication/reuse and preserve historical formats;
+reopening a run must not depend on its stage cache or a newer reference lock. M9 score
+consumers must receive dosage and allele quality together. M8.7 owns dedicated
+imputed rare-call gate regressions. Keep all generated data outside Git.
 
 ## Implemented M8.4 and next scope
 
@@ -28,7 +60,7 @@ keeping absolute job paths/contracts unchanged. Synthetic preparation is shared 
 M8.3 acceptance. Strict four-way types, lint/format, fixtures and full card lint pass.
 No personal export was opened. See [the mode guide](imputation_mode.md).
 
-**Next M8.5:** consume the separate `Analysis.imputation_result` through quality-aware
+**M8.4 handoff (implemented in M8.5):** consume the separate `Analysis.imputation_result` through quality-aware
 card/score observations. Current findings, ClinVar, coverage and structure still use the
 original array table; the UI states that basis. Do not replace original direct calls,
 price phase-filled no-calls as perfectly typed, average per-ALT DR2 without an allele

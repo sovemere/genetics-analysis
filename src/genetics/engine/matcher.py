@@ -327,6 +327,7 @@ class Matcher:
 
     index: LocusIndex
     merges: MergeTable = field(default_factory=MergeTable.empty)
+    reference_forward_loci: frozenset[LocusKey] = frozenset()
 
     @classmethod
     def for_pack(
@@ -336,6 +337,7 @@ class Matcher:
         *,
         policy: IndelPolicy | None = None,
         merges: MergeTable | None = None,
+        reference_forward_loci: frozenset[LocusKey] = frozenset(),
     ) -> Matcher:
         """Build a matcher for one pack against one sample's table.
 
@@ -351,7 +353,7 @@ class Matcher:
         if merges is None:
             authored = [v.rsid for c in pack.cards if c.match is not None for v in c.match.variants]
             merges = MergeTable.default((*authored, *index.rsids))
-        return cls(index=index, merges=merges)
+        return cls(index=index, merges=merges, reference_forward_loci=reference_forward_loci)
 
     def match(self, card: Card) -> MatchResult:
         if card.kind is CardKind.COMPUTED:
@@ -385,7 +387,7 @@ class Matcher:
         resolved = _resolve_duplicates(
             rows,
             ambiguous_site=is_strand_ambiguous(key.alleles),
-            forward_only=card.match.forward_only,
+            forward_only=card.match.forward_only or key.locus in self.reference_forward_loci,
         )
         if isinstance(resolved, _Conflict):
             return MatchResult(
@@ -539,7 +541,12 @@ class Matcher:
                 "represents one allele rather than two."
             )
 
-        genotype, strand, strand_caveat = _orient(row, key, forward_only=card.match.forward_only)
+        genotype, strand, strand_caveat = _orient(
+            row,
+            key,
+            forward_only=card.match.forward_only,
+            reference_forward=key.locus in self.reference_forward_loci,
+        )
         if strand_caveat:
             caveats.append(strand_caveat)
 
@@ -661,7 +668,7 @@ def _resolve_duplicates(
 
 
 def _orient(
-    row: _Row, key: VariantKey, *, forward_only: bool = False
+    row: _Row, key: VariantKey, *, forward_only: bool = False, reference_forward: bool = False
 ) -> tuple[str | None, Strand, str | None]:
     """Put the observed genotype on the card's strand, or report that it cannot be.
 
@@ -689,6 +696,9 @@ def _orient(
     declared = frozenset(key.alleles)
     genotype = row.genotype
     assert genotype is not None  # callers check
+
+    if reference_forward:
+        return (genotype if observed <= declared else None), Strand.AS_WRITTEN, None
 
     if is_strand_ambiguous(key.alleles):
         # Membership is still checked here. Returning early without it sent a genuine
@@ -752,6 +762,7 @@ def match_pack(
     *,
     policy: IndelPolicy | None = None,
     merges: MergeTable | None = None,
+    reference_forward_loci: frozenset[LocusKey] = frozenset(),
 ) -> tuple[MatchResult, ...]:
     """One result per card, in pack order.
 
@@ -760,7 +771,11 @@ def match_pack(
     why, so the honest states -- marker absent, no call, probes disagree -- would collapse
     into silence.
     """
-    matcher = Matcher.for_pack(pack, table, policy=policy, merges=merges)
+    # Only callers holding a validated reference-allele contract may supply these loci.
+    # A consumer vendor's forward-strand claim alone is not sufficient.
+    matcher = Matcher.for_pack(
+        pack, table, policy=policy, merges=merges, reference_forward_loci=reference_forward_loci
+    )
     return tuple(matcher.match(card) for card in pack.cards)
 
 

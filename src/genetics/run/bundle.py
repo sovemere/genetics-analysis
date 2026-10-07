@@ -60,8 +60,10 @@ from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
 from genetics.engine.cards import Card, CardError, KnowledgePack, parse_method_evidence
 from genetics.engine.citations import Citation
 from genetics.engine.evidence import AssembledCard
+from genetics.engine.observation_snapshot import validate_imputation_snapshot
 from genetics.engine.serialization import confidence_payload as _confidence_payload
 from genetics.engine.serialization import frequency_payload as _frequency_payload
+from genetics.engine.serialization import observation_payload
 from genetics.imputation.context import ImputationContext
 from genetics.imputation.target import ImputationError
 from genetics.paths import UnsafeDataDirError, is_inside_repo, reference_lock, runs_dir, tools_dir
@@ -76,8 +78,12 @@ if TYPE_CHECKING:
     from genetics.ancestry.context import AncestryContext
     from genetics.health.clinvar import ClinVarLookup
 
-BUNDLE_FORMAT_VERSION: Final[int] = 14
+BUNDLE_FORMAT_VERSION: Final[int] = 15
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 15 (M8.5) adds native allele dosage/quality evidence, including explicit
+unestimated phase-filled quality, and execution schema 2 for quality-aware card inputs.
+Formats 1-14 retain their original observation basis and confidence snapshots.
 
 Version 14 (M8.4) records imputation mode and execution summary in a private payload
 and the requested mode on every card. Formats 1-13 mean mode not recorded.
@@ -392,11 +398,7 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         # free; after M5 it costs a version bump.
         "observation": None
         if assembled.observation is None
-        else {
-            "call_source": assembled.observation.call_source.value,
-            "imputation_quality": assembled.observation.imputation_quality,
-            "ancestry_match": assembled.observation.ancestry_match,
-        },
+        else observation_payload(assembled.observation),
         "frequencies": [_frequency_payload(f) for f in assembled.frequencies],
         "confidence_frequency": None
         if assembled.confidence_frequency is None
@@ -800,6 +802,12 @@ def write_bundle(
             payload = _card_payload(card)
             if execution["card_input"] == "original_array" and not _array_observations(payload):
                 raise BundleError("Array-only card execution has an imputed observation")
+            try:
+                validate_imputation_snapshot(
+                    payload, require_detail=execution["schema_version"] == 2
+                )
+            except ValueError as exc:
+                raise BundleError(str(exc)) from exc
             payload["imputation_mode"] = (
                 None if execution["mode"] == "not_recorded" else execution["mode"]
             )
@@ -963,6 +971,10 @@ def read_manifest(directory: Path) -> Mapping[str, Any]:
 def _stored_card(raw: Any, where: str) -> StoredCard:
     data = _mapping(raw, where)
     _reject_unknown(data, CARD_KEYS, where)
+    try:
+        validate_imputation_snapshot(data)
+    except ValueError as exc:
+        raise BundleError(f"{where}: {exc}") from exc
     confidence = data.get("confidence")
     confidence_map = None if confidence is None else _mapping(confidence, f"{where}.confidence")
     evidence = data.get("evidence")
@@ -1282,6 +1294,18 @@ def read_bundle(path: Path) -> RunBundle:
     entries = _require(cards_raw, "cards", CARDS_NAME)
     if not isinstance(entries, Sequence) or isinstance(entries, str):
         raise BundleError(f"{CARDS_NAME}.cards: expected a list")
+    if declared < 15:
+        for entry in entries:
+            if not isinstance(entry, Mapping):
+                continue
+            observations = [entry.get("observation")]
+            multi = entry.get("multi_marker")
+            if isinstance(multi, Mapping) and isinstance(multi.get("markers"), list):
+                observations.extend(
+                    m.get("observation") for m in multi["markers"] if isinstance(m, Mapping)
+                )
+            if any(isinstance(o, Mapping) and "imputation" in o for o in observations):
+                raise BundleError("Dosage observation evidence requires bundle format 15")
     if declared < 11 and any(
         isinstance(e, Mapping)
         and (e.get("multi_marker") is not None or e.get("risk_context") is not None)
@@ -1327,6 +1351,8 @@ def read_bundle(path: Path) -> RunBundle:
         except (ImputationError, TypeError) as exc:
             raise BundleError("Saved imputation execution record is invalid") from exc
         expected_mode = None if imputation["mode"] == "not_recorded" else imputation["mode"]
+        if declared < 15 and imputation["schema_version"] == 2:
+            raise BundleError("Quality-aware imputation requires bundle format 15")
         if any(
             not isinstance(e, Mapping)
             or "imputation_mode" not in e
@@ -1338,6 +1364,13 @@ def read_bundle(path: Path) -> RunBundle:
             not _array_observations(e) for e in entries
         ):
             raise BundleError("Array-only card execution has an imputed observation")
+        for entry in entries:
+            try:
+                validate_imputation_snapshot(
+                    entry, require_detail=imputation["schema_version"] == 2
+                )
+            except ValueError as exc:
+                raise BundleError(str(exc)) from exc
     elif any(isinstance(e, Mapping) and e.get("imputation_mode") is not None for e in entries):
         raise BundleError("Recorded imputation modes require bundle format 14")
     if declared >= ANCESTRY_FORMAT_VERSION:

@@ -244,7 +244,11 @@ def _render(analysis: Analysis, path: Path) -> None:
         f"  imputation  {analysis.imputation.mode}: {analysis.imputation.status}",
         fg=typer.colors.YELLOW if analysis.imputation.mode == "disabled" else None,
     )
-    _echo("  Card findings use the original array observations.")
+    _echo(
+        "  Card findings use original array calls plus imputed observations with recorded quality."
+        if analysis.imputation.quality_aware
+        else "  Card findings use the original array observations."
+    )
 
     _echo("")
     _echo(f"  {analysis.n_cards} card(s) from {analysis.pack.source_dir}")

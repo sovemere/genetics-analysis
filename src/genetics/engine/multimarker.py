@@ -13,6 +13,7 @@ from genetics.engine.cards import CardVariant, Match
 from genetics.engine.confidence import RARE_CALL_FREQUENCY_CEILING, CallSource, ConfidenceTier
 from genetics.engine.evidence import ObservationEvidence, PopulationFrequency
 from genetics.engine.matcher import MatchStatus, Strand, complement
+from genetics.imputation.quality import ImputationEvidence
 from genetics.ingest.schema import CallStatus
 
 
@@ -118,8 +119,19 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
         elif genotype is not None:
             raise ValueError("unresolved marker cannot carry an oriented observation")
         genotypes.append(genotype)
+        raw_observation = record["observation"]
         observation = _map(
-            record["observation"], {"call_source", "imputation_quality", "ancestry_match"}
+            raw_observation,
+            {
+                "call_source",
+                "imputation_quality",
+                "ancestry_match",
+                *(
+                    {"imputation"}
+                    if isinstance(raw_observation, Mapping) and "imputation" in raw_observation
+                    else set()
+                ),
+            },
         )
         frequencies = record["frequencies"]
         if not isinstance(frequencies, list):
@@ -135,6 +147,9 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
             frequencies=tuple(frequency_items),
             imputation_quality=observation["imputation_quality"],
             ancestry_match=observation["ancestry_match"],
+            imputation=None
+            if "imputation" not in observation
+            else ImputationEvidence.from_dict(observation["imputation"]),
         )
         selected = record["confidence_frequency"]
         if selected is not None and (
