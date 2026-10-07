@@ -17,7 +17,7 @@ import uuid
 from collections import Counter
 from collections.abc import Callable, Mapping
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -121,6 +121,7 @@ class ClinVarLookup(NoGenotypeRepr):
     loci: tuple[Mapping[str, Any], ...]
     frequency_reference: Mapping[str, Any] | None = None
     secondary_reference: Mapping[str, Any] | None = None
+    coverage: Mapping[str, Any] | None = None
 
     @classmethod
     def not_run(cls, reason: str = "Pinned ClinVar GRCh37 VCF is not installed.") -> ClinVarLookup:
@@ -145,6 +146,10 @@ class ClinVarLookup(NoGenotypeRepr):
         if self.secondary_reference is not None:
             payload["schema_version"] = 4
             payload["secondary_reference"] = dict(self.secondary_reference)
+        if self.coverage is not None:
+            payload["lookup_schema_version"] = payload["schema_version"]
+            payload["schema_version"] = 5
+            payload["coverage"] = dict(self.coverage)
         return json.loads(json.dumps(payload))  # type: ignore[no-any-return]
 
 
@@ -262,7 +267,7 @@ class ClinVarIndex:
             temporary_sidecar.unlink(missing_ok=True)
         return cls(destination, provenance)
 
-    def lookup(self, table: GenotypeTable) -> ClinVarLookup:
+    def lookup(self, table: GenotypeTable, *, with_coverage: bool = False) -> ClinVarLookup:
         """Join by locus, then require observed alleles compatible with REF/ALT.
 
         Results retain every overlapping record, including exclusions and conflicts.
@@ -311,7 +316,12 @@ class ClinVarIndex:
             "overlapping_records": sum(statuses.values()),
             **{status: statuses[status] for status in sorted(STATUSES)},
         }
-        return ClinVarLookup("complete", "", self.provenance, counts, tuple(loci))
+        result = ClinVarLookup("complete", "", self.provenance, counts, tuple(loci))
+        if with_coverage:
+            from genetics.health.coverage import measure_coverage
+
+            result = replace(result, coverage=measure_coverage(table, result, self))
+        return result
 
 
 def _match_record(
@@ -386,18 +396,29 @@ def lookup_default(
     item = files[0]
     path = references_dir() / source.id / item.filename
     if not path.is_file():
-        return ClinVarLookup.not_run()
-    return ClinVarIndex.build(
+        from genetics.health.coverage import measure_coverage
+
+        result = ClinVarLookup.not_run()
+        return replace(result, coverage=measure_coverage(table, result, None))
+    index = ClinVarIndex.build(
         path,
         version=source.version,
         expected_sha256=item.sha256,
         expected_md5=item.md5,
         progress=progress,
-    ).lookup(table)
+    )
+    if progress:
+        progress("Measuring array/ClinVar position and allele coverage")
+    return index.lookup(table, with_coverage=True)
 
 
 def validate_lookup(raw: Mapping[str, Any]) -> None:
     """Validate a saved lookup without consulting today's reference data."""
+    if raw.get("schema_version") == 5 and type(raw.get("schema_version")) is int:
+        from genetics.health.coverage import validate_coverage_lookup
+
+        validate_coverage_lookup(raw)
+        return
     if raw.get("schema_version") == 4 and type(raw.get("schema_version")) is int:
         from genetics.health.secondary import validate_secondary
 

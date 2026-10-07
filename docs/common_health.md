@@ -68,13 +68,13 @@ Alzheimer-disease HR 8.74 (7.08–10.79). Neither the e3/e3 comparator nor e3r-c
 outcomes receives an invented disease estimate. Unresolved phase assigns no phenotype
 effect, while retaining each marker's rarity/quality calibration.
 
-Bundle format **12** saves literal risk context and the multi-marker definition,
+Bundle format **13** saves literal risk context and the multi-marker definition,
 observations, phase candidates and locus-specific calibration. Scalar fields remain
 empty for multi-marker observations. Saved validation checks the recorded definitions
 and weakest-marker aggregation, call-source/quality consistency and the rarest usable
 called-allele frequency without consulting today's knowledge pack or rescoring old
 confidence. Multi-marker schema 2 binds phenotype inputs to the saved outcome estimate.
-Formats 1–11 (including multi-marker schema 1) and ClinVar schemas 1–4 retain their
+Formats 1–12 (including multi-marker schema 1) and ClinVar schemas 1–4 retain their
 original meanings. Format-11 M7.5 runs retain their original card-wide calibration;
 re-run to obtain outcome-specific estimates. The detail view displays each marker's
 call source, quality, ancestry-match input, reliability breakdown and available PPV,

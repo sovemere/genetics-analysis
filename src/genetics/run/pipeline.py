@@ -69,6 +69,7 @@ from genetics.engine.matcher import (
     summarise,
 )
 from genetics.health.clinvar import ClinVarLookup, lookup_default
+from genetics.health.coverage import assemble_coverage_card
 from genetics.health.frequencies import calibrate, default_index, select_frequencies
 from genetics.health.secondary import default_reference, surface
 from genetics.ingest import IngestResult, SourceInfo, ingest
@@ -256,6 +257,12 @@ def analyse(
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
     clinvar = surface(clinvar, default_reference())
     cards = assemble_pack(pack, matches, observations(pack, matches, frequency_records))
+    cards = tuple(
+        assemble_coverage_card(c.card, clinvar.coverage)
+        if c.card.computation == "clinvar_coverage"
+        else c
+        for c in cards
+    )
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
     cards = infer_sex_chromosome_cards(cards, result.table)

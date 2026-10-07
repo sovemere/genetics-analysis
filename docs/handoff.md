@@ -1,8 +1,49 @@
-# Handoff: M7.6 quantitative coverage honesty
+# Handoff: M8 default-on imputation
 
-As of 2026-10-06, M0-M6 and **M7.1-M7.5 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M7.6.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.
+
+## Implemented M7.6 and next scope
+
+`health/coverage.py` and the declarative `clinvar_array_coverage` card measure unique
+normalized positions and distinct REF/ALT variants from the full pinned ClinVar index.
+Both reference-position and chip-position fractions save explicit denominators.
+Calls obtained stay separate from resolved alleles; duplicate/conflicting probes,
+no-calls, excluded indels, strand ambiguity and unresolved sex-chromosome ploidy are
+counted explicitly. Missing references, empty primary-reference scope and zero overlap
+remain distinct. Coverage does not estimate clinical sensitivity or confirmed findings.
+
+Format **13** / lookup schema **5** saves these counts, definitions and source identity
+in the existing private payloads. Readers check arithmetic, overlapping observations
+and card/lookup equality without consulting newer caches. Formats **1–12** retain
+their original snapshots. No new output type or privacy exception was introduced.
+See [the coverage guide](clinvar_coverage.md).
+
+The suite passes **2,188 tests, five existing Windows skips**, with pinned native ROH
+enabled. Strict mypy on Windows/Linux and Python 3.11/3.13, ruff/formatting, fixture
+reproduction and full dbSNP lint pass: **51 cards, 268 renders, 35/35 marker references**.
+Thirty new regressions cover source/count states, exclusions, saved consistency,
+historical formats, rare-call preservation and CLI/dashboard equality.
+
+Scoped M7.6 offline acceptance passed on the committed synthetic fixture against the
+complete ClinVar, gnomAD and 84-gene ACMG caches, through format-13 save/read, CLI JSON
+and dashboard/detail rendering, with networking blocked (**249.4 seconds**). It excludes
+ancestry and ROH/archaic reference preparation; those modules have separate acceptance
+and the native ROH tests are enabled in the suite. No personal export was used.
+The pinned ClinVar release contains **3,933,850 primary-chromosome positions**,
+**4,460,684 distinct REF/ALT variants**, and **4,155,065 matchable biallelic SNV variants**;
+eight alternate/unplaced-contig records are excluded from this position denominator.
+These are full-reference properties, not measurements of a person's chip coverage.
+
+**Next: M8.1**, the Beagle subprocess wrapper: Java detection, configurable memory,
+progress and interruption/resumption. Then prepare the full per-chromosome reference
+panel as bref3 (never subset it to array positions), phase/impute, retain dosages and
+per-variant quality, and save panel/tool/parameter provenance. Imputation must be
+default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call reliability
+must remain frequency-gated after imputation. No M8 implementation is claimed here.
+
+## Prior checkpoint
 M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 The [M7.5 diff-driven review](review_m75_session.md) records outcome-calibration,
 saved-record validation, marker-detail and lint-denominator fixes. The earlier
@@ -60,9 +101,9 @@ summaries. Exact `GENEINFO` symbol/NCBI-ID pairs plus germline pathogenic/likely
 included-haplotype annotations do not. Missing frequency or unresolved observations
 still receive no numerical PPV. Imputation-quality failures without a benchmark say so.
 
-New bundles use **format 12**, with ClinVar lookup schema **4** in the existing private
+New bundles use **format 13**, with ClinVar lookup schema **5** in the existing private
 `clinvar.run.json`. CLI JSON and the dashboard read the same saved records. Formats
-1–11 retain their original results and notices, including schema-2 BRCA entries with
+1–12 retain their original results and notices, including schema-2 BRCA entries with
 the original generic benchmark. See [the frequency guide](health_frequencies.md).
 
 M7.1's complete pinned ClinVar index contains **4,461,445 records** from 2026-08-04.
@@ -134,7 +175,7 @@ dashboard parity. Existing `{frequency}`/`{ppv}` placeholders and the confidence
 are available. Run full card lint against the cached dbSNP index and keep all personal
 outputs outside the checkout.
 
-## Next: M7.6
+## Accepted M7.6 scope (retained for review)
 
 Add a quantitative coverage-honesty card: how many ClinVar positions the array actually
 covers and what that does and does not establish. Compute the denominator and overlap
@@ -167,7 +208,8 @@ Synthetic regressions should exercise repeated reference alleles, duplicate chip
 no-calls, excluded indels, missing/empty references, zero overlap, digest-consistent
 malformed counts, and save/read/CLI/dashboard equality. The saved reader must validate
 counter relationships and provenance using the snapshot, without consulting newer caches.
-M7.6 is open; this review does not implement it or claim a new measured overlap.
+M7.6 is now implemented. Its overlap is computed per export; no new personal-chip
+measurement is claimed. The original ~76k figure remains historical context only.
 
 M7.6 owns quantitative coverage honesty. All low-confidence findings
 remain visible. Study-to-sample ancestry calibration remains M9.5; source-license

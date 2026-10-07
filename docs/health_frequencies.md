@@ -79,10 +79,12 @@ When several source rows share a locus, REF frequency is left unknown: gnomAD sp
 multiallelic sites, and 1-AF from one split row includes other alternates. The exact
 alternate's frequency can still be used without attributing those alternates to REF.
 
-Bundle format **12** records the calibrated ClinVar lookup as schema **4** in
+Bundle format **13** records the calibrated ClinVar lookup as schema **5** in
 `clinvar.run.json`, with source/index provenance, population counts, screening policy
 and reliability. CLI JSON and the dashboard read the same saved snapshot. Formats
-1-11 remain readable with their original results and notices; schema-2 snapshots keep
+1-12 remain readable with their original results and notices; schema-2 snapshots keep
 their original generic benchmark, and no saved run is recalibrated against newer
 references. M7.4 adds [ACMG gene-list surfacing](secondary_findings.md), preserving
 these reliability calculations and keeping clinical reportability separate.
+M7.6 adds [quantitative array/ClinVar coverage](clinvar_coverage.md), preserving the
+underlying schema generation and keeping coverage separate from measurement reliability.

@@ -305,6 +305,21 @@ def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
     typer.echo(f"Status: {record['status']}")
     if record["reason"]:
         typer.echo(record["reason"])
+    if not secondary_only:
+        coverage = record.get("coverage")
+        if coverage is not None:
+            from genetics.health.coverage import coverage_summary
+
+            typer.echo(coverage_summary(coverage))
+            typer.echo(
+                f"Coverage counting policy: {json.dumps(coverage['policy'], sort_keys=True)}"
+            )
+            typer.echo(f"Chip counts: {json.dumps(coverage['chip_counts'], sort_keys=True)}")
+            typer.echo(f"Overlap counts: {json.dumps(coverage['overlap_counts'], sort_keys=True)}")
+        else:
+            typer.echo(
+                "Quantitative ClinVar coverage was not recorded; saved results are unchanged."
+            )
     secondary = record.get("secondary_reference")
     if secondary:
         typer.echo(f"ACMG SF v3.3: {secondary['status']}. {secondary['reason']}")

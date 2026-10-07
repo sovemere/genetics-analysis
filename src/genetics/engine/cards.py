@@ -1071,12 +1071,23 @@ class Card:
             if (
                 not isinstance(data.get("computation"), str)
                 or data.get("computation")
-                not in {"long_roh", "neanderthal_f4", "denisovan_f4", "sex_chromosome_profile"}
-                or section is not Section.GENOME_STRUCTURE
+                not in {
+                    "long_roh",
+                    "neanderthal_f4",
+                    "denisovan_f4",
+                    "sex_chromosome_profile",
+                    "clinvar_coverage",
+                }
+                or section
+                is not (
+                    Section.PHYSICAL_HEALTH
+                    if data.get("computation") == "clinvar_coverage"
+                    else Section.GENOME_STRUCTURE
+                )
             ):
                 raise CardError(
                     f"{where}: unsupported computation or section; "
-                    "computed measurements belong in genome_structure"
+                    "computed measurements require their declared section"
                 )
             method = parse_method_evidence(_require(data, "method_evidence", where), where)
             summary = _require(data, "summary", where)

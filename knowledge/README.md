@@ -25,8 +25,8 @@ the other sections through the same schema and lint path.
 
 M6 adds four computed genome-structure cards under `structure/`: long ROH,
 Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns. The current
-pack now has 50 cards: 33 single-variant interpretations, one two-marker interpretation,
-12 assay-limit cards and four computed cards. M7.5 adds cited common health associations
+pack now has 51 cards: 33 single-variant interpretations, one two-marker interpretation,
+12 assay-limit cards and five computed cards. M7.5 adds cited common health associations
 under `health/`, with outcome-specific `risk_context` on the card face and in CLI output.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
@@ -146,7 +146,7 @@ schema 1 and 2 files remain supported without outcome-evidence overrides. Multi-
 constituents use the selected parent's evidence and neutral internal marker outcomes,
 never an arbitrary first disease outcome. Phase-unresolved results assign no phenotype
 estimate and preserve locus-specific rarity and quality. The [common-health guide](../docs/common_health.md)
-documents the curated estimates and baseline gaps. New saves use format 12 / multi-marker
+documents the curated estimates and baseline gaps. New saves use format 13 / multi-marker
 schema 2; historical format-11 snapshots retain their original evidence and calibration.
 
 ## Impossibility cards
@@ -234,7 +234,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 12; formats 1–11 remain readable.
+attached to a computed card. New runs use bundle format 13; formats 1–12 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD
@@ -252,3 +252,9 @@ visible on the face. See [the method documentation](../docs/archaic.md).
 `structure/sex_chromosomes.yaml` adds `sex_chromosome_profile`: non-PAR X heterozygosity
 and Y call rate with probe denominators, recorded thresholds, duplicate warnings and
 explicit karyotype limitations. See [sex-chromosome reporting](../docs/sex_chromosomes.md).
+
+`health/coverage.yaml` adds the `clinvar_coverage` computation in Physical health.
+This descriptive assay card saves distinct position and REF/ALT counts, explicit
+denominators, unresolved observations and source identity without estimating clinical
+sensitivity. Its cited cohort describes chip-call limitations, not a validation cohort
+for integer counting. See [ClinVar coverage](../docs/clinvar_coverage.md).

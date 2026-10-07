@@ -575,6 +575,8 @@ def calibrate(
         lookup.counts,
         tuple(loci),
         frequency_reference=reference,
+        secondary_reference=lookup.secondary_reference,
+        coverage=lookup.coverage,
     )
 
 

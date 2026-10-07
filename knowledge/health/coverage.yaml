@@ -1,0 +1,45 @@
+schema_version: 1
+cards:
+  - id: clinvar_array_coverage
+    section: physical_health
+    kind: computed
+    computation: clinvar_coverage
+    title: What this array covers in ClinVar
+    summary: Quantitative position coverage, calls obtained and allele-resolved reference matches.
+    detail: >-
+      Positions listed in the export count once across probe aliases, including no-calls.
+      Coverage uses all classifications and review levels in the pinned GRCh37 ClinVar
+      release on chromosomes 1-22, X, Y and MT. Alternate/unplaced contigs are excluded
+      and counted separately. Vendor-labelled PAR remains a separate coordinate label
+      and is not guessed into X or Y. The two percentages have different denominators:
+      overlapping positions divided by reference positions, and overlapping positions
+      divided by chip positions. A position can be present without a call, and a call
+      can be incompatible, indel-coded, conflicting, strand-unresolved or ploidy-unresolved.
+      Allele-resolved counts include compatible reference-only calls and observed
+      alternates; they are not counts of disease-causing alleles. A/T and C/G strand
+      ambiguity is conservatively excluded from these counts, while existing lookup
+      annotations remain visible. Other compatible matches assume the vendor's
+      forward-strand contract. Rare-call reliability is a separate screen. ACMG gene-list
+      overlaps are scoped separately and do not measure whole-gene coverage.
+    method_evidence:
+      tier: descriptive assay coverage; no clinical sensitivity estimate
+      replication: >-
+        Counting is deterministic under the recorded policy. Weedon supports the
+        chip-call limitation, not validation of these counts as a clinical screen.
+      populations: ["Weedon 2021: UK Biobank participants with chip and sequencing data"]
+      sample_sizes: [49908]
+      measure: unique position overlap and distinct REF/ALT matches
+      units: counts and fractions with explicit reference-position and chip-position denominators
+      effect_size: No phenotype effect, penetrance, absolute disease risk or clinical sensitivity is estimated.
+    citations:
+      - type: doi
+        id: 10.1093/nar/gkae1090
+        title: "ClinVar: updates to support classifications of both germline and somatic variants"
+      - type: doi
+        id: 10.1136/bmj.n214
+        title: Use of SNP chips to detect rare pathogenic variants
+    caveats:
+      - Coverage describes this export and reference release, not every array or every variant in a gene.
+      - A no-call position is assayed but supplies no usable allele observation.
+      - Positional overlap and ClinVar annotations do not establish clinical sensitivity or confirmed pathogenic findings.
+      - An empty overlap is not a negative clinical screen; rare chip calls can be artifacts.

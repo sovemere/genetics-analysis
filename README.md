@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M6 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M7 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -21,23 +21,26 @@ reportability limits and gene-specific guidance. M7.5 adds cited APOE, HFE C282Y
 Factor V Leiden cards with cohort absolute-risk context and explicit baseline gaps.
 APOE uses both defining SNPs and preserves the rare fourth haplotype and unresolved phase.
 The review corrects outcome-specific evidence and exposes each marker's quality inputs.
-New runs use bundle format **12**; formats 1–11 remain readable without reinterpreting saved findings.
-Imputation remains an upcoming milestone.
+M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
+calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
+Coverage is not clinical sensitivity or confirmed pathogenic findings.
+New runs use bundle format **13**; formats 1–12 remain readable without reinterpreting saved findings.
 
-**Next: M7.6, quantitative array/ClinVar coverage honesty.**
+**Next: M8, default-on imputation with Beagle.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The M7.5 review passed **2,158 tests with five existing Windows skips**,
+M7.6 passed **2,188 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
-reproduction and full dbSNP card lint passed; synthetic-only full-reference offline
+reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity.
 The M7.5 implementation checkpoint is `537e3c5`, with
 [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
-The [session review](docs/review_m75_session.md) records the fixes and M7.6 handoff checks.
+The [M7.5 session review](docs/review_m75_session.md) records the preceding fixes;
+the [coverage guide](docs/clinvar_coverage.md) describes M7.6's counting and saved contract.
 
 ## Development and use
 
@@ -78,5 +81,6 @@ PPV benchmarks retain their study scope and are never presented as individual po
 
 See the [knowledge-pack guide](knowledge/README.md),
 [common health-card guide](docs/common_health.md),
+[ClinVar coverage](docs/clinvar_coverage.md),
 [reference-data guide](data/references/README.md), [ROH](docs/roh.md),
 [archaic estimation](docs/archaic.md) and [sex-chromosome reporting](docs/sex_chromosomes.md).
