@@ -297,7 +297,7 @@ def test_tools_status_reports_all_tools_for_this_platform() -> None:
     payload = run_json("tools", "status")
     assert payload["platform"].split("_", 1)[0] in {"windows", "macos", "linux"}
     ids = {row["tool_id"] for row in payload["tools"]}
-    assert ids == {"plink2", "beagle", "plink19"}
+    assert ids == {"plink2", "beagle", "plink19", "bref3", "unbref3"}
 
 
 def test_tools_status_says_which_milestone_needs_each_tool() -> None:

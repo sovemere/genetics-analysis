@@ -39,8 +39,8 @@ HFE C282Y and F5 Leiden carry published cohort absolute-risk context.
 M7.6 adds quantitative position coverage, calls obtained and allele-resolved matches,
 with separate reference/chip denominators and source-bound snapshots.
 M8.1 now provides the pinned Beagle/Java wrapper, private progress and verified
-completed-job reuse. Next is M8.2's full reference-panel preparation; the application
-imputation pipeline remains upcoming.**
+completed-job reuse. M8.2 prepares and verifies the full autosomal/X reference as bref3
+with complete GRCh37 maps. Next is M8.3's application phasing/imputation pipeline.**
 The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
 The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
 confidence, saved-record consistency, marker-detail and lint-denominator fixes.
@@ -2415,7 +2415,26 @@ default-on.*
         acceptance uses one generated target with twenty synthetic reference samples,
         confirms phasing, newly imputed marker DR2/dosages, phase-only behavior and
         verified reuse. CI enables native Beagle on both OSes. See [the guide](docs/beagle.md).
-- [ ] **M8.2** Reference panel prep → bref3, per chromosome. Full panel, not subset.
+- [x] **M8.2** Reference panel prep → bref3, per chromosome. Full panel, not subset.
+      - **Completed 2026-10-07.** Independently pinned converter/decoder `27Feb25.75f`,
+        Java 11+ readiness and an 8,192 MiB heap. Full phased 1000 Genomes autosomes/X,
+        no array intersection, LD/MAF filtering or sample removal. Every ordered marker,
+        allele and GT is compared through full decoding before atomic chromosome
+        publication. Source/tool/runtime hashes, kernel locks and verified checkpoints
+        support restart and completed-job reuse; catalogs validate all companions and
+        bind the current manifest/lock. `refs verify` is read-only.
+        Local full-release acceptance: **23 chromosomes, 84,739,838 records, 2,504 samples
+        each**, preserving sample order; **8,312,115,275 bref3 bytes**. X haploid calls are
+        explicitly doubled for storage and counted, with PAR bounds recorded. M8.3 must
+        respect biological ploidy and partition X jobs. Y lacks a complete nonmissing
+        reference/map and MT is absent; both limitations are explicit, with direct-call
+        engines retained. All **25 GRCh37 HapMap maps / 3,395,051 rows** are fetched,
+        preserved, source-pinned and numerically verified. No constant-rate fallback.
+        **2,277 passed, five existing Windows skips**, native tools enabled; 51 new
+        synthetic cases include conversion, exact round trips, cancellation, locking,
+        partial recovery, corruption/metadata forgery, source/tool contracts and native
+        Beagle consumption. Strict type matrix, ruff/format, fixtures and full card lint
+        pass. No personal export. See [reference preparation](docs/imputation_reference.md).
 - [ ] **M8.3** Phasing then imputation pipeline; write dosages plus per-variant quality
       (r²/DR²).
 - [ ] **M8.4** `--no-impute` escape hatch for dev/testing. Never the default, never
@@ -2633,6 +2652,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-07 | M8.2 | Implemented full chromosome bref3 preparation with separately pinned converter/decoder, Java 11+ checks, exact decoded marker/allele/GT comparison, atomic completion, source/tool/runtime provenance and crash-safe kernel locks. Current manifest/lock contracts support reference consumers without raw VCF reads. Prepared all 23 supported 1000 Genomes chromosomes: **84,739,838 records over 2,504 samples each; 8,312,115,275 bref3 bytes**, no array/LD/MAF/sample filtering. X haploid storage doubling is explicit; M8.3 owns PAR/ploidy handling. Y is fetched but not prepared because its reference has missing haploid calls and no supplied map; MT absent. Fetched and verified every **25-map / 3,395,051-row GRCh37 HapMap map**, with source license and SHA pinned, actual-file counter checks and no rate fallback. **2,277 tests passed, five existing Windows skips**, native ROH/Beagle/converter/decoder enabled; strict four-way typing, ruff/format, fixtures and full card lint pass. Fifty-one new synthetic cases, including native Beagle consumption and interruption recovery. Public full-release preparation uses no consumer export. Bundle format 13 and application imputation behavior remain unchanged; next M8.3. [Guide](docs/imputation_reference.md). |
 | 2026-10-07 | M8.1 | Added the pinned Beagle subprocess wrapper, shared doctor readiness, configurable heap/threads/seed/mode, required genetic map, safe stage/window/heartbeat progress and private diagnostics. Schema-1 checkpoints bind full input/tool/runtime identity and validated output; atomic directory publication prevents partial results becoming complete. Kernel locks release after process death; interrupted jobs restart and completed chromosome jobs are verified/reused. Added privacy ignores with a knowledge-allowlist regression. **2,226 passed, five existing Windows skips**, native ROH and Beagle enabled; strict Windows/Linux × Python 3.11/3.13 type matrix, ruff/format, fixtures and full 51-card/268-render/35-marker dbSNP lint pass. Thirty-eight new synthetic cases; native pinned jar on Java 8 phases/imputes one generated target against twenty generated reference samples, retains DR2/dosages, checks phase-only mode and reuses completion. CI installs Java 17 and the pinned jar on both OSes. No personal export or real reference individual. App imputation remains upcoming; next M8.2. [Guide](docs/beagle.md). |
 | 2026-10-07 | M7.6 | Added the declarative Physical-health array/ClinVar coverage card and shared CLI/dashboard counts. Distinct primary-chromosome positions and REF/ALT variants, both coverage denominators, calls obtained and allele-resolved matches remain separate; duplicates, no-calls, indels and unresolved strand/ploidy stay explicit. Format 13 / lookup schema 5 saves source-bound counts and validates arithmetic, observations and card/lookup consistency without newer caches; formats 1–12 retain original meanings. **2,188 passed, five existing Windows skips**, pinned native ROH enabled; strict mypy matrix, ruff/format, fixture reproduction and full lint (51 cards, 268 renders, 35/35 markers) pass. Thirty new synthetic regressions. Scoped synthetic-only acceptance against full ClinVar/gnomAD/ACMG caches passed with networking blocked in 249.4 seconds, through save/read/CLI/dashboard; ancestry and structure reference preparation excluded, native ROH separately tested. No personal export used. M7 complete; next M8. |
 | 2026-10-06 | M7.5 session diff review | Reviewed `1fc2f00..537e3c5`. Fixed card-wide disease effects leaking into other outcomes, incomplete saved marker consistency checks, omitted per-marker quality/calibration/PPV, and the lint denominator. Knowledge schema 3 / format 12 / multi-marker schema 2 support applicable outcome evidence or null; formats 1–11 retain historical results. **2,158 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 35/35-marker dbSNP lint pass. Twenty-three new synthetic regressions; no personal export. [Review record](docs/review_m75_session.md). Expanded M7.6 handoff; coverage remains open. |

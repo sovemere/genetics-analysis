@@ -98,6 +98,7 @@ def _process_work_present(source_dir: Path, output_name: str) -> bool:
         or output.with_name(f"{output.name}.provenance.json.tmp").is_file()
         or classified.with_name(f".{classified.name}.chunks").is_dir()
         or classified.exists()
+        or (output.name.endswith(".bref3.json") and any(output.parent.glob("chr*.bref3-work")))
     )
 
 

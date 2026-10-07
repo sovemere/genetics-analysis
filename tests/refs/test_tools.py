@@ -470,7 +470,7 @@ def test_a_malformed_state_entry_is_hidden_from_readers_but_not_erased_from_disk
 
 def test_the_committed_tools_manifest_is_valid() -> None:
     parsed = tools.load()
-    assert {t.id for t in parsed.tools} == {"plink2", "beagle", "plink19"}
+    assert {t.id for t in parsed.tools} == {"plink2", "beagle", "plink19", "bref3", "unbref3"}
 
 
 def test_plink2_is_pinned_by_both_checksum_and_reported_version() -> None:
