@@ -71,10 +71,15 @@ def parse_record(raw: Mapping[str, Any]) -> DosageRecord:
             or record.storage_genotype != record.genotype
             or record.storage_dosage != record.dosage
             or any(type(a) is not int or not 0 <= a <= len(record.alt) for a in record.genotype)
+            or any(type(a) is not int for a in record.storage_genotype)
             or len(record.dosage) != len(record.alt)
         ):
             raise ValueError
-        for vector, upper in ((record.dosage, record.ploidy), (record.dr2, 1)):
+        for vector, upper in (
+            (record.dosage, record.ploidy),
+            (record.storage_dosage, record.ploidy),
+            (record.dr2, 1),
+        ):
             if vector is not None and (
                 len(vector) != len(record.alt)
                 or any(

@@ -63,6 +63,9 @@ M8.5 adds 54 synthetic checks for quality propagation, historical compatibility 
 native Beagle acceptance. The full local suite retains five existing Windows skips.
 M8.6 adds 53 full-snapshot checks; its final native suite passed **2,524 tests**, with
 those same five skips, strict four-way typing, privacy gates and full card lint.
+The subsequent [diff review](docs/review_m86_session.md) fixes three validation/error
+defects and adds five regressions: **2,529 tests passed**, with the same five skips.
+The [M8.7 handoff](docs/handoff.md#m87-implementation-handoff) records its acceptance matrix.
 The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline

@@ -33,6 +33,14 @@ enabled. Fifty-three new synthetic cases cover the full snapshot contract. All f
 strict Windows/Linux × Python 3.11/3.13 type checks, lint/format, fixture reproduction
 and full dbSNP card lint pass (51 cards, 268 renders, 35 marker references).
 
+The subsequent [M8.6 diff review](review_m86_session.md) fixes per-card/per-marker
+full-record binding at shared loci, strict native storage vector types and categorical
+publication errors for malformed stage regions. Five regressions reproduced the defects
+before the fixes. Format 16 and provenance schema 1 are unchanged.
+The review's complete native suite passed **2,529 tests, five existing Windows skips**;
+all four strict type combinations, lint/format, fixture reproduction and full card lint
+also pass. There are no known blockers for starting M8.7.
+
 **Next M8.7:** add dedicated regressions proving the frequency gate applies to
 imputed observations, regardless of high DR2, strong literature or enabled mode.
 Cover untyped and phase-filled sources, native haploid/diploid observations, missing
@@ -41,6 +49,33 @@ never filter them. Keep the 16%/BRCA 4.2% chip benchmarks scoped to their studie
 explicitly uncalibrated for imputation, never an imputed-call posterior probability.
 Current ClinVar/QC/coverage/structure still use original array input. M9 owns PGS sums,
 coverage and ancestry portability; preserve the native effect-allele dose/quality contract.
+
+### M8.7 implementation handoff
+
+Start in `engine/confidence.py` (`calculate_confidence`), `engine/evidence.py`
+(`_confidence_frequency` / `assemble_card`) and `run/pipeline.py` (`observations`).
+The current gate already caps a known observed-allele frequency **strictly below
+0.00001 (0.001%)** at `likely-artifact`, independently of source and DR2. Extend
+the existing quality tests and add integration regressions; change the shared engine
+only where a reproduced failure warrants it.
+
+| Boundary | Required evidence |
+|---|---|
+| Frequency below, exactly at and above 0.00001 | Below remains `likely-artifact` with strong replicated literature and high DR2; equality is outside this rare-call band. Other confidence ceilings still apply. |
+| Imputed-untyped and phase-filled no-call; ploidy 1 and 2 | All four combinations retain the rarity ceiling. Phase-filled quality stays unknown, with zero quality contribution; no fabricated DR2. |
+| Observed alleles with missing frequency companions | A known rare allele retains the rarity gate even if its companion is missing. Common-only incomplete coverage remains unknown and cannot establish strong confidence. An unobserved rare allele must not penalize the call. |
+| Multi-marker findings | A rare imputed marker caps the whole finding through weakest-marker inheritance. No implicit phase or quality averaging. |
+| Save/reopen and both front ends | Tier, selected allele frequency, source, native dosage/quality, empirical benchmark scope and caveats agree in CLI JSON and dashboard face/detail. Findings remain present. |
+| Original-array control and opt-out | Direct observations stay original. Explicit `--no-impute` does not discover imputation prerequisites or synthesize an imputed observation. |
+
+Use generated inputs and synthetic frequency lookups, including fully saved format-16
+snapshots where relevant. Do not require reference downloads in CI. The 16% rare-call
+and BRCA1/2 4.2% numbers remain study-specific chip benchmarks; an imputed observation
+must not present either as its confirmation probability. BRCA-specific calibration
+currently belongs to original-array ClinVar findings, so this milestone does not create
+an imputed ClinVar calling path. No bundle-format bump is needed for regressions alone;
+any changed persisted meaning needs its own compatibility decision and corruption tests.
+M8.7 remains incomplete until these checks pass and the roadmap/handoff records the result.
 
 ## Implemented M8.5 and next scope
 
