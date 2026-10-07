@@ -630,6 +630,8 @@ def test_native_stage_quality_reaches_card_evidence(
         pytest.skip("set GENETICS_BEAGLE_TEST_TOOLS for native quality acceptance")
     beagle = Beagle.discover(tools_root=Path(installed))
     bref = BrefTools.discover(Path(installed))
+    monkeypatch.setattr(BrefTools, "discover", lambda: bref)
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path / "isolated-data"))
     reference, male, _ = native_reference(tmp_path / "refs", bref)
     stage = impute(
         male,
