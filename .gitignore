@@ -197,6 +197,9 @@ analysis_*.json
 /scratch/
 *.log
 *.tmp
+# M8.1 private Beagle attempts, completion checkpoints, and kernel lock files.
+*.beagle-work/
+*.beagle.lock
 *.bak
 *.swp
 plink.*
@@ -273,6 +276,8 @@ gnomad_frequencies.sqlite*
 # file -- the string-grep version of that test could not see this override, and
 # passed while the claim it made was false.
 /knowledge/**/*.run.json
+# M8.1: the directory allowlist above must not reopen private Beagle attempts.
+/knowledge/**/*.beagle-work/
 
 # Synthetic test fixtures ONLY. See AGENTS.md: fixtures must be generated,
 # never produced by subsetting a real person's file.

@@ -38,7 +38,9 @@ and available to the CLI and dashboard. APOE preserves both markers and unresolv
 HFE C282Y and F5 Leiden carry published cohort absolute-risk context.
 M7.6 adds quantitative position coverage, calls obtained and allele-resolved matches,
 with separate reference/chip denominators and source-bound snapshots.
-Next is [M8](#m8--imputation), default-on resumable imputation.**
+M8.1 now provides the pinned Beagle/Java wrapper, private progress and verified
+completed-job reuse. Next is M8.2's full reference-panel preparation; the application
+imputation pipeline remains upcoming.**
 The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
 The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
 confidence, saved-record consistency, marker-detail and lint-denominator fixes.
@@ -2398,8 +2400,21 @@ section, that proves every layer.*
 *[AGENTS.md §0.1C](AGENTS.md): compute cost is not a constraint. Imputation is
 default-on.*
 
-- [ ] **M8.1** Beagle wrapper: Java detection, memory configuration, progress reporting,
+- [x] **M8.1** Beagle wrapper: Java detection, memory configuration, progress reporting,
       **resumability** (long runs must survive interruption).
+      - **Completed 2026-10-07.** `external/beagle.py` verifies the manifest jar SHA256
+        and Java 8+, records heap/threads/seed/mode, requires a genetic map, and runs
+        without a shell or an implicit timeout. Raw output remains private; callbacks
+        expose fixed stages, window numbers and heartbeats. Atomic completion binds
+        full input/tool/runtime hashes and validated output. Kernel locks release on
+        process death. Interrupted jobs restart; completed chromosome jobs are verified
+        and reused, never partial VCFs or spliced Beagle windows. Doctor shares the pin;
+        workspaces/locks are ignored, including beneath the knowledge allowlist.
+        **2,226 passed, five existing Windows skips**, native ROH and Beagle enabled;
+        strict type matrix, ruff/format, fixtures and full card lint pass. Native
+        acceptance uses one generated target with twenty synthetic reference samples,
+        confirms phasing, newly imputed marker DR2/dosages, phase-only behavior and
+        verified reuse. CI enables native Beagle on both OSes. See [the guide](docs/beagle.md).
 - [ ] **M8.2** Reference panel prep → bref3, per chromosome. Full panel, not subset.
 - [ ] **M8.3** Phasing then imputation pipeline; write dosages plus per-variant quality
       (r²/DR²).
@@ -2618,6 +2633,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-07 | M8.1 | Added the pinned Beagle subprocess wrapper, shared doctor readiness, configurable heap/threads/seed/mode, required genetic map, safe stage/window/heartbeat progress and private diagnostics. Schema-1 checkpoints bind full input/tool/runtime identity and validated output; atomic directory publication prevents partial results becoming complete. Kernel locks release after process death; interrupted jobs restart and completed chromosome jobs are verified/reused. Added privacy ignores with a knowledge-allowlist regression. **2,226 passed, five existing Windows skips**, native ROH and Beagle enabled; strict Windows/Linux × Python 3.11/3.13 type matrix, ruff/format, fixtures and full 51-card/268-render/35-marker dbSNP lint pass. Thirty-eight new synthetic cases; native pinned jar on Java 8 phases/imputes one generated target against twenty generated reference samples, retains DR2/dosages, checks phase-only mode and reuses completion. CI installs Java 17 and the pinned jar on both OSes. No personal export or real reference individual. App imputation remains upcoming; next M8.2. [Guide](docs/beagle.md). |
 | 2026-10-07 | M7.6 | Added the declarative Physical-health array/ClinVar coverage card and shared CLI/dashboard counts. Distinct primary-chromosome positions and REF/ALT variants, both coverage denominators, calls obtained and allele-resolved matches remain separate; duplicates, no-calls, indels and unresolved strand/ploidy stay explicit. Format 13 / lookup schema 5 saves source-bound counts and validates arithmetic, observations and card/lookup consistency without newer caches; formats 1–12 retain original meanings. **2,188 passed, five existing Windows skips**, pinned native ROH enabled; strict mypy matrix, ruff/format, fixture reproduction and full lint (51 cards, 268 renders, 35/35 markers) pass. Thirty new synthetic regressions. Scoped synthetic-only acceptance against full ClinVar/gnomAD/ACMG caches passed with networking blocked in 249.4 seconds, through save/read/CLI/dashboard; ancestry and structure reference preparation excluded, native ROH separately tested. No personal export used. M7 complete; next M8. |
 | 2026-10-06 | M7.5 session diff review | Reviewed `1fc2f00..537e3c5`. Fixed card-wide disease effects leaking into other outcomes, incomplete saved marker consistency checks, omitted per-marker quality/calibration/PPV, and the lint denominator. Knowledge schema 3 / format 12 / multi-marker schema 2 support applicable outcome evidence or null; formats 1–11 retain historical results. **2,158 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 35/35-marker dbSNP lint pass. Twenty-three new synthetic regressions; no personal export. [Review record](docs/review_m75_session.md). Expanded M7.6 handoff; coverage remains open. |
 | 2026-10-06 | M7.5 | Added declarative HFE C282Y, F5 Leiden and two-marker APOE cards with primary citations and outcome-specific absolute-risk context, including explicit baseline/rate gaps. Schema 2 keeps all four APOE haplotypes and ten diplotypes; unphased double heterozygotes retain both candidates. Per-marker observations/frequencies/quality remain separate, and resolved reliability inherits the weakest marker. Self-review caught GRCh37's F5 reference-state inversion and multiallelic strand/duplicate ambiguity; HFE/F5 now require forward alleles and preserve unexpected calls as mismatches/conflicts. Format 11 saves risk and multi-marker evidence; formats 1–10 and ClinVar schemas 1–4 remain unchanged. **2,135 passed, five existing Windows skips**, native ROH enabled; strict mypy matrix, ruff/format, fixtures and full 50-card/266-render/35-marker dbSNP lint passed. Synthetic-only acceptance against complete ClinVar/gnomAD caches passed offline through save/read/CLI/dashboard; no personal export used. Next M7.6. |

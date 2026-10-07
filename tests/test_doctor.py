@@ -10,7 +10,6 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import time
 from pathlib import Path
 
 import pytest
@@ -175,22 +174,17 @@ def test_hibag_absent_is_still_detected(monkeypatch: pytest.MonkeyPatch) -> None
     assert report.detail is not None and "HIBAG package is not" in report.detail
 
 
-def test_newest_beagle_jar_wins_not_the_alphabetically_first(
+def test_beagle_doctor_uses_the_same_pin_as_the_wrapper(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Beagle jars are named by release date, which does not sort as text.
-
-    Ascending, `05May22` precedes `28jun21`, so taking `sorted(...)[0]` handed M8 the
-    older of two installed versions.
-    """
-    older = tmp_path / "beagle.28jun21.220.jar"
-    older.write_bytes(b"x")
-    time.sleep(0.02)
-    newer = tmp_path / "beagle.05May22.33a.jar"
-    newer.write_bytes(b"x")
-
-    monkeypatch.setattr(doctor, "tools_dir", lambda: tmp_path)
-    assert doctor._check_beagle().path == str(newer)
+    """Doctor shares exact-build discovery with the execution wrapper."""
+    monkeypatch.setattr(
+        "genetics.external.beagle.locate_beagle",
+        lambda **kwargs: (tmp_path / "pinned.jar", "pinned-version", "0" * 64),
+    )
+    report = doctor._check_beagle()
+    assert report.path == str(tmp_path / "pinned.jar")
+    assert report.version == "pinned-version" and report.status == "ok"
 
 
 def test_beagle_env_override_pointing_nowhere_is_an_error(
@@ -199,9 +193,11 @@ def test_beagle_env_override_pointing_nowhere_is_an_error(
     """A set-but-wrong override is worse than an unset one: it looks configured."""
     monkeypatch.setenv("GENETICS_BEAGLE_JAR", str(tmp_path / "absent.jar"))
     assert doctor._check_beagle().status == "error"
+    monkeypatch.setenv("JAVA_HOME", str(tmp_path / "missing-java-home"))
+    assert doctor._check_java().status == "error"
 
 
-def test_beagle_env_override_is_used_when_it_exists(
+def test_beagle_env_override_with_wrong_bytes_is_an_error(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     jar = tmp_path / "beagle.28jun21.220.jar"
@@ -209,8 +205,8 @@ def test_beagle_env_override_is_used_when_it_exists(
     monkeypatch.setenv("GENETICS_BEAGLE_JAR", str(jar))
 
     report = doctor._check_beagle()
-    assert report.status == "ok"
-    assert report.path == str(jar)
+    assert report.status == "error"
+    assert report.detail is not None and "SHA256" in report.detail
 
 
 # ---------------------------------------------------------------------------
