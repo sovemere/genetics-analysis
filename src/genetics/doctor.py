@@ -8,7 +8,7 @@ pipeline leans on five external programs that are each optional in a different w
 * **PLINK 1.9** is required for ROH from M6.1; PLINK 2 lacks --homozyg.
 * **Java** is required only by Beagle, so a missing JVM blocks imputation (M8) and
   nothing before it.
-* **Beagle** is a jar, so "installed" means "a file exists at a known path".
+* **Beagle** is a jar, checked against the exact manifest SHA256 without launching Java.
 * **R + HIBAG** is genuinely optional: HLA (M11) degrades to a clear "R not installed"
   state rather than failing the run.
 
@@ -189,56 +189,33 @@ def _check_plink19() -> ToolReport:
 
 
 def _check_java() -> ToolReport:
-    path = _which("java")
-    if path is None:
-        return ToolReport(
-            name="java",
-            required_from="M8",
-            status="missing",
-            detail="no JVM found; Beagle imputation cannot run without one",
-        )
-    status, version, detail = _run_version([path, "-version"])
-    return ToolReport("java", "M8", status, path, version, detail)
+    from genetics.external.beagle import BeagleNotFoundError, BeagleVersionError, JavaRuntime
+
+    try:
+        runtime = JavaRuntime.discover()
+    except BeagleNotFoundError as exc:
+        status: Status = "error" if os.environ.get("JAVA_HOME") else "missing"
+        return ToolReport("java", "M8", status, detail=str(exc))
+    except BeagleVersionError as exc:
+        return ToolReport("java", "M8", "error", detail=str(exc))
+    return ToolReport("java", "M8", "ok", str(runtime.path), runtime.version)
 
 
 def _check_beagle() -> ToolReport:
-    """Beagle is a jar, so presence means a file on disk, not an executable on PATH."""
+    """Share M8.1's exact jar pin without launching a JVM."""
+    from genetics.external.beagle import BeagleNotFoundError, BeagleVersionError, locate_beagle
+    from genetics.refs.tools import ToolError
+
     try:
-        candidates = sorted(tools_dir().glob("**/beagle*.jar"))
-    except (UnsafeDataDirError, OSError):
-        candidates = []
-
-    env_jar = os.environ.get("GENETICS_BEAGLE_JAR")
-    if env_jar:
-        candidate = Path(env_jar).expanduser()
-        if candidate.is_file():
-            candidates.insert(0, candidate)
-        else:
-            return ToolReport(
-                name="beagle",
-                required_from="M8",
-                status="error",
-                detail="GENETICS_BEAGLE_JAR is set but points at no file",
-            )
-
-    if not candidates:
-        return ToolReport(
-            name="beagle",
-            required_from="M8",
-            status="missing",
-            detail="no beagle*.jar in the tools dir; `genetics tools install` fetches it",
-        )
-
-    # Newest by mtime, not first by name. Beagle jars are named by release *date* --
-    # `beagle.28jun21.220.jar`, `beagle.05May22.33a.jar` -- which does not sort
-    # chronologically as text: ascending, `05May22` precedes `28jun21`, so picking
-    # `sorted(...)[0]` handed M8 the older of two installed versions.
-    # An explicit GENETICS_BEAGLE_JAR still wins; it was prepended above.
-    jar = candidates[0] if env_jar else max(candidates, key=lambda p: p.stat().st_mtime)
-
-    # Deliberately not launched: Beagle has no cheap --version and starting a JVM to ask
-    # would make `doctor` slow for no gain. The filename carries the version.
-    return ToolReport("beagle", "M8", "ok", str(jar), jar.stem, None)
+        jar, version, _ = locate_beagle(tools_root=tools_dir())
+    except BeagleNotFoundError as exc:
+        status: Status = "error" if os.environ.get("GENETICS_BEAGLE_JAR") else "missing"
+        return ToolReport("beagle", "M8", status, detail=str(exc))
+    except (BeagleVersionError, UnsafeDataDirError, OSError) as exc:
+        return ToolReport("beagle", "M8", "error", detail=str(exc))
+    except ToolError:
+        return ToolReport("beagle", "M8", "error", detail="Beagle tool manifest is invalid.")
+    return ToolReport("beagle", "M8", "ok", str(jar), version)
 
 
 def _check_r() -> ToolReport:

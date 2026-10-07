@@ -26,17 +26,23 @@ calls obtained, allele-resolved matches, explicit denominators and source-bound 
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
 New runs use bundle format **13**; formats 1–12 remain readable without reinterpreting saved findings.
 
-**Next: M8, default-on imputation with Beagle.**
+**M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
+reports progress and reuses verified completed jobs. Interrupted jobs restart from
+their inputs. The [Beagle guide](docs/beagle.md) documents the private checkpoint contract.
+Imputation is not yet integrated into `genetics run`.
+
+**Next: M8.2, full per-chromosome reference-panel preparation.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-M7.6 passed **2,188 tests with five existing Windows skips**,
+The M8.1 suite passed **2,226 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
-acceptance verified saved CLI/dashboard parity.
+acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one
+synthetic target and twenty generated reference samples; CI enables it on Windows/Linux.
 The M7.5 implementation checkpoint is `537e3c5`, with
 [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 The [M7.5 session review](docs/review_m75_session.md) records the preceding fixes;

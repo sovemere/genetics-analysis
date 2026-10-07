@@ -86,12 +86,10 @@ tools:
       constraint in AGENTS.md 4.9 does not touch. One jar, identical on every platform,
       hence the single `any` build.
 
-      No version_check: Beagle has no --version flag, and it prints its identity only by
-      starting a JVM and refusing to run ("beagle.27Feb25.75f.jar (version 5.5)"). Paying
-      a JVM cold start to learn what the filename already says would make `tools status`
-      slow for nothing. The sha256 is what establishes identity here, which is stronger
-      than a self-reported string anyway. This matches the reasoning already documented in
-      genetics/doctor.py for the same jar.
+      No version_check: Beagle has no --version flag. The installer, M8.1 wrapper and
+      doctor verify this jar's SHA256 rather than trusting its filename or mtime.
+      Java is probed separately for version 8 or later. Execution records the observed
+      runtime version and exact jar identity in private completion checkpoints.
     builds:
       - platform: any
         url: https://faculty.washington.edu/browning/beagle/beagle.27Feb25.75f.jar

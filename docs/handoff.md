@@ -1,8 +1,38 @@
-# Handoff: M8 default-on imputation
+# Handoff: M8.2 full reference-panel preparation
 
-As of 2026-10-07, **M0-M7 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.2.
+
+## Implemented M8.1 and next scope
+
+`external/beagle.py` supplies exact-jar discovery, Java 8+ checks, typed memory/seed/
+thread/mode options, streamed private diagnostics and safe progress. Doctor uses the
+same readiness rules. Inputs, jar and runtime identity are recorded in a schema-1
+private checkpoint; a completed output directory is published atomically after VCF
+integrity and input-drift checks. Reuse verifies all recorded outputs and rejects changed
+contracts. Kernel locks survive process crashes without stale lock ownership. Timeout
+and cancellation terminate the child before releasing the lock. Interrupted jobs restart
+from their inputs; M8.3 must reuse completed chromosome jobs rather than splice Beagle
+windows. Workspaces and locks are ignored even inside the knowledge-pack allowlist.
+
+The suite passes **2,226 tests, five existing Windows skips**, with pinned native ROH
+and Beagle enabled. Strict Windows/Linux × Python 3.11/3.13 typing, ruff/format,
+fixture reproduction and full card lint pass. Thirty-eight new synthetic cases cover
+discovery, private progress, failures, cancellation, crash-released locks, changed inputs,
+corrupt checkpoints, restart and native execution. Native Beagle 5.5 / `27Feb25.75f`
+on Java `1.8.0_491` phases and imputes one generated target against twenty generated
+reference samples, retains DR2/dosages, checks phase-only mode and reuses completion.
+CI installs Java 17 and the same pinned jar for Windows/Linux acceptance. No personal
+export or real reference individual was used. See [the wrapper guide](beagle.md).
+
+**Next: M8.2**, prepare the full 1000 Genomes reference by chromosome as bref3.
+The existing Beagle jar is not the bref3 converter: add a separately pinned, fetched
+converter tool and GRCh37 genetic-map source as needed. Keep complete panels separate
+from the ancestry/ROH marker subsets, record source/transform/checksum provenance and
+make preprocessing resumable. M8.3 owns sample harmonization and pipeline jobs; M8.5
+owns per-variant quality propagation; M8.6 owns run-bundle provenance. M8.1 changes no
+existing bundle format or `genetics run` imputation behavior.
 
 ## Implemented M7.6 and next scope
 
@@ -36,12 +66,11 @@ The pinned ClinVar release contains **3,933,850 primary-chromosome positions**,
 eight alternate/unplaced-contig records are excluded from this position denominator.
 These are full-reference properties, not measurements of a person's chip coverage.
 
-**Next: M8.1**, the Beagle subprocess wrapper: Java detection, configurable memory,
-progress and interruption/resumption. Then prepare the full per-chromosome reference
+**M8.1 is implemented.** Next prepare the full per-chromosome reference
 panel as bref3 (never subset it to array positions), phase/impute, retain dosages and
 per-variant quality, and save panel/tool/parameter provenance. Imputation must be
 default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call reliability
-must remain frequency-gated after imputation. No M8 implementation is claimed here.
+must remain frequency-gated after imputation. M8.2–M8.7 remain upcoming.
 
 ## Prior checkpoint
 M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
