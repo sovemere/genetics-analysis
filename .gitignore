@@ -284,6 +284,10 @@ gnomad_frequencies.sqlite*
 # M8.1: the directory allowlist above must not reopen private Beagle attempts.
 /knowledge/**/*.beagle-work/
 /knowledge/**/*.bref3-work/
+*.imputation-work/
+*.imputation.lock
+*.dosages.jsonl.gz
+/knowledge/**/*.imputation-work/
 /knowledge/**/*.bref3.json
 /knowledge/**/*.bref3.json.provenance.json
 /knowledge/**/*.bref3.json.tmp

@@ -81,7 +81,7 @@ the original source and comparing the decoded panel against this declared encodi
 It rejects missing or unphased calls, rather than discarding records or inventing phase.
 
 This encoding is a storage contract, not a ploidy inference about a consumer.
-**M8.3 must partition X PAR/non-PAR analysis jobs** using the existing GRCh37 PAR bounds,
+**M8.3 partitions X PAR/non-PAR analysis jobs** using the existing GRCh37 PAR bounds,
 sample QC/ploidy and the matching X/PAR maps. It must not analyze doubled haploid calls
 as evidence of diploid homozygosity.
 
@@ -108,9 +108,10 @@ Adam Auton, and PLINK formatting to Brian Browning. The license registry records
 and attribution to those transforms. The numerical maps are fetched, not vendored;
 the archive and README texts also remain uncommitted.
 
-M8.2 prepares references only. M8.3 owns sample harmonization and phasing/imputation;
-M8.5 owns quality propagation and M8.6 owns run-bundle provenance. Bundle format 13
-and `genetics run` behavior are unchanged by this step.
+M8.2 prepares references only. M8.3 supplies sample harmonization and phasing/imputation
+through the [shared stage and `genetics impute`](imputation_pipeline.md). M8.4 owns
+default-on application integration, M8.5 quality propagation and M8.6 bundle provenance.
+Bundle format 13 and `genetics run` behavior are unchanged by reference preparation.
 
 Full-release acceptance on 2026-10-07 prepared **23 panels with 84,739,838 records and
 2,504 samples each**, with identical ordered sample headers and **8,312,115,275 bref3

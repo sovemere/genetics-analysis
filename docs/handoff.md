@@ -1,8 +1,53 @@
-# Handoff: M8.3 phasing and imputation pipeline
+# Handoff: M8.4 default-on application imputation
 
-As of 2026-10-07, **M0-M7 and M8.1-M8.2 are complete**. Full local reference
+As of 2026-10-07, **M0-M7 and M8.1-M8.3 are complete**. Full local reference
 verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.3.
+first, then [the roadmap](../phase1_roadmap.md). Next is M8.4.
+
+## Implemented M8.3 and next scope
+
+`genetics.imputation.impute` is the shared phasing-then-imputation stage, exposed by
+`genetics impute`. It streams allele definitions from the complete bref3, checks its
+decoded semantic summary, harmonizes normalized calls using existing strand/indel
+rules, and gives both Beagle invocations the full panel. Default catalogs bind to the
+current manifest/lock; there is no rate-map or direct-overlap fallback.
+
+Autosomal jobs and five inclusive X intervals partition biological scope. PAR1/PAR2
+use their own maps; non-PAR follows QC sex. Unknown ploidy, contradictory calls,
+duplicate positions and regions without two observed anchors remain explicit.
+Original input stays separate from direct, phase-filled no-call and imputed-untyped
+observations. Each ALT retains its dosage and finite DR2 where estimated. Phase-filled
+no-calls have unknown quality even if the second invocation labels them typed.
+Male non-PAR targets use native haploid GT/dosage/DR2, with a 0-1 dose scale and a
+recorded haploid model; wrong-copy-count output is refused. The full reference keeps
+its required diploid encoding. Independent dosage rounding is allowed at the pinned
+writer's hundredth precision. Low DR2 is never a filter.
+
+Schema-1 private outputs/checkpoints stay under the outside-repo cache by default.
+Kernel locks and stable region prefixes permit completed-job reuse and incomplete-job
+restart. Exact typed-marker retention, sample/region identity, allele orientation,
+dosage/quality cardinality/ranges and genotype preservation across both stages are
+checked before atomic dosage publication. Reuse regenerates observations and compares
+them with saved files/metadata, catching even a changed dosage with an updated hash.
+
+**2,369 tests passed, five existing Windows skips**, with native ROH, Beagle and bref3
+tools enabled. Seventy-seven M8.3 cases include native fixed-seed male/female targets:
+each produces 800 records over an autosomal and three X region jobs, with 396 direct
+calls, four phase-filled no-calls and 400 newly imputed markers. Full references stay
+unchanged and completed reuse passes. The two Windows launcher-cancellation checks
+require working OS process-control permissions; both pass outside the restricted
+sandbox. Strict four-way types, lint/format, fixture reproduction and full card lint
+pass. All installed 23 panels / 84,739,838 records and 25 maps / 3,395,051 rows pass
+read-only default-contract validation. No personal export was opened.
+
+**Next M8.4:** integrate the stage into default-on `analyse`/`genetics run`, add the
+explicit recorded `--no-impute` escape hatch, and ensure every affected card/run states
+the mode. The M8.3 command/stage is already available; do not build another imputation
+engine. Existing analysis and bundle format 13 remain unchanged until that integration.
+M8.5 owns quality propagation, M8.6 bundle provenance and M8.7 imputed rare-call gate
+regressions. M8.4 must preserve the unknown quality of phase-filled no-calls, keep
+original direct calls for ClinVar/structure and retain the native target ploidy and
+quality-model scope. See [the pipeline guide](imputation_pipeline.md).
 
 ## Implemented M8.2 and next scope
 
@@ -45,7 +90,7 @@ preparation because of missing haploid calls and no supplied genetic map; MT is 
 Those limitations are explicit in the panel catalog. Existing direct-call and haplogroup
 engines retain their scope.
 
-**Next: M8.3.** Start with consumer-target VCF harmonization against the prepared
+**M8.2 handoff (implemented in M8.3).** Start with consumer-target VCF harmonization against the prepared
 GRCh37 reference alleles, using the existing strand/indel/QC rules. Partition X PAR and
 non-PAR jobs using sample ploidy, recorded bounds and matching maps. Call the M8.1
 wrapper through a shared phasing/imputation stage, write private dosages and per-variant
@@ -130,10 +175,10 @@ The pinned ClinVar release contains **3,933,850 primary-chromosome positions**,
 eight alternate/unplaced-contig records are excluded from this position denominator.
 These are full-reference properties, not measurements of a person's chip coverage.
 
-**M8.1/M8.2 are implemented.** Next phase/impute, retain dosages and
-per-variant quality, and save panel/tool/parameter provenance. Imputation must be
+**M8.1-M8.3 are implemented.** Next integrate default-on imputation and
+save panel/tool/parameter provenance. Imputation must be
 default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call reliability
-must remain frequency-gated after imputation. M8.3–M8.7 remain upcoming.
+must remain frequency-gated after imputation. M8.4–M8.7 remain upcoming.
 
 ## Prior checkpoint
 M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).

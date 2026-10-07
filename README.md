@@ -36,20 +36,26 @@ conversion and full decoded verification, resumable chromosome checkpoints, sour
 provenance and complete GRCh37 genetic maps. See [reference preparation](docs/imputation_reference.md)
 for setup, Java 11+ and explicit X/Y/MT scope.
 
-**Next: M8.3, integrate phasing and imputation into the shared pipeline.**
+**M8.3 supplies shared phasing then imputation:** `genetics impute` harmonizes the target,
+preserves eligible typed calls, partitions X PAR/non-PAR jobs, and writes private per-ALT
+dosages/DR2 with explicit biological ploidy, source and missing-quality states. Completed
+jobs and observations are verified before reuse. See the [pipeline guide](docs/imputation_pipeline.md).
+**Next: M8.4, default-on `genetics run` orchestration and its recorded `--no-impute` mode.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-The reviewed M8.2 suite passed **2,292 tests with five existing Windows skips**,
+The M8.3 suite passed **2,369 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
 acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one
 synthetic target and twenty generated reference samples; CI enables it on Windows/Linux.
 New native reference tests cover full conversion, exact round trips, interruption,
 checkpoint recovery, corruption refusal and Beagle consumption of the prepared bref3.
+M8.3 native acceptance checks independent male/female targets across autosomal and X
+jobs, including phase-filled no-calls, multiallelic/indel predictions and verified reuse.
 The [session review](docs/review_m8_session.md) records fixes to output identity/region
 checks, cleanup, runtime drift, build metadata and reference-catalog validation/recovery.
 The M7.5 implementation checkpoint is `537e3c5`, with

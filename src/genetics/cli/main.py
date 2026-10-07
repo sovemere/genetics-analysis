@@ -398,7 +398,10 @@ _add_cards_commands()
 _add_runs_commands()
 
 
+from genetics.cli.impute_cmd import impute_command  # noqa: E402
 from genetics.cli.roh_cmd import roh  # noqa: E402
+
+app.command(name="impute")(impute_command)
 
 app.command()(roh)
 
