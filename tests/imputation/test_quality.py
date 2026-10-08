@@ -1,12 +1,14 @@
-"""M8.5: quality-aware observations, native allele contracts and saved-view parity.
+"""M8.5/M8.7: quality-aware observations, rarity gates and saved-view parity.
 
 Every target is constructed here or generated from the fixed-seed fixture generator.
 """
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
+import math
 import os
 from collections.abc import Iterator
 from dataclasses import replace
@@ -20,13 +22,20 @@ from typer.testing import CliRunner
 
 from genetics.cli.main import app
 from genetics.engine.cards import Card, KnowledgePack
-from genetics.engine.confidence import CallSource, ConfidenceTier, calculate_confidence
+from genetics.engine.confidence import (
+    RARE_CALL_FREQUENCY_CEILING,
+    CallSource,
+    ConfidenceTier,
+    calculate_confidence,
+)
 from genetics.engine.evidence import ObservationEvidence, assemble_pack
 from genetics.engine.matcher import MatchStatus, match_pack
 from genetics.engine.multimarker import validate_snapshot
 from genetics.engine.observation_snapshot import validate_imputation_snapshot
+from genetics.engine.ppv import clinvar_benchmark
 from genetics.external.beagle import Beagle, BeagleOptions
 from genetics.health.clinvar import lookup_default
+from genetics.health.frequencies import FrequencyIndex, parse_record
 from genetics.imputation import ImputationError, ImputationResult, impute
 from genetics.imputation.context import ImputationContext
 from genetics.imputation.dosages import DosageRecord
@@ -679,3 +688,464 @@ def test_native_stage_quality_reaches_card_evidence(
         assert card.confidence is not None
         validate_imputation_snapshot(_card_payload(card), require_detail=True)
     assert None in qualities and any(q is not None for q in qualities)
+
+
+# M8.7: generated calls and frequency references only. Strong literature and perfect
+# dosage quality make these controls capable of exposing a bypass of the rarity gate.
+def rare_pack(ploidy: int = 2) -> KnowledgePack:
+    raw = _card_payload_placeholder(KnowledgePack.load(PACK))
+    raw["gene"] = "BRCA1"  # A gene label must not turn chip PPV into imputed-call PPV.
+    raw["evidence"].update(tier="clinical_guideline", replication="meta_analysis")
+    raw["evidence"]["effect"].update(value=12.0, ci_low=10.0, ci_high=14.0)
+    for outcome in raw["outcomes"].values():
+        outcome.update(summary="Synthetic frequency: {frequency}. {ppv}", detail="Synthetic.")
+    if ploidy == 1:
+        raw["match"]["variants"][0].update(chrom="X", pos_grch37=3000000)
+    return KnowledgePack((_parse_card(raw),), PACK)
+
+
+def rare_record(source: str, ploidy: int = 2) -> DosageRecord:
+    record = dosage(source=source, quality=1.0, ploidy=ploidy)
+    if ploidy == 1:
+        record = replace(record, chrom="X", pos_grch37=3000000)
+    return record
+
+
+def frequency_rows(record: DosageRecord, frequency: float, *, split: bool = False) -> list[str]:
+    # Extra split ALT means 1-AF cannot establish the REF's frequency. This exercises
+    # the production lookup's missing-companion path rather than mocking selection.
+    extra = next(a for a in "ACGT" if a not in {record.ref, *record.alt})
+    alternates = (*record.alt, extra) if split else record.alt
+    return [
+        "\t".join(
+            (
+                record.chrom,
+                str(record.pos_grch37),
+                ".",
+                record.ref,
+                alt,
+                ".",
+                "PASS",
+                f"AC={round(frequency * 1000000000)};AN=1000000000;AF={frequency:g};nhomalt=0",
+            )
+        )
+        for alt in alternates
+    ]
+
+
+def rare_card(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    record: DosageRecord,
+    rows: list[str],
+) -> dict[str, Any]:
+    pack = rare_pack(record.ploidy)
+    locus = (record.chrom, record.pos_grch37)
+    original = table((*locus, None, "no_call")) if record.source == "imputed_no_call" else table()
+    install_records(monkeypatch, (record,))
+    target, metadata = card_input(
+        pack, result(original, tmp_path, record.source), sex=InferredSex.MALE
+    )
+    matches = match_pack(pack, target)
+    assembled = assemble_pack(
+        pack,
+        matches,
+        pipeline.observations(pack, matches, {locus: [parse_record(r) for r in rows]}, metadata),
+    )
+    assert len(assembled) == 1 and assembled[0].has_interpretation
+    payload = _card_payload(assembled[0])
+    validate_imputation_snapshot(payload, require_detail=True)
+    return payload
+
+
+@pytest.mark.parametrize("source", ["imputed_untyped", "imputed_no_call"])
+@pytest.mark.parametrize("ploidy", [1, 2])
+@pytest.mark.parametrize("boundary", ["below", "equal", "above"])
+def test_imputed_rarity_boundary_cannot_be_rescued_by_quality_or_literature(
+    source: str,
+    ploidy: int,
+    boundary: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    frequency = {
+        "below": math.nextafter(RARE_CALL_FREQUENCY_CEILING, 0.0),
+        "equal": RARE_CALL_FREQUENCY_CEILING,
+        "above": math.nextafter(RARE_CALL_FREQUENCY_CEILING, 1.0),
+    }[boundary]
+    record = rare_record(source, ploidy)
+    # Boundary floats belong in the engine test: integer allele counts cannot encode
+    # nextafter. Use exact runtime frequency objects after production observations.
+    from genetics.engine.evidence import PopulationFrequency
+
+    pack = rare_pack(ploidy)
+    locus = (record.chrom, record.pos_grch37)
+    original = table((*locus, None, "no_call")) if source == "imputed_no_call" else table()
+    install_records(monkeypatch, (record,))
+    target, metadata = card_input(pack, result(original, tmp_path, source), sex=InferredSex.MALE)
+    matches = match_pack(pack, target)
+    observed = pipeline.observations(pack, matches, imputed=metadata)
+    observed[pack.cards[0].id] = replace(
+        observed[pack.cards[0].id],
+        frequencies=(
+            PopulationFrequency("A", 1 - frequency, "EUR", "synthetic-boundary"),
+            PopulationFrequency("G", frequency, "EUR", "synthetic-boundary"),
+        ),
+        ancestry_match=1.0,
+    )
+    assembled = assemble_pack(pack, matches, observed)
+    assert len(assembled) == 1 and assembled[0].has_interpretation
+    payload = _card_payload(assembled[0])
+    confidence = payload["confidence"]
+    assert confidence["inputs"]["population_allele_frequency"] == frequency
+    assert confidence["inputs"]["evidence_score"] == 1.0
+    assert confidence["inputs"]["replication_score"] == 1.0
+    assert confidence["inputs"]["imputation_score"] == (0.0 if source == "imputed_no_call" else 1.0)
+    if boundary == "below":
+        assert confidence["tier"] == "likely-artifact"
+        ppv = confidence["empirical_ppv"]
+        assert ppv["estimate"] == 0.16
+        assert "SNP-chip" in ppv["applies_to"] and "UK Biobank" in ppv["applies_to"]
+        assert "Not calibrated" in ppv["applies_to"] and "imputation" in ppv["applies_to"]
+        assert "not an individual posterior probability" in ppv["applies_to"]
+    else:
+        assert confidence["tier"] == ("limited" if source == "imputed_no_call" else "strong")
+        assert confidence["empirical_ppv"] is None
+    validate_imputation_snapshot(payload, require_detail=True)
+
+
+@pytest.mark.parametrize("source", ["imputed_untyped", "imputed_no_call"])
+@pytest.mark.parametrize("case", ["rare_missing", "common_missing", "unobserved_rare", "absent"])
+def test_imputed_frequency_coverage_prices_only_observed_alleles(
+    source: str,
+    case: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = rare_record(source)
+    frequency = 0.2 if case == "common_missing" else 0.000005
+    if case == "unobserved_rare":
+        record = replace(
+            record, genotype=(0, 0), storage_genotype=(0, 0), dosage=(0.0,), storage_dosage=(0.0,)
+        )
+    rows = (
+        []
+        if case == "absent"
+        else frequency_rows(record, frequency, split=case.endswith("missing"))
+    )
+    payload = rare_card(monkeypatch, tmp_path, record, rows)
+    confidence = payload["confidence"]
+    if case == "rare_missing":
+        assert confidence["tier"] == "likely-artifact"
+        assert payload["confidence_frequency"]["allele"] == "G"
+        assert confidence["inputs"]["population_allele_frequency"] == frequency
+        assert any("measured rare allele" in note for note in payload["computed_caveats"])
+    elif case == "unobserved_rare":
+        assert payload["confidence_frequency"]["allele"] == "A"
+        assert confidence["inputs"]["population_allele_frequency"] == 1 - frequency
+        assert confidence["tier"] == ("limited" if source == "imputed_no_call" else "strong")
+        assert confidence["empirical_ppv"] is None
+    else:
+        assert payload["confidence_frequency"] is None
+        assert confidence["inputs"]["population_allele_frequency"] is None
+        assert confidence["tier"] == ("limited" if source == "imputed_no_call" else "moderate")
+        assert confidence["empirical_ppv"] is None
+        assert any("No population frequency" in note for note in payload["computed_caveats"])
+
+
+def install_frequency_index(
+    monkeypatch: pytest.MonkeyPatch, root: Path, rows: list[str]
+) -> FrequencyIndex:
+    path = root / "synthetic-frequency.vcf.gz"
+    with gzip.open(path, "wt", encoding="utf-8") as handle:
+        handle.write("##fileformat=VCFv4.2\n")
+        handle.write("##contig=<ID=1,length=249250621,assembly=gnomAD_GRCh37>\n")
+        for name, number, kind in (
+            ("AF", "A", "Float"),
+            ("AC", "A", "Integer"),
+            ("AN", "1", "Integer"),
+            ("nhomalt", "A", "Integer"),
+        ):
+            handle.write(
+                f'##INFO=<ID={name},Number={number},Type={kind},Description="Synthetic">\n'
+            )
+        handle.write(
+            "\t".join(("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO")) + "\n"
+        )
+        handle.write("\n".join(rows) + "\n")
+    index = FrequencyIndex.build(
+        path,
+        output=root / "synthetic-frequency.sqlite",
+        version="r2.1.1",
+        input_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+    )
+    monkeypatch.setattr(pipeline, "default_index", lambda **kw: index)
+    return index
+
+
+@pytest.mark.privacy
+@pytest.mark.parametrize("source", ["imputed_untyped", "imputed_no_call"])
+@pytest.mark.parametrize("ploidy", [1, 2])
+def test_rare_imputed_snapshot_keeps_gate_native_evidence_and_scoped_ppv_in_both_views(
+    source: str,
+    ploidy: int,
+    export: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = rare_record(source, ploidy)
+    pack = rare_pack(ploidy)
+    monkeypatch.setattr(KnowledgePack, "load", lambda _: pack)
+    if source == "imputed_no_call":
+        spec = next(s for s in FIXTURES if s.name == "ancestry_v2_male.txt")
+        export.write_text(
+            render_fixture(
+                replace(
+                    spec,
+                    spike_ins={
+                        "rs900000001": (23 if ploidy == 1 else 7, record.pos_grch37, "0", "0")
+                    },
+                )
+            ),
+            encoding="utf-8",
+        )
+    index = install_frequency_index(
+        monkeypatch, tmp_path, frequency_rows(record, 0.000005, split=ploidy == 2)
+    )
+    stages: list[ImputationResult] = []
+
+    def stage(original: GenotypeTable, **kwargs: Any) -> ImputationResult:
+        saved = synthetic_stage(
+            original,
+            tmp_path / "stage",
+            records=(*anchors(record.chrom, start=record.pos_grch37 + 50, ploidy=ploidy), record),
+        )
+        stages.append(saved)
+        return saved
+
+    monkeypatch.setattr(pipeline, "impute", stage)
+    original_lookup = lookup_default
+    observed_tables: list[GenotypeTable] = []
+
+    def lookup(original: GenotypeTable, **kwargs: Any) -> Any:
+        observed_tables.append(original)
+        return original_lookup(original, **kwargs)
+
+    monkeypatch.setattr(pipeline, "lookup_default", lookup)
+    invocation = CliRunner().invoke(app, ["run", "--input", str(export), "--json"])
+    assert invocation.exit_code == 0, invocation.output
+    assert_no_genotype(invocation.output)
+    path = Path(json.loads(invocation.stdout)["path"])
+    bundle = read_bundle(path)
+    assert bundle.format_version == 16 and len(bundle.cards) == 1
+    saved = bundle.cards[0]
+    assert saved.confidence_tier == "likely-artifact"
+    assert (
+        saved.confidence_frequency is not None
+        and saved.confidence_frequency["frequency"] == 0.000005
+    )
+    assert saved.observation is not None
+    assert saved.observation["imputation"] == ImputationEvidence.from_record(record).to_dict()
+    assert saved.imputation_mode == "enabled"
+    original = observed_tables[0].frame.filter(
+        (pl.col("chrom") == record.chrom) & (pl.col("pos_grch37") == record.pos_grch37)
+    )
+    assert (
+        original.is_empty()
+        if source == "imputed_untyped"
+        else original["call_status"].to_list() == ["no_call"]
+    )
+    assert stages[0].original is observed_tables[0]
+    # Delete only these generated cache bytes. Saved reads must use the full bundle.
+    for file in stages[0].directory.iterdir():
+        file.unlink()
+    index.path.unlink()
+    monkeypatch.setattr(
+        pipeline,
+        "default_index",
+        lambda **kw: pytest.fail("Saved read reopened frequency reference"),
+    )
+    monkeypatch.setattr(
+        pipeline, "impute", lambda *a, **kw: pytest.fail("Saved read reran imputation")
+    )
+    assert read_bundle(path).cards[0] == saved
+    assert any(r.source == source and r.ploidy == ploidy for r in bundle.iter_dosages())
+    shown = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
+    assert shown.exit_code == 0
+    payload = json.loads(shown.stdout)["cards"][0]
+    assert payload["confidence"]["tier"] == saved.confidence_tier
+    assert payload["confidence_frequency"] == saved.confidence_frequency
+    assert payload["observation"] == saved.observation
+    assert payload["computed_caveats"] == list(saved.computed_caveats)
+    ppv = payload["confidence"]["empirical_ppv"]
+    assert ppv["estimate"] == 0.16 and "imputation" in ppv["applies_to"]
+    with TestClient(create_app(WebConfig()), base_url="http://127.0.0.1") as client:
+        face = client.get(f"/runs/{path.name}")
+        detail = client.get(f"/runs/{path.name}/cards/{saved.card_id}")
+    assert face.status_code == detail.status_code == 200
+    for body in (face.text, detail.text):
+        assert "likely-artifact" in body and "16%" in body
+        assert "Not calibrated" in body and "imputation" in body
+        assert "not an individual posterior probability" in body
+    assert source in detail.text and record.quality_scope in detail.text
+    assert "0.0005%" in detail.text
+    assert "quality unknown" in face.text if source == "imputed_no_call" else "DR2 1" in face.text
+
+
+@pytest.mark.parametrize("source", ["imputed_untyped", "imputed_no_call"])
+def test_rare_imputed_marker_caps_entire_multimarker_finding(
+    source: str,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    import yaml
+
+    raw = yaml.safe_load((Path(__file__).parents[2] / "knowledge/health/apoe.yaml").read_text())[
+        "cards"
+    ][0]
+    card = Card.parse(raw, "synthetic rare-marker observation")
+    assert card.match is not None
+    first, second = card.match.variants
+    original = table(
+        ("19", first.key.pos_grch37, "CC", "called"),
+        *(
+            ([("19", second.key.pos_grch37, None, "no_call")])
+            if source == "imputed_no_call"
+            else []
+        ),
+    )
+    record = replace(
+        rare_record(source),
+        chrom="19",
+        pos_grch37=second.key.pos_grch37,
+        ref="T",
+        alt=("C",),
+        genotype=(1, 1),
+        storage_genotype=(1, 1),
+        dosage=(2.0,),
+        storage_dosage=(2.0,),
+    )
+    install_records(monkeypatch, (record,))
+    pack = KnowledgePack((card,), PACK)
+    target, metadata = card_input(pack, result(original, tmp_path, source), sex=InferredSex.MALE)
+    matches = match_pack(pack, target)
+    records = {
+        ("19", first.key.pos_grch37): [
+            parse_record(r)
+            for r in frequency_rows(replace(record, pos_grch37=first.key.pos_grch37), 0.2)
+        ],
+        ("19", second.key.pos_grch37): [parse_record(r) for r in frequency_rows(record, 0.000005)],
+    }
+    assembled = assemble_pack(
+        pack, matches, pipeline.observations(pack, matches, records, metadata)
+    )[0]
+    assert assembled.has_interpretation and assembled.confidence is not None
+    assert assembled.confidence.tier is ConfidenceTier.LIKELY_ARTIFACT
+    payload = _card_payload(assembled)
+    multi = payload["multi_marker"]
+    assert multi["phase"] == "unphased" and len(multi["candidate_diplotypes"]) == 1
+    strong, rare = multi["markers"]
+    assert strong["confidence"]["tier"] != "likely-artifact"
+    assert rare["confidence"]["tier"] == "likely-artifact"
+    assert rare["observation"]["imputation_quality"] == (
+        None if source == "imputed_no_call" else 1.0
+    )
+    assert payload["confidence"] == rare["confidence"]
+    validate_snapshot(payload)
+    validate_imputation_snapshot(payload, require_detail=True)
+
+
+@pytest.mark.parametrize("called", [False, True])
+def test_no_impute_preserves_original_rare_call_and_never_discovers_prerequisites(
+    called: bool,
+    export: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    pack = rare_pack()
+    monkeypatch.setattr(KnowledgePack, "load", lambda _: pack)
+    if called:
+        spec = next(s for s in FIXTURES if s.name == "ancestry_v2_male.txt")
+        export.write_text(
+            render_fixture(replace(spec, spike_ins={"rs900000001": (7, LOCUS[1], "A", "G")})),
+            encoding="utf-8",
+        )
+    install_frequency_index(
+        monkeypatch, tmp_path, frequency_rows(rare_record("imputed_untyped"), 0.000005)
+    )
+
+    def forbidden(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("Explicit opt-out discovered imputation prerequisites")
+
+    monkeypatch.setattr(pipeline, "impute", forbidden)
+    monkeypatch.setattr(Beagle, "discover", forbidden)
+    monkeypatch.setattr(BrefTools, "discover", forbidden)
+    monkeypatch.setattr("genetics.imputation.reference.PreparedReference.default", forbidden)
+    analysis = pipeline.analyse(export, no_impute=True)
+    card = analysis.cards[0]
+    assert analysis.imputation_result is None and card.imputation_mode == "disabled"
+    assert card.observation is not None and card.observation.call_source is CallSource.DIRECT
+    assert card.observation.imputation is None
+    assert card.has_interpretation is called
+    if called:
+        assert (
+            card.confidence is not None and card.confidence.tier is ConfidenceTier.LIKELY_ARTIFACT
+        )
+    else:
+        assert card.status is MatchStatus.MARKER_ABSENT and card.confidence is None
+
+
+@pytest.mark.parametrize("gene", ["BRCA1:672", "BRCA2:675"])
+def test_brca_chip_benchmark_is_explicitly_uncalibrated_for_imputation(gene: str) -> None:
+    benchmark = clinvar_benchmark({"GENEINFO": gene, "CLNSIG": "Pathogenic"})
+    assert benchmark["estimate"] == 0.042
+    assert benchmark["scope"] == "brca_pathogenic"
+    assert benchmark["population_frequency_ceiling"] is None
+    assert "pooled across" in benchmark["applies_to"]
+    assert "not an individual posterior probability" in benchmark["applies_to"]
+    assert "not calibrated" in benchmark["applies_to"] and "imputation" in benchmark["applies_to"]
+
+
+@pytest.mark.parametrize("ploidy", [1, 2])
+def test_enabled_imputation_keeps_original_rare_observation_and_its_gate(
+    ploidy: int,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = rare_record("imputed_untyped", ploidy)
+    pack = rare_pack(ploidy)
+    locus = (record.chrom, record.pos_grch37)
+    genotype = "GG" if ploidy == 1 else "AG"
+    original = table((*locus, genotype, "hemizygous" if ploidy == 1 else "called"))
+    # Even a contradictory, perfectly imputed observation cannot replace the probe.
+    install_records(
+        monkeypatch,
+        (
+            replace(
+                record,
+                genotype=(0,) * ploidy,
+                storage_genotype=(0,) * ploidy,
+                dosage=(0.0,),
+                storage_dosage=(0.0,),
+            ),
+        ),
+    )
+    target, metadata = card_input(pack, result(original, tmp_path), sex=InferredSex.MALE)
+    assert target is original and not metadata
+    matches = match_pack(pack, target)
+    assembled = assemble_pack(
+        pack,
+        matches,
+        pipeline.observations(
+            pack,
+            matches,
+            {locus: [parse_record(row) for row in frequency_rows(record, 0.000005)]},
+            metadata,
+        ),
+    )[0]
+    assert assembled.has_interpretation and assembled.confidence is not None
+    assert assembled.confidence.tier is ConfidenceTier.LIKELY_ARTIFACT
+    assert assembled.observation is not None
+    assert assembled.observation.call_source is CallSource.DIRECT
+    assert assembled.observation.imputation is None
+    assert assembled.match.observed_genotype == genotype

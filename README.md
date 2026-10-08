@@ -52,7 +52,14 @@ See [quality propagation](docs/imputation_quality.md) and [the mode guide](docs/
 and catalog copies, used panel/map/tool/runtime identities and per-region parameters
 remain readable without stage caches. CLI `runs imputation` and the dashboard use the
 same saved snapshot. See [full provenance](docs/imputation_provenance.md).
-**Next: M8.7, dedicated imputed rare-variant frequency-gate regressions.**
+**M8.7 verifies the rare-call frequency gate for imputation:** 32 synthetic cases cover
+strict frequency boundaries, native sources/ploidies, missing companions, weakest-marker
+inheritance and saved CLI/dashboard parity. Strong literature and high DR2 cannot rescue
+rarity; chip confirmation benchmarks remain explicitly uncalibrated for imputation.
+The full native suite passed **2,561 tests, five existing Windows skips**; all four
+strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
+No shared-engine or bundle-format change was needed. **M8 is complete. Next: M9.1,
+PGS Catalog scoring-file parsing with authoritative per-score metadata licences.**
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
@@ -65,7 +72,8 @@ M8.6 adds 53 full-snapshot checks; its final native suite passed **2,524 tests**
 those same five skips, strict four-way typing, privacy gates and full card lint.
 The subsequent [diff review](docs/review_m86_session.md) fixes three validation/error
 defects and adds five regressions: **2,529 tests passed**, with the same five skips.
-The [M8.7 handoff](docs/handoff.md#m87-implementation-handoff) records its acceptance matrix.
+The [M8.7 handoff](docs/handoff.md#m87-implementation-handoff) records its completed
+acceptance matrix.
 The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
 reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
