@@ -357,7 +357,10 @@ desktop.ini
 
 # M6.1 ROH segments, summaries, and sample-specific marker selections
 # M9.1 public PGS payloads and derived metadata are fetched, never vendored.
-# Personal score outputs remain M9.2 and will need their own patterns.
+# M9.2 sums, per-term observations and sample-selected matrix weights are private.
+*.pgs-score.json
+*.pgs-score.json.*
+*.pgs-weights.tsv
 *.pgs-reference.json
 pgs_score_licenses.json
 PGS*_hmPOS_*.txt

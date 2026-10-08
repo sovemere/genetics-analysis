@@ -42,11 +42,13 @@ M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared defa
 phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
 imputed rare-call gate regressions. The [M8 overview review](docs/review_m8_overview.md)
 fixes saved rarity/provenance validation and error paths before the M9 handoff.
-The current native suite passes **2,660 tests, five existing Windows skips**;
+The current native suite passes **2,707 tests, five existing Windows skips**;
 strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
 M9.1 is implemented: streaming format-2 scoring-file ingestion, authoritative per-score
 metadata licences, source-bound reference processing and offline CLI inspection.
-Next is M9.2's PLINK scoring. See [PGS ingestion](docs/pgs_ingestion.md).
+M9.2 adds native PLINK sums, preserving original and imputed effect-dose/quality evidence,
+private provenance and explicit unavailable/partial/unsupported states. Next is M9.3's
+per-score variant coverage. See [PGS scoring](docs/pgs_scoring.md).
 The [handoff](docs/handoff.md) records M8 acceptance and M9's next scope.
 The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
 confidence, saved-record consistency, marker-detail and lint-denominator fixes.
@@ -2551,7 +2553,17 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         reference acceptance parses 77 PGS000001 GRCh37 rows and 6,991 metadata scores.
         Personal scoring, coverage and calibration remain M9.2–M9.5; format 16 unchanged.
         [Guide](docs/pgs_ingestion.md).
-- [ ] **M9.2** Scoring via PLINK 2 `--score`, pre- and post-imputation.
+- [x] **M9.2** Scoring via PLINK 2 `--score`, pre- and post-imputation.
+      - Shared numeric effect-dose matrix preserves biological copy count, per-ALT DR2,
+        unknown phase/multiallelic REF quality and original-call precedence. Raw indels,
+        strand/duplicate/ploidy conflicts and unsupported models remain explicit; exact
+        sequence-resolved imputed indels can contribute. Native target/term/count checks
+        and independent arithmetic bound the reported sum's PGEN/text precision.
+        `genetics pgs score` reuses ancestry-first/default-on imputation or saved format-16
+        full dosages; saved-only original sums stay unavailable. Immutable private score
+        JSON records all used source/tool/input/provenance identities, with privacy ignores.
+        No card, distribution, portability adjustment or bundle-format bump is introduced.
+        [Guide](docs/pgs_scoring.md).
 - [ ] **M9.3** **Per-score variant coverage reported on every card**, before and after
       imputation ([AGENTS.md §4.3](AGENTS.md)).
 - [ ] **M9.4** Reference distribution + percentile placement, computed within the
@@ -2752,6 +2764,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-08 | M9.2 | Pinned PLINK pre/post-imputation score sums from validated native effect doses, using a numeric matrix that preserves biological haploid values. Per-term original probes, native per-ALT quality, exact imputed indel sequences, missing/conflicting/unsupported states and source identities remain private. Full report target/term/count checks and independent signed-dose arithmetic bound PGEN/report precision; used PLINK binary is hashed before/after. Shared ancestry-first/default-on export workflow, explicit no-impute, saved format-16 scoring after cache removal and immutable private score JSON/CLI parity. Saved-only original sums stay unavailable; no percentile, portability or card is introduced. **2,707 tests passed, five existing Windows skips**, all pinned native tools/Java 17 enabled; 47 new synthetic cases, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. New personal-output ignores added; no personal export or new reference payload used. Next M9.3. [Guide](docs/pgs_scoring.md). |
 | 2026-10-08 | M9.1 | Streaming format-2 PGS scoring-file parser and authoritative per-score metadata terms, with exact source identities, original/harmonized builds, raw model/weight columns and explicit special features. Metadata archive processing is now executable in fetch/verify, with checksum/provenance validation and stale-index rebuild. Unknown/missing/duplicate terms never establish permission; restricted terms remain flagged. Offline CLI/API public-reference acceptance covers 6,991 metadata scores and 77 PGS000001 GRCh37 rows, both fetched and lock-recorded. Sixty-nine synthetic cases cover malformed/nonfinite rows, identity/build/count conflicts, licence joins/gates, source changes, index corruption/reuse, CLI and privacy ignores. **2,660 tests passed, five existing Windows skips**, pinned native tools and Java 17 enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. Bundle format 16 unchanged; no personal export opened. Next M9.2. [Guide](docs/pgs_ingestion.md). |
 | 2026-10-08 | M8 overview review | Seven defect groups fixed: saved scalar rarity/frequency/oriented-call binding; missing REF/ALT placeholders; skipped-region ploidy; phase-handoff size; invalid Beagle option boundaries; corrupt DEFLATE handling; missing saved-dosage iterator errors. Thirty added synthetic cases, with all 28 rejection cases reproduced before their respective fixes and two valid skipped-region controls. Format 16/schema 1 and historical meanings unchanged. **2,591 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M9.1 handoff identifies the metadata source/licence transform, parser acceptance and original-array coverage limits. [Review](docs/review_m8_overview.md), [handoff](docs/handoff.md). |
 | 2026-10-08 | M8.7 | Thirty-two generated regressions prove rarity cannot be rescued by high DR2, strong literature or enabled imputation. Covers strict boundaries, both sources/native ploidies, missing companions, unobserved-rare controls, weakest-marker inheritance, original probes/opt-out and cache-independent format-16 CLI/dashboard parity. Chip 16%/BRCA 4.2% benchmarks stay study-scoped and uncalibrated for imputation. Isolated bypasses fail four rarity and two missing-companion cases. No engine or bundle-format change. **2,561 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M8 complete; next M9.1, with licence authority corrected to the metadata CSV per AGENTS.md. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87), [handoff](docs/handoff.md). |
