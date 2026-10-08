@@ -3,7 +3,44 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.2 are now implemented. Next is M9.3.
+M9.1–M9.3 are now implemented. Next is M9.4.
+
+## Implemented M9.3 and M9.4 entry
+
+`pgs/coverage.py` derives versioned per-score coverage (`schema_version` 1) from the term
+evidence in every score result. Score artifacts move to **schema 2**, which guarantees
+retained exclusion proof and phase states. `genetics pgs score` embeds it and prints one
+line per phase; `genetics pgs coverage RESULT [--scoring-file F] --json` reloads, recomputes
+and refuses any mismatch. See [the guide](pgs_coverage.md).
+
+- Source denominators: all authored weighted rows, model-eligible/ineligible by reason,
+  unique allele-defined variants, unique positions, repeated rows, multiple effect alleles,
+  multi-variant positions, and undefined rows with their raw definitions.
+- Before and after are independent. `not_recorded`/`disabled` phases are `unavailable`
+  with null metrics; no-overlap is a real 0.0. Unsupported models keep observed rows but
+  have null scored fractions. Position presence and usable-dose coverage are separate.
+- Original probes (before only): probe count, called positions and duplicate positions as
+  identical, complement-concordant, conflicting, insufficient-calls or unclassified.
+- Quality is described, never applied: sources, ploidy, methods, DR2 min/max, descriptive
+  tenths with absolute weight, and unknown-quality reasons (`not_estimated:<method>`,
+  `allele_quality_unknown` for multiallelic REF).
+- Schema-1 files are recomputed as `recomputed_legacy`; phase availability comes from the
+  table hash and imputation mode, and missing excluded-row proof stays `unknown` with
+  evidence-fraction bounds. Bundle format stays 16.
+
+Acceptance: **2,746 tests passed, five existing Windows skips**, with pinned PLINK 2/PLINK
+1.9/Beagle/bref3 and Java 17. Twenty new synthetic cases cover the M9.3 contract below,
+including nine corruption cases each confirmed to fail at its intended check. All four
+strict type targets, lint/format, fixture reproduction and full dbSNP card lint (51 cards,
+268 renders, 35 references) pass. No personal export, private run or new reference was used.
+
+**Next M9.4:** a reference distribution and percentile placement for each score, computed
+within the ancestry-matched reference group where possible. Score the reference panel with
+the same `pgs/engine.py` matrix path and the same allele/ploidy rules so the person and
+the distribution share one definition; record the panel, group and per-score coverage of
+the reference itself. Where the person's coverage (M9.3) differs from the reference's,
+the placement must say so rather than compare unlike sums. A declined or unrepresented
+ancestry is M9.5's to interpret; M9.4 must not fall back silently to a pooled group.
 
 ## M9.1–M9.2 review and M9.3 entry contract
 

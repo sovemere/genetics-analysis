@@ -1,4 +1,4 @@
-"""Offline PGS inspection and private, provenance-bound native score sums."""
+"""Offline PGS inspection, private native score sums and their variant coverage."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from genetics.refs.postprocess import ProcessError
 
 pgs_app = typer.Typer(
     name="pgs",
-    help="Inspect PGS definitions and compute private PLINK score sums.",
+    help="Inspect PGS definitions, compute private PLINK score sums and report coverage.",
     no_args_is_help=True,
 )
 
@@ -172,4 +172,57 @@ def score_pgs(
             json.dumps({"ok": True, "output": str(destination), **result.to_dict()}, indent=2)
         )
     else:
+        from genetics.pgs.coverage import summary
+
         typer.echo(f"{result.pgs_id}: {result.status}. Private score saved to {destination}.")
+        for line in summary(result.record["coverage"]):
+            typer.echo(line)
+
+
+@pgs_app.command("coverage")
+def coverage(
+    result_path: Annotated[Path, typer.Argument(help="Private .pgs-score.json result.")],
+    scoring_file: Annotated[
+        Path | None,
+        typer.Option(
+            "--scoring-file", help="Also bind the denominator to this public scoring file."
+        ),
+    ] = None,
+    metadata: Annotated[
+        Path | None,
+        typer.Option("--metadata", help="Explicit metadata archive or validated index."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit private coverage JSON (genotype-derived).")
+    ] = False,
+) -> None:
+    """Validate a saved score's coverage against its term evidence, before and after."""
+    from genetics.pgs.coverage import read_coverage, summary
+
+    try:
+        scoring = None
+        if scoring_file is not None:
+            catalog = (
+                Catalog.default()
+                if metadata is None
+                else Catalog.load(metadata)
+                if metadata.suffix == ".json"
+                else Catalog.from_archive(metadata)
+            )
+            scoring = ScoringFile.open(scoring_file, catalog)
+        report = read_coverage(result_path, scoring=scoring)
+    except (PgsError, ProcessError) as exc:
+        if as_json:
+            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
+        else:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    if as_json:
+        typer.echo(json.dumps({"ok": True, **report}, indent=2))
+    else:
+        typer.echo(
+            f"{report['pgs_id']}: coverage {report['coverage_origin']} "
+            f"(score artifact schema {report['artifact_schema_version']})."
+        )
+        for line in summary(report["coverage"]):
+            typer.echo(line)

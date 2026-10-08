@@ -5,6 +5,7 @@ ALT dose is already the biological effect-allele count. Synthetic diploid matrix
 labels prevent chromosome import conventions from rescaling haploid observations.
 Original loci, alleles, ploidies, quality and exclusions remain in the private result.
 No percentile, outcome probability or confidence calibration is computed here.
+Schema 2 adds M9.3 coverage and guarantees retained exclusion proof and phase states.
 """
 
 from __future__ import annotations
@@ -35,6 +36,7 @@ from genetics.qc.report import InferredSex
 from genetics.qc.sex_regions import PAR_GRCH37
 
 SAMPLE = "SAMPLE"
+SCORE_SCHEMA_VERSION = 2
 UNSUPPORTED_FEATURES = {
     "is_haplotype",
     "is_diplotype",
@@ -93,7 +95,7 @@ class ScoreResult(NoGenotypeRepr):
 
     def to_dict(self) -> dict[str, Any]:
         """Private JSON, containing personal scores and marker-level evidence."""
-        return {"schema_version": 1, "kind": "pgs_score", **self.record}
+        return {"schema_version": SCORE_SCHEMA_VERSION, "kind": "pgs_score", **self.record}
 
 
 def _ploidy(chrom: str | None, position: int | None, sex: InferredSex) -> int | None:
@@ -106,7 +108,7 @@ def _ploidy(chrom: str | None, position: int | None, sex: InferredSex) -> int | 
     return None
 
 
-def _pair(row: ScoreVariant) -> tuple[str, str] | None:
+def allele_pair(row: ScoreVariant) -> tuple[str, str] | None:
     other = row.fields.get("other_allele") or row.fields.get("hm_inferOtherAllele")
     if not re.fullmatch(r"[ACGT]+", row.effect_allele):
         return None
@@ -125,7 +127,7 @@ def _direct(
     called = [p for p in probes if p["call_status"] != "no_call" and p["genotype"] is not None]
     if not called:
         return Dose("no_call")
-    pair = _pair(row)
+    pair = allele_pair(row)
     if pair is None:
         return Dose("allele_contract_missing")
     ambiguous = is_strand_ambiguous(pair)
@@ -201,7 +203,7 @@ def _imputed(
     record = parse_record(raw.to_dict())
     if record.ploidy != _ploidy(row.chrom, row.position, sex):
         return excluded("ploidy_conflict")
-    pair = _pair(row)
+    pair = allele_pair(row)
     if pair is None:
         return excluded("allele_contract_missing")
     alleles = {record.ref, *record.alt}
@@ -302,14 +304,14 @@ def validate_mode_flags(*flags: bool) -> None:
         raise PgsError("Scoring mode flags must be explicit booleans.")
 
 
-def _unusable(row: ScoreVariant) -> str | None:
+def ineligibility_reason(row: ScoreVariant) -> str | None:
     if UNSUPPORTED_FEATURES.intersection(row.features):
         return "unsupported_model"
     if row.chrom not in {*(str(i) for i in range(1, 23)), "X"}:
         return "unsupported_chromosome" if row.chrom is not None else "unresolved_locus"
     if row.position is None:
         return "unresolved_locus"
-    if _pair(row) is None:
+    if allele_pair(row) is None:
         return "allele_contract_missing"
     if "harmonization_mismatch" in row.features:
         return "harmonization_mismatch"
@@ -546,7 +548,7 @@ def score(
     terms: list[Term] = []
     for row in rows:
         locus = (row.chrom or "", row.position or 0)
-        reason = _unusable(row)
+        reason = ineligibility_reason(row)
         before = (
             Dose("not_recorded")
             if table is None
@@ -568,7 +570,7 @@ def score(
                 raise PgsError(
                     "Stage-direct dosage cannot replace an absent or uncalled original probe."
                 )
-        pair = _pair(row)
+        pair = allele_pair(row)
         terms.append(
             Term(
                 row.row_number,
@@ -662,6 +664,11 @@ def score(
         },
         "terms": [term.to_dict() for term in terms],
     }
+    from genetics.pgs.coverage import compute_coverage
+
+    payload["coverage"] = compute_coverage(
+        payload, schema_version=SCORE_SCHEMA_VERSION, source_rows=rows
+    )
     return ScoreResult(scoring.headers["pgs_id"], payload["status"], payload)
 
 

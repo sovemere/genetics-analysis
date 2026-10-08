@@ -43,6 +43,8 @@ PLINK version/binary hash, tool-manifest hash and engine/method versions. These 
 genotype-derived data, including the hashes and aggregates. Never commit or publish
 them. Default text output reports the result status and private destination.
 The existing run-bundle format remains **16**; these are separate score artifacts.
+Score artifacts are **schema 2** from M9.3, which adds versioned per-score coverage and
+guarantees retained exclusion proof and phase states; see [PGS coverage](pgs_coverage.md).
 
 ## Matching and supported models
 
@@ -139,9 +141,9 @@ new synthetic cases cover this milestone. All four strict Windows/Linux × Pytho
 includes both fractional haploid X and diploid PAR, low/unknown quality and multiple
 ALT alleles; observed matrix/report precision agrees with its analytical controls.
 
-M9.3 owns per-score variant coverage on cards, including before/after denominators,
-duplicate terms/probes and exclusion states. The stored term observations provide its
-inputs; stage-direct counts still cannot stand in for the original chip. M9.4 owns
+M9.3 per-score variant coverage is implemented in [PGS coverage](pgs_coverage.md), from
+the stored term observations; stage-direct counts still cannot stand in for the original
+chip. M9.4 owns
 reference distributions/percentiles, M9.5 owns study-to-sample ancestry portability and
 confidence, and M9.6 owns the calibrated card renderer. Raw sums carry neither a
 phenotype point estimate nor an outcome probability; `percentile` is null and portability
