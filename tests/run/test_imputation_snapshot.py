@@ -249,6 +249,10 @@ def test_saved_cli_dashboard_and_iterator_share_provenance(
         "ploidy",
         "phase_mode",
         "phase_handoff",
+        "phase_handoff_size",
+        "invalid_options",
+        "invalid_phase_options",
+        "invalid_impute_options",
         "map_identity",
         "decision",
         "source_version",
@@ -283,6 +287,14 @@ def test_rehashed_provenance_damage_is_rejected(
             stage["jobs"][0]["phase"]["contract"]["options"]["impute"] = True
         elif damage == "phase_handoff":
             stage["jobs"][0]["impute"]["contract"]["inputs"]["gt"]["sha256"] = "0" * 64
+        elif damage == "phase_handoff_size":
+            stage["jobs"][0]["impute"]["contract"]["inputs"]["gt"]["size_bytes"] += 1
+        elif damage == "invalid_options":
+            stage["contract"]["options"]["memory_mb"] = 1
+        elif damage == "invalid_phase_options":
+            stage["jobs"][0]["phase"]["contract"]["options"]["nthreads"] = 0
+        elif damage == "invalid_impute_options":
+            stage["jobs"][0]["impute"]["contract"]["options"]["target_ploidy"] = 0
         elif damage == "map_identity":
             for phase in ("phase", "impute"):
                 stage["jobs"][0][phase]["contract"]["inputs"]["map"]["sha256"] = "0" * 64
@@ -363,6 +375,17 @@ def test_iterator_detects_a_change_after_open(
         list(bundle.iter_dosages())
 
 
+def test_iterator_missing_payload_is_a_private_domain_error(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+) -> None:
+    path = pipeline.save(prepared[0])
+    bundle = read_bundle(path)
+    (path / "chr7.dosages.jsonl.gz").unlink()
+    with pytest.raises(ImputationError) as caught:
+        list(bundle.iter_dosages())
+    assert_no_genotype(str(caught.value))
+
+
 @pytest.mark.parametrize("multi", [False, True])
 def test_each_card_or_marker_at_a_shared_locus_requires_its_own_full_record_match(
     prepared: tuple[pipeline.Analysis, ImputationResult], multi: bool
@@ -399,12 +422,81 @@ def test_native_storage_vectors_reject_boolean_values(field: str) -> None:
         parse_record(record)
 
 
+def test_native_record_cannot_have_a_missing_reference_allele() -> None:
+    raw = anchors("7")[0].to_dict()
+    raw["ref"] = "."
+    with pytest.raises(ImputationError) as caught:
+        parse_record(raw)
+    assert_no_genotype(str(caught.value))
+
+
+@pytest.mark.parametrize(
+    "name,ploidy,valid",
+    [
+        ("chr7", 1, False),
+        ("X_nonpar", None, False),
+        ("chr7", 2, True),
+        ("X_nonpar", 1, True),
+    ],
+)
+def test_skipped_region_ploidy_agrees_with_saved_sex(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+    ploidy: int | None,
+    valid: bool,
+) -> None:
+    def empty(original: GenotypeTable, **kwargs: Any) -> ImputationResult:
+        return synthetic_stage(
+            original,
+            tmp_path / "empty-stage",
+            empty_report={
+                "region": name,
+                "ploidy": ploidy,
+                "positions": 0,
+                "written": 0,
+                "called": 0,
+                "outcomes": {},
+                "status": "unresolved_ploidy" if ploidy is None else "insufficient_typed_calls",
+            },
+        )
+
+    monkeypatch.setattr(pipeline, "impute", empty)
+    analysis = pipeline.analyse(tmp_path / "synthetic.txt", knowledge_dir=PACK)
+    if valid:
+        assert read_bundle(pipeline.save(analysis)).imputation is not None
+    else:
+        with pytest.raises(BundleError) as caught:
+            pipeline.save(analysis)
+        assert_no_genotype(str(caught.value))
+
+
 def test_unknown_stage_region_is_a_private_publication_error(
     prepared: tuple[pipeline.Analysis, ImputationResult], tmp_path: Path
 ) -> None:
     analysis, stage = prepared
     metadata = copy.deepcopy(stage.metadata)
     metadata["jobs"][0]["region"]["name"] = "unknown"
+    (stage.directory / "imputation.run.json").write_text(json.dumps(metadata))
+    analysis = replace(analysis, imputation_result=replace(stage, metadata=metadata))
+    root = tmp_path / "store"
+    with pytest.raises(BundleError) as caught:
+        pipeline.save(analysis, runs_root=root)
+    assert_no_genotype(str(caught.value))
+    assert list(root.iterdir()) == []
+
+
+@pytest.mark.parametrize("phase", ["stage", "phase", "impute"])
+def test_invalid_stage_options_are_private_atomic_publication_errors(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+    tmp_path: Path,
+    phase: str,
+) -> None:
+    analysis, stage = prepared
+    metadata = copy.deepcopy(stage.metadata)
+    contract = metadata["contract"] if phase == "stage" else metadata["jobs"][0][phase]["contract"]
+    contract["options"]["memory_mb"] = 1
     (stage.directory / "imputation.run.json").write_text(json.dumps(metadata))
     analysis = replace(analysis, imputation_result=replace(stage, metadata=metadata))
     root = tmp_path / "store"

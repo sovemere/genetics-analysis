@@ -124,6 +124,8 @@ def output(path: Path, *, change: str | None = None) -> Path:
         rows[2][7] = "DR2=0.02,0.8"
     elif change == "repeat_allele":
         rows[2][4] = "A,A"
+    elif change == "missing_ref":
+        rows[2][3] = "."
     elif change == "empty":
         rows.clear()
     elif change == "phase":
@@ -162,6 +164,7 @@ def output(path: Path, *, change: str | None = None) -> Path:
         "unsorted",
         "untyped_source",
         "repeat_allele",
+        "missing_ref",
         "empty",
     ],
 )
@@ -180,6 +183,16 @@ def test_sources_dosage_orientation_quality_and_exclusions_stay_separate(tmp_pat
     assert (
         records[3].source == "imputed_untyped" and records[3].array_outcome == "duplicate_conflict"
     )
+
+
+def test_invalid_deflate_output_is_a_private_domain_error(tmp_path: Path) -> None:
+    damaged = bytearray(gzip.compress(b"synthetic", mtime=0))
+    damaged[10] = (damaged[10] & ~6) | 6
+    path = tmp_path / "damaged.vcf.gz"
+    path.write_bytes(damaged)
+    with pytest.raises(ImputationError) as caught:
+        list(read_output(path, example_target()))
+    assert_no_genotype(str(caught.value))
 
 
 def test_native_haploid_model_uses_one_copy_and_refuses_diploid_output(tmp_path: Path) -> None:

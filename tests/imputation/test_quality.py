@@ -380,6 +380,8 @@ def test_biallelic_ref_quality_and_dosage_remain_on_native_scale(ploidy: int) ->
     "change",
     [
         {"ploidy": True},
+        {"ref": "."},
+        {"alt": (".",)},
         {"dosage": (-0.1,)},
         {"dosage": (float("nan"),)},
         {"dr2": (float("inf"),)},
@@ -1149,3 +1151,57 @@ def test_enabled_imputation_keeps_original_rare_observation_and_its_gate(
     assert assembled.observation.call_source is CallSource.DIRECT
     assert assembled.observation.imputation is None
     assert assembled.match.observed_genotype == genotype
+
+
+@pytest.mark.parametrize("source", ["imputed_untyped", "imputed_no_call"])
+@pytest.mark.parametrize(
+    "damage", ["tier", "selected_allele", "input_frequency", "erased_frequency", "oriented_call"]
+)
+def test_rehashed_rare_imputed_card_cannot_bypass_saved_frequency_gate(
+    source: str,
+    damage: str,
+    export: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    record = rare_record(source)
+    pack = rare_pack()
+    monkeypatch.setattr(KnowledgePack, "load", lambda _: pack)
+    if source == "imputed_no_call":
+        spec = next(s for s in FIXTURES if s.name == "ancestry_v2_male.txt")
+        export.write_text(
+            render_fixture(replace(spec, spike_ins={"rs900000001": (7, LOCUS[1], "0", "0")})),
+            encoding="utf-8",
+        )
+    install_stage(monkeypatch, tmp_path, record)
+    install_frequency_index(monkeypatch, tmp_path, frequency_rows(record, 0.000005))
+    path = pipeline.save(pipeline.analyse(export))
+    assert read_bundle(path).cards[0].confidence_tier == "likely-artifact"
+    payload_path = path / "cards.run.json"
+    payload = json.loads(payload_path.read_text())
+    card = payload["cards"][0]
+    confidence = card["confidence"]
+    if damage == "input_frequency":
+        confidence["inputs"]["population_allele_frequency"] = 0.2
+    else:
+        confidence["tier"] = "limited" if source == "imputed_no_call" else "moderate"
+        if damage in {"selected_allele", "oriented_call"}:
+            if damage == "oriented_call":
+                card["match"]["genotype"] = "AA"
+            selected = next(f for f in card["frequencies"] if f["allele"] == "A")
+            card["confidence_frequency"] = selected
+            confidence["inputs"]["population_allele_frequency"] = selected["frequency"]
+            confidence["empirical_ppv"] = None
+        elif damage == "erased_frequency":
+            card["confidence_frequency"] = None
+            confidence["inputs"]["population_allele_frequency"] = None
+            confidence["empirical_ppv"] = None
+    text = json.dumps(payload)
+    payload_path.write_text(text)
+    manifest_path = path / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"]["cards.run.json"] = hashlib.sha256(text.encode()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest))
+    with pytest.raises(BundleError) as caught:
+        read_bundle(path)
+    assert_no_genotype(str(caught.value))

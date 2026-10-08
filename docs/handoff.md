@@ -5,6 +5,45 @@ completed in the preceding milestones; the current synthetic/offline native suit
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 Next is M9.1.
 
+## M8 overview review
+
+The [overview review](review_m8_overview.md) fixes seven groups of defects: saved scalar
+rarity/frequency/hard-call binding, missing allele placeholders, skipped-region ploidy,
+phase-handoff byte counts, invalid Beagle option error boundaries, corrupt DEFLATE
+handling and missing saved-dosage iterator errors. Thirty new synthetic cases cover
+the fixes; all 28 rejection cases reproduced defects before their respective fixes.
+Format 16/provenance schema 1 and historical payload meanings remain unchanged.
+
+The final native suite passes **2,591 tests, five existing Windows skips**. All four
+strict Windows/Linux × Python 3.11/3.13 type targets, lint/format, fixture reproduction
+and full dbSNP card lint pass (51 cards, 268 renders, 35 marker references).
+No personal export was opened. There is no known blocker to M9.1's parser/licence work.
+
+### M9.1 implementation entry points and acceptance
+
+Start with `data/references/manifest.yaml`'s `pgs_catalog_metadata` entry, the pending
+`parse_pgs_score_licenses` step in `refs/postprocess.py` and `refs/licenses.py`.
+Implement scoring-file parsing and per-score metadata joins using the current
+official scoring-format specification. Preserve PGS id, declared build, allele/weight
+definitions and source identities. Bind licences to the metadata CSV's
+`License/Terms of Use` column; collection-level permission and scoring-header absence
+cannot establish a score's licence. Missing, ambiguous or unknown terms stay explicit
+and never default to permissive. Do not hard-code a historical count of licence values.
+
+Exercise malformed rows, nonfinite weights, missing fields, conflicting score/build
+identities and licence joins with synthetic inputs. Keep acquisition/provenance within
+the existing manifest/fetcher framework, with no reference download required in CI.
+Scoring, coverage, distributions and ancestry calibration remain M9.2–M9.5.
+
+`RunBundle.iter_dosages()` streams the full saved stage, including all three sources;
+it is not the complete original array. `ImputationEvidence.from_record()` accepts
+resolved imputed sources only. Its allele-dose method keeps native dosage and quality
+together; direct stage records retain exact observed counts. Phase-filled and
+multiallelic REF quality stay unknown. Before-imputation coverage needs original-array
+observations or saved coverage; stage-direct counts alone are insufficient. Older
+formats must not be given invented full dosages or coverage. The existing population
+mapping/`declined` ancestry portability work remains M9.5.
+
 ## Implemented M8.7 and next scope
 
 Thirty-two synthetic regressions in `tests/imputation/test_quality.py` prove the

@@ -18,6 +18,7 @@ import sys
 import threading
 import time
 import uuid
+import zlib
 from collections.abc import Callable, Iterator, Mapping
 from contextlib import contextmanager, suppress
 from dataclasses import asdict, dataclass
@@ -274,7 +275,7 @@ def _target_samples(path: Path) -> tuple[str, ...]:
                     raise ValueError
                 return samples
         raise ValueError
-    except (OSError, EOFError, UnicodeError, ValueError):
+    except (OSError, EOFError, UnicodeError, ValueError, zlib.error):
         raise BeagleRunError("Beagle target has no valid unique sample header.") from None
 
 
@@ -332,7 +333,7 @@ def _validate_vcf(
                 records += 1
         if not records:
             raise ValueError
-    except (OSError, EOFError, UnicodeError, ValueError, IndexError):
+    except (OSError, EOFError, UnicodeError, ValueError, IndexError, zlib.error):
         raise BeagleRunError(
             "Beagle output is damaged, unphased or inconsistent with target samples/region."
         ) from None

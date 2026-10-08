@@ -69,6 +69,10 @@ with gzip.open(vcf, 'wt', encoding='utf-8') as h:
     h.write('bad' if mode == 'invalid' else '\n'.join(header + [row]) + '\n')
 if mode == 'truncated':
     vcf.write_bytes(vcf.read_bytes()[:-6])
+if mode == 'invalid-deflate':
+    damaged = bytearray(gzip.compress(b'synthetic', mtime=0))
+    damaged[10] = (damaged[10] & ~6) | 6
+    vcf.write_bytes(damaged)
 if mode != 'nolog':
     Path(str(out) + '.log').write_text('synthetic Beagle completion log', encoding='utf-8')
 if mode == 'mutate':
@@ -240,7 +244,9 @@ def test_default_output_is_stable_and_outside_repo(
     assert not is_inside_repo(one.vcf)
 
 
-@pytest.mark.parametrize("mode", ["fail", "heap", "invalid", "truncated", "nolog", "mutate"])
+@pytest.mark.parametrize(
+    "mode", ["fail", "heap", "invalid", "truncated", "invalid-deflate", "nolog", "mutate"]
+)
 def test_failed_or_partial_jobs_never_publish_completion_and_can_restart(
     runner: Beagle,
     inputs: BeagleInputs,
@@ -261,6 +267,38 @@ def test_failed_or_partial_jobs_never_publish_completion_and_can_restart(
     monkeypatch.delenv("BEAGLE_STUB_MODE")
     result = runner.run(**inputs, out=out)
     assert result.vcf.is_file() and not result.resumed
+
+
+def test_invalid_deflate_target_is_a_private_domain_error(
+    runner: Beagle,
+    inputs: BeagleInputs,
+) -> None:
+    damaged = bytearray(gzip.compress(b"synthetic", mtime=0))
+    damaged[10] = (damaged[10] & ~6) | 6
+    inputs["gt"].write_bytes(damaged)
+    with pytest.raises(BeagleRunError) as caught:
+        runner.run(**inputs)
+    assert "synthetic" not in str(caught.value)
+
+
+def test_rehashed_invalid_deflate_output_cannot_resume(
+    runner: Beagle,
+    inputs: BeagleInputs,
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "job"
+    result = runner.run(**inputs, out=out)
+    damaged = bytearray(gzip.compress(b"synthetic", mtime=0))
+    damaged[10] = (damaged[10] & ~6) | 6
+    result.vcf.write_bytes(damaged)
+    saved = json.loads(result.checkpoint.read_text())
+    saved["files"]["result.vcf.gz"].update(
+        sha256=hashlib.sha256(damaged).hexdigest(),
+        size_bytes=len(damaged),
+    )
+    result.checkpoint.write_text(json.dumps(saved))
+    with pytest.raises(mod.BeagleCheckpointError):
+        runner.run(**inputs, out=out)
 
 
 @pytest.mark.parametrize(

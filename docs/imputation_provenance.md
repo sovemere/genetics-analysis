@@ -35,7 +35,8 @@ region decisions, limitations and record/source counts.
 Each completed region retains both phase and imputation checkpoints: actual panel,
 map and target input hashes/sizes; tool/runtime identity; interval, native target
 ploidy, seed, threads and heap; output hashes and elapsed time. The phase output
-fingerprint must match the second invocation's target input. Unoverridden tool defaults
+fingerprint and byte count must match the second invocation's target input.
+Unoverridden tool defaults
 are tied to the pinned jar identity. This stage record is authoritative for the used
 imputation inputs; the manifest's general installed-reference/tool inventory is not a
 substitute for it and may differ after local installations change.
@@ -56,7 +57,8 @@ cardinality, biological ploidy and phase/imputation options must agree. Every im
 card or multi-marker observation must match its own allele identity, hard call and quality
 in exactly one full dosage record, even when several claims share a locus. Native storage
 vectors reject boolean values rather than accepting numeric equality with allele indices
-or dosages. Malformed stages fail with a categorical publication error.
+or dosages. Skipped-region ploidy is also bound to the saved inferred sex. Invalid
+Beagle options fail with a categorical publication/read error.
 Publication uses the existing atomic directory rename; a failed copy leaves no completed
 bundle and preserves its source stage. Genotype-free copy/validation progress goes to
 CLI stderr, with heartbeat messages during long validation passes.
@@ -79,7 +81,9 @@ genetics runs show <run-id> --json
 `--json` returns saved execution and provenance. `--dosages` streams private JSON Lines;
 it deliberately contains genotype-derived observations. Keep redirected output outside
 the checkout. `RunBundle.iter_dosages()` exposes the same native records for future score
-consumers and checks payload integrity again before streaming. The dashboard banner
+consumers and checks payload integrity again before streaming. A removed or unreadable
+payload raises a private categorical error, including after the bundle was opened.
+The dashboard banner
 shows recording status, panel release and Beagle version from the saved snapshot.
 No front end discovers live tools or references while reopening a run.
 
@@ -89,4 +93,5 @@ interrupted publication, explicit opt-out, zero-job execution, old formats, priv
 and native haploid/multiallelic contracts. Native acceptance saves all 800 generated records
 over four jobs and verifies source counts, per-ALT preservation, native haploid quality and
 completed-stage reuse. No personal export was used. M8.7 adds dedicated imputed rare-call
-frequency-gate regressions.
+frequency-gate regressions. The [M8 overview review](review_m8_overview.md) records
+the subsequent validation fixes and the M9.1 consumer boundary.

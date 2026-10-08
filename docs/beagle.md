@@ -91,6 +91,9 @@ Windows process-tree termination falls back to direct termination/reaping if the
 `taskkill` command is unavailable or times out. The M8.3 stage additionally validates
 eligible typed-marker retention, dosage/DR2 fields and biological ploidy; structural
 VCF validation alone does not establish those scientific contracts.
+Invalid DEFLATE blocks in a compressed target or completed output produce categorical
+Beagle errors during first execution and reuse. The [M8 overview review](review_m8_overview.md)
+records the corruption regressions and M9.1 handoff.
 
 ## Verification
 

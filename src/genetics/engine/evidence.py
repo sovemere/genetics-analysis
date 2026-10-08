@@ -311,7 +311,18 @@ def _confidence_frequency(
         # inversion. Heterozygotes are unchanged because their complement has the same set.
         assert match.observed_genotype is not None
         called.update(complement(match.observed_genotype))
-    by_allele = {item.allele: item for item in observation.frequencies}
+    return select_observed_frequency(called, observation.frequencies)
+
+
+def select_observed_frequency(
+    called: set[str], frequencies: tuple[PopulationFrequency, ...]
+) -> tuple[PopulationFrequency | None, tuple[str, ...]]:
+    """Share rarity selection between live assembly and saved imputed observations.
+
+    Incomplete coverage stays unknown unless a known observed allele already enters
+    the rare-call band. Unobserved alleles never supply the selected frequency.
+    """
+    by_allele = {item.allele: item for item in frequencies}
     missing = tuple(sorted(called - set(by_allele)))
     if missing:
         # A missing companion allele cannot erase a measured rare observation.

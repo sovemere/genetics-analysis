@@ -57,6 +57,11 @@ Bundle format **15** stores imputed observation detail beside each scalar or con
 marker. Execution schema **2** identifies `card_input=original_array_with_imputed`.
 Reader/writer checks bind quality to the dosage model, source and ploidy, validate
 phase-filled allele counts and ensure confidence cannot bypass its quality ceiling.
+The M8 overview review additionally binds the oriented imputed hard call, observed
+allele frequencies, selected frequency and confidence inputs; saved rarity and
+unknown-frequency ceilings cannot be bypassed by rehashing a changed scalar card.
+Live assembly and saved validation share the same observed-allele selector, without
+recomputing historical weighted scores. Missing REF/ALT placeholders are refused.
 Saved reads require neither dosage caches nor reference databases. Formats **1–14**
 retain their original confidence and observation basis, including schema 1's array-only
 execution record. New fields cannot be relabelled as format 14.
@@ -101,3 +106,4 @@ frequency, native dosage/quality/source, benchmark scope and caveats after stage
 and the synthetic frequency index are removed. Bypassing either the imputed rarity
 ceiling or the missing-companion protection in isolated processes makes the respective
 regressions fail. No personal export was opened and no reference download is required.
+See [the M8 overview review](review_m8_overview.md) for the subsequent saved-reader fixes.

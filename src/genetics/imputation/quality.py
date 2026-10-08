@@ -45,8 +45,9 @@ class ImputationEvidence(NoGenotypeRepr):
             or self.ploidy not in {1, 2}
             or not isinstance(self.ref, str)
             or not self.ref
+            or self.ref == "."
             or not self.alt
-            or any(not isinstance(a, str) or not a for a in self.alt)
+            or any(not isinstance(a, str) or not a or a == "." for a in self.alt)
             or len(set((self.ref, *self.alt))) != len(self.alt) + 1
             or not isinstance(self.dosage, tuple)
             or len(self.dosage) != len(self.alt)

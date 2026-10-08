@@ -19,7 +19,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any
 
-from genetics.external.beagle import BeagleOptions
+from genetics.external.beagle import BeagleError, BeagleOptions
 from genetics.qc.report import InferredSex
 
 from .context import OUTCOMES, REGIONS, ImputationContext
@@ -138,6 +138,14 @@ def _metadata(stage: Mapping[str, Any], execution: Mapping[str, Any]) -> None:
         raise ValueError
     _sha(contract["target_sha256"])
     sex = InferredSex(contract["sex"])
+    # Skipped regions have no job contract to supply this binding. They must still
+    # describe the same biological scope as the recorded sex and chromosome.
+    for report in stage["regions"]:
+        name = report["region"]
+        chrom = "X" if name.startswith("X_") else name.removeprefix("chr")
+        expected_region = next(r for r in regions(chrom, sex) if r.name == name)
+        if report["ploidy"] != expected_region.ploidy:
+            raise ValueError
     options = BeagleOptions(**contract["options"])
     if not options.impute or options.chrom is not None or options.target_ploidy != 2:
         raise ValueError
@@ -297,6 +305,7 @@ def _metadata(stage: Mapping[str, Any], execution: Mapping[str, Any]) -> None:
             first["ref"] != second["ref"]
             or first["map"] != second["map"]
             or second["gt"]["sha256"] != job["phase"]["files"]["result.vcf.gz"]["sha256"]
+            or second["gt"]["size_bytes"] != job["phase"]["files"]["result.vcf.gz"]["size_bytes"]
         ):
             raise ValueError
     if (
@@ -475,7 +484,16 @@ def validate_snapshot(
         present = {n for n in recorded if n in CATALOG_NAMES or is_dosage_name(n)}
         if present != expected_files:
             raise ValueError
-    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration):
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        IndexError,
+        AttributeError,
+        StopIteration,
+        BeagleError,
+    ):
         raise ImputationError(
             "Saved full imputation provenance or dosage evidence is invalid."
         ) from None
@@ -537,7 +555,16 @@ def publish(
                 raise ValueError
         validate_snapshot(directory, raw, execution, cards, hashes, progress)
         return raw, hashes
-    except (OSError, ValueError, TypeError, KeyError, IndexError, AttributeError, StopIteration):
+    except (
+        OSError,
+        ValueError,
+        TypeError,
+        KeyError,
+        IndexError,
+        AttributeError,
+        StopIteration,
+        BeagleError,
+    ):
         raise ImputationError(
             "Imputation snapshot could not be published from its verified stage."
         ) from None
@@ -546,8 +573,15 @@ def publish(
 def iter_saved(directory: Path, raw: Mapping[str, Any] | None) -> Iterator[DosageRecord]:
     if raw is None or raw.get("status") != "recorded":
         raise ImputationError("Full imputation dosage evidence was not recorded for this run.")
-    for file in raw["stage"]["files"]:
-        path = directory / file["name"]
-        if not is_dosage_name(file["name"]) or path.is_symlink() or digest(path) != file["sha256"]:
-            raise ImputationError("Saved dosage payload has changed since the run was opened.")
-        yield from iter_records(path)
+    try:
+        for file in raw["stage"]["files"]:
+            path = directory / file["name"]
+            if (
+                not is_dosage_name(file["name"])
+                or path.is_symlink()
+                or digest(path) != file["sha256"]
+            ):
+                raise ImputationError("Saved dosage payload has changed since the run was opened.")
+            yield from iter_records(path)
+    except OSError:
+        raise ImputationError("Saved dosage payload is missing or unreadable.") from None
