@@ -147,14 +147,15 @@ def _row(fields: Mapping[str, str], *, line: int, harmonized: bool) -> ScoreVari
             raise PgsError(f"Scoring row {line}: invalid effect allele definition.")
     if len(allele) != 1 or (fields.get("other_allele") and len(fields["other_allele"]) != 1):
         features.add("non_snv_alleles")
-    other = fields.get("other_allele", "")
-    if (
-        other
-        and not complex_model
-        and not hla
-        and (not re.fullmatch(r"[ACGTID-]+(?:[,/][ACGTID-]+)*", other) or other == allele)
-    ):
-        raise PgsError(f"Scoring row {line}: invalid other allele definition.")
+    for key in ("other_allele", "hm_inferOtherAllele"):
+        other = fields.get(key, "")
+        if (
+            other
+            and not complex_model
+            and not hla
+            and (not re.fullmatch(r"[ACGTID-]+(?:[,/][ACGTID-]+)*", other) or other == allele)
+        ):
+            raise PgsError(f"Scoring row {line}: invalid other allele definition.")
     if fields.get("hm_inferOtherAllele"):
         features.add("inferred_other_allele")
     value = fields["effect_weight"]

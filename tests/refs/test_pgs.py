@@ -86,6 +86,15 @@ def catalog(tmp_path: Path) -> Catalog:
     return Catalog.from_archive(metadata_archive(tmp_path / "metadata.tar.gz"))
 
 
+@pytest.mark.parametrize("inferred", ["?", "A", "C,,G"])
+def test_review_malformed_harmonized_other_allele_is_rejected(
+    tmp_path: Path, catalog: Catalog, inferred: str
+) -> None:
+    path = scoring_file(tmp_path / "score.txt", row={**BASE, "hm_inferOtherAllele": inferred})
+    with pytest.raises(PgsError, match="other allele"):
+        ScoringFile.open(path, catalog).inspect()
+
+
 @pytest.mark.parametrize("compressed", [False, True])
 def test_public_score_stream_retains_signed_weights_and_raw_fields(
     tmp_path: Path,

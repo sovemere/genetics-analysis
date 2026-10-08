@@ -190,16 +190,20 @@ def _imputed(
     if not records:
         return Dose("no_imputed_observation")
     if len(records) != 1:
-        return Dose("ambiguous_panel_records")
+        return Dose("ambiguous_panel_records", native_record=_panel_proof(records))
     raw = records[0]
+
+    def excluded(status: str) -> Dose:
+        return Dose(status, source=raw.source, ploidy=raw.ploidy, native_record=raw.to_dict())
+
     if raw.status != "resolved":
-        return Dose("ploidy_conflict")
+        return excluded("ploidy_conflict")
     record = parse_record(raw.to_dict())
     if record.ploidy != _ploidy(row.chrom, row.position, sex):
-        return Dose("ploidy_conflict")
+        return excluded("ploidy_conflict")
     pair = _pair(row)
     if pair is None:
-        return Dose("allele_contract_missing")
+        return excluded("allele_contract_missing")
     alleles = {record.ref, *record.alt}
     # Both score alleles must describe this reference locus. A second ALT does not
     # change an allele's dose, but its REF quality stays unknown without covariance.
@@ -228,7 +232,7 @@ def _imputed(
             )
         flipped = tuple(complement(a) for a in pair)
         if not set(flipped) <= alleles:
-            return Dose("allele_mismatch")
+            return excluded("allele_mismatch")
         effect = complement(effect)
         orientation = "complemented"
     if record.source == "direct":
@@ -241,7 +245,7 @@ def _imputed(
     else:
         dose, quality = ImputationEvidence.from_record(record).allele_dosage(effect)
     if dose is None:
-        return Dose("no_call")
+        return excluded("no_call")
     if is_strand_ambiguous(pair):
         opposite = complement(effect)
         if record.source == "direct":
@@ -253,7 +257,7 @@ def _imputed(
         else:
             alternate, _ = ImputationEvidence.from_record(record).allele_dosage(opposite)
         if dose != alternate:
-            return Dose("strand_ambiguous")
+            return excluded("strand_ambiguous")
     return Dose(
         "observed",
         dose,
@@ -268,7 +272,10 @@ def _imputed(
 
 
 def _original(row: ScoreVariant, probes: Sequence[Mapping[str, Any]], sex: InferredSex) -> Dose:
-    dose = _direct(row, probes, sex)
+    return _original_proof(_direct(row, probes, sex), probes)
+
+
+def _original_proof(dose: Dose, probes: Sequence[Mapping[str, Any]]) -> Dose:
     if not probes:
         return dose
     return replace(
@@ -279,6 +286,20 @@ def _original(row: ScoreVariant, probes: Sequence[Mapping[str, Any]], sex: Infer
             "probes": [dict(probe) for probe in probes],
         },
     )
+
+
+def _panel_proof(records: Sequence[DosageRecord]) -> Mapping[str, Any] | None:
+    if not records:
+        return None
+    if len(records) == 1:
+        return records[0].to_dict()
+    return {"kind": "ambiguous_panel_records", "records": [r.to_dict() for r in records]}
+
+
+def validate_mode_flags(*flags: bool) -> None:
+    """Fail before any reference licence gate or personal-input work."""
+    if any(type(value) is not bool for value in flags):
+        raise PgsError("Scoring mode flags must be explicit booleans.")
 
 
 def _unusable(row: ScoreVariant) -> str | None:
@@ -306,6 +327,28 @@ def _number(value: str) -> float:
 
 
 def _native_sum(
+    terms: Sequence[Term],
+    phase: str,
+    *,
+    root: Path,
+    plink: Plink2,
+) -> dict[str, Any]:
+    try:
+        return _native_sum_impl(terms, phase, root=root, plink=plink)
+    except (OSError, OverflowError, Plink2Error) as exc:
+        raise PgsError(
+            "PLINK score execution or validation failed; no score result accepted."
+        ) from exc
+    finally:
+        # Include matrix preparation failures in cleanup, not just native execution.
+        try:
+            (root / f"{phase}.pgs-dose-matrix.vcf").unlink(missing_ok=True)
+            (root / f"{phase}.pgs-weights.tsv").unlink(missing_ok=True)
+        except OSError as exc:
+            raise PgsError("Could not remove private scoring intermediates.") from exc
+
+
+def _native_sum_impl(
     terms: Sequence[Term],
     phase: str,
     *,
@@ -364,6 +407,8 @@ def _native_sum(
         "1024",
     ]
     try:
+        prefix.with_suffix(".sscore").unlink(missing_ok=True)
+        prefix.with_name(prefix.name + ".sscore.vars").unlink(missing_ok=True)
         plink.run(args, out=prefix)
         lines = prefix.with_suffix(".sscore").read_text(encoding="utf-8").splitlines()
         if len(lines) != 2:
@@ -387,11 +432,14 @@ def _native_sum(
             raise PgsError("PLINK's scored term identities disagree with the matched observations.")
         actual = _number(report["WEIGHT_SUM"])
         native_dose_sum = math.fsum(float(d.value) for _, d in usable if d.value is not None)
-        input_sum = math.fsum(
+        contributions = [
             float(t.weight) * float(d.value)
             for t, d in usable
             if t.weight is not None and d.value is not None
-        )
+        ]
+        if any(not math.isfinite(value) for value in contributions):
+            raise PgsError("Nonfinite native effect-dose arithmetic; no result accepted.")
+        input_sum = math.fsum(contributions)
         quantization = (
             math.fsum(abs(float(t.weight)) for t, _ in usable if t.weight is not None) / 32768
         )
@@ -399,6 +447,8 @@ def _native_sum(
         # The text report uses six significant digits; include its last printed unit.
         rounding = 10 ** (math.floor(math.log10(abs(actual))) - 5) if actual else 0.000001
         tolerance = quantization + rounding + 1e-10 * max(1.0, abs(input_sum))
+        if not all(math.isfinite(v) for v in (native_dose_sum, input_sum, tolerance)):
+            raise PgsError("Nonfinite native effect-dose arithmetic; no result accepted.")
         if abs(actual - input_sum) > tolerance:
             raise PgsError("PLINK sum disagrees with native effect-dose arithmetic.")
         dosage_tolerance = len(usable) / 32768 + 0.00001 * max(1.0, abs(native_dose_sum))
@@ -428,10 +478,6 @@ def _native_sum(
         raise PgsError(
             "PLINK score execution or validation failed; no score result accepted."
         ) from exc
-    finally:
-        # Personal matrix/selection intermediates are private and also gitignored.
-        vcf.unlink(missing_ok=True)
-        weights.unlink(missing_ok=True)
 
 
 def score(
@@ -455,8 +501,7 @@ def score(
     array. Its before-imputation result is then unavailable, never reconstructed from
     the partial stage-direct stream. Low quality and unknown phase quality are retained.
     """
-    if any(type(v) is not bool for v in (no_impute, allow_restricted, allow_in_repo)):
-        raise PgsError("Scoring mode flags must be explicit booleans.")
+    validate_mode_flags(no_impute, allow_restricted, allow_in_repo)
     if no_impute and (dosages is not None or table is None):
         raise PgsError("Direct-only scoring requires the original array and no dosage stream.")
     if not no_impute and dosages is None:
@@ -503,16 +548,18 @@ def score(
         locus = (row.chrom or "", row.position or 0)
         reason = _unusable(row)
         before = (
-            Dose(reason)
-            if reason
-            else Dose("not_recorded")
+            Dose("not_recorded")
             if table is None
+            else _original_proof(Dose(reason), probes.get(locus, []))
+            if reason
             else _original(row, probes.get(locus, []), sex)
         )
         if no_impute:
             after = Dose("disabled")
         elif reason:
-            after = Dose(reason)
+            after = Dose(reason, native_record=_panel_proof(records.get(locus, [])))
+            if after.native_record is None and table is not None:
+                after = before
         elif table is not None and before.status not in {"marker_absent", "no_call"}:
             after = before  # original called probes always retain precedence, including failures
         else:
@@ -544,8 +591,14 @@ def score(
             "in-repo paths require explicit opt-in."
         )
     if unsupported:
-        before_result = after_result = {
-            "status": "unsupported_model",
+        before_result = {
+            "status": "not_recorded" if table is None else "unsupported_model",
+            "sum": None,
+            "terms": 0,
+            "native_alleles": 0,
+        }
+        after_result = {
+            "status": "disabled" if no_impute else "unsupported_model",
             "sum": None,
             "terms": 0,
             "native_alleles": 0,
@@ -553,7 +606,10 @@ def score(
         native_version = None
         native_sha = None
     else:
-        root.mkdir(parents=True, exist_ok=True)
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PgsError("Could not prepare the private scoring workspace.") from exc
         native = plink or Plink2.discover()
         native_sha = fingerprint(native.path)["sha256"] if native.path.is_file() else None
         if progress and table is not None:
@@ -609,10 +665,13 @@ def score(
     return ScoreResult(scoring.headers["pgs_id"], payload["status"], payload)
 
 
-def write_result(
-    result: ScoreResult, path: Path | None = None, *, allow_in_repo: bool = False
-) -> Path:
-    """Publish a private score atomically; an existing result is never overwritten."""
+def result_destination(path: Path | None = None, *, allow_in_repo: bool = False) -> Path:
+    """Choose and preflight private output before starting an expensive analysis.
+
+    Publication repeats the checks and atomically rejects a concurrent destination.
+    This checks path constraints without creating an output or reserving its name.
+    """
+    validate_mode_flags(allow_in_repo)
     destination = path or cache_dir() / "pgs" / f"{uuid.uuid4().hex}.pgs-score.json"
     if not destination.name.endswith(".pgs-score.json"):
         raise PgsError("A personal score output must use the .pgs-score.json suffix.")
@@ -620,11 +679,24 @@ def write_result(
         raise PgsError(
             "Personal score output requires an outside-checkout path or explicit opt-in."
         )
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if destination.exists() or destination.is_symlink():
-        raise PgsError("The requested score output already exists; choose a new path.")
+    try:
+        if destination.exists() or destination.is_symlink():
+            raise PgsError("The requested score output already exists; choose a new path.")
+        if any(parent.exists() and not parent.is_dir() for parent in destination.parents):
+            raise PgsError("Could not publish the private score result: invalid parent directory.")
+    except OSError as exc:
+        raise PgsError("Could not validate the private score destination.") from exc
+    return destination
+
+
+def write_result(
+    result: ScoreResult, path: Path | None = None, *, allow_in_repo: bool = False
+) -> Path:
+    """Publish a private score atomically; an existing result is never overwritten."""
+    destination = result_destination(path, allow_in_repo=allow_in_repo)
     pending = destination.with_name(destination.name + f".{uuid.uuid4().hex}.part")
     try:
+        destination.parent.mkdir(parents=True, exist_ok=True)
         with pending.open("x", encoding="utf-8", newline="") as handle:
             json.dump(result.to_dict(), handle, sort_keys=True, indent=2, allow_nan=False)
             handle.write("\n")
@@ -635,5 +707,8 @@ def write_result(
     except (OSError, ValueError) as exc:
         raise PgsError("Could not publish the private score result.") from exc
     finally:
-        pending.unlink(missing_ok=True)
+        try:
+            pending.unlink(missing_ok=True)
+        except OSError as exc:
+            raise PgsError("Could not remove the pending private score result.") from exc
     return destination

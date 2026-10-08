@@ -4,6 +4,8 @@ M9.1 reads public reference weights and authoritative per-score terms. Inspectio
 computes no personal score. [M9.2 now computes private PLINK sums](pgs_scoring.md);
 percentiles, outcome calibration and ancestry adjustment remain M9.4–M9.6.
 No bundle-format change is introduced.
+The [M9 diff review](review_m9_session.md) tightens validation of harmonized inferred
+other alleles to the same syntax/distinctness contract as authored other alleles.
 
 ## Acquisition and inspection
 

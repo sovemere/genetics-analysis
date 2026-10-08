@@ -187,6 +187,198 @@ def fake() -> MatrixPlink:
     return MatrixPlink(Path("synthetic-plink"), "synthetic-test")
 
 
+@pytest.mark.parametrize("case", ["strand", "alleles", "ploidy", "duplicates"])
+def test_review_excluded_native_terms_retain_full_evidence(
+    tmp_path: Path, fake: MatrixPlink, case: str
+) -> None:
+    scoring = definition(tmp_path, [weight(102, other="T" if case == "strand" else "C")])
+    records = (
+        [dosage(ref="T", values=(1.25,))]
+        if case == "strand"
+        else [dosage(ref="G", alt=("C",))]
+        if case == "alleles"
+        else [dosage(ploidy=1, genotype=(0,), values=(0.25,))]
+        if case == "ploidy"
+        else [dosage(), dosage(values=(0.25,))]
+    )
+    data = score(
+        scoring,
+        table=None,
+        dosages=records,
+        sex=InferredSex.FEMALE,
+        plink=fake,
+        workspace=tmp_path / "work",
+    ).to_dict()
+    observed = data["terms"][0]["after"]
+    assert observed["status"] != "observed"
+    proof = observed["native_record"]
+    assert proof == (
+        records[0].to_dict()
+        if len(records) == 1
+        else {"kind": "ambiguous_panel_records", "records": [r.to_dict() for r in records]}
+    )
+
+
+@pytest.mark.parametrize("saved", [False, True])
+def test_review_unsupported_models_keep_phase_availability_and_input_evidence(
+    tmp_path: Path, fake: MatrixPlink, saved: bool
+) -> None:
+    scoring = definition(tmp_path, [weight(102, is_dominant="True")])
+    original = probe(102)
+    record = dosage()
+    data = score(
+        scoring,
+        table=None if saved else table([original]),
+        dosages=[record] if saved else None,
+        no_impute=not saved,
+        sex=InferredSex.FEMALE,
+        plink=fake,
+        workspace=tmp_path / "work",
+    ).to_dict()
+    assert data["status"] == "unsupported_model"
+    assert data["before"]["status"] == ("not_recorded" if saved else "unsupported_model")
+    assert data["after"]["status"] == ("unsupported_model" if saved else "disabled")
+    term = data["terms"][0]
+    assert term["before"]["status"] == ("not_recorded" if saved else "unsupported_model")
+    assert (term["after"] if saved else term["before"])["native_record"] == (
+        record.to_dict() if saved else {"kind": "original_array", "probes": [original]}
+    )
+
+
+def test_review_matrix_write_failure_is_categorical_and_cleans_partial_files(
+    tmp_path: Path, fake: MatrixPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scoring = definition(tmp_path, [weight()])
+    native_open = Path.open
+
+    def blocked(path: Path, *args: Any, **kwargs: Any) -> Any:
+        if path.name.endswith(".pgs-weights.tsv"):
+            raise PermissionError("fabricated write failure")
+        return native_open(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", blocked)
+    with pytest.raises(PgsError, match="execution or validation"):
+        score(
+            scoring,
+            table=table([probe()]),
+            no_impute=True,
+            sex=InferredSex.FEMALE,
+            plink=fake,
+            workspace=tmp_path / "work",
+        )
+    assert not list((tmp_path / "work").glob("*.vcf"))
+
+
+def test_review_output_parent_failure_is_categorical(tmp_path: Path) -> None:
+    parent = tmp_path / "a-file"
+    parent.write_text("synthetic obstacle", encoding="utf-8")
+    result = engine.ScoreResult("PGS000001", "no_usable_observations", {})
+    with pytest.raises(PgsError, match="publish"):
+        write_result(result, parent / "score.pgs-score.json")
+
+
+def test_review_nonfinite_arithmetic_cannot_weaken_native_verification(
+    tmp_path: Path, fake: MatrixPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scoring = definition(tmp_path, [weight(value="1e308")])
+    native_run = MatrixPlink.run
+
+    def finite_wrong_report(self: MatrixPlink, args: Sequence[str], **kwargs: Any) -> Any:
+        result = native_run(self, args, **kwargs)
+        path = kwargs["out"].with_suffix(".sscore")
+        path.write_text(path.read_text().replace("inf", "1e308"), encoding="utf-8")
+        return result
+
+    monkeypatch.setattr(MatrixPlink, "run", finite_wrong_report)
+    with pytest.raises(PgsError, match="arithmetic"):
+        score(
+            scoring,
+            table=table([probe(copies=2)]),
+            no_impute=True,
+            sex=InferredSex.FEMALE,
+            plink=fake,
+            workspace=tmp_path / "work",
+        )
+
+
+def test_review_stale_native_reports_cannot_be_reused_as_new_execution(
+    tmp_path: Path, fake: MatrixPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    scoring = definition(tmp_path, [weight()])
+    kwargs: dict[str, Any] = {
+        "table": table([probe()]),
+        "no_impute": True,
+        "sex": InferredSex.FEMALE,
+        "plink": fake,
+        "workspace": tmp_path / "work",
+    }
+    assert score(scoring, **kwargs).status == "computed"
+
+    def no_report(self: MatrixPlink, args: Sequence[str], *, out: Path, **kw: Any) -> Any:
+        return Plink2ResultInfo(tuple(args), 0, "", "", out, out.with_suffix(".log"), ())
+
+    monkeypatch.setattr(MatrixPlink, "run", no_report)
+    with pytest.raises(PgsError, match="execution or validation"):
+        score(scoring, **kwargs)
+
+
+@pytest.mark.parametrize("name", ["no_impute", "allow_restricted"])
+def test_review_workflow_rejects_nonboolean_flags_before_ingest(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    scoring = definition(tmp_path, [weight()], terms="CC-BY-NC-ND-4.0")
+
+    def untouched(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("invalid flags must fail before reading personal input")
+
+    monkeypatch.setattr(workflow, "ingest", untouched)
+    kwargs: dict[str, Any] = {"allow_restricted": True, name: "false"}
+    with pytest.raises(PgsError, match="booleans"):
+        workflow.score_export(scoring, tmp_path / "absent-export.txt", **kwargs)
+
+
+@pytest.mark.parametrize("case", ["suffix", "checkout", "exists", "parent"])
+def test_review_cli_validates_output_before_analysis(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, case: str
+) -> None:
+    scoring = definition(tmp_path, [weight()])
+    paths = {
+        "suffix": tmp_path / "bad.json",
+        "checkout": repo_root() / "tmp" / "never-created-review.pgs-score.json",
+        "exists": tmp_path / "exists.pgs-score.json",
+        "parent": tmp_path / "parent-file" / "score.pgs-score.json",
+    }
+    paths["exists"].write_text("synthetic existing result", encoding="utf-8")
+    paths["parent"].parent.write_text("synthetic obstacle", encoding="utf-8")
+    monkeypatch.setattr(
+        Catalog,
+        "default",
+        lambda: Catalog(
+            {"PGS000001": scoring.metadata}, scoring.metadata_source, "pgs_all_metadata_scores.csv"
+        ),
+    )
+
+    def untouched(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("invalid output must fail before analysis")
+
+    monkeypatch.setattr(workflow, "score_export", untouched)
+    result = CliRunner().invoke(
+        app,
+        [
+            "pgs",
+            "score",
+            str(scoring.path),
+            "--input",
+            str(tmp_path / "absent-export.txt"),
+            "--output",
+            str(paths[case]),
+            "--json",
+        ],
+    )
+    assert result.exit_code == 1
+    assert json.loads(result.stdout)["ok"] is False
+
+
 def test_both_sums_preserve_original_probes_low_quality_and_unknown_phase_quality(
     tmp_path: Path, fake: MatrixPlink
 ) -> None:

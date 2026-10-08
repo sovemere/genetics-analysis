@@ -9,7 +9,7 @@ from genetics.ancestry.context import infer_ancestry
 from genetics.imputation import impute
 from genetics.ingest import ingest
 from genetics.pgs.catalog import PgsError
-from genetics.pgs.engine import ScoreResult, score
+from genetics.pgs.engine import ScoreResult, score, validate_mode_flags
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 from genetics.run.bundle import read_bundle
@@ -28,6 +28,7 @@ def score_export(
     Uses the same ingest, ancestry and imputation functions as the dashboard/analysis
     engine. A failing default imputation stage never becomes a direct-only score.
     """
+    validate_mode_flags(no_impute, allow_restricted)
     try:
         scoring.metadata.license.require_usable(opt_in=allow_restricted)
     except ValueError as exc:
@@ -61,6 +62,7 @@ def score_saved(
     progress: Callable[[str], None] | None = None,
 ) -> ScoreResult:
     """Score a validated saved full stage; original-array sums stay not recorded."""
+    validate_mode_flags(allow_restricted)
     try:
         scoring.metadata.license.require_usable(opt_in=allow_restricted)
     except ValueError as exc:
