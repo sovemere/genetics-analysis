@@ -1,9 +1,51 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-08, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 M9.1–M9.2 are now implemented. Next is M9.3.
+
+## M9.1–M9.2 review and M9.3 entry contract
+
+The [diff review](review_m9_session.md) fixes inferred-allele validation, excluded-term
+evidence loss, phase-state overwrites, early flag/output validation, filesystem error
+boundaries, stale native reports and arithmetic overflow. Nineteen new synthetic cases
+reproduced the defects before their fixes; the focused M9 suite passes 135 cases,
+including pinned PLINK arithmetic. No known blocker remains for M9.3.
+Review acceptance: **2,726 tests passed, five existing Windows skips**, with all pinned
+native tools and Java 17. All four strict type targets, lint/format, fixture reproduction,
+full dbSNP card lint (51 cards, 268 renders, 35 references) and staged privacy scanning pass.
+Cached public-reference parsing also passes offline; no personal export or run was used.
+
+M9.3 should implement coverage in the shared engine and expose it through private
+score JSON/CLI for the M9.6 card renderer. Use `ScoringFile.iter_variants()` for the
+source denominator and `ScoreResult.record["terms"]` for per-phase observations.
+Keep a versioned persisted coverage contract and validate it when reloading.
+
+- Define both the numerator and denominator. Count all authored weighted rows, including
+  unresolved/excluded/model-ineligible rows; distinguish those rows from allele-defined
+  unique variants, unique positions and duplicate original probes. Preserve raw definitions
+  where a stable allele/locus identity cannot be established.
+- Report before and after independently. An `observed` zero dose is covered; a no-call,
+  absent marker, allele/strand/ploidy conflict or unsupported definition is not a scored
+  term. Position presence and usable allele-dose coverage are separate claims.
+- `not_recorded` and `disabled` require unavailable coverage rather than 0%. Saved stage
+  direct records are not a complete original-chip inventory. Preserve whole-model
+  unsupported and partially scored states even when some individual rows have observations.
+- Preserve per-ALT quality and method alongside contributions, including low DR2,
+  phase-filled unknown quality, unknown multiallelic REF quality and native haploid doses.
+  Quality must not scale dose or hide rows; its confidence use belongs to M9.5.
+- Retained exclusion proof may be an original-array probe envelope, one native record or
+  an `ambiguous_panel_records` envelope. Older schema-1 score files can lack this proof
+  or have overwritten phase states; missing proof must stay unknown or be recomputed.
+  PLINK matrix counts and `native_alleles` must never substitute for variant coverage.
+
+Acceptance must cover repeated rows at one locus, multiple effect alleles, concordant and
+conflicting duplicate probes, missing/no-call versus observed zero, low/unknown quality,
+multiallelic REF, haploid X/PAR, unresolved/special-model rows, original-call precedence,
+saved-only input and explicit no-impute. Verify CLI/API/persisted equality and corruption
+rejection with synthetic data. M9.4–M9.6 still own distributions, portability and rendering;
+M9.3 need not invent a percentile or phenotype interpretation to supply renderer data.
 
 ## Implemented M9.2 and next scope
 

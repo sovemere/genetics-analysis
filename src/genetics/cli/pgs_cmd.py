@@ -114,7 +114,7 @@ def score_pgs(
     from genetics.external.plink2 import Plink2Error
     from genetics.imputation.target import ImputationError
     from genetics.ingest.errors import IngestError
-    from genetics.pgs.engine import write_result
+    from genetics.pgs.engine import result_destination, write_result
     from genetics.pgs.workflow import score_export, score_saved
     from genetics.run.bundle import BundleError
 
@@ -123,6 +123,7 @@ def score_pgs(
             raise PgsError("Choose exactly one of --input or --run.")
         if run_path is not None and no_impute:
             raise PgsError("--no-impute requires the original export, not a saved dosage stream.")
+        destination = result_destination(output, allow_in_repo=allow_in_repo)
         catalog = (
             Catalog.default()
             if metadata is None
@@ -151,7 +152,7 @@ def score_pgs(
             else None
         )
         assert result is not None
-        destination = write_result(result, output, allow_in_repo=allow_in_repo)
+        destination = write_result(result, destination, allow_in_repo=allow_in_repo)
     except (
         PgsError,
         ProcessError,

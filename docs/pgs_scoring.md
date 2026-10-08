@@ -32,6 +32,9 @@ under the OS user-data cache outside the checkout. `--output` selects a new file
 that suffix. An in-repo destination needs explicit `--allow-in-repo` and remains ignored.
 Publication uses a same-directory temporary file and an atomic no-overwrite link;
 an interruption or failed write does not publish a partial result.
+The CLI checks the destination suffix, checkout opt-in, existing file and parent-directory
+constraints before analysis. Publication rechecks them; concurrent creation or permission
+changes still fail without overwriting an existing result.
 
 `--json` emits the private record: scores, original probe evidence, native per-ALT
 observations, source/quality/ploidy, exclusions, raw score metadata, study citations,
@@ -76,6 +79,9 @@ observations do not contribute a fabricated mean dose. A zero observed dose cont
 zero and remains a scored term. Zero usable observations yield null, not a numerical
 zero score. A sum from some rows is labeled `scored_partial`; these counters describe
 weighted terms, not distinct marker-position coverage.
+Excluded terms retain their original probes or native record. Multiple native records
+use an `ambiguous_panel_records` envelope with every candidate retained. Unsupported
+models preserve saved-only `not_recorded` before and opted-out `disabled` after states.
 
 ## Native dose, quality and numerical verification
 
@@ -113,6 +119,8 @@ plus report rounding and a small floating-point tolerance. The native report sum
 input-dose arithmetic audit and bound are saved separately. The dosage total is also
 checked. Nonfinite, wrong-target, missing-term, count or arithmetic failures accept no
 score. The executable is hashed before/after both phases to reject a changed producer.
+Expected native reports are removed before execution so a reused workspace cannot supply
+stale results. Weighted products and verification bounds must also remain finite.
 
 ## Acceptance and next scope
 
@@ -124,7 +132,7 @@ default ancestry/imputation ordering and categorical imputation failure. A real 
 format-16 bundle is scored after its stage cache is removed, with CLI/engine/saved-JSON
 equality. No personal export or new reference payload is used.
 
-Final native acceptance passes **2,707 tests, five existing Windows skips**. Forty-seven
+M9.2's original native acceptance passed **2,707 tests, five existing Windows skips**. Forty-seven
 new synthetic cases cover this milestone. All four strict Windows/Linux × Python
 3.11/3.13 type targets, lint/format, fixture reproduction and full card lint pass
 (51 cards, 268 renders, 35 dbSNP marker references). The pinned native arithmetic case
@@ -138,6 +146,11 @@ reference distributions/percentiles, M9.5 owns study-to-sample ancestry portabil
 confidence, and M9.6 owns the calibrated card renderer. Raw sums carry neither a
 phenotype point estimate nor an outcome probability; `percentile` is null and portability
 is explicitly not computed. Low-quality evidence remains available for those later stages.
+See the [M9 review](review_m9_session.md) and [M9.3 entry contract](handoff.md) for saved
+evidence compatibility and coverage acceptance requirements.
+The reviewed implementation passes **2,726 tests, five existing Windows skips**, including
+19 new defect regressions; the same four type targets, lint/format, fixtures and full card
+lint pass. No known blocker remains for M9.3.
 
 Sources: [PLINK score semantics](https://www.cog-genomics.org/plink/2.0/score),
 [dosage import/storage](https://www.cog-genomics.org/plink/2.0/input),
