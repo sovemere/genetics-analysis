@@ -811,7 +811,7 @@ def test_a_credentialled_source_stays_pending_without_its_key(
 def test_fetch_writes_a_lock_and_reports_unimplemented_steps(tmp_path: Path) -> None:
     source = make_source(
         post_process=(
-            manifest.PostProcess(step="parse_pgs_score_licenses", params={"output": "x/"}),
+            manifest.PostProcess(step="subset_vcf_to_array_positions", params={"output": "x/"}),
         )
     )
     parsed = manifest.Manifest(schema_version=1, sources=(source,))
@@ -829,8 +829,8 @@ def test_fetch_writes_a_lock_and_reports_unimplemented_steps(tmp_path: Path) -> 
     assert lock_path.is_file()
 
     result = report.sources[0]
-    assert result.pending_steps and "parse_pgs_score_licenses" in result.pending_steps[0]
-    assert "M9.1" in result.pending_steps[0], "an unimplemented step should name its owner"
+    assert result.pending_steps and "subset_vcf_to_array_positions" in result.pending_steps[0]
+    assert "M7.2" in result.pending_steps[0], "an unimplemented step should name its owner"
 
 
 def test_fetch_executes_implemented_post_processing_and_reports_it(tmp_path: Path) -> None:

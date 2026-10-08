@@ -356,6 +356,14 @@ desktop.ini
 !.vscode/extensions.json
 
 # M6.1 ROH segments, summaries, and sample-specific marker selections
+# M9.1 public PGS payloads and derived metadata are fetched, never vendored.
+# Personal score outputs remain M9.2 and will need their own patterns.
+*.pgs-reference.json
+pgs_score_licenses.json
+PGS*_hmPOS_*.txt
+PGS*_hmPOS_*.txt.gz
+PGS??????.txt
+PGS??????.txt.gz
 *.hom
 *.hom.*
 *.roh.json

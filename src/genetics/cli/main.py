@@ -34,6 +34,9 @@ def _add_refs_commands() -> None:
 
     app.add_typer(refs_app, name="refs")
     app.add_typer(tools_app, name="tools")
+    from genetics.cli.pgs_cmd import pgs_app
+
+    app.add_typer(pgs_app, name="pgs")
 
 
 def _add_cards_commands() -> None:

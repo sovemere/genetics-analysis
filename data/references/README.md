@@ -96,6 +96,13 @@ See the [handoff](../../docs/handoff.md) for full-reference acceptance and the n
 
 ## Adding a source
 
+M9.1 executes `parse_pgs_score_licenses` for `pgs_catalog_metadata`, reading the authoritative
+scores CSV without extracting its archive. The derived JSON retains raw per-score metadata,
+classified terms and exact input identity, with the shared checksum/provenance sidecar.
+`pgs000001_grch37` is the first selected public scoring-file source. Use `genetics pgs inspect`
+to validate all rows and their metadata join offline; it computes no personal score.
+See [PGS ingestion](../../docs/pgs_ingestion.md).
+
 Read `genetics/refs/licenses.py` first. A source names a licence id; it does not describe
 one, and an id that module does not know refuses to load rather than defaulting to
 permissive. Adding a source under an unfamiliar licence means reading the terms and

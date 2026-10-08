@@ -186,6 +186,8 @@ _STEPS: tuple[Step, ...] = (
         name="parse_pgs_score_licenses",
         summary="Extract each PGS Catalog score's machine-readable terms of use.",
         required_params=("output",),
+        optional_params=("input",),
+        implemented=True,
         milestone="M9.1",
     ),
 )
@@ -499,6 +501,11 @@ def _artifact_rows(output: Path) -> int:
             anchors = payload.get("anchors") if isinstance(payload, dict) else None
             if isinstance(anchors, list):
                 return len(anchors)
+            if isinstance(payload, dict) and payload.get("kind") == "pgs_score_licenses":
+                scores = payload.get("scores")
+                if isinstance(scores, dict):
+                    return len(scores)
+                raise ProcessError("Malformed PGS metadata row count")
             if isinstance(payload, dict) and payload.get("kind") in {"bref3_panel", "genetic_maps"}:
                 if type(payload.get("rows")) is not int or payload["rows"] < 0:
                     raise ProcessError("Malformed prepared-reference row count")
@@ -2248,6 +2255,60 @@ def _run_modern_panel(
     return ProcessResult(declared.step, ProcessStatus.CREATED, output_name, rows)
 
 
+def _run_pgs_licenses(
+    declared: PostProcess,
+    source_dir: Path,
+    input_name: str,
+    *,
+    verify_only: bool,
+    input_sha256: str,
+) -> ProcessResult:
+    from genetics.pgs.catalog import Catalog, PgsError
+
+    output_name = str(declared.params["output"])
+    output = _inside(source_dir, output_name, label="output")
+    input_path = _inside(source_dir, input_name, label="input")
+    expected = _expected_provenance(declared, input_path, input_sha256)
+    if not input_path.is_file():
+        return ProcessResult(
+            declared.step, ProcessStatus.FAILED, output_name, detail="Missing PGS metadata archive."
+        )
+    if output.suffix != ".json":
+        raise ProcessError("PGS metadata output must be JSON.")
+    if output.is_file():
+        try:
+            catalog = Catalog.load(output, expected_provenance=expected)
+        except PgsError:
+            if verify_only:
+                return ProcessResult(
+                    declared.step,
+                    ProcessStatus.FAILED,
+                    output_name,
+                    detail="Invalid PGS metadata index.",
+                )
+        else:
+            return ProcessResult(
+                declared.step,
+                ProcessStatus.VERIFIED if verify_only else ProcessStatus.ALREADY_PRESENT,
+                output_name,
+                len(catalog.scores),
+            )
+    if verify_only:
+        return ProcessResult(
+            declared.step,
+            ProcessStatus.PENDING,
+            output_name,
+            detail="PGS metadata not processed; run refs fetch for this source.",
+        )
+    catalog = Catalog.from_archive(input_path)
+    if catalog.source["sha256"] != input_sha256:
+        raise ProcessError("PGS metadata differs from the verified download.")
+    _write_json_atomic(output, catalog.to_json())
+    _write_provenance(output, expected, len(catalog.scores))
+    Catalog.load(output, expected_provenance=expected)
+    return ProcessResult(declared.step, ProcessStatus.CREATED, output_name, len(catalog.scores))
+
+
 def run(
     source: Source,
     *,
@@ -2336,14 +2397,26 @@ def run(
                 if results[-1].status is ProcessStatus.FAILED:
                     break
                 continue
-            input_name = str(declared.params["input"])
+            input_name = str(
+                declared.params.get("input", "pgs_all_metadata.tar.gz")
+                if declared.step == "parse_pgs_score_licenses"
+                else declared.params["input"]
+            )
             input_path = _inside(source_dir, input_name, label="input")
             input_sha256 = (input_digests or {}).get(input_name)
             if input_sha256 is None and input_path.is_file():
                 input_sha256 = _sha256(input_path)
             if input_sha256 is None:
                 input_sha256 = "0" * 64  # executor returns the clearer missing-input error
-            if declared.step == "build_gnomad_frequency_index":
+            if declared.step == "parse_pgs_score_licenses":
+                result = _run_pgs_licenses(
+                    declared,
+                    source_dir,
+                    input_name,
+                    verify_only=verify_only,
+                    input_sha256=input_sha256,
+                )
+            elif declared.step == "build_gnomad_frequency_index":
                 from genetics.health.frequencies import INDEX_VERSION, SOURCE, FrequencyIndex
 
                 output_name = str(declared.params["output"])
@@ -2471,6 +2544,7 @@ def assert_registry_is_honest() -> None:
         "build_gnomad_frequency_index",
         "convert_to_bref3",
         "prepare_genetic_maps",
+        "parse_pgs_score_licenses",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:
