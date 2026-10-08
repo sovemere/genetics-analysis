@@ -1,8 +1,44 @@
-# Handoff: M8.7 imputed rare-variant frequency gates
+# Handoff: M9 PRS engine
 
-As of 2026-10-07, **M0-M7 and M8.1-M8.6 are implemented**. Full local reference
-verification and synthetic/offline acceptance passed. Read [AGENTS.md](../AGENTS.md)
-first, then [the roadmap](../phase1_roadmap.md). Next is M8.7.
+As of 2026-10-08, **M0-M8 are implemented**. Full local reference verification was
+completed in the preceding milestones; the current synthetic/offline native suite
+passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
+Next is M9.1.
+
+## Implemented M8.7 and next scope
+
+Thirty-two synthetic regressions in `tests/imputation/test_quality.py` prove the
+strict rarity ceiling across untyped/phase-filled sources and native haploid/diploid
+observations. DR2 1 and strong replicated literature cannot rescue a frequency below
+0.00001; equality and the next higher float remain outside that band. Unknown
+phase-filled quality stays unknown and contributes zero. Known rare alleles survive
+missing companion frequencies; common-only incomplete coverage stays unknown and an
+unobserved rare allele does not penalize the call. Multi-marker findings inherit the
+weakest marker without averaging quality or assuming phase.
+
+Fully saved format-16 runs retain rarity, selected frequency, source/native dosage and
+quality, benchmark scope and caveats in CLI JSON and dashboard face/detail after the
+synthetic stage cache and frequency index are removed. Enabled direct probes and
+explicit opt-out preserve original observations. ClinVar still consumes original-array
+input. Chip 16% and BRCA 4.2% benchmarks stay study-specific and explicitly uncalibrated
+for imputation, never individual posterior probabilities. Isolated in-memory bypasses
+fail all four below-boundary cases and both missing-companion cases. The shared engine
+needed no fix; bundle format 16 and persisted meanings are unchanged.
+
+Validation: **2,561 tests passed, five existing Windows skips**, with pinned native ROH,
+Beagle and bref3 tools enabled. All four strict Windows/Linux × Python 3.11/3.13 type
+targets, lint/format, fixture reproduction and full dbSNP card lint pass (51 cards,
+268 renders, 35 marker references). No personal export was opened; new tests need no
+reference downloads. See [the quality guide](imputation_quality.md#rare-call-frequency-gate-m87).
+
+**Next M9.1:** parse PGS Catalog scoring files and bind each score to its authoritative
+licence in `pgs_all_metadata_scores.csv`'s `License/Terms of Use` column. The scoring
+header is not the licence authority (AGENTS.md §4.8); do not assume catalogue-wide
+permission. M9 then owns PLINK scoring, pre/post-imputation per-score coverage,
+ancestry-matched distributions and portability calibration. Preserve the existing
+native effect-allele dosage/quality interface: no DR2 dose scaling, no per-ALT quality
+averaging and no invented multiallelic REF quality. The pending AADR-population to
+study-ancestry mapping and `declined` portability treatment belong to M9.5.
 
 ## Implemented M8.6 and next scope
 
@@ -39,9 +75,9 @@ publication errors for malformed stage regions. Five regressions reproduced the 
 before the fixes. Format 16 and provenance schema 1 are unchanged.
 The review's complete native suite passed **2,529 tests, five existing Windows skips**;
 all four strict type combinations, lint/format, fixture reproduction and full card lint
-also pass. There are no known blockers for starting M8.7.
+also pass. There were no known blockers before M8.7 acceptance.
 
-**Next M8.7:** add dedicated regressions proving the frequency gate applies to
+**M8.7 acceptance (completed):** dedicated regressions prove the frequency gate applies to
 imputed observations, regardless of high DR2, strong literature or enabled mode.
 Cover untyped and phase-filled sources, native haploid/diploid observations, missing
 frequency companions and multi-marker inheritance. Show rare findings as likely artifacts;
@@ -51,6 +87,9 @@ Current ClinVar/QC/coverage/structure still use original array input. M9 owns PG
 coverage and ancestry portability; preserve the native effect-allele dose/quality contract.
 
 ### M8.7 implementation handoff
+
+Completed 2026-10-08; the matrix below records the accepted scope. The current handoff
+is M9.1 above.
 
 Start in `engine/confidence.py` (`calculate_confidence`), `engine/evidence.py`
 (`_confidence_frequency` / `assemble_card`) and `run/pipeline.py` (`observations`).
@@ -75,7 +114,7 @@ must not present either as its confirmation probability. BRCA-specific calibrati
 currently belongs to original-array ClinVar findings, so this milestone does not create
 an imputed ClinVar calling path. No bundle-format bump is needed for regressions alone;
 any changed persisted meaning needs its own compatibility decision and corruption tests.
-M8.7 remains incomplete until these checks pass and the roadmap/handoff records the result.
+These checks pass and M8.7 is recorded complete in the roadmap and this handoff.
 
 ## Implemented M8.5 and next scope
 

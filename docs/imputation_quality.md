@@ -74,5 +74,30 @@ Beagle stage and checks both untyped quality and phase-filled unknown quality.
 M8.6 supplies durable full dosage files and exact used-panel/tool/parameter provenance;
 see [the provenance guide](imputation_provenance.md). Format 16 retains this format-15
 card/marker contract while adding the full snapshot.
-M8.7 adds the dedicated imputed rare-variant gate regression set. No personal export
-was used for this milestone.
+
+## Rare-call frequency gate (M8.7)
+
+An observed allele frequency strictly below **0.00001 (0.001%)** caps the finding at
+`likely-artifact`, even with DR2 1 and strong replicated literature. Equality falls
+outside that band; other evidence and quality ceilings still apply. This holds for
+both untyped and phase-filled observations and for native haploid/diploid calls.
+Unknown phase-filled quality remains unknown, contributes zero and cannot rescue rarity.
+
+A known rare allele retains the ceiling when its observed companion has no usable
+frequency. Common-only incomplete coverage stays unknown; an unobserved rare allele
+does not penalize the call. A multi-marker finding inherits its weakest marker's tier,
+without averaging quality or assuming phase. Original called probes remain direct;
+explicit `--no-impute` neither discovers imputation prerequisites nor invents observations.
+
+The 16% rare-heterozygous and 4.2% pathogenic BRCA chip-confirmation rates remain
+study-specific benchmarks, explicitly uncalibrated for imputation and never individual
+posterior probabilities. BRCA-specific calibration belongs to original-array ClinVar
+annotations; M8.7 does not add imputed ClinVar calling.
+
+Thirty-two synthetic regression cases exercise these boundaries, missing frequency
+companions, multi-marker inheritance, original-array controls and full format-16
+save/reopen parity. CLI JSON and dashboard face/detail retain the tier, selected
+frequency, native dosage/quality/source, benchmark scope and caveats after stage caches
+and the synthetic frequency index are removed. Bypassing either the imputed rarity
+ceiling or the missing-companion protection in isolated processes makes the respective
+regressions fail. No personal export was opened and no reference download is required.

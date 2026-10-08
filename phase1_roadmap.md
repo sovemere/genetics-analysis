@@ -28,7 +28,7 @@ inferred" and "inferred, and no population fits" kept apart by explicit statuses
 a `None`. On the real export: population placed, both haplogroups called, ancient computed, in
 about a minute with the reference PCAs cached.
 
-**M6 is complete. ROH is validated against the pinned native tools on synthetic
+**M6 is complete.** ROH is validated against the pinned native tools on synthetic
 panels; archaic estimation is checked against the pinned AADR archive and a public reference
 individual, with synthetic statistical and integration tests. Sex-chromosome call patterns
 are validated on synthetic profiles, with shared PAR-aware QC and explicit karyotype limits.
@@ -38,10 +38,12 @@ and available to the CLI and dashboard. APOE preserves both markers and unresolv
 HFE C282Y and F5 Leiden carry published cohort absolute-risk context.
 M7.6 adds quantitative position coverage, calls obtained and allele-resolved matches,
 with separate reference/chip denominators and source-bound snapshots.
-M8.1 now provides the pinned Beagle/Java wrapper, private progress and verified
-completed-job reuse. M8.2 prepares and verifies the full autosomal/X reference as bref3
-with complete GRCh37 maps. Next is M8.3's application phasing/imputation pipeline.**
-The [handoff](docs/handoff.md) records the full-reference acceptance and next scope.
+M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared default-on
+phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
+imputed rare-call gate regressions. **2,561 tests passed, five existing Windows skips**;
+strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
+Next is M9.1's PGS scoring-file parser and per-score metadata licence handling.
+The [handoff](docs/handoff.md) records M8 acceptance and M9's next scope.
 The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
 confidence, saved-record consistency, marker-detail and lint-denominator fixes.
 Download resumability debt is resolved and gnomAD's 63 GB exome file is verified.
@@ -2498,19 +2500,33 @@ default-on.*
         **2,524 passed, five existing Windows skips**; 53 added cases, strict four-way
         types, lint/format, fixtures and full card lint pass. No personal export.
         Next M8.7. [Guide](docs/imputation_provenance.md).
-- [ ] **M8.7** Assert the rare-variant frequency gate still applies to imputed calls —
+- [x] **M8.7** Assert the rare-variant frequency gate still applies to imputed calls —
       imputation does **not** rescue rare-variant reliability.
       Acceptance covers strict frequency boundaries, both imputed sources/native ploidies,
       missing observed-allele companions, weakest-marker inheritance and saved CLI/dashboard
       parity. Keep chip PPVs explicitly uncalibrated for imputation and ClinVar on its
       original-array basis. See [the implementation handoff](docs/handoff.md#m87-implementation-handoff)
       and [the completed M8.6 diff review](docs/review_m86_session.md).
+      - **Completed 2026-10-08.** Thirty-two synthetic cases verify nextafter/equal/above
+        boundaries with strong replicated evidence and DR2 1, both imputed sources and
+        native ploidies, unknown phase-filled quality, incomplete observed-allele
+        frequencies, unobserved-rare controls and weakest-marker inheritance. Full
+        format-16 save/reopen and CLI/dashboard parity retain the tier, frequency,
+        native evidence and scoped benchmark after synthetic cache/index removal.
+        Enabled direct probes and explicit opt-out retain original-array observations;
+        ClinVar never receives imputed calls. Isolated guard mutations fail four rarity
+        cases and both missing-companion cases. No engine or persisted meaning change.
+        **2,561 passed, five existing Windows skips**, native tools enabled; strict
+        four-way types, lint/format, fixtures and full card lint pass. No personal export.
+        M8 complete; next M9.1. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87).
 
 ---
 
 ## M9 — PRS engine & score-driven sections
 
-- [ ] **M9.1** PGS Catalog scoring-file parser, incl. **per-score licence header**.
+- [ ] **M9.1** PGS Catalog scoring-file parser, with authoritative **per-score licences
+      from the metadata CSV's `License/Terms of Use` column**, not assumed from headers
+      ([AGENTS.md §4.8](AGENTS.md)).
       Refuse or flag non-permissive scores.
 - [ ] **M9.2** Scoring via PLINK 2 `--score`, pre- and post-imputation.
 - [ ] **M9.3** **Per-score variant coverage reported on every card**, before and after
@@ -2713,6 +2729,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-08 | M8.7 | Thirty-two generated regressions prove rarity cannot be rescued by high DR2, strong literature or enabled imputation. Covers strict boundaries, both sources/native ploidies, missing companions, unobserved-rare controls, weakest-marker inheritance, original probes/opt-out and cache-independent format-16 CLI/dashboard parity. Chip 16%/BRCA 4.2% benchmarks stay study-scoped and uncalibrated for imputation. Isolated bypasses fail four rarity and two missing-companion cases. No engine or bundle-format change. **2,561 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M8 complete; next M9.1, with licence authority corrected to the metadata CSV per AGENTS.md. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87), [handoff](docs/handoff.md). |
 | 2026-10-07 | M8.6 review | Diff-driven pass fixes per-entry card/marker binding at shared loci, boolean native-storage acceptance and uncaught malformed-stage region errors. Five regressions reproduced the defects before fixes; format 16/schema 1 meanings remain intact. **2,529 tests passed, five existing Windows skips**, native tools enabled; strict four-way types, lint/format, fixtures and full card lint pass. M8.7 remains open with an explicit acceptance matrix and no known blocker. No personal export. [Review](docs/review_m86_session.md), [handoff](docs/handoff.md#m87-implementation-handoff). |
 | 2026-10-07 | M8.6 | Format 16 / full provenance schema 1 durably stores independent full native dosages and byte-identical panel/map catalogs, with exact used source/tool/runtime identities and per-region phase/imputation parameters. Saved validation binds native per-ALT quality, typed retention, source/count/region arithmetic, phase handoff and card/full-dosage evidence without caches or current manifests. Atomic publication refuses changed stage inputs and failed copies. Shared saved iterator, CLI provenance/JSONL dosages and dashboard recording status retain historical formats 1–15. Genotype-free progress; explicit opt-out, zero-job and not-recorded states. **2,524 tests passed, five existing Windows skips**; 53 added synthetic cases and native 800-record save/reuse acceptance, strict four-way types, lint/format, fixtures and full card lint pass. Historical fixtures now represent their original recorded contracts. No personal export. Next M8.7. [Guide](docs/imputation_provenance.md). |
 | 2026-10-07 | M8.5 | Quality-aware card observations retain original direct probes and consume exact biallelic imputed SNVs, with native per-ALT dosage/DR2, source and ploidy scope. Low quality uses existing confidence gates; phase-filled unknown quality contributes zero and caps confidence at limited. Reference allele contracts resolve imputed palindromic strand while original checks remain intact. Multi-marker findings inherit the weakest marker without assuming phase. Format 15 / execution schema 2 preserves observation basis and validates saved quality; formats 1–14 retain original meanings. CLI/dashboard parity, 54 new synthetic cases, native Beagle acceptance, full native suite, strict four-way types, lint/format, fixtures and full card lint pass. The added format-13 downgrade guard passes separately. M8.4 CI passes all five jobs after retrying one transient Windows Java discovery failure. No personal export. Next M8.6 full provenance, then M8.7 rare-call gate regressions. [Guide](docs/imputation_quality.md). |
