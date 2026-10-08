@@ -42,9 +42,11 @@ M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared defa
 phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
 imputed rare-call gate regressions. The [M8 overview review](docs/review_m8_overview.md)
 fixes saved rarity/provenance validation and error paths before the M9 handoff.
-**2,591 tests passed, five existing Windows skips**;
+The current native suite passes **2,660 tests, five existing Windows skips**;
 strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
-Next is M9.1's PGS scoring-file parser and per-score metadata licence handling.
+M9.1 is implemented: streaming format-2 scoring-file ingestion, authoritative per-score
+metadata licences, source-bound reference processing and offline CLI inspection.
+Next is M9.2's PLINK scoring. See [PGS ingestion](docs/pgs_ingestion.md).
 The [handoff](docs/handoff.md) records M8 acceptance and M9's next scope.
 The [M7.5 session diff review](docs/review_m75_session.md) records outcome-specific
 confidence, saved-record consistency, marker-detail and lint-denominator fixes.
@@ -52,7 +54,7 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 13**, with formats 1–12 preserved. The pack has 51 cards;
+**Current bundle format: 16**, with formats 1–15 preserved. The pack has 51 cards;
 full local dbSNP lint resolves all 35 authored marker references (268 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
@@ -196,7 +198,7 @@ without reading it.
 |---|---|---|
 | Core language | Python 3.11+ | Ecosystem; single language front-to-back |
 | Dataframes | **Polars** | Fast on 677k rows; good Windows story; lazy scan for big reference files |
-| Genomics workhorse | **PLINK 2** (pinned exactly; `v2.0.0-a.7.3` as of M2.5 — the original `2.00a5.x` note is stale, see [AGENTS.md §4.9](AGENTS.md)) | Native Windows binary; covers conversion, LD prune, PCA projection, `--score`, `--homozyg`, freq, sex check |
+| Genomics workhorse | **PLINK 2** (pinned exactly; `v2.0.0-a.7.3` as of M2.5 — the original `2.00a5.x` note is stale, see [AGENTS.md §4.9](AGENTS.md)) | Native Windows binary; covers conversion, LD prune, PCA projection, `--score`, freq, sex check; ROH uses separately pinned PLINK 1.9 `--homozyg` |
 | VCF reading in Python | **scikit-allel** | Cython, no htslib — the documented Windows path |
 | Imputation / phasing | **Beagle 5.x** (Java) | GPLv3, cross-platform, bref3 panels |
 | HLA imputation | **HIBAG** (R, via subprocess) | Ships pre-fit multi-ancestry classifiers; optional module |
@@ -2535,10 +2537,20 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 
 ## M9 — PRS engine & score-driven sections
 
-- [ ] **M9.1** PGS Catalog scoring-file parser, with authoritative **per-score licences
+- [x] **M9.1** PGS Catalog scoring-file parser, with authoritative **per-score licences
       from the metadata CSV's `License/Terms of Use` column**, not assumed from headers
       ([AGENTS.md §4.8](AGENTS.md)).
-      Refuse or flag non-permissive scores.
+       Refuse or flag non-permissive scores.
+      - Streaming format-2 parser retains raw columns, allele/weight definitions,
+        original/harmonized builds, special-model features and source fingerprints.
+        Header/row/count/finite-value and metadata identity/build checks fail loudly.
+        Metadata archive processing is implemented in the fetch/verify registry with
+        source-bound atomic JSON/provenance and no archive extraction. Missing, unknown
+        and duplicate terms never default to permissive; restricted terms remain flagged.
+        `genetics pgs inspect --json` validates the full public score offline. Live
+        reference acceptance parses 77 PGS000001 GRCh37 rows and 6,991 metadata scores.
+        Personal scoring, coverage and calibration remain M9.2–M9.5; format 16 unchanged.
+        [Guide](docs/pgs_ingestion.md).
 - [ ] **M9.2** Scoring via PLINK 2 `--score`, pre- and post-imputation.
 - [ ] **M9.3** **Per-score variant coverage reported on every card**, before and after
       imputation ([AGENTS.md §4.3](AGENTS.md)).
@@ -2721,7 +2733,7 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 | A rolling "latest" URL changes under a saved run, silently altering results | M2.2 | Lock records the digest on first fetch. **Drift is reported and re-recorded on a fresh download, and fails on bytes already on disk** — enforcing it on the download made a file the manifest declares unpinnable unfetchable for every clone, since the committed lock hands one machine's digest to all of them; enforcing it on disk is what catches corruption, because a fetch re-records drift in the same run, so a later disagreement is something nothing fetched. Re-recording stamps today's date, so the change is a line in the committed lock's diff. **The lock merges rather than replaces** — replacing let one detected corruption erase its own evidence and be re-recorded as truth | [§5.5](AGENTS.md) |
 | A declared post-processing step is never executed but reports as done | M2.1, M3.5 | The registry may mark a step implemented only when the executor dispatch names it; a structural test proves the sets are identical, fetch runs it, and verify reports the derived output's state — `pending` when it has not been built (which `refs status` calls "processing-required"), `failed` only when a present artifact does not validate. Unimplemented steps remain visibly pending | — |
 | gnomAD's real size (63 GB exomes / 495 GB genomes) stalls a first setup | M2.3 | Exomes required and genomes optional; sizes declared exactly so the preflight can warn before the download, not after | [§4.1](AGENTS.md) |
-| PGS per-score licences ignored | M9.1 | Parse header per score, not per catalogue | [§4.8](AGENTS.md) |
+| PGS per-score licences ignored | M9.1 | Join each PGS ID to the authoritative metadata CSV terms; never assume header or catalogue permission | [§4.8](AGENTS.md) |
 | Imputation run un-resumable, blocking progress | M8.1 | Resumability is an acceptance criterion | [§0.1C](AGENTS.md) |
 | CLI/UI parity rots | M13.5 | Parity test in CI | [§3](AGENTS.md) |
 | Reduced-N sumstats silently weaken psychometrics | M9.8–9.9 | Record release version on the card | [§5.3](AGENTS.md) |
@@ -2740,6 +2752,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-08 | M9.1 | Streaming format-2 PGS scoring-file parser and authoritative per-score metadata terms, with exact source identities, original/harmonized builds, raw model/weight columns and explicit special features. Metadata archive processing is now executable in fetch/verify, with checksum/provenance validation and stale-index rebuild. Unknown/missing/duplicate terms never establish permission; restricted terms remain flagged. Offline CLI/API public-reference acceptance covers 6,991 metadata scores and 77 PGS000001 GRCh37 rows, both fetched and lock-recorded. Sixty-nine synthetic cases cover malformed/nonfinite rows, identity/build/count conflicts, licence joins/gates, source changes, index corruption/reuse, CLI and privacy ignores. **2,660 tests passed, five existing Windows skips**, pinned native tools and Java 17 enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. Bundle format 16 unchanged; no personal export opened. Next M9.2. [Guide](docs/pgs_ingestion.md). |
 | 2026-10-08 | M8 overview review | Seven defect groups fixed: saved scalar rarity/frequency/oriented-call binding; missing REF/ALT placeholders; skipped-region ploidy; phase-handoff size; invalid Beagle option boundaries; corrupt DEFLATE handling; missing saved-dosage iterator errors. Thirty added synthetic cases, with all 28 rejection cases reproduced before their respective fixes and two valid skipped-region controls. Format 16/schema 1 and historical meanings unchanged. **2,591 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M9.1 handoff identifies the metadata source/licence transform, parser acceptance and original-array coverage limits. [Review](docs/review_m8_overview.md), [handoff](docs/handoff.md). |
 | 2026-10-08 | M8.7 | Thirty-two generated regressions prove rarity cannot be rescued by high DR2, strong literature or enabled imputation. Covers strict boundaries, both sources/native ploidies, missing companions, unobserved-rare controls, weakest-marker inheritance, original probes/opt-out and cache-independent format-16 CLI/dashboard parity. Chip 16%/BRCA 4.2% benchmarks stay study-scoped and uncalibrated for imputation. Isolated bypasses fail four rarity and two missing-companion cases. No engine or bundle-format change. **2,561 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M8 complete; next M9.1, with licence authority corrected to the metadata CSV per AGENTS.md. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87), [handoff](docs/handoff.md). |
 | 2026-10-07 | M8.6 review | Diff-driven pass fixes per-entry card/marker binding at shared loci, boolean native-storage acceptance and uncaught malformed-stage region errors. Five regressions reproduced the defects before fixes; format 16/schema 1 meanings remain intact. **2,529 tests passed, five existing Windows skips**, native tools enabled; strict four-way types, lint/format, fixtures and full card lint pass. M8.7 remains open with an explicit acceptance matrix and no known blocker. No personal export. [Review](docs/review_m86_session.md), [handoff](docs/handoff.md#m87-implementation-handoff). |

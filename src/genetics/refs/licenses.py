@@ -302,6 +302,7 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=False,
         attribution_required=True,
+        review_status="confirmed",
         notes="GWAS Catalog. Post-2021 summary statistics are CC0; the catalogue itself is open.",
     ),
     LicenseTerms(
@@ -424,3 +425,84 @@ def get(license_id: str) -> LicenseTerms:
 def standing(license_id: str) -> Standing:
     """Convenience wrapper over :attr:`LicenseTerms.standing`."""
     return get(license_id).standing
+
+
+@dataclass(frozen=True)
+class PgsTerms:
+    """A score's metadata terms; unknown terms are never granted by opt-in."""
+
+    status: str
+    license_id: str | None
+    reason: str
+
+    def to_json(self) -> dict[str, object]:
+        terms = get(self.license_id) if self.license_id is not None else None
+        return {
+            "status": self.status,
+            "license_id": self.license_id,
+            "reason": self.reason,
+            "terms_url": terms.terms_url if terms else None,
+            "commercial_ok": terms.commercial_ok if terms else None,
+            "derivative_ok": terms.derivative_ok if terms else None,
+            "share_alike": terms.share_alike if terms else None,
+            "attribution_required": terms.attribution_required if terms else None,
+        }
+
+    def require_usable(self, *, opt_in: bool = False) -> None:
+        if self.status == "permissive" or (self.status == "restricted" and opt_in):
+            return
+        raise ValueError(f"PGS score licence is {self.status}: {self.reason}")
+
+
+def classify_pgs_terms(raw: str) -> PgsTerms:
+    """Recognize complete, reviewed terms only, never an embedded licence substring.
+
+    The registry already records the obligations of supported CC licences. Free-text
+    academic/re-identification conditions remain unknown until reviewed explicitly.
+    Source copyright suffixes are allowed only for the Catalog's documented CC form.
+    """
+    value = " ".join(raw.split())
+    if not value:
+        return PgsTerms("missing", None, "No score-specific terms supplied by metadata.")
+    ebi = {
+        "https://www.ebi.ac.uk/about/terms-of-use",
+        "https://www.ebi.ac.uk/about/terms-of-use/",
+        "EMBL-EBI Terms of Use",
+        "EBI Terms of Use",
+        "PGS obtained from the Catalog should be cited appropriately, and used in accordance "
+        "with any licensing restrictions set by the authors. See EBI Terms of Use "
+        "(https://www.ebi.ac.uk/about/terms-of-use/) for additional details.",
+    }
+    if value in ebi:
+        return PgsTerms(
+            "permissive",
+            "LicenseRef-EBI-Terms-Of-Use",
+            "Explicit EMBL-EBI default terms; cite the score and its authors.",
+        )
+    for license_id in ("CC0-1.0", "CC-BY-4.0", "CC-BY-SA-4.0", "CC-BY-NC-ND-4.0"):
+        terms = get(license_id)
+        aliases = {license_id, terms.terms_url, terms.terms_url.rstrip("/")}
+        # PGS publishes the full CC title followed by the SPDX abbreviation and notice.
+        title = terms.name
+        if license_id == "CC-BY-NC-ND-4.0":
+            title = "Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International"
+        if license_id == "CC-BY-SA-4.0":
+            title = "Creative Commons Attribution-ShareAlike 4.0 International"
+        abbreviation = license_id.replace("-", " ", 1).replace("-4.0", " 4.0")
+        full = value in {f"{title} ({abbreviation})", f"{title} ({abbreviation})."}
+        if license_id == "CC-BY-NC-ND-4.0":
+            full = full or value in {
+                f"{title} ({abbreviation}). {symbol} 2020 Ambry Genetics."
+                for symbol in ("©", "\ufffd")
+            }
+        if license_id == "CC-BY-NC-ND-4.0" and value == (
+            f"{title} ({abbreviation}). Parties interested in using the scores for commercial "
+            "purposes should contact 23andMe at publication-review@23andme.com."
+        ):
+            full = True
+        if license_id == "CC0-1.0":
+            aliases.add("CC0 1.0 Universal (CC0 1.0) Public Domain Dedication")
+        if value in aliases or full:
+            status = "restricted" if terms.needs_opt_in else "permissive"
+            return PgsTerms(status, license_id, "Score-specific Creative Commons terms recorded.")
+    return PgsTerms("unknown", None, "Unrecognized score-specific terms require explicit review.")

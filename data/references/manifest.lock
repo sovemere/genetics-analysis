@@ -213,6 +213,68 @@
       "opt_in_required": false,
       "version": "2013-06-08"
     },
+    "pgs000001_grch37": {
+      "files": {
+        "PGS000001_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-10-08",
+          "sha256": "5a3069e1a1844df02f3d24e889f97dfad03ee0c40888fc5ecf5f44dc5c36ffc3",
+          "size_bytes": 3276,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000001/ScoringFiles/Harmonized/PGS000001_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "latest"
+    },
+    "pgs_catalog_metadata": {
+      "files": {
+        "pgs_all_metadata.tar.gz": {
+          "first_seen": "2026-10-08",
+          "sha256": "dfa7ebe71d46b0bcaf3239e01b99ca232ea261da7be7416be6f52133c4d80b9a",
+          "size_bytes": 4755134,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/metadata/pgs_all_metadata.tar.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "latest"
+    },
     "phylotree_17": {
       "files": {
         "mtDNA_tree_Build_17.zip": {

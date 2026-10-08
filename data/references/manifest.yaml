@@ -525,14 +525,36 @@ sources:
     post_process:
       - step: parse_pgs_score_licenses
         params:
+          input: pgs_all_metadata.tar.gz
           output: pgs_score_licenses.json
     files:
       - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/metadata/pgs_all_metadata.tar.gz
         filename: pgs_all_metadata.tar.gz
-        size_bytes: 4740517
+        size_bytes: 4755134
         unpinned_reason: "PGS Catalog metadata is regenerated on each catalogue update under a fixed name"
 
   # --------------------------------------------------------------------------
+  # M9.1 first public scoring-file acceptance source. More scores are explicit
+  # manifest entries, never URL templates or a bulk download of the catalogue.
+  - id: pgs000001_grch37
+    name: PGS000001 GRCh37 harmonized scoring file
+    tier: A
+    required: false
+    version: latest
+    homepage: https://www.pgscatalog.org/score/PGS000001/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - public scoring-file parser acceptance; personal scoring remains M9.2
+    notes: >-
+      Fetch weights only. Bind the score ID to the authoritative metadata CSV
+      at ingestion; this collection-level classification grants no score-specific
+      permission. Harmonized GRCh37 coordinates take precedence over original ones.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000001/ScoringFiles/Harmonized/PGS000001_hmPOS_GRCh37.txt.gz
+        filename: PGS000001_hmPOS_GRCh37.txt.gz
+        size_bytes: 3276
+        unpinned_reason: "The Catalog can update weights/harmonization under a fixed score URL; fetched bytes are recorded in manifest.lock"
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

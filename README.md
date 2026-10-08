@@ -58,8 +58,8 @@ inheritance and saved CLI/dashboard parity. Strong literature and high DR2 canno
 rarity; chip confirmation benchmarks remain explicitly uncalibrated for imputation.
 The full native suite passed **2,561 tests, five existing Windows skips**; all four
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
-No shared-engine or bundle-format change was needed. **M8 is complete. Next: M9.1,
-PGS Catalog scoring-file parsing with authoritative per-score metadata licences.**
+No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
+ingestion is now implemented, and M9.2 scoring is next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
@@ -68,6 +68,12 @@ M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
 explicitly immutable releases can resume verified prefixes; rolling sources restart.
+**M9.1 is implemented:** public PGS format-2 scoring-file parsing, authoritative per-score
+metadata terms, source-bound metadata processing and offline `genetics pgs inspect --json`.
+The first live public score parses 77 rows; missing/unknown/ambiguous licences cannot
+establish permission. Personal scoring remains M9.2. See [PGS ingestion](docs/pgs_ingestion.md).
+The full native suite passes **2,660 tests, five existing Windows skips**, with strict
+four-way types, lint/format, fixtures and full card lint; 69 new synthetic cases cover M9.1.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and

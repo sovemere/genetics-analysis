@@ -3,7 +3,38 @@
 As of 2026-10-08, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-Next is M9.1.
+M9.1 is now implemented. Next is M9.2.
+
+## Implemented M9.1 and next scope
+
+`pgs/catalog.py` reads the authoritative scores CSV inside the public metadata archive,
+retaining every metadata column and duplicate row. `refs/licenses.py` classifies complete
+reviewed EBI/CC terms, with explicit restricted, missing, unknown and ambiguous states.
+Unknown terms cannot be enabled by restricted-source opt-in. The metadata transform
+is now executable in the existing fetch/verify registry and binds its JSON output to
+the exact archive and transform through the common checksum/provenance contract.
+
+`pgs/scoring.py` streams format-2 rows, preserving source identities, original/harmonized
+builds, all allele/weight columns and special-model features. It rejects malformed/nonfinite
+weights and conflicting identities/builds/counts without echoing rows. `genetics pgs inspect`
+is the shared offline CLI consumer; parsing computes no personal score and changes no
+bundle format. The first selected public source, `pgs000001_grch37`, is in the manifest.
+Public acceptance: 6,991 metadata scores and 77 PGS000001 GRCh37 rows, with both hashes
+recorded in the lock. No personal export was opened. See [the guide](pgs_ingestion.md).
+
+Validation: **2,660 tests passed, five existing Windows skips**, with pinned native tools
+and Java 17. Sixty-nine new synthetic cases cover parser/licence/provenance boundaries,
+CLI and privacy ignores. All four strict Windows/Linux × Python 3.11/3.13 type targets,
+ruff/format, fixture reproduction and full dbSNP card lint pass (51 cards, 268 renders,
+35 marker references). Public-reference CLI/API parity passes with networking blocked.
+
+**Next M9.2:** implement PLINK score sums from original calls and native imputed dosages.
+Call the score-specific licence gate and explicitly support or report special models.
+Verify effect-allele orientation, biological ploidy, sum/average and missing-data policy
+against the pinned PLINK build using synthetic arithmetic. Preserve dose and quality
+separately; DR2 never scales dose. Exhaust/validate parsed streams before accepting results.
+M9.3 needs original-array coverage or a saved record, not stage-direct counts alone.
+Reference distributions and study-ancestry mapping/`declined` treatment remain M9.4–M9.5.
 
 ## M8 overview review
 
@@ -19,9 +50,9 @@ strict Windows/Linux × Python 3.11/3.13 type targets, lint/format, fixture repr
 and full dbSNP card lint pass (51 cards, 268 renders, 35 marker references).
 No personal export was opened. There is no known blocker to M9.1's parser/licence work.
 
-### M9.1 implementation entry points and acceptance
+### M9.1 accepted implementation scope
 
-Start with `data/references/manifest.yaml`'s `pgs_catalog_metadata` entry, the pending
+The implementation starts with `data/references/manifest.yaml`'s `pgs_catalog_metadata` entry, the
 `parse_pgs_score_licenses` step in `refs/postprocess.py` and `refs/licenses.py`.
 Implement scoring-file parsing and per-score metadata joins using the current
 official scoring-format specification. Preserve PGS id, declared build, allele/weight
@@ -70,7 +101,7 @@ targets, lint/format, fixture reproduction and full dbSNP card lint pass (51 car
 268 renders, 35 marker references). No personal export was opened; new tests need no
 reference downloads. See [the quality guide](imputation_quality.md#rare-call-frequency-gate-m87).
 
-**Next M9.1:** parse PGS Catalog scoring files and bind each score to its authoritative
+**M8.7's original M9.1 handoff (now implemented):** parse PGS Catalog scoring files and bind each score to its authoritative
 licence in `pgs_all_metadata_scores.csv`'s `License/Terms of Use` column. The scoring
 header is not the licence authority (AGENTS.md §4.8); do not assume catalogue-wide
 permission. M9 then owns PLINK scoring, pre/post-imputation per-score coverage,
@@ -128,7 +159,7 @@ coverage and ancestry portability; preserve the native effect-allele dose/qualit
 ### M8.7 implementation handoff
 
 Completed 2026-10-08; the matrix below records the accepted scope. The current handoff
-is M9.1 above.
+is M9.2 above.
 
 Start in `engine/confidence.py` (`calculate_confidence`), `engine/evidence.py`
 (`_confidence_frequency` / `assemble_card`) and `run/pipeline.py` (`observations`).
