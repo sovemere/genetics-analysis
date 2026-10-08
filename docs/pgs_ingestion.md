@@ -1,8 +1,9 @@
 # PGS scoring-file ingestion (M9.1)
 
-M9.1 reads public reference weights and authoritative per-score terms. It does not
-compute a personal score, percentile, outcome probability or ancestry adjustment.
-Those remain M9.2–M9.6. No bundle-format change is introduced.
+M9.1 reads public reference weights and authoritative per-score terms. Inspection
+computes no personal score. [M9.2 now computes private PLINK sums](pgs_scoring.md);
+percentiles, outcome calibration and ancestry adjustment remain M9.4–M9.6.
+No bundle-format change is introduced.
 
 ## Acquisition and inspection
 
@@ -99,8 +100,8 @@ Python 3.11/3.13 type targets, lint/format, fixture reproduction and full card l
 (51 cards, 268 renders, 35 dbSNP marker references). CLI/API equality against both
 complete public references passes with the in-process network guard enabled.
 
-M9.2 must retain native effect-allele dosage/quality, check score-specific permission and
-model support, choose explicit PLINK sum/missing-data behavior and verify scoring with
+M9.2 retains native effect-allele dosage/quality, checks score-specific permission and
+model support, uses explicit PLINK sum/missing-data behavior and verifies scoring with
 synthetic arithmetic. Do not scale dosage by DR2 or filter low-quality observations.
 Before-imputation coverage still needs original-array observations or a saved coverage
 record: format-16 stage-direct dosages cannot reconstruct the complete chip.

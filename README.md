@@ -59,7 +59,7 @@ rarity; chip confirmation benchmarks remain explicitly uncalibrated for imputati
 The full native suite passed **2,561 tests, five existing Windows skips**; all four
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
-ingestion is now implemented, and M9.2 scoring is next.**
+ingestion and M9.2 scoring are now implemented. M9.3 coverage is next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
@@ -71,9 +71,18 @@ explicitly immutable releases can resume verified prefixes; rolling sources rest
 **M9.1 is implemented:** public PGS format-2 scoring-file parsing, authoritative per-score
 metadata terms, source-bound metadata processing and offline `genetics pgs inspect --json`.
 The first live public score parses 77 rows; missing/unknown/ambiguous licences cannot
-establish permission. Personal scoring remains M9.2. See [PGS ingestion](docs/pgs_ingestion.md).
+establish permission. See [PGS ingestion](docs/pgs_ingestion.md).
 The full native suite passes **2,660 tests, five existing Windows skips**, with strict
 four-way types, lint/format, fixtures and full card lint; 69 new synthetic cases cover M9.1.
+**M9.2 computes original/post-imputation PLINK sums:** `genetics pgs score` uses shared
+ancestry-first/default-on imputation or full saved dosages, preserving native effect doses,
+allele quality and private provenance. Explicit `--no-impute` is recorded; saved-only
+original sums remain unavailable. Results default outside the checkout as private,
+immutable `.pgs-score.json` files. Coverage, percentiles and calibration remain M9.3–M9.6.
+See [PGS scoring](docs/pgs_scoring.md).
+M9.2 acceptance passes **2,707 tests, five existing Windows skips**, including native
+arithmetic and cache-independent saved/CLI scoring, with all four strict type targets,
+lint/format, fixtures and full card lint. Forty-seven new cases cover this step.
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and

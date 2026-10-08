@@ -3,7 +3,40 @@
 As of 2026-10-08, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1 is now implemented. Next is M9.2.
+M9.1–M9.2 are now implemented. Next is M9.3.
+
+## Implemented M9.2 and next scope
+
+`pgs/engine.py` computes original and post-imputation sums with the pinned PLINK `--score`,
+using validated native effect-allele doses in a numeric matrix. The actual locus/alleles,
+biological ploidy, original probe evidence and native per-ALT quality remain in the private
+record; matrix counts are not coverage. Low/unknown quality never filters or scales dose.
+SNP strand, duplicate and ploidy conflicts remain explicit; sequence-resolved imputed
+indels require exact sequences, while raw I/D remains excluded. Unsupported models
+receive null sums. Used IDs/counts and independent signed-dose arithmetic validate the
+native report within the recorded PGEN/text precision bound.
+
+`pgs/workflow.py` reuses shared ingest/ancestry/default-on imputation. `genetics pgs score`
+accepts an export (with explicit `--no-impute` only) or a validated saved full stage.
+Saved-only scoring cannot invent the original-array sum. Each immutable private
+`.pgs-score.json` retains score/metadata/input/stream identities, full used imputation
+provenance, PLINK version/binary hash, tool-manifest hash and method/engine versions.
+No bundle-format bump or interpretation card is introduced. See [the guide](pgs_scoring.md).
+
+Acceptance: **2,707 tests passed, five existing Windows skips**, with pinned PLINK/ROH/
+Beagle/bref3 tools and Java 17. Forty-seven new synthetic cases cover source/dose/quality,
+native arithmetic, exact indels, licence/model boundaries, privacy, workflow ordering,
+categorical failures and cache-independent saved/CLI equality. All four strict
+Windows/Linux × Python 3.11/3.13 type targets, lint/format, fixture reproduction and
+full dbSNP card lint pass (51 cards, 268 renders, 35 marker references). No personal
+export or new reference/tool payload was used.
+
+**Next M9.3:** turn the saved term observations into per-score before/after variant
+coverage with explicit denominators, distinguishing weighted rows from distinct variants,
+positions and duplicate probes. Present low-quality and unknown-quality contributions
+without filtering them. Before coverage requires the original-array evidence; a saved
+stage alone records it as unavailable. Preserve null/no-overlap, unsupported and partial
+states. Distribution, ancestry portability and renderer remain M9.4–M9.6.
 
 ## Implemented M9.1 and next scope
 
@@ -28,7 +61,7 @@ CLI and privacy ignores. All four strict Windows/Linux × Python 3.11/3.13 type 
 ruff/format, fixture reproduction and full dbSNP card lint pass (51 cards, 268 renders,
 35 marker references). Public-reference CLI/API parity passes with networking blocked.
 
-**Next M9.2:** implement PLINK score sums from original calls and native imputed dosages.
+**M9.1's original M9.2 handoff (now implemented):** implement PLINK score sums from original calls and native imputed dosages.
 Call the score-specific licence gate and explicitly support or report special models.
 Verify effect-allele orientation, biological ploidy, sum/average and missing-data policy
 against the pinned PLINK build using synthetic arithmetic. Preserve dose and quality
@@ -159,7 +192,7 @@ coverage and ancestry portability; preserve the native effect-allele dose/qualit
 ### M8.7 implementation handoff
 
 Completed 2026-10-08; the matrix below records the accepted scope. The current handoff
-is M9.2 above.
+is M9.3 above.
 
 Start in `engine/confidence.py` (`calculate_confidence`), `engine/evidence.py`
 (`_confidence_frequency` / `assemble_card`) and `run/pipeline.py` (`observations`).

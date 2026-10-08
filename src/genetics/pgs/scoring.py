@@ -274,7 +274,8 @@ class ScoringFile:
             "metadata_source": dict(self.metadata_source),
             "metadata": self.metadata.to_json(),
             "license_authority": "pgs_all_metadata_scores.csv: License/Terms of Use",
-            "scoring_implemented": False,
+            "scoring_implemented": True,
+            "score_computed": False,
         }
 
 

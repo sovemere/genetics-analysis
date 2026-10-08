@@ -98,7 +98,8 @@ def test_public_score_stream_retains_signed_weights_and_raw_fields(
     assert (row.chrom, row.position, row.effect_allele, row.effect_weight) == ("1", 101, "A", -0.25)
     assert row.fields == BASE and row.features == ()
     result = score.inspect()
-    assert result["rows"] == 1 and result["scoring_implemented"] is False
+    assert result["rows"] == 1 and result["scoring_implemented"] is True
+    assert result["score_computed"] is False
     assert result["scoring_source"]["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert result["metadata_source"] == dict(catalog.source)
 
