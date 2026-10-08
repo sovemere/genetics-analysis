@@ -40,7 +40,9 @@ M7.6 adds quantitative position coverage, calls obtained and allele-resolved mat
 with separate reference/chip denominators and source-bound snapshots.
 M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared default-on
 phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
-imputed rare-call gate regressions. **2,561 tests passed, five existing Windows skips**;
+imputed rare-call gate regressions. The [M8 overview review](docs/review_m8_overview.md)
+fixes saved rarity/provenance validation and error paths before the M9 handoff.
+**2,591 tests passed, five existing Windows skips**;
 strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
 Next is M9.1's PGS scoring-file parser and per-score metadata licence handling.
 The [handoff](docs/handoff.md) records M8 acceptance and M9's next scope.
@@ -2520,6 +2522,15 @@ default-on.*
         four-way types, lint/format, fixtures and full card lint pass. No personal export.
         M8 complete; next M9.1. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87).
 
+**M8 overview reviewed 2026-10-08.** Seven groups of defects fixed, with 30 added
+synthetic cases (28 reproduced rejection cases and two valid skipped-region controls).
+Saved scalar rarity/frequency/hard-call binding, missing alleles, skipped-region ploidy,
+phase handoff sizes and categorical option/gzip/iterator failures are checked without
+changing format 16/schema 1 or historical meanings. **2,591 passed, five existing
+Windows skips**, native tools enabled; strict four-way types, lint/format, fixtures and
+full card lint pass. No personal export. [Review](docs/review_m8_overview.md) and
+[M9.1 handoff](docs/handoff.md#m91-implementation-entry-points-and-acceptance).
+
 ---
 
 ## M9 — PRS engine & score-driven sections
@@ -2729,6 +2740,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-08 | M8 overview review | Seven defect groups fixed: saved scalar rarity/frequency/oriented-call binding; missing REF/ALT placeholders; skipped-region ploidy; phase-handoff size; invalid Beagle option boundaries; corrupt DEFLATE handling; missing saved-dosage iterator errors. Thirty added synthetic cases, with all 28 rejection cases reproduced before their respective fixes and two valid skipped-region controls. Format 16/schema 1 and historical meanings unchanged. **2,591 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M9.1 handoff identifies the metadata source/licence transform, parser acceptance and original-array coverage limits. [Review](docs/review_m8_overview.md), [handoff](docs/handoff.md). |
 | 2026-10-08 | M8.7 | Thirty-two generated regressions prove rarity cannot be rescued by high DR2, strong literature or enabled imputation. Covers strict boundaries, both sources/native ploidies, missing companions, unobserved-rare controls, weakest-marker inheritance, original probes/opt-out and cache-independent format-16 CLI/dashboard parity. Chip 16%/BRCA 4.2% benchmarks stay study-scoped and uncalibrated for imputation. Isolated bypasses fail four rarity and two missing-companion cases. No engine or bundle-format change. **2,561 tests passed, five existing Windows skips**, native tools enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. No personal export. M8 complete; next M9.1, with licence authority corrected to the metadata CSV per AGENTS.md. [Guide](docs/imputation_quality.md#rare-call-frequency-gate-m87), [handoff](docs/handoff.md). |
 | 2026-10-07 | M8.6 review | Diff-driven pass fixes per-entry card/marker binding at shared loci, boolean native-storage acceptance and uncaught malformed-stage region errors. Five regressions reproduced the defects before fixes; format 16/schema 1 meanings remain intact. **2,529 tests passed, five existing Windows skips**, native tools enabled; strict four-way types, lint/format, fixtures and full card lint pass. M8.7 remains open with an explicit acceptance matrix and no known blocker. No personal export. [Review](docs/review_m86_session.md), [handoff](docs/handoff.md#m87-implementation-handoff). |
 | 2026-10-07 | M8.6 | Format 16 / full provenance schema 1 durably stores independent full native dosages and byte-identical panel/map catalogs, with exact used source/tool/runtime identities and per-region phase/imputation parameters. Saved validation binds native per-ALT quality, typed retention, source/count/region arithmetic, phase handoff and card/full-dosage evidence without caches or current manifests. Atomic publication refuses changed stage inputs and failed copies. Shared saved iterator, CLI provenance/JSONL dosages and dashboard recording status retain historical formats 1–15. Genotype-free progress; explicit opt-out, zero-job and not-recorded states. **2,524 tests passed, five existing Windows skips**; 53 added synthetic cases and native 800-record save/reuse acceptance, strict four-way types, lint/format, fixtures and full card lint pass. Historical fixtures now represent their original recorded contracts. No personal export. Next M8.7. [Guide](docs/imputation_provenance.md). |

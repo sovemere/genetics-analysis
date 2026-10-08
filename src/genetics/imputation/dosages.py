@@ -63,6 +63,7 @@ def parse_record(raw: Mapping[str, Any]) -> DosageRecord:
             or record.source not in {"direct", "imputed_no_call", "imputed_untyped"}
             or not isinstance(record.ref, str)
             or not record.ref
+            or record.ref == "."
             or not record.alt
             or any(not isinstance(a, str) or not a or a == "." for a in record.alt)
             or len(set((record.ref, *record.alt))) != len(record.alt) + 1
@@ -191,6 +192,7 @@ def read_output(path: Path, target: Target, *, phase_only: bool = False) -> Iter
                     or not region.start <= pos <= region.end
                     or (previous is not None and pos < previous[0])
                     or not ref
+                    or ref == "."
                     or not alt
                     or any(not a or a == "." for a in alt)
                     or len(set((ref, *alt))) != len(alt) + 1
@@ -291,7 +293,7 @@ def read_output(path: Path, target: Target, *, phase_only: bool = False) -> Iter
                 )
         if not count or seen_typed != set(target.sites):
             raise ImputationError("Beagle output is empty or lost eligible typed markers.")
-    except (OSError, EOFError, UnicodeError, ValueError) as exc:
+    except (OSError, EOFError, UnicodeError, ValueError, zlib.error) as exc:
         if isinstance(exc, ImputationError):
             raise
         raise ImputationError("Beagle output is malformed or unreadable.") from None

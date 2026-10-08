@@ -60,6 +60,10 @@ The full native suite passed **2,561 tests, five existing Windows skips**; all f
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete. Next: M9.1,
 PGS Catalog scoring-file parsing with authoritative per-score metadata licences.**
+The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
+provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
+It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
+skips**, with strict four-way types, lint/format, fixture reproduction and full card lint.
 M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
 download passed its publisher checksum; source/index verification and a synthetic
 offline run through the CLI and dashboard passed. Download resumability debt is resolved:
