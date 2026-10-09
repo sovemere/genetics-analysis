@@ -251,7 +251,7 @@ def test_cli_api_and_persisted_coverage_are_equal(
     loaded = read_coverage(path, scoring=scoring)
     assert loaded["coverage_origin"] == "persisted_verified"
     assert loaded["coverage"] == json.loads(json.dumps(result.record["coverage"]))
-    assert loaded["artifact_schema_version"] == 2
+    assert loaded["artifact_schema_version"] == 3
     monkeypatch.setattr(
         Catalog,
         "default",
@@ -288,7 +288,7 @@ def corrupt_cases() -> dict[str, Any]:
         data["terms"][0]["row_number"] = 3
 
     def schema(data: dict[str, Any]) -> None:
-        data["schema_version"] = 3
+        data["schema_version"] = 4
 
     def missing(data: dict[str, Any]) -> None:
         del data["coverage"]
@@ -405,4 +405,4 @@ def test_in_memory_coverage_rejects_terms_that_disagree_with_their_source(
     other = definition(tmp_path / "other", [weight(101, value="2")])
     with pytest.raises(PgsError, match="scoring source"):
         compute_coverage(result.record, schema_version=2, source_rows=list(other.iter_variants()))
-    assert isinstance(result, ScoreResult) and result.to_dict()["schema_version"] == 2
+    assert isinstance(result, ScoreResult) and result.to_dict()["schema_version"] == 3

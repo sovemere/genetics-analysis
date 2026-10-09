@@ -294,7 +294,7 @@ def compute_coverage(
     public source; without it the authored rows are rebuilt from the saved terms.
     Schema-1 artifacts can lack excluded-row proof: their presence stays unknown.
     """
-    if type(schema_version) is not int or schema_version not in {1, SCORE_SCHEMA_VERSION}:
+    if type(schema_version) is not int or not 1 <= schema_version <= SCORE_SCHEMA_VERSION:
         raise PgsError("Unsupported score artifact schema; coverage refused.")
     terms = record.get("terms")
     if not isinstance(terms, list | tuple) or not terms:
@@ -586,7 +586,7 @@ def read_coverage(path: Path, *, scoring: ScoringFile | None = None) -> dict[str
     if not isinstance(raw, dict) or raw.get("kind") != "pgs_score":
         _fail()
     schema = raw.get("schema_version")
-    if type(schema) is not int or schema not in {1, SCORE_SCHEMA_VERSION}:
+    if type(schema) is not int or not 1 <= schema <= SCORE_SCHEMA_VERSION:
         raise PgsError("Unsupported score artifact schema; coverage refused.")
     rows = None
     if scoring is not None:

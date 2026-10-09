@@ -322,7 +322,7 @@ def test_review_stale_native_reports_cannot_be_reused_as_new_execution(
         score(scoring, **kwargs)
 
 
-@pytest.mark.parametrize("name", ["no_impute", "allow_restricted"])
+@pytest.mark.parametrize("name", ["no_impute", "allow_restricted", "reference"])
 def test_review_workflow_rejects_nonboolean_flags_before_ingest(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, name: str
 ) -> None:
@@ -409,7 +409,10 @@ def test_both_sums_preserve_original_probes_low_quality_and_unknown_phase_qualit
     assert data["terms"][2]["after"]["quality_scope"] == "not_estimated"
     assert data["before"]["status"] == "scored_partial"
     assert data["after"]["status"] == "scored"
-    assert data["portability"] == "not_computed_M9.5" and data["percentile"] is None
+    assert data["portability"] == "not_computed_M9.5" and data["percentile"] == {
+        "before": None,
+        "after": None,
+    }
     assert not list((tmp_path / "work").glob("*.vcf"))
     assert not list((tmp_path / "work").glob("*.pgs-weights.tsv"))
 

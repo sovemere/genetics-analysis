@@ -95,7 +95,8 @@ into `identical`, `complement_concordant`, `conflicting`, `insufficient_calls` a
 
 ## Versioning and older artifacts
 
-Score artifacts are now **schema 2**. Coverage carries its own `schema_version: 1`, and
+Score artifacts are **schema 2** from M9.3 (schema 3 from M9.4 adds the reference
+distribution; coverage is unchanged). Coverage carries its own `schema_version: 1`, and
 `score_schema_version` records the artifact schema it was calculated under.
 
 Schema 2 guarantees two things:

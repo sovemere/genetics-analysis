@@ -59,7 +59,8 @@ rarity; chip confirmation benchmarks remain explicitly uncalibrated for imputati
 The full native suite passed **2,561 tests, five existing Windows skips**; all four
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
-ingestion, M9.2 scoring and M9.3 coverage are now implemented. M9.4 is next.**
+ingestion, M9.2 scoring, M9.3 coverage and M9.4 reference percentiles are now
+implemented. M9.5 is next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
@@ -87,6 +88,10 @@ lint/format, fixtures and full card lint. Forty-seven new cases cover this step.
 score result, with separate row/variant/position denominators and null (not 0%) for
 unavailable phases; `genetics pgs coverage` revalidates it. See
 [PGS coverage](docs/pgs_coverage.md).
+**M9.4 places each score against 1000 Genomes** within the person's placed
+super-population (pooled and labelled unmatched otherwise), over the same rows and
+the same PLINK matrix; `genetics pgs placement` revalidates it. See
+[PGS reference](docs/pgs_reference.md).
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and

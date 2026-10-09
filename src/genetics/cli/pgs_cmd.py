@@ -102,6 +102,13 @@ def score_pgs(
         bool,
         typer.Option("--allow-in-repo", help="Explicit opt-in for an ignored in-repo result file."),
     ] = False,
+    no_reference: Annotated[
+        bool,
+        typer.Option(
+            "--no-reference",
+            help="Explicit opt-out of the 1000 Genomes reference distribution and percentile.",
+        ),
+    ] = False,
     as_json: Annotated[
         bool,
         typer.Option(
@@ -109,7 +116,7 @@ def score_pgs(
         ),
     ] = False,
 ) -> None:
-    """Compute PLINK sums before/after imputation; save private evidence and provenance."""
+    """Compute PLINK sums before/after imputation, coverage and reference percentiles."""
     from genetics.ancestry.context import AncestryError
     from genetics.external.plink2 import Plink2Error
     from genetics.imputation.target import ImputationError
@@ -142,11 +149,16 @@ def score_pgs(
                 input_path,
                 no_impute=no_impute,
                 allow_restricted=allow_restricted,
+                reference=not no_reference,
                 progress=progress,
             )
             if input_path is not None
             else score_saved(
-                scoring, run_path, allow_restricted=allow_restricted, progress=progress
+                scoring,
+                run_path,
+                allow_restricted=allow_restricted,
+                reference=not no_reference,
+                progress=progress,
             )
             if run_path is not None
             else None
@@ -172,10 +184,13 @@ def score_pgs(
             json.dumps({"ok": True, "output": str(destination), **result.to_dict()}, indent=2)
         )
     else:
+        from genetics.pgs import reference
         from genetics.pgs.coverage import summary
 
         typer.echo(f"{result.pgs_id}: {result.status}. Private score saved to {destination}.")
         for line in summary(result.record["coverage"]):
+            typer.echo(line)
+        for line in reference.summary(result.record):
             typer.echo(line)
 
 
@@ -226,3 +241,50 @@ def coverage(
         )
         for line in summary(report["coverage"]):
             typer.echo(line)
+
+
+@pgs_app.command("placement")
+def placement(
+    result_path: Annotated[Path, typer.Argument(help="Private .pgs-score.json result.")],
+    scoring_file: Annotated[
+        Path | None,
+        typer.Option("--scoring-file", help="Also bind the result to this public scoring file."),
+    ] = None,
+    metadata: Annotated[
+        Path | None,
+        typer.Option("--metadata", help="Explicit metadata archive or validated index."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit the private reference placement JSON.")
+    ] = False,
+) -> None:
+    """Validate a saved score's reference distribution and report its percentiles."""
+    from genetics.pgs.reference import read_placement, summary
+
+    try:
+        scoring = None
+        if scoring_file is not None:
+            catalog = (
+                Catalog.default()
+                if metadata is None
+                else Catalog.load(metadata)
+                if metadata.suffix == ".json"
+                else Catalog.from_archive(metadata)
+            )
+            scoring = ScoringFile.open(scoring_file, catalog)
+        report = read_placement(result_path, scoring=scoring)
+    except (PgsError, ProcessError) as exc:
+        if as_json:
+            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
+        else:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    if as_json:
+        typer.echo(json.dumps({"ok": True, **report}, indent=2))
+        return
+    typer.echo(f"{report['pgs_id']}: score artifact schema {report['artifact_schema_version']}.")
+    if report["reference_distribution"] is None:
+        typer.echo("This result predates reference distributions; rescore it to place it.")
+        return
+    for line in summary(report):
+        typer.echo(line)

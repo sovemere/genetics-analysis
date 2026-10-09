@@ -42,14 +42,16 @@ M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared defa
 phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
 imputed rare-call gate regressions. The [M8 overview review](docs/review_m8_overview.md)
 fixes saved rarity/provenance validation and error paths before the M9 handoff.
-The current native suite passes **2,746 tests, five existing Windows skips**;
+The current native suite passes **2,766 tests, five existing Windows skips**;
 strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
 M9.1 is implemented: streaming format-2 scoring-file ingestion, authoritative per-score
 metadata licences, source-bound reference processing and offline CLI inspection.
 M9.2 adds native PLINK sums, preserving original and imputed effect-dose/quality evidence,
 private provenance and explicit unavailable/partial/unsupported states. M9.3 adds versioned
 per-score coverage before and after imputation ([PGS coverage](docs/pgs_coverage.md)).
-Next is M9.4's reference distribution. See [PGS scoring](docs/pgs_scoring.md).
+M9.4 adds 1000 Genomes reference distributions and ancestry-matched percentiles
+([PGS reference](docs/pgs_reference.md)). Next is M9.5's portability adjustment.
+See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
 denominators, saved-input compatibility and synthetic acceptance matrix.
@@ -2577,8 +2579,15 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         coverage` recomputes and refuses mismatches; schema-1 results are recomputed with
         missing proof left unknown. Placing it on the card face is M9.6's.
         [Guide](docs/pgs_coverage.md).
-- [ ] **M9.4** Reference distribution + percentile placement, computed within the
+- [x] **M9.4** Reference distribution + percentile placement, computed within the
       ancestry-matched reference group where possible.
+      - 1000 Genomes phase 3 scored over the person's comparable rows through the same
+        matrix and PLINK invocation; group from a 1000 Genomes placement with M5.5's decline
+        rule (super-population primary; declined/saved-only pooled and labelled unmatched).
+        Mid-rank percentile, Wilson interval, quantiles and histogram per group; lock-verified,
+        cached public extraction; `genetics pgs placement` recomputes and refuses tampering.
+        Independent PLINK cross-check on the real panel agrees within 8.4e-6.
+        [Guide](docs/pgs_reference.md).
 - [ ] **M9.5** Ancestry-portability adjustment to confidence
       ([AGENTS.md §4.4](AGENTS.md)).
       - **Owns the mapping M5.8 left open.** `AncestryContext.population` names one of M5.9's
@@ -2776,6 +2785,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 | Date | Milestone | Notes |
 |---|---|---|
 | 2026-10-08 | M9.2 | Pinned PLINK pre/post-imputation score sums from validated native effect doses, using a numeric matrix that preserves biological haploid values. Per-term original probes, native per-ALT quality, exact imputed indel sequences, missing/conflicting/unsupported states and source identities remain private. Full report target/term/count checks and independent signed-dose arithmetic bound PGEN/report precision; used PLINK binary is hashed before/after. Shared ancestry-first/default-on export workflow, explicit no-impute, saved format-16 scoring after cache removal and immutable private score JSON/CLI parity. Saved-only original sums stay unavailable; no percentile, portability or card is introduced. **2,707 tests passed, five existing Windows skips**, all pinned native tools/Java 17 enabled; 47 new synthetic cases, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. New personal-output ignores added; no personal export or new reference payload used. Next M9.3. [Guide](docs/pgs_scoring.md). |
+| 2026-10-09 | M9.4 | 1000 Genomes phase 3 reference distributions: reference samples scored over the person's comparable rows through the shared effect-dose matrix and PLINK invocation, with per-sample exact audit and cross-sample totals. Shared `orient()` allele rule; palindromic/ambiguous/four-allele/missing/ploidy-conflict rows excluded and counted. Comparison group from a new 1000 Genomes placement with M5.5's decline rule: super-population primary when placed, pooled and `ancestry_matched: false` when declined/unplaced/saved-only. Mid-rank percentile, Wilson 95% interval, quantiles, histogram; imputed-dose share recorded. Schema-3 score results; `genetics pgs placement` recomputes and refuses tampering; `--no-reference` explicit. Lock-verified streaming extraction, cached by public identity. Real-panel PGS000001 acceptance (synthetic person): 70/77 rows; independent PLINK cross-check within 8.4e-6 over 2,504 samples. **2,766 tests passed, five existing Windows skips**, pinned native tools/Java 17; 19 new synthetic cases, four guard mutations caught, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. Bundle format 16 unchanged; no personal export used. Next M9.5. [Guide](docs/pgs_reference.md). |
 | 2026-10-09 | M9.3 | Versioned per-score coverage from saved term evidence, embedded in schema-2 score results and reloadable via `genetics pgs coverage` with recomputation and mismatch refusal. Authored rows, unique allele-defined variants and positions are separate denominators; undefined rows keep raw definitions. Before/after are independent, unavailable phases are null rather than 0%, no-overlap is a real zero, unsupported models keep observations without a scored fraction. Original-probe duplicates are classified; quality (sources, ploidy, methods, DR2 bins, unknown reasons) is described and never filters or scales. Schema-1 results are recomputed with missing proof unknown. **2,746 tests passed, five existing Windows skips**, pinned native tools/Java 17; 20 new synthetic cases, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. Bundle format 16 unchanged; no personal export used. Next M9.4. [Guide](docs/pgs_coverage.md). |
 | 2026-10-09 | M9.1–M9.2 review | Diff review fixes inferred-allele validation, retained excluded evidence and phase availability, early workflow/output checks, filesystem error boundaries, stale native report acceptance and arithmetic overflow. All 19 new synthetic cases reproduced defects before fixes. **2,726 tests passed, five existing Windows skips**, all pinned native tools/Java 17 enabled; four strict type targets, lint/format, fixtures, full dbSNP card lint and staged privacy scan pass. Cached public-reference parsing passes offline. M9.3 handoff defines denominators, unavailable states, older-artifact compatibility and acceptance cases. No personal export/private run or new reference payload used. [Review](docs/review_m9_session.md). |
 | 2026-10-08 | M9.1 | Streaming format-2 PGS scoring-file parser and authoritative per-score metadata terms, with exact source identities, original/harmonized builds, raw model/weight columns and explicit special features. Metadata archive processing is now executable in fetch/verify, with checksum/provenance validation and stale-index rebuild. Unknown/missing/duplicate terms never establish permission; restricted terms remain flagged. Offline CLI/API public-reference acceptance covers 6,991 metadata scores and 77 PGS000001 GRCh37 rows, both fetched and lock-recorded. Sixty-nine synthetic cases cover malformed/nonfinite rows, identity/build/count conflicts, licence joins/gates, source changes, index corruption/reuse, CLI and privacy ignores. **2,660 tests passed, five existing Windows skips**, pinned native tools and Java 17 enabled; all four strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass. Bundle format 16 unchanged; no personal export opened. Next M9.2. [Guide](docs/pgs_ingestion.md). |

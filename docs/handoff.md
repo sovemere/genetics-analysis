@@ -3,7 +3,44 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.3 are now implemented. Next is M9.4.
+M9.1–M9.4 are now implemented. Next is M9.5.
+
+## Implemented M9.4 and M9.5 entry
+
+`pgs/reference.py` scores 1000 Genomes phase 3 (2,504 samples) over exactly the rows the
+person's phase scored and the panel resolves, through the person's effect-dose matrix and
+PLINK invocation, then places the person by mid-rank percentile with a Wilson 95% interval.
+Score artifacts move to **schema 3** (`reference_distribution`, per-phase `percentile`).
+`genetics pgs score` computes it by default (`--no-reference` is the recorded opt-out);
+`genetics pgs placement RESULT --json` recomputes every statistic and refuses mismatches.
+See [the guide](pgs_reference.md).
+
+- The comparison group comes from a new 1000 Genomes placement
+  (`ancestry.context.place_among_reference_populations`, M5.5's decline rule in 1000
+  Genomes' own PCA space). Placed: super-population primary, population and pooled beside
+  it. Declined, unplaced or saved-only: pooled, `ancestry_matched: false` with the reason.
+- Allele orientation is the engine's shared `orient()`; palindromic rows, ambiguous or
+  four-allele loci, missing calls and ploidy conflicts are excluded and counted. Panel
+  VCFs are verified against the lock in the extraction pass; the public extraction is
+  cached by score and panel identity.
+- `person_dose_basis` records imputed weight share against sequenced hard-call references;
+  shrinkage is recorded, not corrected.
+
+Acceptance: **2,766 tests passed, five existing Windows skips**, with pinned PLINK 2/PLINK
+1.9/Beagle/bref3 and Java 17. Nineteen new synthetic cases; mutations of the palindrome,
+ploidy, group-restriction and lock-digest guards each fail a test. Real-panel acceptance
+(public PGS000001, synthetic person): 70/77 rows resolve and every one of 2,504 reference
+sums matches an independent PLINK scoring of the raw 1000 Genomes VCFs within 8.4e-6.
+All four strict type targets, lint/format, fixture reproduction and full dbSNP card lint
+pass. No personal export, private run or new reference payload was used.
+
+**Next M9.5:** ancestry-portability adjustment to confidence (AGENTS.md §4.4). Inputs now
+exist: the run's AADR placement (`AncestryContext`), the 1000 Genomes comparison group
+with `ancestry_matched`, per-phase coverage (M9.3), comparable-row weight fractions and the
+imputed dose share. M9.5 owns the study-ancestry mapping M5.8 left open: the PGS metadata's
+development/evaluation ancestry against the person's placement, from a cited definition
+rather than memory. `declined` must lower portability, never read as neutral. Keep every
+input visible; nothing may filter a card.
 
 ## Implemented M9.3 and M9.4 entry
 
