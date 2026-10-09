@@ -409,7 +409,8 @@ def test_both_sums_preserve_original_probes_low_quality_and_unknown_phase_qualit
     assert data["terms"][2]["after"]["quality_scope"] == "not_estimated"
     assert data["before"]["status"] == "scored_partial"
     assert data["after"]["status"] == "scored"
-    assert data["portability"] == "not_computed_M9.5" and data["percentile"] == {
+    assert data["portability"]["judgment"] == "not_computed"
+    assert data["portability"]["ancestry_match"] is None and data["percentile"] == {
         "before": None,
         "after": None,
     }

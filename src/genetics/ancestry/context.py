@@ -42,10 +42,11 @@ little of the panel to build a space from -- the synthetic fixtures, whose coord
 invented, are the case every test run meets. That is a fact about one file, so it is recorded
 as ``not_run`` with the reason rather than failing the whole run over it.
 
-**Nothing here decides what a card's confidence becomes.** Turning a placement into
-``ancestry_match`` needs a mapping from the panel's 100 populations to the five study-ancestry
-codes cards declare, and no such mapping exists yet; M9.5 owns it. What M5.8 guarantees is
-that when M9.5 arrives, the input it reads cannot be misread.
+**Nothing here decides what a card's confidence becomes.** M9.5's
+:mod:`genetics.pgs.portability` turns placements into ``ancestry_match``: the 1000 Genomes
+population maps to a cited study category, while this module's AADR placement -- whose
+regions are sampling countries with no cited category mapping -- acts as a decline gate. What
+M5.8 guarantees is that the input M9.5 reads cannot be misread.
 """
 
 from __future__ import annotations

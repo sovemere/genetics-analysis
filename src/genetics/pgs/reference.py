@@ -10,7 +10,8 @@ of one definition. Rows dropped for comparability are counted, never hidden.
 The comparison group is chosen by placing the person among 1000 Genomes' own populations
 with M5.5's decline rule; the super-population of a named population is the primary group.
 A declined, unplaced or saved-only person is compared with the pooled panel and labelled
-``ancestry_matched: false``. Nothing here interprets portability (M9.5) or renders (M9.6).
+``ancestry_matched: false``. Portability is derived from this placement by
+:mod:`genetics.pgs.portability` (M9.5); rendering is M9.6's.
 
 Reference genotypes are public. The extraction cache holds only the public score's rows
 in the public panel; everything restricted to a person's rows is private score output.
@@ -467,7 +468,7 @@ def group_statistics(values: Sequence[float], person: float) -> dict[str, Any]:
     """Distribution summary and mid-rank percentile, with a Wilson 95% interval.
 
     The interval reflects only the finite reference group, not imputation, coverage or
-    portability: those are reported beside it and are M9.5's to weigh.
+    portability: those are reported beside it (portability in :mod:`genetics.pgs.portability`).
     """
     n = len(values)
     if n == 0:
@@ -791,6 +792,10 @@ def attach_reference(
         phase: block.get(phase, {}).get("percentile") if block["status"] == "computed" else None
         for phase in ("before", "after")
     }
+    from genetics.pgs.portability import compute_portability
+
+    # The 1000 Genomes placement is a portability input, so the block is rederived here.
+    record["portability"] = compute_portability(record)
     return replace(result, record=record)
 
 

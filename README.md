@@ -60,7 +60,7 @@ The full native suite passed **2,561 tests, five existing Windows skips**; all f
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
 ingestion, M9.2 scoring, M9.3 coverage and M9.4 reference percentiles are now
-implemented. M9.5 is next.**
+implemented, as is M9.5 ancestry portability. M9.6 is next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
@@ -92,7 +92,13 @@ unavailable phases; `genetics pgs coverage` revalidates it. See
 super-population (pooled and labelled unmatched otherwise), over the same rows and
 the same PLINK matrix; `genetics pgs placement` revalidates it. See
 [PGS reference](docs/pgs_reference.md). The [M9.3–M9.4 review](docs/review_m94_session.md)
-verifies the public panel before personal input; M9.5's entry contract is in the
+verifies the public panel before personal input.
+**M9.5 states each score's ancestry portability:** the placed 1000 Genomes population maps
+through a cited category chain (Morales et al. 2018 Table 1, then the PGS Catalog's display
+categories) to the share of the score's study population demonstrably in the sample's
+category, which becomes `ancestry_match`. A decline by either panel lowers it; unknown stays
+unknown; nothing is filtered. `genetics pgs portability` revalidates it. See
+[PGS portability](docs/pgs_portability.md); M9.6's entry contract is in the
 [handoff](docs/handoff.md).
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
