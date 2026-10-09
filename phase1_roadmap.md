@@ -2632,6 +2632,9 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         decile and input tables. Confidence reuses the calculator's weights and thresholds
         (coverage in the frequency slot). [Guide](docs/pgs_cards.md).
       - Single-marker ancestry match and the `{ancestry}` placeholder moved to M9.13.
+      - [Session review](docs/review_m96_session.md): a score missing from metadata no longer
+        aborts a run; damaged polygenic records are `BundleError`; within-family estimates
+        above 1 are worded correctly. [Handoff](docs/handoff.md) holds M9.7's contract.
 - [ ] **M9.7** Section: **Physical health** PRS cards.
 - [ ] **M9.8** Section: **Mental health**. Record reduced-N (excluding-23andMe) releases
       on the card ([AGENTS.md §5.3](AGENTS.md)).

@@ -108,6 +108,16 @@ class PolygenicStage:
             if isinstance(located, str):
                 self.prepared[card.id] = Prepared(card, reason=located)
                 continue
+            if card.pgs.pgs_id not in catalog.scores:
+                # Absent, not wrong: a metadata release older than the card. One card's
+                # missing row must not abort every other finding in the run (M9.6 review).
+                self.prepared[card.id] = Prepared(
+                    card,
+                    reason=f"The fetched PGS Catalog metadata has no row for {card.pgs.pgs_id}; "
+                    "it predates the score or was not refreshed. "
+                    "`genetics refs fetch --only pgs_catalog_metadata`.",
+                )
+                continue
             scoring = ScoringFile.open(located, catalog, pgs_id=card.pgs.pgs_id)
             terms = scoring.metadata.license
             if terms.status != "permissive":
