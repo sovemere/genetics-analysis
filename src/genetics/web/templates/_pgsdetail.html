@@ -1,0 +1,82 @@
+{#
+  The polygenic block of a card's detail view (M9.6). The chart leads; every number behind
+  the face follows it as text and tables, so nothing is carried by colour or position alone.
+#}
+{% set pgs = card.polygenic %}
+<section class="detailblock" aria-label="Polygenic score placement">
+  <h3>Where this score sits</h3>
+  {% if pgs and pgs.placed %}
+    {% set compact = false %}
+    {% include "_pgschart.html" %}
+    <p class="muted">
+      The shaded band is a 95% interval that reflects only the size of the reference group.
+      Coverage, imputation quality and ancestry portability are stated below rather than
+      folded into a wider-looking band.
+    </p>
+    <dl class="facts">
+      <div><dt>Score</dt><dd>{{ pgs.pgs_id }} · {{ pgs.trait }}</dd></div>
+      <div><dt>Reference group</dt><dd>{{ pgs.reference_label }}{% if not pgs.ancestry_matched %} — not ancestry-matched: {{ pgs.reference_reason }}{% endif %}</dd></div>
+      <div><dt>Coverage</dt><dd>{{ pgs.coverage_display }}</dd></div>
+      <div><dt>Imputation quality</dt><dd>{{ pgs.quality_display }}</dd></div>
+      {% if pgs.portability_display %}<div><dt>Ancestry portability</dt><dd>{{ pgs.portability_display }}</dd></div>{% endif %}
+      {% if pgs.licence %}<div><dt>Score licence</dt><dd>{{ pgs.licence.status }} — {{ pgs.licence.reason }}</dd></div>{% endif %}
+    </dl>
+  {% else %}
+    <p>{{ card.computation.reason }}</p>
+  {% endif %}
+</section>
+
+<section class="detailblock" aria-label="Absolute outcome rates by score decile">
+  <h3>Absolute rates by score decile</h3>
+  {% if pgs and pgs.deciles %}
+    <p class="muted">
+      {{ pgs.deciles.measure | capitalize }} in {{ pgs.deciles.population }}
+      (n = {{ "{:,}".format(pgs.deciles.sample_size) }}){% if pgs.deciles.context %}, {{ pgs.deciles.context }}{% endif %}.
+      Overall: {{ "%.1f" | format(100 * pgs.deciles.base_rate) }}%. These are that study's rates,
+      not a prediction for you.
+    </p>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Score decile</th><th scope="col">Rate</th><th scope="col">Your interval</th></tr></thead>
+        <tbody>
+          {% for row in pgs.decile_rows %}
+            <tr{% if row.overlapped %} class="pgsrow-overlap"{% endif %}>
+              <th scope="row">{{ row.decile }}</th>
+              <td class="num">{{ row.rate }}</td>
+              <td>{{ "overlaps" if row.overlapped else "" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="caution">No absolute outcome rates by score decile are recorded for this score.
+      A position in a reference distribution is not a risk.</p>
+  {% endif %}
+</section>
+
+{% if card.computation.reliability.tier %}
+  <section class="detailblock">
+    <h3>Why this tier</h3>
+    <p class="muted">
+      Computed, never authored (AGENTS.md §6), with the single-variant calculator's weights:
+      coverage takes the place allele frequency holds for one call.
+      Weighted score {{ "%.2f" | format(card.computation.reliability.score) }}.
+      {% if card.computation.reliability.ceilings %}Capped by {{ card.computation.reliability.ceilings | join(", ") | replace("_", " ") }}.{% endif %}
+    </p>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>
+        <tbody>
+          {% set inputs = card.computation.reliability.inputs %}
+          <tr><th scope="row">Evidence tier</th><td>{{ inputs.evidence_tier }}</td><td class="num">{{ "%.2f" | format(inputs.evidence_score) }}</td></tr>
+          <tr><th scope="row">Effect</th><td>{{ inputs.effect_measure }} {{ inputs.effect_value }}</td><td class="num">{{ "%.2f" | format(inputs.effect_score) }}</td></tr>
+          <tr><th scope="row">Replication</th><td>{{ inputs.replication }}</td><td class="num">{{ "%.2f" | format(inputs.replication_score) }}</td></tr>
+          <tr><th scope="row">Comparable weight</th><td>{{ "%.2f" | format(inputs.weight_coverage) }}</td><td class="num">{{ "%.2f" | format(inputs.coverage_score) }}</td></tr>
+          <tr><th scope="row">Weighted quality</th><td>{{ "%.2f" | format(inputs.weighted_quality) }}</td><td class="num">{{ "%.2f" | format(inputs.quality_score) }}</td></tr>
+          <tr><th scope="row">Ancestry match</th><td>{{ "not computed" if inputs.ancestry_match is none else "%.2f" | format(inputs.ancestry_match) }}</td><td class="num">{{ "%.2f" | format(inputs.ancestry_score) }}</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+{% endif %}

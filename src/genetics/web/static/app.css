@@ -51,6 +51,9 @@
   --tier-artifact-ink: #8d1f1f;
   --tier-none-bg: #e8eaee;
   --tier-none-ink: #4a505c;
+  /* M9.6 polygenic chart roles: a validated pair (dataviz validator, both themes). */
+  --pgs-bar: #2a78d6;
+  --pgs-band: #eb6834;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -83,6 +86,8 @@
     --tier-artifact-ink: #f5a3a3;
     --tier-none-bg: #262a32;
     --tier-none-ink: #a8b0bd;
+    --pgs-bar: #3987e5;
+    --pgs-band: #d95926;
   }
 }
 
@@ -115,6 +120,8 @@
   --tier-artifact-ink: #f5a3a3;
   --tier-none-bg: #262a32;
   --tier-none-ink: #a8b0bd;
+  --pgs-bar: #3987e5;
+  --pgs-band: #d95926;
 }
 
 * { box-sizing: border-box; }
@@ -653,3 +660,17 @@ a { color: var(--accent); }
   border-top: 1px solid var(--line);
   font-size: 0.85rem;
 }
+
+/* M9.6: a polygenic score drawn as its reference distribution, the person as a band. */
+/* Capped width: the SVG scales its text with it, so an uncapped chart shouts its labels. */
+.pgschart { margin: 0.25rem 0 0.5rem; max-width: 34rem; }
+.pgschart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pgschart-compact { max-width: 22rem; }
+.pgsbar { fill: var(--pgs-bar); }
+.pgsband { fill: var(--pgs-band); fill-opacity: 0.16; }
+.pgsbandedge { stroke: var(--pgs-band); stroke-width: 2; }
+.pgsaxis { stroke: var(--line); stroke-width: 1; }
+.pgslabel { fill: var(--ink); font-size: 11px; }
+.pgstick { fill: var(--muted); font-size: 11px; }
+.pgschart figcaption { font-size: 0.8rem; }
+.pgsrow-overlap th, .pgsrow-overlap td { font-weight: 600; }

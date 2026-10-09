@@ -43,6 +43,7 @@ from genetics.privacy import NoGenotypeRepr
 from genetics.run.bundle import EVIDENCE_FORMAT_VERSION as _EVIDENCE_FORMAT_VERSION
 from genetics.run.bundle import RunBundle, StoredCard
 from genetics.run.store import RunListing, RunStatus, RunSummary
+from genetics.web.polygenic import PolygenicView
 
 __all__ = [
     "ABSOLUTE_MEASURES",
@@ -324,7 +325,9 @@ def section_views(cards: Sequence[StoredCard]) -> tuple[SectionView, ...]:
                 blurb=info.blurb,
                 milestone=info.milestone,
                 card_count=len(here),
-                interpreted=sum(1 for card in here if card.status == MATCHED),
+                # Matched *and* computed, as MatchStatus.has_interpretation and the run
+                # manifest count them: a placed score or ROH result is a finding here.
+                interpreted=sum(1 for card in here if card.status in {MATCHED, "computed"}),
             )
         )
     return tuple(views)
@@ -989,6 +992,17 @@ class CardView(NoGenotypeRepr):
         return self.kind == "computed"
 
     @property
+    def is_polygenic(self) -> bool:
+        return self.kind == "polygenic"
+
+    @property
+    def polygenic(self) -> PolygenicView | None:
+        """The distribution-first view of a polygenic card (M9.6), or ``None``."""
+        if not self.is_polygenic or self.computation is None:
+            return None
+        return PolygenicView.of(self.computation)
+
+    @property
     def roh(self) -> Mapping[str, Any] | None:
         if self.computation is None or self.computation.get("source") != "long_roh":
             return None
@@ -1045,7 +1059,7 @@ class CardView(NoGenotypeRepr):
         """
         if self.frequencies or self.confidence_frequency is not None:
             return None
-        if not self.is_interpreted or self.is_computed:
+        if not self.is_interpreted or self.is_computed or self.is_polygenic:
             return None
         if self.multi_marker is not None:
             return None
@@ -1111,6 +1125,17 @@ class CardView(NoGenotypeRepr):
         effect = self.effect
         if effect is None:
             return None
+        if self.is_polygenic:
+            view = self.polygenic
+            if view is not None and view.deciles is not None:
+                return (
+                    "Absolute outcome rates by score decile, from the cited study, are shown "
+                    "with the distribution; this per-unit effect is not a personal probability."
+                )
+            return (
+                "This is the published effect per unit of score. No absolute outcome rates by "
+                "score decile are recorded for this score, so it cannot be turned into a risk."
+            )
         if effect.is_absolute:
             return None
         if effect.is_relative:

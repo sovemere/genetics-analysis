@@ -396,3 +396,126 @@ def calculate_confidence(
         tier = _weaker_of(tier, ceiling)
 
     return ConfidenceResult(tier=tier, score=score, inputs=inputs, empirical_ppv=empirical_ppv)
+
+
+# ---------------------------------------------------------------------------
+# Polygenic scores (M9.6)
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class PolygenicConfidenceInputs:
+    """Every input behind a polygenic card's tier, raw beside its component score.
+
+    ``weight_coverage`` is the share of the score's absolute weight that entered the
+    reference comparison (M9.4's ``fraction_of_score_weight``). ``weighted_quality`` is the
+    absolute-weight mean of per-row quality over those rows: 1 for a direct call, DR2 for an
+    imputed one, 0 where quality is unknown -- the single-variant calculator's own scale.
+    """
+
+    evidence_tier: EvidenceTier
+    evidence_score: float
+    effect_measure: EffectMeasure
+    effect_value: float
+    effect_score: float
+    replication: Replication
+    replication_score: float
+    weight_coverage: float
+    coverage_score: float
+    weighted_quality: float
+    quality_score: float
+    unknown_quality_weight_fraction: float
+    ancestry_match: float | None
+    ancestry_score: float
+
+
+@dataclass(frozen=True)
+class PolygenicConfidence:
+    tier: ConfidenceTier
+    score: float
+    inputs: PolygenicConfidenceInputs
+    ceilings: tuple[str, ...]
+    """Why the tier sits below the weighted score's band, in application order."""
+
+
+def calculate_polygenic_confidence(
+    evidence: Evidence,
+    *,
+    weight_coverage: float,
+    weighted_quality: float,
+    unknown_quality_weight_fraction: float,
+    ancestry_match: float | None,
+) -> PolygenicConfidence:
+    """Confidence for a polygenic score, from the calculator's own weights and thresholds.
+
+    Nothing here is a new number. The weights are :data:`_WEIGHTS`, with coverage in the
+    slot allele frequency holds for a single call: both measure whether the observation the
+    claim rests on is really there. Quality ceilings are the single-variant DR2 ceilings
+    applied to the weighted quality; coverage reuses :func:`ancestry_ceiling`'s 0.25/0.5
+    bands, because both are the demonstrated share of the score's basis. There is no rarity
+    ceiling: a sum over common variants has no rare-call PPV (AGENTS.md 4.1). The function
+    labels; it never filters.
+    """
+
+    coverage = _finite_fraction(weight_coverage, "weight_coverage")
+    quality = _finite_fraction(weighted_quality, "weighted_quality")
+    unknown = _finite_fraction(unknown_quality_weight_fraction, "unknown_quality_weight_fraction")
+    ancestry = _finite_fraction(ancestry_match, "ancestry_match")
+    if coverage is None or quality is None or unknown is None:
+        raise ConfidenceError("polygenic confidence needs coverage and quality fractions")
+    evidence_score = _EVIDENCE_SCORES[evidence.tier]
+    effect_score = round(_effect_score(evidence.effect), 4)
+    replication_score = _REPLICATION_SCORES[evidence.replication]
+    ancestry_score = 0.5 if ancestry is None else ancestry
+    score = round(
+        _WEIGHTS["evidence"] * evidence_score
+        + _WEIGHTS["effect"] * effect_score
+        + _WEIGHTS["replication"] * replication_score
+        + _WEIGHTS["frequency"] * coverage
+        + _WEIGHTS["imputation"] * quality
+        + _WEIGHTS["ancestry"] * ancestry_score,
+        4,
+    )
+    tier = _score_tier(score)
+    ceilings: list[str] = []
+
+    def cap(ceiling: ConfidenceTier | None, why: str) -> None:
+        nonlocal tier
+        if ceiling is not None and ceiling.rank > tier.rank:
+            tier = ceiling
+            ceilings.append(why)
+
+    if evidence.tier is EvidenceTier.ANECDOTAL or evidence.replication is Replication.CONFLICTING:
+        cap(ConfidenceTier.LIMITED, "evidence")
+    elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
+        cap(ConfidenceTier.MODERATE, "evidence")
+    if quality < 0.30:
+        cap(ConfidenceTier.LIKELY_ARTIFACT, "imputation_quality")
+    elif quality < 0.60:
+        cap(ConfidenceTier.LIMITED, "imputation_quality")
+    elif quality < 0.80:
+        cap(ConfidenceTier.MODERATE, "imputation_quality")
+    coverage_ceiling = ancestry_ceiling(coverage)
+    cap(coverage_ceiling, "coverage")
+    cap(ancestry_ceiling(ancestry), "ancestry")
+    return PolygenicConfidence(
+        tier=tier,
+        score=score,
+        inputs=PolygenicConfidenceInputs(
+            evidence_tier=evidence.tier,
+            evidence_score=evidence_score,
+            effect_measure=evidence.effect.measure,
+            effect_value=evidence.effect.value,
+            effect_score=effect_score,
+            replication=evidence.replication,
+            replication_score=replication_score,
+            weight_coverage=coverage,
+            coverage_score=coverage,
+            weighted_quality=quality,
+            quality_score=quality,
+            unknown_quality_weight_fraction=unknown,
+            ancestry_match=ancestry,
+            ancestry_score=ancestry_score,
+        ),
+        ceilings=tuple(ceilings),
+    )

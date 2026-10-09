@@ -295,6 +295,33 @@ def lint_directory(
     return lint_pack(pack, resolver=resolver, resolve_variants=resolve_variants)
 
 
+def _lint_pgs_source(card: Card) -> list[LintIssue]:
+    """A polygenic card must name a manifest entry that fetches exactly its scoring file."""
+    from genetics.paths import reference_manifest
+    from genetics.refs import manifest as refs_manifest
+
+    assert card.pgs is not None
+    try:
+        source = refs_manifest.load(reference_manifest()).get(card.pgs.source)
+    except refs_manifest.ManifestError:
+        return [
+            LintIssue(
+                "pgs-source-missing",
+                f"reference manifest has no source {card.pgs.source!r}",
+                card.id,
+            )
+        ]
+    if [f.filename for f in source.files if f.filename.startswith(card.pgs.pgs_id)] == []:
+        return [
+            LintIssue(
+                "pgs-source-mismatch",
+                f"manifest source {card.pgs.source!r} fetches no {card.pgs.pgs_id} file",
+                card.id,
+            )
+        ]
+    return []
+
+
 def lint_pack(
     pack: KnowledgePack,
     *,
@@ -319,6 +346,8 @@ def lint_pack(
         card_issues, card_rendered = _lint_templates(card)
         issues.extend(card_issues)
         rendered += card_rendered
+        if card.kind is CardKind.POLYGENIC:
+            issues.extend(_lint_pgs_source(card))
 
     resolved = 0
     if not resolve_variants:

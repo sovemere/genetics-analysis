@@ -3,9 +3,82 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.4 are implemented and reviewed, and M9.5 is implemented. Next is M9.6.
+M9.1–M9.4 are implemented and reviewed, and M9.5–M9.6 are implemented. Next is M9.7.
 
-## Implemented M9.5 and M9.6 entry contract
+## Implemented M9.6 and M9.7 entry contract
+
+`pgs/cards.py`, `pgs/runner.py` and `web/polygenic.py` put polygenic scores on cards. See
+[the guide](pgs_cards.md).
+
+- **Schema.** Knowledge schema 4 adds `kind: polygenic`: `pgs: {id, source}` naming a
+  manifest entry, `trait`, plain-text `summary`/`detail` (no placeholders), evidence, and
+  optional `decile_outcomes` (ten absolute rates plus base rate, cited to one of the card's
+  citations). `cards lint` checks the manifest source fetches that score.
+- **Run.** `genetics run` prepares every polygenic card before the export is read
+  (scoring-file lock, licence gate, public 1000 Genomes extraction), places the sample once,
+  then scores each card with the M9.2-M9.5 functions. Absent inputs give `not_run` with the
+  fix; a lock mismatch raises. A run gives no restricted-licence opt-in.
+- **Bundle format 17.** `pgs.run.json` holds each card's private score record. Reading
+  re-derives the record's coverage, distribution and portability, then the card's display,
+  reliability and face text, and refuses any disagreement or an unpaired record.
+- **No point estimate.** The display carries the reference histogram and quantiles and the
+  person's 95% interval, deciles and score-unit range. The person's sum and point
+  percentile never leave the private record. The face states the interval basis, coverage,
+  portability, within-family attenuation and decile rates with the base rate, or that a
+  position is not a risk.
+- **Confidence.** `calculate_polygenic_confidence` reuses the calculator's weights, with
+  comparable score weight in the frequency slot. Ceilings reuse existing thresholds:
+  evidence, DR2 on weighted quality, `ancestry_ceiling` bands for coverage and ancestry.
+- **Dashboard.** The face has a compact histogram with the interval band. The detail has a
+  full chart, then tables for coverage, quality, portability, decile rates and every
+  confidence input. The colour pair passed the dataviz validator in both themes.
+- **Fixed while there.** The section nav counted only `matched` cards as interpretations,
+  disagreeing with the run manifest and the grid for every computed card. It now counts
+  `computed` too. An unknown manifest source raised `ManifestError` uncaught in the runner;
+  it is now a reason.
+- **Carved out.** Single-marker `ancestry_match` and `{ancestry}` are now **M9.13**. They
+  are a decision about the evidence: they would re-tier every card in the pack.
+
+Acceptance: **2,834 tests passed, five existing Windows skips**, with pinned PLINK
+2/PLINK 1.9/Beagle/bref3 and Java 17.
+
+Thirty-five new synthetic cases cover:
+
+- schema refusals;
+- the confidence ceilings;
+- a run through the bundle, CLI JSON and dashboard;
+- not-fetched, restricted-licence and no-panel cards that still render;
+- nine tamper refusals, plus a format-16 bundle carrying a polygenic card;
+- lock verification of the scoring file;
+- manifest-source lint;
+- chart geometry;
+- the nav count.
+
+Real-data checks used public data only. Public PGS000001 and the real 1000 Genomes panel
+were run through the polygenic stage with two public samples' own genotypes:
+
+- HG00096 (GBR) placed in EUR (503 samples), interval at the 41st to 49th percentile;
+- HG00403 (CHS) placed in EAS (504 samples), interval at the 90th to 95th percentile,
+  with its tier capped by ancestry, as M9.5 intends for a European-only GWAS.
+
+A browser render of a synthetic run showed two defects, both since fixed: SVG labels
+scaled with chart width, and the leftmost tick label clipped. Screenshots of the fixes timed
+out in the browser tool, so the fix is covered by geometry assertions rather than re-viewed.
+Other gates: all four strict type targets, lint/format, fixture reproduction and the full
+dbSNP card lint (51 cards, 268 renders) pass. No personal export or private run was used.
+
+**M9.7 entry contract** (Physical health PRS cards):
+
+- **Authoring only.** Author cards in `knowledge/health/` with `kind: polygenic`. Each
+  score needs a manifest entry pinning its harmonized GRCh37 scoring file. Prefer
+  permissive licences, because a run cannot opt in to restricted ones.
+- **Citations.** Every effect, within-family estimate and decile rate is cited from the
+  primary paper and checked against it (AGENTS.md §6). Without published decile rates,
+  omit `decile_outcomes`; the face then says a position is not a risk.
+- **Acceptance.** Fetch the scores, run `cards lint` in full, and check one public 1000
+  Genomes stand-in through `genetics run` and the dashboard.
+
+## Implemented M9.5 (M9.6 entry contract, done)
 
 `pgs/portability.py` gives every **schema-4** score result a versioned `portability`
 block and the numeric `ancestry_match` that `calculate_confidence` accepts. `score()`

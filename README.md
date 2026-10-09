@@ -60,7 +60,8 @@ The full native suite passed **2,561 tests, five existing Windows skips**; all f
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
 ingestion, M9.2 scoring, M9.3 coverage and M9.4 reference percentiles are now
-implemented, as is M9.5 ancestry portability. M9.6 is next.**
+implemented, as are M9.5 ancestry portability and M9.6 polygenic cards. M9.7 is
+next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
@@ -98,7 +99,12 @@ through a cited category chain (Morales et al. 2018 Table 1, then the PGS Catalo
 categories) to the share of the score's study population demonstrably in the sample's
 category, which becomes `ancestry_match`. A decline by either panel lowers it; unknown stays
 unknown; nothing is filtered. `genetics pgs portability` revalidates it. See
-[PGS portability](docs/pgs_portability.md); M9.6's entry contract is in the
+[PGS portability](docs/pgs_portability.md).
+**M9.6 puts polygenic scores on cards:** `genetics run` scores every `kind: polygenic` card
+(knowledge schema 4) and saves the private record in bundle format 17. The card face and
+the dashboard show the reference distribution with the person's interval, never a point,
+beside coverage, portability, within-family attenuation and absolute rates by decile where
+cited. See [PGS cards](docs/pgs_cards.md); M9.7's entry contract is in the
 [handoff](docs/handoff.md).
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
