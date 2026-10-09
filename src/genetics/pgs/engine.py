@@ -6,7 +6,8 @@ labels prevent chromosome import conventions from rescaling haploid observations
 Original loci, alleles, ploidies, quality and exclusions remain in the private result.
 No percentile, outcome probability or confidence calibration is computed here.
 Schema 2 adds M9.3 coverage and guarantees retained exclusion proof and phase states;
-schema 3 adds M9.4's reference distribution block and per-phase percentiles.
+schema 3 adds M9.4's reference distribution block and per-phase percentiles; schema 4
+replaces the portability placeholder with M9.5's versioned study-to-sample block.
 """
 
 from __future__ import annotations
@@ -37,7 +38,7 @@ from genetics.qc.report import InferredSex
 from genetics.qc.sex_regions import PAR_GRCH37
 
 SAMPLE = "SAMPLE"
-SCORE_SCHEMA_VERSION = 3
+SCORE_SCHEMA_VERSION = 4
 UNSUPPORTED_FEATURES = {
     "is_haplotype",
     "is_diplotype",
@@ -796,7 +797,7 @@ def score(
         if imputation_provenance is None
         else dict(imputation_provenance),
         "ancestry": None if ancestry is None else dict(ancestry),
-        "portability": "not_computed_M9.5",
+        "portability": None,
         "percentile": {"before": None, "after": None},
         "reference_distribution": {
             "schema_version": 1,
@@ -823,6 +824,9 @@ def score(
     payload["coverage"] = compute_coverage(
         payload, schema_version=SCORE_SCHEMA_VERSION, source_rows=rows
     )
+    from genetics.pgs.portability import compute_portability
+
+    payload["portability"] = compute_portability(payload)
     return ScoreResult(scoring.headers["pgs_id"], payload["status"], payload)
 
 

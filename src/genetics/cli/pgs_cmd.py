@@ -14,7 +14,10 @@ from genetics.refs.postprocess import ProcessError
 
 pgs_app = typer.Typer(
     name="pgs",
-    help="Inspect PGS definitions, compute private PLINK score sums and report coverage.",
+    help=(
+        "Inspect PGS definitions, compute private PLINK score sums and report coverage, "
+        "reference placement and ancestry portability."
+    ),
     no_args_is_help=True,
 )
 
@@ -192,6 +195,10 @@ def score_pgs(
             typer.echo(line)
         for line in reference.summary(result.record):
             typer.echo(line)
+        from genetics.pgs.portability import summary as portability_summary
+
+        for line in portability_summary(result.record["portability"]):
+            typer.echo(line)
 
 
 @pgs_app.command("coverage")
@@ -287,4 +294,51 @@ def placement(
         typer.echo("This result predates reference distributions; rescore it to place it.")
         return
     for line in summary(report):
+        typer.echo(line)
+
+
+@pgs_app.command("portability")
+def portability(
+    result_path: Annotated[Path, typer.Argument(help="Private .pgs-score.json result.")],
+    scoring_file: Annotated[
+        Path | None,
+        typer.Option("--scoring-file", help="Also bind the result to this public scoring file."),
+    ] = None,
+    metadata: Annotated[
+        Path | None,
+        typer.Option("--metadata", help="Explicit metadata archive or validated index."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit the private ancestry portability JSON.")
+    ] = False,
+) -> None:
+    """Revalidate a saved score's study-to-sample ancestry portability (M9.5)."""
+    from genetics.pgs.portability import read_portability, summary
+
+    try:
+        scoring = None
+        if scoring_file is not None:
+            catalog = (
+                Catalog.default()
+                if metadata is None
+                else Catalog.load(metadata)
+                if metadata.suffix == ".json"
+                else Catalog.from_archive(metadata)
+            )
+            scoring = ScoringFile.open(scoring_file, catalog)
+        report = read_portability(result_path, scoring=scoring)
+    except (PgsError, ProcessError) as exc:
+        if as_json:
+            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
+        else:
+            typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from exc
+    if as_json:
+        typer.echo(json.dumps({"ok": True, **report}, indent=2))
+        return
+    typer.echo(
+        f"{report['pgs_id']}: score artifact schema {report['artifact_schema_version']}; "
+        f"portability {report['portability_origin']}."
+    )
+    for line in summary(report["portability"]):
         typer.echo(line)

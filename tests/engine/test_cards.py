@@ -543,12 +543,12 @@ def test_an_unknown_placeholder_is_refused() -> None:
 def test_a_placeholder_from_an_unbuilt_milestone_is_refused_by_name() -> None:
     """The M2.1 precedent again: declared, validated, not executed.
 
-    ``{ancestry}`` is a real placeholder that M9.5 will supply. Accepting it now would
+    ``{ancestry}`` is a real placeholder that M9.6 will supply. Accepting it now would
     render blank; refusing it without naming the milestone would look like a typo.
     """
     with pytest.raises(CardError) as caught:
         Card.parse(_mutate(["outcomes", "yes", "summary"], "Ancestry {ancestry}."), "t")
-    assert "M9.5" in str(caught.value)
+    assert "M9.6" in str(caught.value)
 
 
 def test_confidence_placeholder_is_available_after_m3_3() -> None:

@@ -3,9 +3,92 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.4 are now implemented and reviewed. Next is M9.5.
+M9.1–M9.4 are implemented and reviewed, and M9.5 is implemented. Next is M9.6.
 
-## M9.3–M9.4 review and M9.5 entry contract
+## Implemented M9.5 and M9.6 entry contract
+
+`pgs/portability.py` gives every **schema-4** score result a versioned `portability`
+block and the numeric `ancestry_match` that `calculate_confidence` accepts. `score()`
+builds it, and `attach_reference()` rebuilds it once the 1000 Genomes placement exists.
+`genetics pgs portability RESULT --json` recomputes it and refuses any disagreement.
+Schema 1–3 results are recomputed and labelled `recomputed_legacy`. See
+[the guide](pgs_portability.md).
+
+- **Cited mapping, not memory.** The placed 1000 Genomes *population* is mapped to a
+  Morales et al. 2018 Table 1 category (doi:10.1186/s13059-018-1396-2, verified against
+  the Europe PMC full text). That category is mapped to a PGS Catalog display category
+  using the catalog's own ancestry documentation (verified the same day).
+  Super-populations are not used: KHV is South East Asian, and ACB/ASW are African
+  American or Afro-Caribbean. Categories with no 1000 Genomes population are never given
+  a nearest code.
+- **Lower bound, not renormalised.** The GWAS-source stage drives; development drives only
+  when GWAS is empty; evaluation, which is weighted by sample sets, never drives. Not
+  Reported, multi-ancestry, unrecognised labels and unreported stages are kept as an
+  indeterminate share. They raise only `match.upper_bound`.
+- **Sample states.** A decline by either panel gives `0.0`, judgment
+  `sample_unrepresented`; a 1000 Genomes placement cannot rescue an AADR decline. A
+  not-run or saved-only sample gives `None`, judgment `not_computed`. Placed populations
+  in another display category within the decline threshold are recorded as alternatives.
+- `confidence_ceiling` comes from the new `engine/confidence.py::ancestry_ceiling`, which
+  `calculate_confidence` now also uses, so the record and the calculator cannot disagree.
+- One real-data defect was found and fixed: PGS004230 publishes `Not Reported:0`, and the
+  first parser refused zero shares. All 6,991 metadata rows now parse; 16 report neither
+  GWAS nor development ancestry.
+
+Acceptance: **2,799 tests passed, five existing Windows skips**, with pinned PLINK
+2/PLINK 1.9/Beagle/bref3 and Java 17. Twenty-seven new synthetic cases cover:
+
+- the full contract matrix: matched, mismatched, multi-ancestry (including and excluding
+  European), unreported, development fallback, nothing reported, KHV against an East
+  Asian study, declined by each panel, not run and saved-only;
+- non-filtering: sums, terms, coverage and percentiles are unchanged, and the calculator
+  still returns a result at every tier;
+- equality across the API, the CLI and the persisted file, with a cold and a warm
+  extraction cache;
+- seven tamper refusals and legacy recomputation.
+
+Six mutations each fail a test: AADR rescue, KHV as East Asian, renormalising Not
+Reported, multi-excluding-European as indeterminate, declined as neutral, and no
+development fallback.
+
+Two real-data checks used public data only:
+
+- Every one of the 6,991 catalog metadata rows went through the mapping for six stand-in
+  placements.
+- Six public 1000 Genomes samples were built from their own genotypes, keeping a random
+  70% of PCA markers, and placed through the real placement with public PGS000001. Each
+  placed in its own population or its nearest neighbour (HG00096 GBR as CEU). Only CEU
+  matches PGS000001's European-only GWAS; the rest are `mismatched`.
+
+  Admissible neighbours are broad: GBR also admits CLM and PUR, and CHS admits KHV. That
+  is why the number follows the named population and the alternatives are recorded beside
+  it, rather than taking the worst case. These samples are in the panel, so this checks
+  the wiring, not calibration.
+
+A real `genetics.exe pgs score --no-impute` on the synthetic fixture reloads as
+`persisted_verified`, with `not_computed`, because the fixture shares too little with
+1000 Genomes to be placed. All four strict type targets, lint/format, fixture reproduction
+and full dbSNP card lint (51 cards, 268 renders) pass. No personal export or private run
+was used.
+
+**M9.6 entry contract** (PRS card renderer):
+
+- **Card face.** Put the portability judgment, the matched share *and* the upper bound,
+  the ceiling and the reason on the card face. When `alternative_display_categories` is
+  non-empty, say so. When `merged_morales_categories` has more than one entry, state that
+  the catalog does not separate those groups. Never show `ancestry_match` alone, since 0
+  means "not demonstrated" as well as "mismatched".
+- **Card confidence.** Build it with `calculate_confidence(...,
+  ancestry_match=portability["ancestry_match"])`. Coverage
+  (`fraction_of_score_weight`), imputed weight share and DR2 bins from M9.3/M9.4 are
+  confidence inputs the card must also weigh; M9.5 recorded them, it did not fold them in.
+  No new threshold may be invented without a cited basis.
+- **Run pipeline.** The `{ancestry}` template placeholder now names M9.6, and single-marker
+  card `ancestry_match` is still unset. Both need the 1000 Genomes placement carried into
+  `genetics run`, which today holds only the AADR context. Reuse
+  `pgs.portability`'s mapping rather than writing a second one.
+
+## M9.3–M9.4 review and M9.5 entry contract (done)
 
 The [diff review](review_m94_session.md) moves all public panel verification and
 extraction ahead of personal input, removes the private reference workspace, binds a
@@ -93,7 +176,7 @@ sums matches an independent PLINK scoring of the raw 1000 Genomes VCFs within 8.
 All four strict type targets, lint/format, fixture reproduction and full dbSNP card lint
 pass. No personal export, private run or new reference payload was used.
 
-M9.5's entry contract is at the top of this file.
+M9.5's entry contract follows above; M9.5 is implemented (top of this file).
 
 ## Implemented M9.3 and M9.4 entry
 

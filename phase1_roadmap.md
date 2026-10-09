@@ -52,8 +52,9 @@ per-score coverage before and after imputation ([PGS coverage](docs/pgs_coverage
 M9.4 adds 1000 Genomes reference distributions and ancestry-matched percentiles
 ([PGS reference](docs/pgs_reference.md)). The [M9.3–M9.4 review](docs/review_m94_session.md)
 moves panel verification ahead of personal input and tightens reload validation;
-[the handoff](docs/handoff.md) holds M9.5's entry contract. Next is M9.5's
-portability adjustment.
+[the handoff](docs/handoff.md) held M9.5's entry contract. **M9.5 adds cited
+study-to-sample ancestry portability** to every schema-4 score result
+([PGS portability](docs/pgs_portability.md)); the handoff now holds M9.6's entry contract.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2591,13 +2592,22 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         cached public extraction; `genetics pgs placement` recomputes and refuses tampering.
         Independent PLINK cross-check on the real panel agrees within 8.4e-6.
         [Guide](docs/pgs_reference.md).
-- [ ] **M9.5** Ancestry-portability adjustment to confidence
+- [x] **M9.5** Ancestry-portability adjustment to confidence
       ([AGENTS.md §4.4](AGENTS.md)).
-      - Entry contract in [the handoff](docs/handoff.md): M9.4's 1000 Genomes placement now
-        gives the sample side in the cards' own super-population codes; the PGS Catalog
-        study-ancestry labels still need a cited mapping, and `declined` (either panel)
-        must lower portability.
-      - **Owns the mapping M5.8 left open.** `AncestryContext.population` names one of M5.9's
+      - Every schema-4 score result carries a versioned `portability` block and the numeric
+        `ancestry_match` the calculator accepts. Sample side: the placed 1000 Genomes
+        *population* -> Morales et al. 2018 Table 1 category (doi:10.1186/s13059-018-1396-2;
+        KHV is South East Asian, ACB/ASW African American) -> PGS Catalog display category
+        (catalog's own table). Study side: all three catalog distributions parsed with
+        every share kept; GWAS source drives, development only when GWAS is empty. The
+        number is the demonstrated matched share; Not Reported, multi-ancestry and
+        unreported stages are indeterminate and only raise the upper bound. AADR or 1000
+        Genomes `declined` -> 0 (unrepresented); not run/saved-only -> `None`. The ceiling
+        is the calculator's own `ancestry_ceiling`. Nothing is filtered; `genetics pgs
+        portability` recomputes and refuses tampering; schema 1-3 results are recomputed and
+        labelled. [Guide](docs/pgs_portability.md).
+      - **Owned the mapping M5.8 left open** (resolved as above; the AADR placement is a
+        decline gate, not a mapped category). Original entry text: `AncestryContext.population` names one of M5.9's
         100 AADR populations, with a sampling country as its region; cards declare study
         ancestry as five continental codes. Something has to map one onto the other before
         `ancestry_match` can be a number, and it must not be written from memory
@@ -2608,6 +2618,10 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 - [ ] **M9.6** PRS card renderer: distribution-dominant visual, **no point estimates about
       the person**, absolute outcome rates by decile where available, within-family
       attenuation stated on the card face where known.
+      - Entry contract in [the handoff](docs/handoff.md): portability judgment, matched
+        share, upper bound and ceiling on the card face; coverage/quality/comparability as
+        confidence inputs; the `{ancestry}` placeholder (now locked to M9.6) and card-level
+        `ancestry_match` need the 1000 Genomes placement carried into the run.
 - [ ] **M9.7** Section: **Physical health** PRS cards.
 - [ ] **M9.8** Section: **Mental health**. Record reduced-N (excluding-23andMe) releases
       on the card ([AGENTS.md §5.3](AGENTS.md)).

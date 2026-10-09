@@ -214,8 +214,15 @@ class Ancestry(StrEnum):
     M9.4 (2026-10-09) narrowed this: its 1000 Genomes placement
     (:func:`~genetics.ancestry.context.place_among_reference_populations`) names a
     super-population straight from the panel's own labels, so a *placed* sample is
-    describable in these codes without a hand-written mapping. The AADR placement and
-    the PGS Catalog's study labels still need M9.5.
+    describable in these codes without a hand-written mapping.
+
+    M9.5 (2026-10-09) closed it for polygenic scores in :mod:`genetics.pgs.portability`:
+    the placed 1000 Genomes *population* maps to a Morales et al. 2018 category (cited,
+    Table 1), and the PGS Catalog's study distributions are compared in the catalog's own
+    display categories. The AADR placement is not mapped onto a category -- no cited
+    mapping exists for its sampling-country regions -- and acts as a decline gate instead.
+    Note the super-population codes here are coarser than that mapping: ``EAS`` contains
+    KHV, which Morales classes as South East Asian.
 
     A study stays describable at continental granularity, which is the granularity
     portability arguments are usually made at anyway.
@@ -271,10 +278,11 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     TemplateVar("confidence", "The computed confidence tier."),
     TemplateVar("frequency", "Selected allele frequency and population, or explicit unknown."),
     TemplateVar("ppv", "Scoped empirical confirmation benchmark, or explicit unavailable."),
-    # M5.8 computes the ancestry context, but a card sentence needs it mapped onto the
-    # study-ancestry codes cards declare, and a *declined* placement needs wording that
-    # cannot read as a missing value. Both are M9.5's; until then naming this is refused.
-    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.5"),
+    # M9.5 settled the mapping and what *declined* means, for PGS results. A card sentence
+    # still needs the run pipeline to carry the 1000 Genomes placement (it has only AADR's)
+    # and wording a declined placement cannot be misread through. That is card rendering,
+    # M9.6's; until then naming this is refused.
+    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.6"),
     TemplateVar("imputation_quality", "Per-variant r2/DR2.", milestone="M8.5"),
     TemplateVar("percentile", "Placement in the reference distribution.", milestone="M9.4"),
 )
@@ -643,7 +651,8 @@ class Evidence:
         if not ancestry_raw:
             raise CardError(
                 f"{where}: ancestry must name at least one population. Use UNKNOWN if the "
-                "source does not say -- that is a fact about the study, and M9.5 needs it."
+                "source does not say -- that is a fact about the study, and M9.5's portability "
+                "reads it."
             )
         ancestry: list[Ancestry] = []
         for label in ancestry_raw:
@@ -653,8 +662,8 @@ class Evidence:
                 known = ", ".join(a.value for a in Ancestry)
                 raise CardError(
                     f"{where}.ancestry: unknown population {label!r}. Known: {known}. "
-                    "Finer labels, and their mapping onto a sample's inferred ancestry, are "
-                    "M9.5's."
+                    "The mapping onto a sample's inferred ancestry is M9.5's "
+                    "(genetics.pgs.portability)."
                 ) from None
 
         attenuation = data.get("within_family_attenuation")

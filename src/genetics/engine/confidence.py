@@ -253,6 +253,24 @@ def _weaker_of(left: ConfidenceTier, right: ConfidenceTier) -> ConfidenceTier:
     return left if left.rank >= right.rank else right
 
 
+def ancestry_ceiling(ancestry_match: float | None) -> ConfidenceTier | None:
+    """The tier ceiling a study-to-sample ancestry match imposes, or ``None`` for none.
+
+    Shared with M9.5's portability record so a PRS result states the same ceiling the
+    calculator will apply. ``None`` (not computed) cannot establish portability, so it caps
+    at strong rather than passing through as agreement.
+    """
+
+    ancestry = _finite_fraction(ancestry_match, "ancestry_match")
+    if ancestry is None:
+        return ConfidenceTier.STRONG
+    if ancestry < 0.25:
+        return ConfidenceTier.LIMITED
+    if ancestry < 0.50:
+        return ConfidenceTier.MODERATE
+    return None
+
+
 def calculate_confidence(
     evidence: Evidence | None,
     *,
@@ -368,17 +386,13 @@ def calculate_confidence(
     elif imputation is not None and imputation < 0.80:
         tier = _weaker_of(tier, ConfidenceTier.MODERATE)
 
-    if ancestry is not None and ancestry < 0.25:
-        tier = _weaker_of(tier, ConfidenceTier.LIMITED)
-    elif ancestry is not None and ancestry < 0.50:
-        tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-
     # Missing runtime calibration cannot establish that a call is common or portable.
     # Keep the raw None values visible above; these ceilings prevent neutral arithmetic
     # from being mistaken for measured agreement while the M5/M7 references are absent.
     if frequency is None:
         tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-    if ancestry is None:
-        tier = _weaker_of(tier, ConfidenceTier.STRONG)
+    ceiling = ancestry_ceiling(ancestry)
+    if ceiling is not None:
+        tier = _weaker_of(tier, ceiling)
 
     return ConfidenceResult(tier=tier, score=score, inputs=inputs, empirical_ppv=empirical_ppv)

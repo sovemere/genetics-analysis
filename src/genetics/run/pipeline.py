@@ -9,7 +9,9 @@ Card matching uses original calls plus exact biallelic imputed SNVs for absent o
 no-call loci, retaining native dosage quality. ClinVar, coverage and genome-structure
 modules continue to consume the original array. Execution mode is separate from call_source:
 an enabled run does not make an original observed call an imputed observation.
-Missing allele frequencies remain unknown, and ancestry-to-study mapping remains M9.5.
+Missing allele frequencies remain unknown. Study-to-sample ancestry portability is computed
+for PGS results (M9.5); card observations keep ancestry_match unset until M9.6 carries the
+1000 Genomes placement into the run.
 """
 
 from __future__ import annotations
