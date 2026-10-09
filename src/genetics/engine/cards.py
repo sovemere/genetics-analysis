@@ -211,6 +211,12 @@ class Ancestry(StrEnum):
     reads ``EUR``. M5.8 carries the placement forward unmapped; writing the mapping, and
     deciding what a *declined* placement does to a study-to-sample match, is M9.5's.
 
+    M9.4 (2026-10-09) narrowed this: its 1000 Genomes placement
+    (:func:`~genetics.ancestry.context.place_among_reference_populations`) names a
+    super-population straight from the panel's own labels, so a *placed* sample is
+    describable in these codes without a hand-written mapping. The AADR placement and
+    the PGS Catalog's study labels still need M9.5.
+
     A study stays describable at continental granularity, which is the granularity
     portability arguments are usually made at anyway.
     """

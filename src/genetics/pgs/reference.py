@@ -24,6 +24,7 @@ import json
 import math
 import os
 import re
+import shutil
 import uuid
 import zlib
 from collections import Counter
@@ -378,6 +379,21 @@ def _write_cache(path: Path, extraction: Extraction) -> None:
         pending.unlink(missing_ok=True)
 
 
+def _extraction_key(scoring: ScoringFile, provenance: Mapping[str, Any]) -> str:
+    """Public identity of one score's extraction from one locked panel."""
+    return hashlib.sha256(
+        json.dumps(
+            {
+                "extraction_version": EXTRACTION_VERSION,
+                "scoring_sha256": scoring.source["sha256"],
+                "scoring_size": scoring.source["size_bytes"],
+                "panel": provenance,
+            },
+            sort_keys=True,
+        ).encode()
+    ).hexdigest()
+
+
 def extract(
     scoring: ScoringFile,
     panel: Panel,
@@ -395,17 +411,7 @@ def extract(
             f"{', '.join(missing)}. `genetics refs fetch --only {PANEL_SOURCE}`."
         )
     provenance = panel.provenance(chromosomes)
-    key = hashlib.sha256(
-        json.dumps(
-            {
-                "extraction_version": EXTRACTION_VERSION,
-                "scoring_sha256": scoring.source["sha256"],
-                "scoring_size": scoring.source["size_bytes"],
-                "panel": provenance,
-            },
-            sort_keys=True,
-        ).encode()
-    ).hexdigest()
+    key = _extraction_key(scoring, provenance)
     path = _cache_path(key)
     cached = _read_cache(path, key, eligible, len(panel.samples)) if path.is_file() else None
     if cached is not None:
@@ -646,12 +652,48 @@ def _phase(
     }
 
 
+@dataclass(frozen=True)
+class PreparedReference:
+    """The verified public panel and the score's public extraction, before any person."""
+
+    panel: Panel
+    extraction: Extraction
+
+
+def prepare_reference(
+    scoring: ScoringFile,
+    *,
+    enabled: bool = True,
+    references_root: Path | None = None,
+    workers: int | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> PreparedReference | dict[str, str]:
+    """Discover, verify and extract the public panel for one public score.
+
+    Touches no personal data, so the workflows call it before ingest: a tampered or
+    unlocked panel fails, or records ``not_run``, before hours of imputation rather than
+    after. Returns the ``disabled``/``not_run`` status block when nothing can be prepared.
+    """
+    if type(enabled) is not bool:
+        raise PgsError("Scoring mode flags must be explicit booleans.")
+    if not enabled:
+        return {"status": "disabled", "reason": "Reference distribution explicitly disabled."}
+    panel = discover_panel(references_root)
+    if isinstance(panel, str):
+        return {"status": "not_run", "reason": panel}
+    extraction = extract(scoring, panel, workers=workers, progress=progress)
+    if isinstance(extraction, str):
+        return {"status": "not_run", "reason": extraction}
+    return PreparedReference(panel, extraction)
+
+
 def attach_reference(
     result: ScoreResult,
     scoring: ScoringFile,
     *,
     table: GenotypeTable | None,
     enabled: bool = True,
+    prepared: PreparedReference | Mapping[str, str] | None = None,
     references_root: Path | None = None,
     tools_root: Path | None = None,
     plink: Plink2 | None = None,
@@ -663,7 +705,8 @@ def attach_reference(
     """Add the reference distribution and primary-group percentiles to a score result.
 
     Absent references or tools record ``not_run`` with the fix; present-but-wrong ones
-    raise. ``enabled=False`` is the explicit, recorded opt-out.
+    raise. ``enabled=False`` is the explicit, recorded opt-out. ``prepared`` is the
+    result of :func:`prepare_reference`, when a workflow ran it before personal input.
     """
     if type(enabled) is not bool:
         raise PgsError("Scoring mode flags must be explicit booleans.")
@@ -679,60 +722,70 @@ def attach_reference(
         ),
     }
     root = references_root if references_root is not None else references_dir()
-    panel = discover_panel(root) if enabled else "disabled"
-    if not enabled:
-        block.update(status="disabled", reason="Reference distribution explicitly disabled.")
-    elif isinstance(panel, str):
-        block.update(status="not_run", reason=panel)
+    if prepared is None:
+        prepared = prepare_reference(
+            scoring, enabled=enabled, references_root=root, workers=workers, progress=progress
+        )
+    if not isinstance(prepared, PreparedReference):
+        block.update(status=prepared["status"], reason=prepared["reason"])
     else:
-        extraction = extract(scoring, panel, workers=workers, progress=progress)
-        if isinstance(extraction, str):
-            block.update(status="not_run", reason=extraction)
-        else:
-            native = plink or Plink2.discover(tools_root=tools_root)
-            if placement is None:
-                if table is None:
-                    placement = PopulationResult(
-                        not_run_reason=(
-                            "Saved-run scoring has no original array to place among "
-                            "1000 Genomes populations."
-                        )
+        panel, extraction = prepared.panel, prepared.extraction
+        if extraction.key != _extraction_key(scoring, extraction.provenance):
+            raise PgsError("The prepared reference was extracted for a different score.")
+        native = plink or Plink2.discover(tools_root=tools_root)
+        if placement is None:
+            if table is None:
+                placement = PopulationResult(
+                    not_run_reason=(
+                        "Saved-run scoring has no original array to place among "
+                        "1000 Genomes populations."
                     )
-                else:
-                    placement = place_among_reference_populations(
-                        table, references_root=root, tools_root=tools_root, progress=progress
-                    )
-            placed = placement.to_dict()
-            labels = {
-                "populations": [panel.samples[s].population for s in extraction.samples],
-                "super_populations": [
-                    panel.samples[s].super_population for s in extraction.samples
-                ],
-                "sexes": [panel.samples[s].sex.value for s in extraction.samples],
+                )
+            else:
+                placement = place_among_reference_populations(
+                    table, references_root=root, tools_root=tools_root, progress=progress
+                )
+        placed = placement.to_dict()
+        labels = {
+            "populations": [panel.samples[s].population for s in extraction.samples],
+            "super_populations": [panel.samples[s].super_population for s in extraction.samples],
+            "sexes": [panel.samples[s].sex.value for s in extraction.samples],
+        }
+        spec = _group_spec(placed, labels)
+        owned = workspace is None
+        work = workspace if workspace is not None else cache_dir() / "pgs" / uuid.uuid4().hex
+        try:
+            work.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise PgsError("Could not prepare the private reference workspace.") from exc
+        if progress:
+            progress("Scoring 1000 Genomes reference samples with pinned PLINK")
+        try:
+            phases = {
+                phase: _phase(phase, record, extraction, labels, spec, root=work, plink=native)
+                for phase in ("before", "after")
             }
-            spec = _group_spec(placed, labels)
-            work = workspace if workspace is not None else cache_dir() / "pgs" / uuid.uuid4().hex
-            try:
-                work.mkdir(parents=True, exist_ok=True)
-            except OSError as exc:
-                raise PgsError("Could not prepare the private reference workspace.") from exc
-            if progress:
-                progress("Scoring 1000 Genomes reference samples with pinned PLINK")
-            block.update(
-                status="computed",
-                reason=None,
-                panel=extraction.provenance,
-                extraction={
-                    "key": extraction.key,
-                    "rows_by_state": dict(sorted(Counter(extraction.states.values()).items())),
-                },
-                placement=placed,
-                group=spec,
-                samples=list(extraction.samples),
-                sample_labels=labels,
-                before=_phase("before", record, extraction, labels, spec, root=work, plink=native),
-                after=_phase("after", record, extraction, labels, spec, root=work, plink=native),
-            )
+        finally:
+            if owned:
+                # The native reports here hold the person's comparable sums.
+                try:
+                    shutil.rmtree(work)
+                except OSError as exc:
+                    raise PgsError("Could not remove the private reference workspace.") from exc
+        block.update(
+            status="computed",
+            reason=None,
+            panel=extraction.provenance,
+            extraction={
+                "key": extraction.key,
+                "rows_by_state": dict(sorted(Counter(extraction.states.values()).items())),
+            },
+            placement=placed,
+            group=spec,
+            samples=list(extraction.samples),
+            sample_labels=labels,
+            **phases,
+        )
     record["reference_distribution"] = block
     record["percentile"] = {
         phase: block.get(phase, {}).get("percentile") if block["status"] == "computed" else None
@@ -752,6 +805,15 @@ def _fail() -> NoReturn:
 
 def validate_distribution(record: Mapping[str, Any]) -> dict[str, Any]:
     """Recompute every group statistic from the saved sums; refuse any disagreement."""
+    try:
+        return _validate_distribution(record)
+    except PgsError:
+        raise
+    except (KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
+        raise PgsError(CORRUPT) from exc
+
+
+def _validate_distribution(record: Mapping[str, Any]) -> dict[str, Any]:
     block = record.get("reference_distribution")
     if not isinstance(block, Mapping) or block.get("schema_version") != (
         DISTRIBUTION_SCHEMA_VERSION
@@ -782,7 +844,19 @@ def validate_distribution(record: Mapping[str, Any]) -> dict[str, Any]:
         if not isinstance(data, Mapping) or percentile.get(phase) != data.get("percentile"):
             _fail()
         observed = {t["row_number"] for t in record["terms"] if t[phase]["status"] == "observed"}
+        result = record[phase]
+        expected_reason = (
+            result["status"]
+            if result["status"] in PHASE_UNAVAILABLE
+            else "no_usable_observations"
+            if result["sum"] is None
+            else None
+        )
+        if (data["status"] == "unavailable") != (expected_reason is not None):
+            _fail()
         if data["status"] == "unavailable":
+            if data.get("reason") != expected_reason or data.get("percentile") is not None:
+                _fail()
             continue
         rows = data.get("comparable_rows")
         if not isinstance(rows, list) or not set(rows) <= observed or len(set(rows)) != len(rows):

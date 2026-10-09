@@ -3,9 +3,68 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.4 are now implemented. Next is M9.5.
+M9.1–M9.4 are now implemented and reviewed. Next is M9.5.
 
-## Implemented M9.4 and M9.5 entry
+## M9.3–M9.4 review and M9.5 entry contract
+
+The [diff review](review_m94_session.md) moves all public panel verification and
+extraction ahead of personal input, removes the private reference workspace, binds a
+prepared reference to its score, and makes `pgs placement` refuse structurally damaged or
+phase-contradictory blocks. Six regressions reproduced the defects before the fixes.
+It also ran the two paths earlier acceptance had not: five public 1000 Genomes samples
+(their own genotypes, 70% of PCA markers) were placed in their true super-populations, and
+parallel extraction ran under the real `genetics.exe` (3 min 52 s cold, 12 s cached).
+Review acceptance: **2,772 tests passed, five existing Windows skips**, pinned native tools
+and Java 17; four strict type targets, lint/format, fixtures, full card lint and staged
+privacy scan pass. No known blocker remains for M9.5.
+
+**M9.5 goal:** turn study-to-sample ancestry into the numeric `ancestry_match` that
+`engine/confidence.py::calculate_confidence` already accepts (a fraction in [0, 1], or
+`None` for "not computed"), and record a per-score portability judgment on every PRS
+result, per AGENTS.md §4.4. Calibration, not suppression: nothing may filter a card.
+
+Inputs that now exist, all in each schema-3 score result:
+
+- **Sample, 1000 Genomes vocabulary:** `reference_distribution.placement` and `.group`.
+  When placed, `group.super_population` is one of AFR/AMR/EAS/EUR/SAS, the panel's own
+  `super_pop` label, which is exactly the vocabulary cards declare for study ancestry
+  (`engine/cards.py::Ancestry`). This closes the vocabulary gap M5.8 recorded for the
+  *sample* side without any hand-written mapping. `declined` and `not_run` carry reasons.
+- **Sample, AADR:** the run's `ancestry` block (M5.9's 100 Human Origins populations,
+  region = sampling country). Finer than 1000 Genomes and the place where unrepresented
+  groups (Aboriginal Australian, Khoisan, parts of MENA) are *declined*. A sample the AADR
+  placement declines must not be rescued to "matched" by a coarser 1000 Genomes call.
+- **Study, PGS Catalog:** `score_definition.metadata` rows carry three GWAS Catalog
+  ancestry-distribution columns: `Ancestry Distribution (%) - Source of Variant
+  Associations (GWAS)`, `- Score Development/Training`, `- PGS Evaluation`, as
+  `Label:percent|...` text (PGS000001: GWAS `European:100`; evaluation
+  `European:72.7|Not Reported:18.2|East Asian:9.1`). Empty and `Not Reported` occur.
+- **Comparability:** per-phase `fraction_of_person_scored_weight`,
+  `fraction_of_score_weight`, `person_dose_basis.imputed_absolute_weight_fraction` and
+  M9.3 coverage. These are confidence inputs beside ancestry, not ancestry itself.
+
+Contract for M9.5:
+
+- **The study-label mapping must be cited, not written from memory** (AGENTS.md §6). The
+  catalog's labels are the GWAS Catalog ancestry framework's broad categories; its
+  published definition (Morales et al., Genome Biology 2018) is the candidate source.
+  Verify the DOI and the category list against the paper before encoding them. Categories
+  with no 1000 Genomes super-population counterpart (e.g. Greater Middle Eastern,
+  Oceanian, African American or Afro-Caribbean as distinct from African) must map to an
+  explicit partial or unknown state, never to the nearest code.
+- Parse distributions per stage. Decide and document which stage drives the match;
+  GWAS-source ancestry is what effect sizes were estimated in. `Not Reported` and empty
+  stay visible as unknown share, never renormalized away.
+- `declined` lowers portability and is never neutral. `not_run` stays `None` (unknown).
+  Saved-only results (no reference placement) must say so rather than reuse a pooled
+  comparison as if it were matched.
+- Keep every input and the derived number in the result, versioned, and revalidate on
+  reload as M9.3/M9.4 do. Replace the `portability: "not_computed_M9.5"` placeholder.
+- Acceptance should cover matched, mismatched, multi-ancestry, unreported, declined
+  (both panels), not-run and saved-only cases, plus a non-filtering assertion and
+  cache-independent CLI/API/persisted equality, all on synthetic data.
+
+## Implemented M9.4
 
 `pgs/reference.py` scores 1000 Genomes phase 3 (2,504 samples) over exactly the rows the
 person's phase scored and the panel resolves, through the person's effect-dose matrix and
@@ -34,13 +93,7 @@ sums matches an independent PLINK scoring of the raw 1000 Genomes VCFs within 8.
 All four strict type targets, lint/format, fixture reproduction and full dbSNP card lint
 pass. No personal export, private run or new reference payload was used.
 
-**Next M9.5:** ancestry-portability adjustment to confidence (AGENTS.md §4.4). Inputs now
-exist: the run's AADR placement (`AncestryContext`), the 1000 Genomes comparison group
-with `ancestry_matched`, per-phase coverage (M9.3), comparable-row weight fractions and the
-imputed dose share. M9.5 owns the study-ancestry mapping M5.8 left open: the PGS metadata's
-development/evaluation ancestry against the person's placement, from a cited definition
-rather than memory. `declined` must lower portability, never read as neutral. Keep every
-input visible; nothing may filter a card.
+M9.5's entry contract is at the top of this file.
 
 ## Implemented M9.3 and M9.4 entry
 
@@ -71,7 +124,7 @@ including nine corruption cases each confirmed to fail at its intended check. Al
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint (51 cards,
 268 renders, 35 references) pass. No personal export, private run or new reference was used.
 
-**Next M9.4:** a reference distribution and percentile placement for each score, computed
+**M9.4 entry (implemented; see the top of this file):** a reference distribution and percentile placement for each score, computed
 within the ancestry-matched reference group where possible. Score the reference panel with
 the same `pgs/engine.py` matrix path and the same allele/ploidy rules so the person and
 the distribution share one definition; record the panel, group and per-score coverage of

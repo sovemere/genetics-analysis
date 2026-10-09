@@ -91,7 +91,9 @@ unavailable phases; `genetics pgs coverage` revalidates it. See
 **M9.4 places each score against 1000 Genomes** within the person's placed
 super-population (pooled and labelled unmatched otherwise), over the same rows and
 the same PLINK matrix; `genetics pgs placement` revalidates it. See
-[PGS reference](docs/pgs_reference.md).
+[PGS reference](docs/pgs_reference.md). The [M9.3–M9.4 review](docs/review_m94_session.md)
+verifies the public panel before personal input; M9.5's entry contract is in the
+[handoff](docs/handoff.md).
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and

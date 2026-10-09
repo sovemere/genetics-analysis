@@ -615,3 +615,99 @@ def test_cli_no_reference_is_an_explicit_recorded_opt_out(
             ],
         )
         assert seen["reference"] is expected
+
+
+def test_review_tampered_panel_fails_before_personal_input(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genetics.pgs import workflow
+
+    root, _ = standard(tmp_path)
+    vcf = root / PANEL_SOURCE / _filename("1")
+    text = gzip.decompress(vcf.read_bytes()).decode()
+    vcf.write_bytes(gzip.compress(text.replace("0|0", "1|1", 1).encode()))
+    monkeypatch.setattr(reference, "references_dir", lambda: root)
+
+    def untouched(*args: Any, **kwargs: Any) -> Any:
+        pytest.fail("the public panel must be verified before personal input is read")
+
+    monkeypatch.setattr(workflow, "ingest", untouched)
+    monkeypatch.setattr(workflow, "read_bundle", untouched)
+    scoring = definition(tmp_path / "def", [weight(101)])
+    with pytest.raises(PgsError, match="lock digest"):
+        workflow.score_export(scoring, tmp_path / "absent-export.txt", no_impute=True)
+    with pytest.raises(PgsError, match="lock digest"):
+        workflow.score_saved(scoring, tmp_path / "absent-run")
+
+
+def test_review_owned_workspace_with_person_reports_is_removed(
+    tmp_path: Path, fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path / "appdata"))
+    root, _ = standard(tmp_path)
+    scoring, result = person(tmp_path, fake)
+    attach_reference(
+        result,
+        scoring,
+        table=None,
+        references_root=root,
+        plink=fake,
+        workers=1,
+        placement=placed(),
+    )
+    pgs = tmp_path / "appdata" / "cache" / "pgs"
+    assert sorted(p.name for p in pgs.iterdir()) == ["reference"]
+    assert not list(pgs.rglob("*.sscore"))
+
+
+def test_review_prepared_reference_must_belong_to_the_score(
+    tmp_path: Path, fake: MultiPlink
+) -> None:
+    root, _ = standard(tmp_path)
+    scoring, result = person(tmp_path, fake)
+    other = definition(tmp_path / "other", [weight(101, value="3")])
+    prepared = reference.prepare_reference(other, references_root=root, workers=1)
+    assert isinstance(prepared, reference.PreparedReference)
+    with pytest.raises(PgsError, match="different score"):
+        attach_reference(
+            result,
+            scoring,
+            table=None,
+            prepared=prepared,
+            plink=fake,
+            workspace=tmp_path / "ref",
+            placement=placed(),
+        )
+
+
+@pytest.mark.parametrize("case", ["claimed_unavailable", "missing_key", "phantom_percentile"])
+def test_review_malformed_phase_blocks_are_categorical_refusals(
+    tmp_path: Path, fake: MultiPlink, case: str
+) -> None:
+    root, _ = standard(tmp_path)
+    scoring, result = person(tmp_path, fake, no_impute=True, dosages=None)
+    attached = attach_reference(
+        result,
+        scoring,
+        table=None,
+        references_root=root,
+        plink=fake,
+        workspace=tmp_path / "ref",
+        workers=1,
+        placement=placed(),
+    )
+    path = write_result(attached, tmp_path / "out" / "synthetic.pgs-score.json")
+    data = json.loads(path.read_text(encoding="utf-8"))
+    block = data["reference_distribution"]
+    if case == "claimed_unavailable":
+        block["before"] = {"status": "unavailable", "reason": "disabled", "percentile": None}
+        data["percentile"]["before"] = None
+    elif case == "missing_key":
+        del block["before"]["person_verification"]
+    else:
+        block["after"]["percentile"] = 50.0
+        data["percentile"]["after"] = 50.0
+    path.unlink()
+    path.write_text(json.dumps(data), encoding="utf-8")
+    with pytest.raises(PgsError):
+        read_placement(path)

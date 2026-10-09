@@ -20,6 +20,10 @@ The distribution is calculated by default. `--no-reference` is an explicit opt-o
 it is recorded as `status: disabled`. If the 1000 Genomes files have not been fetched and
 locked, the result records `not_run` along with the fetch command. A file that is present
 but does not match its lock digest is treated as wrong and raises an error.
+
+All panel work (discovery, lock verification and extraction) uses only public data. Both
+workflows therefore do it *before* reading any personal input (`prepare_reference`), so a
+panel that fails verification stops the run before ingest rather than after imputation.
 `pgs placement` reloads a result, first runs the M9.3 coverage validation, and then
 recalculates every group statistic from the saved sums. It refuses the result if anything
 disagrees. A result older than schema 3 reports that it has no distribution; to get one,
@@ -114,12 +118,14 @@ machine and a cached rerun took **1.3 s**. Large scores scale with row count:
 
 Everything restricted to a person is private and stays in the score result: the
 comparable rows, the person's sums, the reference sums over those rows, the placement
-coordinates and the percentiles. Temporary matrices are deleted. New ignore patterns
-cover the extraction cache and the matrix files.
+coordinates and the percentiles. Temporary matrices are deleted, along with the private workspace
+(its PLINK reports hold the person's comparable sums) whenever the engine created it.
+New ignore patterns cover the extraction cache and the matrix files.
 
 ## Acceptance
 
-`tests/refs/test_pgs_reference.py` has 19 synthetic cases. Together they cover:
+`tests/refs/test_pgs_reference.py` has 25 synthetic cases (19 from M9.4, 6 from
+[the review](review_m94_session.md)). Together they cover:
 
 - allele and ploidy resolution: as written, complemented, palindromic, absent,
   multi-record, ambiguous, four-allele, missing call, exact indel and mismatch, plus
@@ -132,6 +138,9 @@ cover the extraction cache and the matrix files.
 - the matrix audit: a wrong sum, a wrong sample set, invalid doses and the audit stride;
 - persisted API/CLI equality, seven tamper cases and the schema-2 reader;
 - the CLI and workflow flags;
+- the panel check running before personal input, removal of the private workspace,
+  binding a prepared reference to its score, and refusal of malformed or
+  phase-contradictory blocks;
 - pinned-native matrix arithmetic.
 
 Mutation checks confirmed that removing each of these breaks a test:
@@ -149,3 +158,12 @@ against the real 2,504-sample panel:
   the three rows that needed it.
 - Every reference sum agreed to within **8.4 × 10⁻⁶**, which is the six-significant-digit
   report rounding summed over 19 chromosomes.
+
+The [review](review_m94_session.md) added two real-data checks.
+
+- **Placement.** Five public 1000 Genomes samples were placed using their own genotypes,
+  with 70% of the PCA markers kept. Each landed in its true super-population. The
+  population calls were the true population or its nearest neighbour; GBR, for example,
+  was placed as CEU.
+- **Real executable.** The parallel extraction ran under the real `genetics.exe`. The
+  cold run took 3 min 52 s and the cached rerun 12 s.
