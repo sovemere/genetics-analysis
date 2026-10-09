@@ -10,7 +10,7 @@ from genetics.imputation import impute
 from genetics.ingest import ingest
 from genetics.pgs.catalog import PgsError
 from genetics.pgs.engine import ScoreResult, score, validate_mode_flags
-from genetics.pgs.reference import attach_reference
+from genetics.pgs.reference import attach_reference, prepare_reference
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 from genetics.run.bundle import read_bundle
@@ -36,6 +36,8 @@ def score_export(
     except ValueError as exc:
         raise PgsError(str(exc)) from exc
     scoring.inspect()  # malformed reference files fail before reading a personal export
+    # Public panel verification and extraction, before any personal input is read.
+    prepared = prepare_reference(scoring, enabled=reference, progress=progress)
     result = ingest(input_path)
     ancestry = infer_ancestry(result.table, result.qc, progress=progress)
     stage = (
@@ -55,7 +57,7 @@ def score_export(
         progress=progress,
     )
     return attach_reference(
-        scored, scoring, table=result.table, enabled=reference, progress=progress
+        scored, scoring, table=result.table, prepared=prepared, progress=progress
     )
 
 
@@ -78,6 +80,7 @@ def score_saved(
     except ValueError as exc:
         raise PgsError(str(exc)) from exc
     scoring.inspect()
+    prepared = prepare_reference(scoring, enabled=reference, progress=progress)
     bundle = read_bundle(run_path)
     if (
         bundle.imputation_provenance is None
@@ -100,4 +103,4 @@ def score_saved(
         imputation_provenance=bundle.imputation_provenance,
         progress=progress,
     )
-    return attach_reference(scored, scoring, table=None, enabled=reference, progress=progress)
+    return attach_reference(scored, scoring, table=None, prepared=prepared, progress=progress)
