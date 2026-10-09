@@ -3,9 +3,71 @@
 As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.4 are implemented and reviewed, and M9.5–M9.6 are implemented. Next is M9.7.
+M9.1–M9.6 are implemented and reviewed. Next is M9.7.
 
-## Implemented M9.6 and M9.7 entry contract
+## M9.5–M9.6 review and M9.7 entry contract
+
+The [diff review](review_m96_session.md) of `b2bde81..317c825` fixed three defects, each
+reproduced by a regression first:
+
+- **A score missing from the fetched metadata aborted the whole run.** It now leaves only
+  its own card `not_run`, with the refetch command.
+- **Some structural damage escaped the bundle reader.** `AttributeError` and `IndexError`
+  in polygenic validation now become `BundleError`.
+- **The face text was false above an attenuation of 1.** Within-family estimates above 1
+  are now worded as such, not as attenuation.
+
+Review acceptance: **2,837 tests passed, five existing Windows skips**, with pinned PLINK
+2/PLINK 1.9/Beagle/bref3 and Java 17. All four strict type targets, lint/format, fixture
+reproduction, full dbSNP card lint (51 cards, 268 renders) and staged privacy scanning
+pass. No known blocker remains for M9.7.
+
+**M9.7 goal:** Physical-health PRS cards. This should be authoring and reference pinning
+only; the engine path, bundle format and renderer exist. If a change to the engine turns
+out to be needed, record why in this file before making it.
+
+Contract for M9.7:
+
+- **Choosing scores.**
+  - Use PGS Catalog scores whose metadata licence classifies as `permissive`, because a
+    run cannot opt in to restricted terms (AGENTS.md §4.8).
+  - Prefer additive models. Interaction, haplotype or dominance terms make the score
+    `unsupported_model`, and the card then renders unplaced.
+  - Record the score's GWAS and development ancestry on the card's evidence. M9.5's
+    portability will grade it whatever is written, but the card should not contradict
+    the catalog.
+- **Pinning.** Add one manifest entry per score, modelled on `pgs000001_grch37`: the
+  harmonized GRCh37 file `PGSxxxxxx_hmPOS_GRCh37.txt.gz`, fetched and locked.
+  `cards lint` refuses a card whose `pgs.source` does not fetch that score.
+- **Evidence and citations.** Every number on a card must be cited from the primary
+  paper and checked against it, not recalled (AGENTS.md §6).
+  - `effect` is the published per-SD (or per-unit) estimate, with its interval and a
+    `context` sentence.
+  - `ancestry` uses the cards' super-population codes for the derivation study.
+  - Set `within_family_attenuation` only where a within-family estimate is published.
+- **Absolute rates.** Use `decile_outcomes` only when a paper reports the outcome by
+  score decile, with the same measure and population for `base_rate`.
+  - Quintiles, percentile bands or odds ratios against the middle are not deciles. Never
+    interpolate them into deciles; leave `decile_outcomes` out, and the face says a
+    position is not a risk.
+  - Health cards are §0.1B's precision case: state the measure, its horizon (`context`)
+    and the population exactly.
+- **Measure scale before shipping a large score.**
+  - Real-panel acceptance so far is PGS000001, 77 rows. Most physical-health scores
+    have 10^5–10^6 rows.
+  - Before shipping one, measure the reference extraction (time, memory, cache size).
+  - Measure the per-score dosage pass in a default imputed run.
+  - Measure the size of its `pgs.run.json` record: it keeps every term with its native
+    evidence. If a million-row record is impractical, propose a storage change (with a
+    bundle format bump) here first. Do not quietly drop evidence.
+  - Report coverage before and after imputation for each score on the real panel.
+- **Acceptance.** Run the full `cards lint`, fetch and lock every new score, and put
+  public 1000 Genomes stand-ins through the polygenic stage. Then **look at the
+  dashboard**: browser screenshots timed out in M9.6, so the fixed chart has been checked
+  only by geometry assertions.
+- **Still open.** The M9.13 decision on single-marker ancestry match and `{ancestry}`.
+
+## Implemented M9.6
 
 `pgs/cards.py`, `pgs/runner.py` and `web/polygenic.py` put polygenic scores on cards. See
 [the guide](pgs_cards.md).
@@ -67,16 +129,7 @@ out in the browser tool, so the fix is covered by geometry assertions rather tha
 Other gates: all four strict type targets, lint/format, fixture reproduction and the full
 dbSNP card lint (51 cards, 268 renders) pass. No personal export or private run was used.
 
-**M9.7 entry contract** (Physical health PRS cards):
-
-- **Authoring only.** Author cards in `knowledge/health/` with `kind: polygenic`. Each
-  score needs a manifest entry pinning its harmonized GRCh37 scoring file. Prefer
-  permissive licences, because a run cannot opt in to restricted ones.
-- **Citations.** Every effect, within-family estimate and decile rate is cited from the
-  primary paper and checked against it (AGENTS.md §6). Without published decile rates,
-  omit `decile_outcomes`; the face then says a position is not a risk.
-- **Acceptance.** Fetch the scores, run `cards lint` in full, and check one public 1000
-  Genomes stand-in through `genetics run` and the dashboard.
+M9.7's entry contract is at the top of this file.
 
 ## Implemented M9.5 (M9.6 entry contract, done)
 

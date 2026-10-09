@@ -232,14 +232,24 @@ def face_text(
     reason: str | None,
 ) -> str:
     """The card face: every statement AGENTS.md 4.5 requires, and no point estimate."""
-    within = (
-        f"Within-family studies retain about {within_family_attenuation:.0%} of the "
-        "population effect; the rest reflects ancestry, assortative mating and family "
-        "environment rather than the genome acting directly."
-        if within_family_attenuation is not None
-        else "No within-family estimate is recorded, so how much of the population "
-        "association acts directly is unknown."
-    )
+    if within_family_attenuation is None:
+        within = (
+            "No within-family estimate is recorded, so how much of the population "
+            "association acts directly is unknown."
+        )
+    elif within_family_attenuation <= 1:
+        within = (
+            f"Within-family studies retain about {within_family_attenuation:.0%} of the "
+            "population effect; the rest reflects ancestry, assortative mating and family "
+            "environment rather than the genome acting directly."
+        )
+    else:
+        # The schema admits up to 1.5: a sibling estimate can exceed the population one.
+        within = (
+            f"Within-family studies estimate about {within_family_attenuation:.0%} of the "
+            "population effect, so the population association does not overstate the direct "
+            "effect here."
+        )
     if result is None or result.get("position") is None:
         return f"{title}: not placed. {reason or 'The score was not computed.'} {within}"
     ref = result["reference"]

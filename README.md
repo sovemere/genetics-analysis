@@ -104,8 +104,8 @@ unknown; nothing is filtered. `genetics pgs portability` revalidates it. See
 (knowledge schema 4) and saves the private record in bundle format 17. The card face and
 the dashboard show the reference distribution with the person's interval, never a point,
 beside coverage, portability, within-family attenuation and absolute rates by decile where
-cited. See [PGS cards](docs/pgs_cards.md); M9.7's entry contract is in the
-[handoff](docs/handoff.md).
+cited. See [PGS cards](docs/pgs_cards.md). The [M9.5–M9.6 review](docs/review_m96_session.md)
+fixes three defects; M9.7's entry contract is in the [handoff](docs/handoff.md).
 Start with the
 [handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
 M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and

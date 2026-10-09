@@ -60,7 +60,8 @@ Absence and errors are handled differently:
 
 - **Something absent leaves the card visible.** It is shown `not_run` with the reason and
   the fix. This covers a scoring file that has not been fetched, metadata that has not
-  been fetched, and a licence that needs an opt-in a run cannot give.
+  been fetched or has no row for the score, and a licence that needs an opt-in a run
+  cannot give. One unrunnable card never stops the others.
 - **Something present but wrong raises.** A scoring file whose digest disagrees with its
   lock is the main case.
 
@@ -80,7 +81,8 @@ card carries is the following:
   DR2, unknown quality as 0) and the imputed and unknown-quality shares.
 - **Portability.** The full M9.5 block. The face shows the judgment, the demonstrated
   match and its upper bound.
-- **Within-family attenuation,** or a statement that it is unknown.
+- **Within-family attenuation,** or a statement that it is unknown. Above 1 the face
+  says the population association does not overstate the direct effect.
 - **Absolute rates by decile and the base rate,** or a statement that a position is not a
   risk.
 

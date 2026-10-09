@@ -505,3 +505,41 @@ def test_dashboard_geometry_keeps_the_band_and_labels_inside_the_chart(
     assert not any(name == "percentile" or "sum" in name for name in vars(view))
     unplaced = PolygenicView.of({**computation, "result": None})
     assert unplaced is None
+
+
+# ---------------------------------------------------------------------------
+# M9.6 review regressions
+# ---------------------------------------------------------------------------
+
+
+def test_review_a_score_missing_from_metadata_leaves_only_its_card_unrun(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    empty = Catalog({}, setup["catalog"].source, "pgs_all_metadata_scores.csv")
+    analysis = run({**setup, "catalog": empty}, fake)
+    card = polygenic_card(analysis)
+    assert card.status is MatchStatus.NOT_RUN and "no row for PGS000001" in card.summary
+    assert "pgs_catalog_metadata" in card.summary and analysis.polygenic == {}
+
+
+def test_review_within_family_estimates_above_one_are_not_called_attenuation() -> None:
+    from genetics.pgs.cards import face_text
+
+    above = face_text("T", "t", None, 1.2, "not run")
+    assert "estimate about 120%" in above and "the rest reflects" not in above
+    below = face_text("T", "t", None, 0.5, "not run")
+    assert "retain about 50%" in below and "the rest reflects" in below
+
+
+def test_review_structural_damage_is_a_bundle_error(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = save(run(setup, fake))
+    for error in (AttributeError, IndexError):
+
+        def broken(*args: Any, error: type[Exception] = error) -> None:
+            raise error("synthetic structural damage")
+
+        monkeypatch.setattr("genetics.pgs.cards.validate_stored", broken)
+        with pytest.raises(BundleError, match="synthetic structural damage"):
+            read_bundle(path)

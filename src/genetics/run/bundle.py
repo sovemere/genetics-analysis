@@ -1046,7 +1046,8 @@ def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
     for card_id, entry in polygenic.items():
         try:
             validate_stored(entry, scores.get(card_id))
-        except (PgsError, KeyError, TypeError, ValueError) as exc:
+        except (PgsError, KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
+            # Every structural failure is damage to this bundle, never a raw traceback.
             raise BundleError(f"{CARDS_NAME}: polygenic card {card_id!r}: {exc}") from exc
 
 
