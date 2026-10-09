@@ -45,6 +45,8 @@ them. Default text output reports the result status and private destination.
 The existing run-bundle format remains **16**; these are separate score artifacts.
 Score artifacts are **schema 2** from M9.3, which adds versioned per-score coverage and
 guarantees retained exclusion proof and phase states; see [PGS coverage](pgs_coverage.md).
+Schema 3 (M9.4) adds `reference_distribution` and per-phase `percentile`; see
+[PGS reference](pgs_reference.md). The low-level engine records `not_requested`.
 
 ## Matching and supported models
 
@@ -143,11 +145,11 @@ ALT alleles; observed matrix/report precision agrees with its analytical control
 
 M9.3 per-score variant coverage is implemented in [PGS coverage](pgs_coverage.md), from
 the stored term observations; stage-direct counts still cannot stand in for the original
-chip. M9.4 owns
-reference distributions/percentiles, M9.5 owns study-to-sample ancestry portability and
+chip. M9.4's reference distributions and percentiles are in
+[PGS reference](pgs_reference.md); M9.5 owns study-to-sample ancestry portability and
 confidence, and M9.6 owns the calibrated card renderer. Raw sums carry neither a
-phenotype point estimate nor an outcome probability; `percentile` is null and portability
-is explicitly not computed. Low-quality evidence remains available for those later stages.
+phenotype point estimate nor an outcome probability; the low-level engine leaves
+`percentile` null per phase and portability is explicitly not computed. Low-quality evidence remains available for those later stages.
 See the [M9 review](review_m9_session.md) and [M9.3 entry contract](handoff.md) for saved
 evidence compatibility and coverage acceptance requirements.
 The reviewed implementation passes **2,726 tests, five existing Windows skips**, including

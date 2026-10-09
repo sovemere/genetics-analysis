@@ -1,4 +1,4 @@
-"""Shared application orchestration for M9.2; genotype-free progress only."""
+"""Shared application orchestration for M9.2-M9.4; genotype-free progress only."""
 
 from __future__ import annotations
 
@@ -10,6 +10,7 @@ from genetics.imputation import impute
 from genetics.ingest import ingest
 from genetics.pgs.catalog import PgsError
 from genetics.pgs.engine import ScoreResult, score, validate_mode_flags
+from genetics.pgs.reference import attach_reference
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 from genetics.run.bundle import read_bundle
@@ -21,6 +22,7 @@ def score_export(
     *,
     no_impute: bool = False,
     allow_restricted: bool = False,
+    reference: bool = True,
     progress: Callable[[str], None] | None = None,
 ) -> ScoreResult:
     """Validate references first; infer ancestry before default-on imputation/scoring.
@@ -28,7 +30,7 @@ def score_export(
     Uses the same ingest, ancestry and imputation functions as the dashboard/analysis
     engine. A failing default imputation stage never becomes a direct-only score.
     """
-    validate_mode_flags(no_impute, allow_restricted)
+    validate_mode_flags(no_impute, allow_restricted, reference)
     try:
         scoring.metadata.license.require_usable(opt_in=allow_restricted)
     except ValueError as exc:
@@ -41,7 +43,7 @@ def score_export(
     )
     if stage is not None and stage.original is not result.table:
         raise PgsError("Imputation returned observations for a different target.")
-    return score(
+    scored = score(
         scoring,
         table=result.table,
         dosages=None if stage is None else stage.iter_dosages(),
@@ -52,6 +54,9 @@ def score_export(
         imputation_provenance=None if stage is None else stage.metadata,
         progress=progress,
     )
+    return attach_reference(
+        scored, scoring, table=result.table, enabled=reference, progress=progress
+    )
 
 
 def score_saved(
@@ -59,10 +64,15 @@ def score_saved(
     run_path: Path,
     *,
     allow_restricted: bool = False,
+    reference: bool = True,
     progress: Callable[[str], None] | None = None,
 ) -> ScoreResult:
-    """Score a validated saved full stage; original-array sums stay not recorded."""
-    validate_mode_flags(allow_restricted)
+    """Score a validated saved full stage; original-array sums stay not recorded.
+
+    With no original array the reference group cannot be placed, so the distribution is
+    the pooled panel, labelled not ancestry-matched.
+    """
+    validate_mode_flags(allow_restricted, reference)
     try:
         scoring.metadata.license.require_usable(opt_in=allow_restricted)
     except ValueError as exc:
@@ -80,7 +90,7 @@ def score_saved(
         sex = InferredSex(bundle.qc["sex"]["inferred"])
     except (KeyError, TypeError, ValueError) as exc:
         raise PgsError("Saved run lacks valid inferred-sex metadata.") from exc
-    return score(
+    scored = score(
         scoring,
         table=None,
         dosages=bundle.iter_dosages(),
@@ -90,3 +100,4 @@ def score_saved(
         imputation_provenance=bundle.imputation_provenance,
         progress=progress,
     )
+    return attach_reference(scored, scoring, table=None, enabled=reference, progress=progress)

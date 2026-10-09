@@ -5,7 +5,8 @@ ALT dose is already the biological effect-allele count. Synthetic diploid matrix
 labels prevent chromosome import conventions from rescaling haploid observations.
 Original loci, alleles, ploidies, quality and exclusions remain in the private result.
 No percentile, outcome probability or confidence calibration is computed here.
-Schema 2 adds M9.3 coverage and guarantees retained exclusion proof and phase states.
+Schema 2 adds M9.3 coverage and guarantees retained exclusion proof and phase states;
+schema 3 adds M9.4's reference distribution block and per-phase percentiles.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ import os
 import re
 import uuid
 from collections import Counter
-from collections.abc import Callable, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, ClassVar
@@ -36,7 +37,7 @@ from genetics.qc.report import InferredSex
 from genetics.qc.sex_regions import PAR_GRCH37
 
 SAMPLE = "SAMPLE"
-SCORE_SCHEMA_VERSION = 2
+SCORE_SCHEMA_VERSION = 3
 UNSUPPORTED_FEATURES = {
     "is_haplotype",
     "is_diplotype",
@@ -184,6 +185,30 @@ def _direct(
     )
 
 
+def orient(
+    pair: tuple[str, str], effect: str, alleles: Collection[str]
+) -> tuple[str | None, str, str]:
+    """Orient a score allele pair onto one locus's recorded alleles; shared by every source.
+
+    Returns an exclusion status (or None), the effect allele as the record spells it, and
+    the orientation. Both score alleles must describe the locus. A non-palindromic SNV whose
+    pair matches both as written and complemented (a four-allele locus) cannot be oriented;
+    sequence alleles are never complemented or reanchored. A palindromic pair is returned
+    as written: only a strand-invariant observation can resolve it, which callers check.
+    A second ALT does not change an allele's dose, but its REF quality stays unknown.
+    """
+    present = set(alleles)
+    snv = all(len(a) == 1 for a in pair)
+    complemented = {complement(a) for a in pair} if snv else set()
+    if snv and not is_strand_ambiguous(pair) and set(pair) <= present and complemented <= present:
+        return "strand_ambiguous", effect, "undetermined"
+    if set(pair) <= present:
+        return None, effect, "as_written"
+    if snv and complemented <= present:
+        return None, complement(effect), "complemented"
+    return "allele_mismatch", effect, "undetermined"
+
+
 def _imputed(
     row: ScoreVariant,
     records: Sequence[DosageRecord],
@@ -206,37 +231,9 @@ def _imputed(
     pair = allele_pair(row)
     if pair is None:
         return excluded("allele_contract_missing")
-    alleles = {record.ref, *record.alt}
-    # Both score alleles must describe this reference locus. A second ALT does not
-    # change an allele's dose, but its REF quality stays unknown without covariance.
-    orientation = "as_written"
-    effect = row.effect_allele
-    snv = all(len(a) == 1 for a in pair)
-    if (
-        snv
-        and not is_strand_ambiguous(pair)
-        and set(pair) <= alleles
-        and {complement(a) for a in pair} <= alleles
-    ):
-        return Dose(
-            "strand_ambiguous",
-            source=record.source,
-            ploidy=record.ploidy,
-            native_record=record.to_dict(),
-        )
-    if not set(pair) <= alleles:
-        if not snv:
-            return Dose(
-                "allele_mismatch",
-                source=record.source,
-                ploidy=record.ploidy,
-                native_record=record.to_dict(),
-            )
-        flipped = tuple(complement(a) for a in pair)
-        if not set(flipped) <= alleles:
-            return excluded("allele_mismatch")
-        effect = complement(effect)
-        orientation = "complemented"
+    status, effect, orientation = orient(pair, row.effect_allele, {record.ref, *record.alt})
+    if status is not None:
+        return excluded(status)
     if record.source == "direct":
         dose = (
             float(record.genotype.count((record.ref, *record.alt).index(effect)))
@@ -328,6 +325,183 @@ def _number(value: str) -> float:
     return result
 
 
+MATRIX_HEADER = (
+    "##fileformat=VCFv4.2\n##contig=<ID=1>\n"
+    "##source=genetics-analysis-effect-dose-matrix\n"
+    '##FORMAT=<ID=GT,Number=1,Type=String,Description="Computational matrix hardcall">\n'
+    '##FORMAT=<ID=DS,Number=A,Type=Float,Description="Native biological effect dose">\n'
+    "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT"
+)
+"""Shared by the person's and the reference panel's matrices: one encoding, one invocation."""
+
+_INTEGER_DOSE = ("./.:0", "./.:1", "./.:2")
+
+
+def _score_args(vcf: Path, weights: Path) -> list[str]:
+    return [
+        "--vcf",
+        str(vcf),
+        "dosage=DS",
+        "--dosage-erase-threshold",
+        "0",
+        "--score",
+        str(weights),
+        "1",
+        "2",
+        "3",
+        "header-read",
+        "no-mean-imputation",
+        "cols=nallele,denom,dosagesum,scoresums",
+        "list-variants",
+        "--threads",
+        "1",
+        "--memory",
+        "1024",
+    ]
+
+
+def _report_unit(value: float) -> float:
+    """The last printed unit of PLINK's six-significant-digit score report."""
+    return 10 ** (math.floor(math.log10(abs(value))) - 5) if value else 0.000001
+
+
+def reference_matrix_sums(
+    row_numbers: Sequence[int],
+    weights: Sequence[float],
+    samples: Sequence[str],
+    doses: Sequence[bytes],
+    *,
+    root: Path,
+    plink: Plink2,
+    stem: str,
+    audit_budget: int = 50_000_000,
+) -> dict[str, Any]:
+    """Score many reference samples through the person's matrix encoding and invocation.
+
+    ``doses`` holds one row per score term, one byte per sample: the biological integer
+    effect-allele count (0-2; haploid calls 0-1). Integers are exact in PGEN. Every report
+    count and term identity is checked; totals across samples are checked against exact
+    arithmetic, and each audited sample's sum is checked exactly. All samples are audited
+    unless terms x samples exceeds ``audit_budget``, when a recorded deterministic stride
+    of samples is audited instead. No sample ID or sum is echoed in an error.
+    """
+    if (
+        not row_numbers
+        or len(row_numbers) != len(weights)
+        or len(row_numbers) != len(doses)
+        or len(set(row_numbers)) != len(row_numbers)
+        or not samples
+        or len(set(samples)) != len(samples)
+        or any(not re.fullmatch(r"[A-Za-z0-9_.-]+", sample) for sample in samples)
+        or any(not math.isfinite(w) for w in weights)
+        or any(len(row) != len(samples) or max(row) > 2 for row in doses)
+    ):
+        raise PgsError("Invalid reference matrix; no reference distribution accepted.")
+    vcf = root / f"{stem}.pgs-dose-matrix.vcf"
+    weight_file = root / f"{stem}.pgs-weights.tsv"
+    prefix = root / stem
+    try:
+        try:
+            with (
+                vcf.open("w", encoding="utf-8", newline="") as data,
+                weight_file.open("w", encoding="utf-8", newline="") as w,
+            ):
+                data.write(MATRIX_HEADER + "\t" + "\t".join(samples) + "\n")
+                w.write("ID\tALLELE\tWEIGHT\n")
+                for number, weight_value, row in zip(row_numbers, weights, doses, strict=True):
+                    token = f"TERM_{number}"
+                    data.write(f"1\t{number}\t{token}\tC\tA\t.\tPASS\t.\tGT:DS\t")
+                    data.write("\t".join(map(_INTEGER_DOSE.__getitem__, row)))
+                    data.write("\n")
+                    w.write(f"{token}\tA\t{weight_value:.17g}\n")
+            prefix.with_suffix(".sscore").unlink(missing_ok=True)
+            prefix.with_name(prefix.name + ".sscore.vars").unlink(missing_ok=True)
+            plink.run(_score_args(vcf, weight_file), out=prefix)
+            lines = prefix.with_suffix(".sscore").read_text(encoding="utf-8").splitlines()
+            used = (
+                prefix.with_name(prefix.name + ".sscore.vars")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            )
+            report_sha = fingerprint(prefix.with_suffix(".sscore"))["sha256"]
+            matrix_sha = fingerprint(vcf)["sha256"]
+            weights_sha = fingerprint(weight_file)["sha256"]
+        finally:
+            vcf.unlink(missing_ok=True)
+            weight_file.unlink(missing_ok=True)
+    except (OSError, OverflowError, Plink2Error) as exc:
+        raise PgsError(
+            "PLINK reference scoring failed; no reference distribution accepted."
+        ) from exc
+    expected_ids = {f"TERM_{n}" for n in row_numbers}
+    if len(used) != len(expected_ids) or set(used) != expected_ids:
+        raise PgsError("PLINK's reference term identities disagree with the matrix.")
+    if len(lines) != len(samples) + 1:
+        raise PgsError("PLINK must report every reference sample exactly once.")
+    columns = lines[0].lstrip("#").split()
+    needed = {"IID", "ALLELE_CT", "DENOM", "WEIGHT_SUM", "NAMED_ALLELE_DOSAGE_SUM"}
+    if len(columns) != len(set(columns)) or not needed <= set(columns):
+        raise PgsError("Malformed PLINK reference score columns.")
+    reports: dict[str, dict[str, str]] = {}
+    for line in lines[1:]:
+        values = line.split()
+        if len(values) != len(columns):
+            raise PgsError("Malformed PLINK reference score columns.")
+        report = dict(zip(columns, values, strict=True))
+        reports[report["IID"]] = report
+    if set(reports) != set(samples):
+        raise PgsError("PLINK reported a different reference sample set.")
+    terms = len(row_numbers)
+    sums: list[float] = []
+    bounds: list[float] = []
+    dosage_sums: list[float] = []
+    for sample in samples:
+        report = reports[sample]
+        if report["ALLELE_CT"] != str(2 * terms) or report["DENOM"] != str(2 * terms):
+            raise PgsError("PLINK did not score every reference matrix observation.")
+        value = _number(report["WEIGHT_SUM"])
+        sums.append(value)
+        bounds.append(_report_unit(value) + 1e-10 * max(1.0, abs(value)))
+        dosage_sums.append(_number(report["NAMED_ALLELE_DOSAGE_SUM"]))
+    contributions = [w * sum(row) for w, row in zip(weights, doses, strict=True)]
+    exact_total = math.fsum(contributions)
+    total_bound = math.fsum(bounds) + 1e-10 * max(1.0, abs(exact_total))
+    if not all(math.isfinite(v) for v in (*contributions, exact_total, total_bound)):
+        raise PgsError("Nonfinite reference arithmetic; no reference distribution accepted.")
+    if abs(math.fsum(sums) - exact_total) > total_bound:
+        raise PgsError("PLINK reference sums disagree with the matrix in total.")
+    dose_total = sum(sum(row) for row in doses)
+    dose_bound = math.fsum(_report_unit(d) for d in dosage_sums)
+    if abs(math.fsum(dosage_sums) - dose_total) > dose_bound:
+        raise PgsError("PLINK reference dosage totals disagree with the matrix.")
+    stride = max(1, math.ceil(terms * len(samples) / audit_budget))
+    audited = range(0, len(samples), stride)
+    for index in audited:
+        exact = math.fsum(w * row[index] for w, row in zip(weights, doses, strict=True))
+        if abs(sums[index] - exact) > bounds[index]:
+            raise PgsError("A PLINK reference sum disagrees with exact arithmetic.")
+    return {
+        "sums": sums,
+        "terms": terms,
+        "samples": len(samples),
+        "audited_samples": len(audited),
+        "audit_stride": stride,
+        "exact_total": exact_total,
+        "total_bound": total_bound,
+        "plink_matrix_allele_ct": 2 * terms,
+        "report_sha256": report_sha,
+        "matrix_sha256": matrix_sha,
+        "weights_sha256": weights_sha,
+        "parameters": {
+            "dosage_erase_threshold": 0,
+            "missing": "no_mean_imputation",
+            "report": "sum",
+            "threads": 1,
+            "memory_mb": 1024,
+        },
+    }
+
+
 def _native_sum(
     terms: Sequence[Term],
     phase: str,
@@ -369,13 +543,7 @@ def _native_sum_impl(
         vcf.open("w", encoding="utf-8", newline="") as data,
         weights.open("w", encoding="utf-8", newline="") as w,
     ):
-        data.write(
-            "##fileformat=VCFv4.2\n##contig=<ID=1>\n"
-            "##source=genetics-analysis-effect-dose-matrix\n"
-            '##FORMAT=<ID=GT,Number=1,Type=String,Description="Computational matrix hardcall">\n'
-            '##FORMAT=<ID=DS,Number=A,Type=Float,Description="Native biological effect dose">\n'
-            f"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t{SAMPLE}\n"
-        )
+        data.write(MATRIX_HEADER + f"\t{SAMPLE}\n")
         w.write("ID\tALLELE\tWEIGHT\n")
         for term, dose in usable:
             if dose.value is None or term.weight is None or dose.ploidy is None:
@@ -388,26 +556,7 @@ def _native_sum_impl(
             )
             w.write(f"{token}\tA\t{term.weight:.17g}\n")
     prefix = root / phase
-    args = [
-        "--vcf",
-        str(vcf),
-        "dosage=DS",
-        "--dosage-erase-threshold",
-        "0",
-        "--score",
-        str(weights),
-        "1",
-        "2",
-        "3",
-        "header-read",
-        "no-mean-imputation",
-        "cols=nallele,denom,dosagesum,scoresums",
-        "list-variants",
-        "--threads",
-        "1",
-        "--memory",
-        "1024",
-    ]
+    args = _score_args(vcf, weights)
     try:
         prefix.with_suffix(".sscore").unlink(missing_ok=True)
         prefix.with_name(prefix.name + ".sscore.vars").unlink(missing_ok=True)
@@ -447,7 +596,7 @@ def _native_sum_impl(
         )
         # PGEN dosage resolution is 1/16384 on this diploid computational matrix.
         # The text report uses six significant digits; include its last printed unit.
-        rounding = 10 ** (math.floor(math.log10(abs(actual))) - 5) if actual else 0.000001
+        rounding = _report_unit(actual)
         tolerance = quantization + rounding + 1e-10 * max(1.0, abs(input_sum))
         if not all(math.isfinite(v) for v in (native_dose_sum, input_sum, tolerance)):
             raise PgsError("Nonfinite native effect-dose arithmetic; no result accepted.")
@@ -648,7 +797,12 @@ def score(
         else dict(imputation_provenance),
         "ancestry": None if ancestry is None else dict(ancestry),
         "portability": "not_computed_M9.5",
-        "percentile": None,
+        "percentile": {"before": None, "after": None},
+        "reference_distribution": {
+            "schema_version": 1,
+            "status": "not_requested",
+            "reason": "Low-level scoring call; the scoring workflows attach the distribution.",
+        },
         "allow_restricted": allow_restricted,
         "plink_version": native_version,
         "plink_sha256": native_sha,

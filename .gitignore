@@ -362,6 +362,10 @@ desktop.ini
 *.pgs-score.json.*
 *.pgs-weights.tsv
 *.pgs-reference.json
+# M9.4 public reference extraction caches and reference-sample score matrices.
+*.pgs-reference.tsv.gz
+*.pgs-reference.tsv.gz.*
+*.pgs-dose-matrix.vcf
 pgs_score_licenses.json
 PGS*_hmPOS_*.txt
 PGS*_hmPOS_*.txt.gz

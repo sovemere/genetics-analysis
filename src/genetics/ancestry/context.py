@@ -119,6 +119,7 @@ __all__ = [
     "PlacementStatus",
     "PopulationResult",
     "infer_ancestry",
+    "place_among_reference_populations",
 ]
 
 
@@ -739,6 +740,55 @@ def _population(
     )
 
 
+def _reference_population(
+    table: GenotypeTable,
+    refs: _References,
+    plink: _Plink,
+    cache: Path,
+    scratch_dir: Callable[[], Path],
+    report: Callable[[str], None],
+) -> PopulationResult:
+    """Place the sample among the 1000 Genomes populations whose genotypes M9.4 scores.
+
+    The run's own placement (M5.9) is against AADR's Human Origins panel, which cannot
+    supply a polygenic reference distribution: it carries array markers only. Choosing a
+    1000 Genomes comparison group therefore needs a placement in 1000 Genomes' own space,
+    with M5.5's same decline rule -- never a label mapping written from memory.
+    """
+    subset = refs.verified_output(SHARED_SPACE_SOURCE, SHARED_SPACE_STEP)
+    if isinstance(subset, str):
+        return PopulationResult(not_run_reason=subset)
+    labels = refs.payload(SHARED_SPACE_SOURCE, _LABELS_SUFFIX)
+    if isinstance(labels, str):
+        return PopulationResult(not_run_reason=labels)
+    tool = plink.get()
+    if isinstance(tool, str):
+        return PopulationResult(not_run_reason=tool)
+    try:
+        report("ancestry: the 1000 Genomes reference PCA for this array (built once per chip)")
+        try:
+            pca = build_reference_pca(table, subset, plink=tool, workspace=cache)
+        except InsufficientOverlapError as exc:
+            return PopulationResult(
+                not_run_reason=f"this export shares too little with 1000 Genomes: {exc}"
+            )
+        scratch = scratch_dir()
+        model = build_population_model(
+            project(subset, pca, plink=tool, workspace=scratch, stem="reference-panel"),
+            read_population_labels(labels),
+        )
+        sample = _project_sample(table, pca, subset, tool, scratch, "reference-sample")
+        placement = place(sample, model)
+    except _STAGE_ERRORS as exc:
+        raise AncestryError(f"reference-population placement failed: {exc}") from exc
+    return PopulationResult(
+        placement=placement,
+        reference=sample.reference,
+        reference_markers=pca.n_markers,
+        n_components=pca.n_components,
+    )
+
+
 def _ancient(
     table: GenotypeTable,
     refs: _References,
@@ -897,3 +947,26 @@ def infer_ancestry(
         y=_lineage("Y", table, qc, root),
         ancient=ancient,
     )
+
+
+def place_among_reference_populations(
+    table: GenotypeTable,
+    *,
+    references_root: Path | None = None,
+    tools_root: Path | None = None,
+    workspace: Path | None = None,
+    progress: Callable[[str], None] | None = None,
+) -> PopulationResult:
+    """Place the sample among 1000 Genomes populations for M9.4's comparison group.
+
+    Same statuses and error line as :func:`infer_ancestry`: absent prerequisites give
+    ``not_run`` with the reason, a sample that fits no population is ``declined``, and a
+    present-but-wrong reference raises :class:`AncestryError`.
+    """
+    root = references_root if references_root is not None else references_dir()
+    report = progress if progress is not None else (lambda _message: None)
+    refs = _References.load(root)
+    plink = _Plink(tools_root)
+    cache = workspace if workspace is not None else cache_dir() / "ancestry"
+    with _scratch(cache) as scratch_dir:
+        return _reference_population(table, refs, plink, cache, scratch_dir, report)
