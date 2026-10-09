@@ -369,6 +369,12 @@ def assemble_card(
 
             return assemble_archaic_card(card, None, reason=match.reason)
         return assemble_roh_card(card, None, reason=match.reason)
+    if card.kind is CardKind.POLYGENIC:
+        if observation is not None or match.status is not MatchStatus.NOT_RUN:
+            raise EvidenceAssemblyError("polygenic cards require the polygenic assembler")
+        from genetics.pgs.cards import assemble_polygenic_card
+
+        return assemble_polygenic_card(card, None, reason=match.reason)
     if card.kind is CardKind.IMPOSSIBILITY:
         if match.status is not MatchStatus.NOT_DETERMINABLE:
             raise EvidenceAssemblyError(

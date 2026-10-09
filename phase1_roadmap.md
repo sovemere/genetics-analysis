@@ -54,7 +54,9 @@ M9.4 adds 1000 Genomes reference distributions and ancestry-matched percentiles
 moves panel verification ahead of personal input and tightens reload validation;
 [the handoff](docs/handoff.md) held M9.5's entry contract. **M9.5 adds cited
 study-to-sample ancestry portability** to every schema-4 score result
-([PGS portability](docs/pgs_portability.md)); the handoff now holds M9.6's entry contract.
+([PGS portability](docs/pgs_portability.md)). **M9.6 renders polygenic cards** in runs and
+on the dashboard as a reference distribution with the person's interval, never a point
+([PGS cards](docs/pgs_cards.md)); the handoff holds M9.7's entry contract.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2615,13 +2617,21 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         that the sample is unrepresented, which should lower portability, not leave it at
         the neutral `None` the calculator uses for "not computed". The `{ancestry}` card
         placeholder is locked until this lands.
-- [ ] **M9.6** PRS card renderer: distribution-dominant visual, **no point estimates about
+- [x] **M9.6** PRS card renderer: distribution-dominant visual, **no point estimates about
       the person**, absolute outcome rates by decile where available, within-family
       attenuation stated on the card face where known.
-      - Entry contract in [the handoff](docs/handoff.md): portability judgment, matched
-        share, upper bound and ceiling on the card face; coverage/quality/comparability as
-        confidence inputs; the `{ancestry}` placeholder (now locked to M9.6) and card-level
-        `ancestry_match` need the 1000 Genomes placement carried into the run.
+      - Knowledge schema 4 adds `kind: polygenic` (`pgs: {id, source}`, trait, plain
+        summary/detail, evidence, optional cited `decile_outcomes`). `genetics run` scores
+        every polygenic card through the M9.2-M9.5 engine (public work before ingest, one
+        1000 Genomes placement per run); bundle format 17 saves each private record in
+        `pgs.run.json` and re-derives display, reliability and face on read. The display
+        carries the reference histogram and the person's interval only -- no sum, no point
+        percentile. The face states reference group, interval basis, coverage, portability,
+        within-family attenuation and decile rates with the base rate (or that a position is
+        not a risk). Dashboard: histogram with a washed interval band, validated colour pair,
+        decile and input tables. Confidence reuses the calculator's weights and thresholds
+        (coverage in the frequency slot). [Guide](docs/pgs_cards.md).
+      - Single-marker ancestry match and the `{ancestry}` placeholder moved to M9.13.
 - [ ] **M9.7** Section: **Physical health** PRS cards.
 - [ ] **M9.8** Section: **Mental health**. Record reduced-N (excluding-23andMe) releases
       on the card ([AGENTS.md §5.3](AGENTS.md)).
@@ -2634,6 +2644,13 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 - [ ] **M9.11** Section: **Sleep & circadian**.
 - [ ] **M9.12** Section: **Fitness & physiology** (ACTN3, ACE, injury, trainability).
       Weak evidence — include and flag honestly.
+- [ ] **M9.13** Card-level ancestry match and the `{ancestry}` placeholder. Carved out of
+      M9.6 because it is a decision about evidence, not rendering: applying M9.5's
+      ancestry ceilings to single large-effect variants would re-tier every card in the
+      pack, and §4.4 states the transfer problem for PRS. Needs the run's own 1000 Genomes
+      placement (today only `genetics pgs score` and polygenic cards make one), card
+      `evidence.ancestry` codes compared at super-population level (their defined
+      vocabulary), and declined/not-run wording a reader cannot mistake for a missing value.
 
 ---
 

@@ -258,3 +258,12 @@ This descriptive assay card saves distinct position and REF/ALT counts, explicit
 denominators, unresolved observations and source identity without estimating clinical
 sensitivity. Its cited cohort describes chip-call limitations, not a validation cohort
 for integer counting. See [ClinVar coverage](../docs/clinvar_coverage.md).
+
+**Polygenic cards (M9.6, `schema_version: 4`)** name a PGS Catalog score and the manifest
+entry that fetches it (`pgs: {id, source}`). They carry a `trait`, plain-text `summary` and
+`detail` (no placeholders), the usual `evidence` and citations, and optionally
+`decile_outcomes`: ten absolute rates by score decile plus the base rate, cited to one of
+the card's own citations. The engine writes the face itself: an interval in a reference
+distribution (never a point), coverage, ancestry portability, within-family attenuation and
+the decile rates. No polygenic card ships yet; M9.7 onwards author them. See
+[polygenic cards](../docs/pgs_cards.md).

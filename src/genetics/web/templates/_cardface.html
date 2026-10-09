@@ -26,6 +26,10 @@
       {% endif %}
     </div>
     <h3 class="cardtitle">{{ card.title }}</h3>
+    {% if card.polygenic and card.polygenic.placed %}
+      {% set pgs = card.polygenic %}{% set compact = true %}
+      {% include "_pgschart.html" %}
+    {% endif %}
     <p class="cardsummary">{{ card.summary }}</p>
     <p class="cardmeta muted">Imputation {{ card.imputation_mode_label }}</p>
     {% if card.imputation_quality_note %}<p class="caution">{{ card.imputation_quality_note }}</p>{% endif %}

@@ -185,7 +185,7 @@ def test_recorded_enabled_mode_and_execution_survive_without_cache(
     analysis = pipeline.analyse(export, knowledge_dir=PACK)
     path = pipeline.save(analysis)
     bundle = read_bundle(path)
-    assert bundle.format_version == 16 and bundle.imputation == analysis.imputation.to_dict()
+    assert bundle.format_version == 17 and bundle.imputation == analysis.imputation.to_dict()
     assert bundle.imputation["status"] == ("no_eligible_jobs" if empty else "computed")
     assert all(c.imputation_mode == "enabled" for c in bundle.cards)
     assert analysis.imputation_result is not None

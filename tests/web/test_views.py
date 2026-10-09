@@ -151,6 +151,15 @@ def test_a_section_with_an_interpretation_has_no_empty_reason() -> None:
     assert views["traits"].interpreted == 1
 
 
+def test_a_computed_result_counts_as_an_interpretation_in_the_nav() -> None:
+    """A placed score or an ROH result is a finding for this genome. The nav used to count
+    only ``matched``, telling the reader such a section had produced nothing, while the run
+    manifest and the grid both counted it (found at M9.6)."""
+    views = {v.section: v for v in section_views((_card("physical_health", status="computed"),))}
+    assert views["physical_health"].interpreted == 1
+    assert views["physical_health"].empty_reason is None
+
+
 def test_every_section_is_either_populated_or_explains_itself() -> None:
     """The definition of done, item 3, as one assertion over the whole nav."""
     for cards in ((), (_card("traits"),), (_card("traits", status="no_call"),)):

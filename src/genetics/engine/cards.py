@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 3
+SCHEMA_VERSION: Final[int] = 4
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -278,11 +278,11 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     TemplateVar("confidence", "The computed confidence tier."),
     TemplateVar("frequency", "Selected allele frequency and population, or explicit unknown."),
     TemplateVar("ppv", "Scoped empirical confirmation benchmark, or explicit unavailable."),
-    # M9.5 settled the mapping and what *declined* means, for PGS results. A card sentence
-    # still needs the run pipeline to carry the 1000 Genomes placement (it has only AADR's)
-    # and wording a declined placement cannot be misread through. That is card rendering,
-    # M9.6's; until then naming this is refused.
-    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.6"),
+    # M9.5 settled the mapping and what *declined* means, for PGS results. Single-marker
+    # cards still need the run's own 1000 Genomes placement and a decision on whether the
+    # PRS ancestry ceilings apply to one large-effect variant -- which would re-tier every
+    # card in the pack. Carved out of M9.6 as M9.13; until then naming this is refused.
+    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.13"),
     TemplateVar("imputation_quality", "Per-variant r2/DR2.", milestone="M8.5"),
     TemplateVar("percentile", "Placement in the reference distribution.", milestone="M9.4"),
 )
@@ -926,6 +926,11 @@ class Match:
 class CardKind(StrEnum):
     INTERPRETATION = "interpretation"
     COMPUTED = "computed"
+    POLYGENIC = "polygenic"
+    """A PGS Catalog score evaluated by the M9 engine and placed in a reference distribution.
+    Authored evidence and citations, like an interpretation; a computed measurement, like a
+    computed card. Its face is built by :mod:`genetics.pgs.cards`, never a template, so the
+    statements AGENTS.md 4.5 requires there cannot be authored away (M9.6)."""
     IMPOSSIBILITY = "impossibility"
     """AGENTS.md 3.2: rendered as an explicit "not determinable" card rather than silently
     omitted, so a reader who has heard of a test elsewhere learns why this tool does not
@@ -1005,8 +1010,136 @@ _CARD_KEYS: Final[frozenset[str]] = frozenset(
         "detail",
         "computation",
         "method_evidence",
+        "pgs",
+        "trait",
+        "decile_outcomes",
     }
 )
+
+
+# ---------------------------------------------------------------------------
+# Polygenic cards (M9.6)
+# ---------------------------------------------------------------------------
+
+_PGS_ID_RE: Final[re.Pattern[str]] = re.compile(r"^PGS[0-9]{6}$")
+_POLYGENIC_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "id",
+        "section",
+        "kind",
+        "title",
+        "pgs",
+        "trait",
+        "summary",
+        "detail",
+        "evidence",
+        "decile_outcomes",
+        "citations",
+        "caveats",
+    }
+)
+_DECILE_KEYS: Final[frozenset[str]] = frozenset(
+    {"measure", "population", "sample_size", "source", "base_rate", "rates", "context"}
+)
+POLYGENIC_SECTIONS: Final[frozenset[Section]] = frozenset(
+    {
+        Section.PHYSICAL_HEALTH,
+        Section.MENTAL_HEALTH,
+        Section.PSYCHOMETRICS,
+        Section.TRAITS,
+        Section.NUTRITION,
+        Section.SUBSTANCE_USE,
+        Section.SLEEP_CIRCADIAN,
+        Section.FITNESS,
+    }
+)
+"""Where a polygenic score can be a finding. Not ancestry, genome structure,
+pharmacogenomics, immunogenetics or carrier status, whose claims are not polygenic sums."""
+
+
+@dataclass(frozen=True)
+class PgsDeclaration:
+    """Which public score a polygenic card evaluates, and which manifest entry fetches it.
+
+    The source is named rather than inferred from the ID so the scoring file is located and
+    lock-verified like every other reference; the metadata CSV still decides its licence
+    (AGENTS.md 4.8).
+    """
+
+    pgs_id: str
+    source: str
+
+    @classmethod
+    def parse(cls, raw: Any, where: str) -> PgsDeclaration:
+        data = _mapping(raw, where)
+        _reject_unknown(data, frozenset({"id", "source"}), where)
+        pgs_id = str(_require(data, "id", where)).strip()
+        source = str(_require(data, "source", where)).strip()
+        if not _PGS_ID_RE.fullmatch(pgs_id):
+            raise CardError(f"{where}: id must be a PGS Catalog score ID such as PGS000001")
+        if not _ID_RE.fullmatch(source):
+            raise CardError(f"{where}: source must name a reference manifest entry id")
+        return cls(pgs_id, source)
+
+
+@dataclass(frozen=True)
+class DecileOutcomes:
+    """Absolute outcome rates by score decile, from one cited study (AGENTS.md 4.5).
+
+    ``rates[i]`` is the outcome rate in the (i+1)th decile of that study's score
+    distribution; ``base_rate`` is the same measure across the whole study. Both are
+    proportions. A relative effect without these is "top decile" with no base rate beside
+    it, which 4.5 calls meaningless.
+    """
+
+    measure: str
+    population: str
+    sample_size: int
+    source: str
+    base_rate: float
+    rates: tuple[float, ...]
+    context: str | None = None
+
+    @classmethod
+    def parse(cls, raw: Any, where: str, citations: tuple[Citation, ...]) -> DecileOutcomes:
+        data = _mapping(raw, where)
+        _reject_unknown(data, _DECILE_KEYS, where)
+        text: dict[str, str] = {}
+        for key in ("measure", "population", "source"):
+            value = _require(data, key, where)
+            if not isinstance(value, str) or not value.strip():
+                raise CardError(f"{where}: {key} must be nonempty text")
+            text[key] = value.strip()
+        if text["source"] not in {c.id for c in citations}:
+            raise CardError(
+                f"{where}: source {text['source']!r} must be the id of one of this card's "
+                "citations, so the rates can be checked against the paper they came from."
+            )
+        size = _require(data, "sample_size", where)
+        if isinstance(size, bool) or not isinstance(size, int) or size <= 0:
+            raise CardError(f"{where}: sample_size must be a positive integer")
+        base = _number(_require(data, "base_rate", where), where, "base_rate")
+        raw_rates = _require(data, "rates", where)
+        if not isinstance(raw_rates, list) or len(raw_rates) != 10:
+            raise CardError(f"{where}: rates must list exactly ten deciles, lowest first")
+        rates = tuple(_number(r, f"{where}.rates[{i}]", "rate") for i, r in enumerate(raw_rates))
+        if any(not 0.0 <= value <= 1.0 for value in (base, *rates)):
+            raise CardError(
+                f"{where}: rates and base_rate are proportions in [0, 1]; a percentage "
+                "written as 12 rather than 0.12 is the usual cause."
+            )
+        context = data.get("context")
+        if context is not None and (not isinstance(context, str) or not context.strip()):
+            raise CardError(f"{where}: context must be nonempty text when present")
+        return cls(
+            measure=text["measure"],
+            population=text["population"],
+            sample_size=size,
+            source=text["source"],
+            base_rate=base,
+            rates=rates,
+            context=None if context is None else context.strip(),
+        )
 
 
 @dataclass(frozen=True)
@@ -1032,6 +1165,11 @@ class Card:
     detail: str | None = None
     computation: str | None = None
     method_evidence: Mapping[str, Any] | None = None
+
+    # Polygenic cards.
+    pgs: PgsDeclaration | None = None
+    trait: str | None = None
+    decile_outcomes: DecileOutcomes | None = None
 
     @property
     def variant_key(self) -> VariantKey | None:
@@ -1126,6 +1264,11 @@ class Card:
         for name in ("computation", "method_evidence"):
             if name in data:
                 raise CardError(f"{where}: {name} belongs to a computed card")
+        if kind is CardKind.POLYGENIC:
+            return cls._parse_polygenic(data, where, card_id, section, title, citations, caveats)
+        for name in ("pgs", "trait", "decile_outcomes"):
+            if name in data:
+                raise CardError(f"{where}: {name} belongs to a polygenic card")
         if kind is CardKind.IMPOSSIBILITY:
             return cls._parse_impossibility(
                 data, where, card_id, section, title, citations, caveats, gene
@@ -1158,6 +1301,55 @@ class Card:
                 "a card without a citation does not render."
             )
         return citations
+
+    @classmethod
+    def _parse_polygenic(
+        cls,
+        data: Mapping[str, Any],
+        where: str,
+        card_id: str,
+        section: Section,
+        title: str,
+        citations: tuple[Citation, ...],
+        caveats: tuple[str, ...],
+    ) -> Card:
+        """A score card. Its face is computed (M9.6); the author supplies what it measures.
+
+        ``summary`` and ``detail`` describe the score and admit no placeholders: the
+        person-specific statements -- reference position as an interval, coverage,
+        portability, within-family attenuation and absolute rates by decile -- are written
+        by the engine so that none of them can be left off.
+        """
+        _reject_unknown(data, _POLYGENIC_KEYS, where)
+        if section not in POLYGENIC_SECTIONS:
+            raise CardError(f"{where}: a polygenic score does not belong in {section.value}")
+        pgs = PgsDeclaration.parse(_require(data, "pgs", where), f"{where}.pgs")
+        trait = _require(data, "trait", where)
+        summary = _require(data, "summary", where)
+        detail = _require(data, "detail", where)
+        for name, value in (("trait", trait), ("summary", summary), ("detail", detail)):
+            if not isinstance(value, str) or not value.strip():
+                raise CardError(f"{where}: {name} must be nonempty text")
+        _check_template(summary, f"{where}.summary", frozenset())
+        _check_template(detail, f"{where}.detail", frozenset())
+        evidence = Evidence.parse(_require(data, "evidence", where), f"{where}.evidence")
+        deciles = data.get("decile_outcomes")
+        return cls(
+            id=card_id,
+            section=section,
+            kind=CardKind.POLYGENIC,
+            title=title,
+            citations=citations,
+            caveats=caveats,
+            evidence=evidence,
+            summary=summary,
+            detail=detail,
+            pgs=pgs,
+            trait=trait.strip(),
+            decile_outcomes=None
+            if deciles is None
+            else DecileOutcomes.parse(deciles, f"{where}.decile_outcomes", citations),
+        )
 
     @classmethod
     def _parse_impossibility(
@@ -1311,7 +1503,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1331,6 +1523,11 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 4 and any(
+        isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "polygenic"
+        for entry in entries
+    ):
+        raise CardError(f"{where}: polygenic cards require schema_version 4")
     if version < 3:
         for entry in entries:
             outcomes = _mapping(entry, where).get("outcomes")

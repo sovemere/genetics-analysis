@@ -1,0 +1,34 @@
+{#
+  A polygenic score as a distribution (M9.6). The reference group's histogram fills the
+  chart; the person is a washed band over their 95% interval, never a point -- the stored
+  display has no point to draw. One series, so no legend: the caption names it. Every bar
+  carries its own hover text, and the decile and quantile figures are in the table view
+  beside this chart in the detail.
+
+  `pgs` is a PolygenicView; `compact` drops the axis labels for the card face.
+#}
+<figure class="pgschart{% if compact %} pgschart-compact{% endif %}">
+  <svg viewBox="0 0 480 {{ 120 if compact else 138 }}" role="img"
+       aria-label="Distribution of {{ pgs.reference_label }} reference scores, with your 95% interval shaded: {{ pgs.band_label }}">
+    <rect class="pgsband" x="{{ '%.2f' | format(pgs.band_x) }}" y="16" width="{{ '%.2f' | format(pgs.band_width) }}" height="102">
+      <title>{{ pgs.band_label }} (reflects reference group size only)</title>
+    </rect>
+    {% for bar in pgs.bars %}
+      <path class="pgsbar" d="{{ bar.path }}"><title>{{ bar.title }}</title></path>
+    {% endfor %}
+    <line class="pgsbandedge" x1="{{ '%.2f' | format(pgs.band_x) }}" x2="{{ '%.2f' | format(pgs.band_x) }}" y1="16" y2="118" />
+    <line class="pgsbandedge" x1="{{ '%.2f' | format(pgs.band_x + pgs.band_width) }}" x2="{{ '%.2f' | format(pgs.band_x + pgs.band_width) }}" y1="16" y2="118" />
+    <line class="pgsaxis" x1="0" x2="480" y1="118.5" y2="118.5" />
+    <text class="pgslabel" x="{{ '%.2f' | format(pgs.band_label_x) }}" y="11" text-anchor="{{ pgs.band_label_anchor }}">{{ pgs.band_label }}</text>
+    {% if not compact %}
+      {% for tick in pgs.ticks %}
+        <line class="pgsaxis" x1="{{ '%.2f' | format(tick.x) }}" x2="{{ '%.2f' | format(tick.x) }}" y1="118" y2="123" />
+        <text class="pgstick" x="{{ '%.2f' | format(tick.x) }}" y="134" text-anchor="{{ tick.anchor }}">{{ tick.label }}</text>
+      {% endfor %}
+    {% endif %}
+  </svg>
+  <figcaption class="muted">
+    {{ pgs.reference_label }}{% if not pgs.ancestry_matched %} · NOT ancestry-matched{% endif %}
+    · {{ pgs.phase_label }}
+  </figcaption>
+</figure>

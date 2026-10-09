@@ -10,14 +10,14 @@ no-call loci, retaining native dosage quality. ClinVar, coverage and genome-stru
 modules continue to consume the original array. Execution mode is separate from call_source:
 an enabled run does not make an original observed call an imputed observation.
 Missing allele frequencies remain unknown. Study-to-sample ancestry portability is computed
-for PGS results (M9.5); card observations keep ancestry_match unset until M9.6 carries the
-1000 Genomes placement into the run.
+for PGS results (M9.5) and polygenic cards are scored here (M9.6); single-marker card
+observations keep ancestry_match unset until M9.13.
 """
 
 from __future__ import annotations
 
-from collections.abc import Callable
-from dataclasses import dataclass, replace
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from pathlib import Path
 from typing import Any, ClassVar
@@ -51,6 +51,7 @@ from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.ingest.keys import LocusKey
 from genetics.ingest.schema import Chrom
+from genetics.pgs.runner import PolygenicStage
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
@@ -85,6 +86,8 @@ class Analysis(NoGenotypeRepr):
     clinvar: ClinVarLookup
     imputation: ImputationContext
     imputation_result: ImputationResult | None = None
+    polygenic: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
+    """Private M9 score records by polygenic card id, saved as ``pgs.run.json``."""
 
     @property
     def vendor(self) -> str:
@@ -204,6 +207,7 @@ def analyse(
     ancestry: AncestryStage | None = None,
     progress: Callable[[str], None] | None = None,
     no_impute: bool = False,
+    polygenic: PolygenicStage | None = None,
 ) -> Analysis:
     """Parse, QC, infer ancestry, impute by default, then evaluate quality-aware cards.
 
@@ -227,6 +231,10 @@ def analyse(
     if type(no_impute) is not bool:
         raise ImputationError("no_impute must be an explicit boolean.")
     pack = KnowledgePack.load(knowledge_dir)
+    # Polygenic scoring files, licences and the 1000 Genomes extraction are public; verify
+    # them before the export is read, so a tampered reference fails before a genome is.
+    polygenic_stage = polygenic if polygenic is not None else PolygenicStage()
+    polygenic_stage.prepare(pack, progress)
     result: IngestResult = ingest(input_path)
     if ancestry is None:
         context = infer_ancestry(result.table, result.qc, progress=progress)
@@ -293,6 +301,15 @@ def analyse(
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)
     cards = infer_sex_chromosome_cards(cards, result.table)
+    polygenic_cards, polygenic_records = polygenic_stage.score(
+        table=result.table,
+        sex=result.qc.sex.inferred,
+        dosages=None if imputation_result is None else imputation_result.iter_dosages,
+        ancestry=context.to_dict(),
+        imputation_provenance=None if imputation_result is None else imputation_result.metadata,
+        progress=progress,
+    )
+    cards = tuple(polygenic_cards.get(card.card_id, card) for card in cards)
     cards = tuple(replace(card, imputation_mode=imputation_context.mode) for card in cards)
     matches = tuple(card.match for card in cards)
     return Analysis(
@@ -305,6 +322,7 @@ def analyse(
         clinvar=clinvar,
         imputation=imputation_context,
         imputation_result=imputation_result,
+        polygenic=polygenic_records,
     )
 
 
@@ -338,6 +356,7 @@ def save(
         clinvar=analysis.clinvar,
         imputation=analysis.imputation,
         imputation_result=analysis.imputation_result,
+        polygenic=analysis.polygenic,
         progress=progress,
         runs_root=runs_root,
         run_id=run_id,

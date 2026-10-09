@@ -83,8 +83,12 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 16
+BUNDLE_FORMAT_VERSION: Final[int] = 17
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 17 (M9.6) adds polygenic cards and ``pgs.run.json``, holding each polygenic card's
+full private score record. A stored card's display, reliability and face are re-derived
+from that record on read. Formats 1-16 carry no polygenic cards.
 
 Version 16 (M8.6) adds durable full dosages, byte-identical reference catalogs and
 exact used tool/runtime/parameter provenance. Formats 1-15 retain their snapshots.
@@ -205,6 +209,8 @@ ANCESTRY_NAME: Final[str] = "ancestry.run.json"
 CLINVAR_NAME: Final[str] = "clinvar.run.json"
 IMPUTATION_NAME: Final[str] = "imputation.run.json"
 IMPUTATION_PROVENANCE_NAME: Final[str] = imputation_snapshot.PROVENANCE_NAME
+PGS_NAME: Final[str] = "pgs.run.json"
+PGS_FORMAT_VERSION: Final[int] = 17
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -228,6 +234,7 @@ PAYLOAD_FILES: Final[tuple[str, ...]] = (
     CLINVAR_NAME,
     IMPUTATION_NAME,
     IMPUTATION_PROVENANCE_NAME,
+    PGS_NAME,
 )
 """Every payload file this format version writes, and so every file a bundle may hold.
 
@@ -245,6 +252,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     CLINVAR_NAME: 7,
     IMPUTATION_NAME: 14,
     IMPUTATION_PROVENANCE_NAME: 16,
+    PGS_NAME: PGS_FORMAT_VERSION,
 }
 
 
@@ -652,6 +660,8 @@ class RunBundle(NoGenotypeRepr):
     """Reference lookup snapshot; None means not recorded by a pre-v7 writer."""
     imputation: Mapping[str, Any] | None = None
     imputation_provenance: Mapping[str, Any] | None = None
+    polygenic: Mapping[str, Mapping[str, Any]] | None = None
+    """Private score records by polygenic card id (format 17+); None when not recorded."""
 
     def iter_dosages(self) -> Iterator[DosageRecord]:
         """Stream validated native full dosages from this bundle, without a stage cache."""
@@ -760,6 +770,7 @@ def write_bundle(
     clinvar: ClinVarLookup | None = None,
     imputation: ImputationContext | None = None,
     imputation_result: ImputationResult | None = None,
+    polygenic: Mapping[str, Mapping[str, Any]] | None = None,
     progress: Callable[[str], None] | None = None,
     runs_root: Path | None = None,
     run_id: str | None = None,
@@ -865,6 +876,9 @@ def write_bundle(
             ):
                 raise BundleError("ClinVar coverage card disagrees with supplied lookup")
         _write_text(staging / CLINVAR_NAME, _render(clinvar_payload))
+        scores = {key: dict(value) for key, value in (polygenic or {}).items()}
+        _check_polygenic(card_payloads, scores)
+        _write_text(staging / PGS_NAME, _render({"schema_version": 1, "scores": scores}))
 
         manifest = {
             "format_version": BUNDLE_FORMAT_VERSION,
@@ -993,6 +1007,49 @@ def read_manifest(directory: Path) -> Mapping[str, Any]:
     return _load_json(directory / MANIFEST_NAME)
 
 
+def _polygenic_shape(data: Mapping[str, Any], computation: Mapping[str, Any], where: str) -> None:
+    """Structure only; :func:`_check_polygenic` re-derives the content from its record."""
+    from genetics.engine.cards import POLYGENIC_SECTIONS
+
+    if (
+        data.get("kind") != "polygenic"
+        or computation.get("source") != "polygenic_score"
+        or data.get("section") not in {s.value for s in POLYGENIC_SECTIONS}
+        or computation.get("method_evidence") is not None
+        or data.get("evidence") is None
+        or any(
+            data.get(k) is not None
+            for k in ("variant", "observation", "confidence", "gene", "impossibility_reason")
+        )
+    ):
+        raise BundleError(f"{where}: inconsistent polygenic card")
+    for key in ("result", "reason", "reliability"):
+        _require(computation, key, where)
+    reliability = _mapping(computation["reliability"], where)
+    if not isinstance(reliability.get("reason"), str) or not reliability["reason"].strip():
+        raise BundleError(f"{where}: polygenic reliability needs a reason")
+    if data.get("status") not in {"computed", "not_run"}:
+        raise BundleError(f"{where}: invalid polygenic card status")
+
+
+def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
+    """Each polygenic card must be reproduced by its own stored score record, and no
+    record may sit in the bundle without the card that displays it."""
+    from genetics.pgs.cards import validate_stored
+    from genetics.pgs.catalog import PgsError
+
+    polygenic = {
+        e["card_id"]: e for e in entries if isinstance(e, Mapping) and e.get("kind") == "polygenic"
+    }
+    if not set(scores) <= set(polygenic):
+        raise BundleError(f"{PGS_NAME}: a score record has no polygenic card")
+    for card_id, entry in polygenic.items():
+        try:
+            validate_stored(entry, scores.get(card_id))
+        except (PgsError, KeyError, TypeError, ValueError) as exc:
+            raise BundleError(f"{CARDS_NAME}: polygenic card {card_id!r}: {exc}") from exc
+
+
 def _stored_card(raw: Any, where: str) -> StoredCard:
     data = _mapping(raw, where)
     _reject_unknown(data, CARD_KEYS, where)
@@ -1030,7 +1087,9 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             frozenset({"source", "status", "reason", "result", "reliability", "method_evidence"}),
             where,
         )
-        if (
+        if data.get("kind") == "polygenic" or computation_map.get("source") == "polygenic_score":
+            _polygenic_shape(data, computation_map, where)
+        elif (
             data.get("kind") != "computed"
             or not isinstance(computation_map.get("source"), str)
             or computation_map.get("source")
@@ -1045,6 +1104,9 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
             raise BundleError(f"{where}: computation and card statuses disagree")
+    if computation_map is not None and data.get("kind") == "polygenic":
+        tier = _mapping(computation_map["reliability"], where).get("tier")
+    elif computation_map is not None:
         if (
             data.get("section")
             != (
@@ -1220,8 +1282,8 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 validate_roh_result(measured_map)
             except RohError as exc:
                 raise BundleError(f"{where}: {exc}") from exc
-    elif data.get("kind") == "computed":
-        raise BundleError(f"{where}: computed card has no computation record")
+    elif data.get("kind") in {"computed", "polygenic"}:
+        raise BundleError(f"{where}: {data.get('kind')} card has no computation record")
     frequency_source = data.get("confidence_frequency")
     return StoredCard(
         card_id=str(_require(data, "card_id", where)),
@@ -1438,6 +1500,20 @@ def read_bundle(path: Path) -> RunBundle:
         except ClinVarError as exc:
             raise BundleError(str(exc)) from exc
 
+    polygenic: Mapping[str, Mapping[str, Any]] | None = None
+    if declared >= PGS_FORMAT_VERSION:
+        stored = _load_json(directory / PGS_NAME)
+        _reject_unknown(stored, frozenset({"schema_version", "scores"}), PGS_NAME)
+        if stored.get("schema_version") != 1:
+            raise BundleError(f"{PGS_NAME}: unsupported schema_version")
+        scores = _mapping(_require(stored, "scores", PGS_NAME), f"{PGS_NAME}.scores")
+        polygenic = {
+            str(key): _mapping(value, f"{PGS_NAME}.scores.{key}") for key, value in scores.items()
+        }
+        _check_polygenic(entries, polygenic)
+    elif any(isinstance(e, Mapping) and e.get("kind") == "polygenic" for e in entries):
+        raise BundleError(f"Polygenic cards require bundle format {PGS_FORMAT_VERSION}")
+
     for entry in coverage_entries:
         if entry["computation"].get("result") != (
             None if clinvar is None else clinvar.get("coverage")
@@ -1460,4 +1536,5 @@ def read_bundle(path: Path) -> RunBundle:
         clinvar=clinvar,
         imputation=imputation,
         imputation_provenance=imputation_provenance,
+        polygenic=polygenic,
     )

@@ -551,7 +551,7 @@ def test_cli_dashboard_snapshot_parity_with_low_quality_and_no_cache(
     path = Path(json.loads(invocation.stdout)["path"])
     bundle = read_bundle(path)
     assert bundle.imputation is not None
-    assert bundle.format_version == 16 and bundle.imputation["schema_version"] == 2
+    assert bundle.format_version == 17 and bundle.imputation["schema_version"] == 2
     assert bundle.imputation["card_input"] == "original_array_with_imputed"
     card = bundle.cards[0]
     assert card.observation is not None and card.observation["imputation_quality"] == 0.1
@@ -939,7 +939,7 @@ def test_rare_imputed_snapshot_keeps_gate_native_evidence_and_scoped_ppv_in_both
     assert_no_genotype(invocation.output)
     path = Path(json.loads(invocation.stdout)["path"])
     bundle = read_bundle(path)
-    assert bundle.format_version == 16 and len(bundle.cards) == 1
+    assert bundle.format_version == 17 and len(bundle.cards) == 1
     saved = bundle.cards[0]
     assert saved.confidence_tier == "likely-artifact"
     assert (

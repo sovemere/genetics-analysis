@@ -362,6 +362,12 @@ class Matcher:
                 status=MatchStatus.NOT_RUN,
                 reason=f"{card.computation} computation has not run.",
             )
+        if card.kind is CardKind.POLYGENIC:
+            return MatchResult(
+                card_id=card.id,
+                status=MatchStatus.NOT_RUN,
+                reason="The polygenic score has not been computed for this run.",
+            )
         if card.kind is CardKind.IMPOSSIBILITY:
             return MatchResult(
                 card_id=card.id,
