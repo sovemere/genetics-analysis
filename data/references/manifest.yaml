@@ -555,6 +555,92 @@ sources:
         size_bytes: 3276
         unpinned_reason: "The Catalog can update weights/harmonization under a fixed score URL; fetched bytes are recorded in manifest.lock"
 
+  # M9.7 physical-health scores. Digests measured from live harmonized files on
+  # 2026-10-10; the metadata CSV remains the authority for each score's licence.
+  - id: pgs000007_grch37
+    name: PGS000007 PRS3820 breast cancer, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-09-23"
+    homepage: https://www.pgscatalog.org/score/PGS000007/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - physical-health breast cancer polygenic card (M9.7)
+    notes: >-
+      Mavaddat et al. doi:10.1016/j.ajhg.2018.11.002, overall-disease lasso model.
+      Its independent prospective OR per SD exceeds the 313-variant model's;
+      retain the published model rather than selecting a smaller score for speed.
+      EMBL-EBI default terms were verified in the fetched metadata CSV.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000007/ScoringFiles/Harmonized/PGS000007_hmPOS_GRCh37.txt.gz
+        filename: PGS000007_hmPOS_GRCh37.txt.gz
+        size_bytes: 57842
+        sha256: 443591bac803a36f2e04edd31faf48e9d5dd612957e31c163af366ec049d4c08
+
+  - id: pgs003725_grch37
+    name: PGS003725 GPS_Mult coronary artery disease, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2023-07-13"
+    homepage: https://www.pgscatalog.org/score/PGS003725/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - physical-health coronary artery disease polygenic card (M9.7)
+    notes: >-
+      Patel et al. doi:10.1038/s41591-023-02429-x, multi-ancestry and multi-trait
+      additive score. GWAS includes five ancestries; mixing weights were trained
+      in European UK Biobank participants. A multi-ancestry source does not make
+      the European per-SD estimate transferable to everyone.
+      EMBL-EBI default terms were verified in the fetched metadata CSV.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003725/ScoringFiles/Harmonized/PGS003725_hmPOS_GRCh37.txt.gz
+        filename: PGS003725_hmPOS_GRCh37.txt.gz
+        size_bytes: 16419921
+        sha256: 49d3e257663d865ab4f383801832fac23673aac7bb654de2616c189160cfe4d5
+
+  # M9.8 public mental-health models. Digests measured on 2026-10-11.
+  - id: pgs000134_grch37
+    name: PGS000134 SCZ_GHS schizophrenia, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS000134/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - mental-health schizophrenia polygenic card (M9.8)
+    notes: >-
+      Public 2014-PGC-based SCZ_GHS PRS-CS weights from Zheutlin et al.
+      doi:10.1176/appi.ajp.2019.18091085. Catalogue discovery N=87534,
+      European 94% / East Asian 6%; European LD panel and European-American
+      evaluation. No restricted summary statistics are downloaded here.
+      EMBL-EBI default terms verified in the authoritative score metadata CSV.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000134/ScoringFiles/Harmonized/PGS000134_hmPOS_GRCh37.txt.gz
+        filename: PGS000134_hmPOS_GRCh37.txt.gz
+        size_bytes: 15018921
+        sha256: 65875a851423c27bf2f1ff876ef3525947eccc635a32bc076bc0b55e13366a2c
+
+  - id: pgs000140_grch37
+    name: PGS000140 GPpsy mental-health help-seeking, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS000140/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - mental-health broad help-seeking polygenic card (M9.8)
+    notes: >-
+      Cai et al. doi:10.1038/s41588-020-0594-5, UK Biobank-only GPpsy model:
+      reporting a GP consultation for nerves, anxiety, tension or depression.
+      N=332629, European ancestry; 23andMe is a separate comparison in the paper,
+      not a training cohort for these weights. LD clumping r2<0.1, p<0.1.
+      EMBL-EBI default terms verified in the authoritative score metadata CSV.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS000140/ScoringFiles/Harmonized/PGS000140_hmPOS_GRCh37.txt.gz
+        filename: PGS000140_hmPOS_GRCh37.txt.gz
+        size_bytes: 485483
+        sha256: c7f3afe578eca431fa7914dc7564607ad7f24327edad329dca07470b42c37ee4
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

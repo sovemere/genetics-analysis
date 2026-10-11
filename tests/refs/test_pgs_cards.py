@@ -15,9 +15,11 @@ import math
 from pathlib import Path
 from typing import Any
 
+import polars as pl
 import pytest
 import test_pgs_reference
 from fastapi.testclient import TestClient
+from test_pgs_engine import dosage
 from test_pgs_portability import GWAS, Placed
 from test_pgs_reference import MultiPlink, build_panel, calls
 from typer.testing import CliRunner
@@ -38,12 +40,22 @@ from genetics.engine.cards import (
 )
 from genetics.engine.confidence import ConfidenceTier, calculate_polygenic_confidence
 from genetics.engine.matcher import MatchStatus
+from genetics.ingest import ingest
+from genetics.ingest.schema import GenotypeTable
 from genetics.paths import runs_dir
 from genetics.pgs import runner
-from genetics.pgs.cards import INTERVAL_BASIS, NOT_A_RISK, record_digest
+from genetics.pgs.cards import (
+    INTERVAL_BASIS,
+    NOT_A_RISK,
+    assemble_polygenic_card,
+    build_result,
+    face_text,
+    record_digest,
+)
 from genetics.pgs.catalog import ID_COLUMN, TERMS_COLUMN, Catalog, PgsError, ScoreMetadata
 from genetics.pgs.runner import PolygenicStage, locate_scoring_file
 from genetics.pgs.scoring import ScoringFile
+from genetics.qc.report import InferredSex
 from genetics.refs import lock as refs_lock
 from genetics.run.bundle import (
     CARDS_NAME,
@@ -287,6 +299,79 @@ def test_a_run_scores_places_and_faces_the_card_without_a_point(
     assert result["portability"]["ancestry_match"] == 1.0
 
 
+def test_both_phases_variant_coverage_reaches_the_card_face(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    original = ingest(EXPORT).table
+    last = ROWS[-1][0]
+    reduced = GenotypeTable(original.frame.filter(pl.col("pos_grch37") != last), vendor="synthetic")
+    prepared = stage(setup, fake)
+    prepared.prepare(KnowledgePack.load(setup["knowledge"]))
+    cards, records = prepared.score(
+        table=reduced,
+        sex=InferredSex.MALE,
+        dosages=lambda: iter([dosage(last, ref="G")]),
+        ancestry=AncestryContext.not_run("synthetic acceptance").to_dict(),
+        imputation_provenance=None,
+    )
+    card = cards["synthetic_polygenic"]
+    assert card.computation is not None
+    coverage = card.computation["result"]["phase_coverage"]
+    assert coverage["before"]["variants_covered"] == 4
+    assert coverage["after"]["variants_covered"] == 5
+    assert "Original array: 4/5 variants (80%)" in card.summary
+    assert "After imputation: 5/5 variants (100%)" in card.summary
+    assert (
+        coverage["before"]["weight_fraction"]
+        == records["synthetic_polygenic"]["coverage"]["before"]["weight"]["fraction"]
+    )
+
+
+def test_disabled_coverage_is_unavailable_not_zero(setup: dict[str, Any], fake: MultiPlink) -> None:
+    card = polygenic_card(run(setup, fake))
+    assert "After imputation: unavailable (disabled)" in card.summary
+    assert "After imputation: 0" not in card.summary
+
+
+@pytest.mark.parametrize(
+    "source, dr2", [("direct", None), ("imputed_untyped", 1.0), ("imputed_untyped", None)]
+)
+def test_large_quality_aggregation_stays_in_unit_interval(
+    setup: dict[str, Any], fake: MultiPlink, source: str, dr2: float | None
+) -> None:
+    analysis = run(setup, fake)
+    card = polygenic_card(analysis)
+    record = analysis.polygenic[card.card_id]
+    # A fabricated all-equal weighted observation set isolates the accumulation
+    # error seen at real-score scale. No live weights or observations are read.
+    prototype = record["terms"][0]
+    record["terms"] = [
+        {
+            **prototype,
+            "row_number": i,
+            "weight": 0.1,
+            "before": {**prototype["before"], "source": source, "dr2": dr2},
+        }
+        for i in range(10000)
+    ]
+    record["reference_distribution"]["before"]["comparable_rows"] = list(range(10000))
+    ordinary = 0.0
+    for _ in range(10000):
+        ordinary += 0.1
+    assert ordinary > math.fsum([0.1] * 10000)
+    result = assemble_polygenic_card(card.card, record)
+    assert result.computation is not None
+    expected = 0.0 if source != "direct" and dr2 is None else 1.0
+    assert result.computation["result"]["quality"]["weighted_quality"] == expected
+    assert (
+        result.computation["result"]["quality"]["unknown_quality_weight_fraction"] == 1.0 - expected
+    )
+    # Existing display-1 snapshots are re-derived using their original arithmetic.
+    legacy = build_result(card.computation["result"]["authored"], record, display_schema_version=1)
+    key = "weighted_quality" if expected else "unknown_quality_weight_fraction"
+    assert legacy["quality"][key] > 1.0
+
+
 def test_not_fetched_unlicensed_and_unplaced_cards_still_render_with_reasons(
     setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -351,6 +436,58 @@ def test_saved_run_round_trips_through_bundle_cli_and_dashboard(
         assert 'class="pgsband"' in html and html.count('class="pgsbar"') >= 1
         assert "Absolute rates by score decile" in html and "overlaps" in html
         assert "Why this tier" in html and "Comparable weight" in html
+        assert "Before and after coverage" in html
+        assert "After imputation: unavailable (disabled)" in html
+
+
+def test_health_pack_on_synthetic_scores_preserves_scope_and_missing_absolute_rates(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    # Exercise the shipped authoring through the shared pipeline, bundle, CLI and
+    # dashboard using the fabricated five-row score. No live weights are read.
+    authored = Path(__file__).parents[2] / "knowledge" / "health" / "polygenic.yaml"
+    text = authored.read_text(encoding="utf-8")
+    for pgs_id in ("PGS000007", "PGS003725"):
+        text = text.replace(pgs_id, "PGS000001").replace(
+            f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
+        )
+    (setup["knowledge"] / "polygenic.yaml").write_text(text, encoding="utf-8")
+    analysis = run(setup, fake)
+    assert len(analysis.cards) == 2
+    assert all(c.status is MatchStatus.COMPUTED for c in analysis.cards)
+    assert all(c.card.decile_outcomes is None for c in analysis.cards)
+    assert all(NOT_A_RISK in c.summary for c in analysis.cards)
+    # The male fixture must not suppress a score whose study was in women.
+    breast = next(c for c in analysis.cards if c.card_id == "breast_cancer_prs3820")
+    assert any("not calibrated for male" in c for c in breast.card.caveats)
+    path = save(analysis)
+    bundle = read_bundle(path)
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    cards = json.loads(shown.stdout)["cards"]
+    assert {c["card_id"] for c in cards} == {c.card_id for c in analysis.cards}
+    assert {c["evidence"]["effect"]["value"] for c in cards} == {1.66, 1.74}
+    cad = next(c for c in cards if c["card_id"] == "coronary_artery_disease_gps_mult")
+    # Patel's overall-validation HR is 1.73 (1.70-1.76); the quoted EUR
+    # subgroup with N=297,772 instead has HR 1.74 (1.71-1.78).
+    assert cad["evidence"]["sample_size"] == 297772
+    assert cad["evidence"]["effect"]["ci_low"] == 1.71
+    assert cad["evidence"]["effect"]["ci_high"] == 1.78
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=physical_health")
+        assert page.status_code == 200
+        assert page.text.count("Published study association:") == 2
+        assert "Odds ratio 1.66" in page.text and "Hazard ratio 1.74" in page.text
+        assert "per study-standardized SD" in page.text
+        assert "European-ancestry" in page.text and "follow-up" in page.text
+        assert NOT_A_RISK in page.text
+        assert page.text.count('class="pgschart pgschart-compact"') == 2
+        assert page.text.count('class="pgsinterval-label"') == 2
+        # Compact labels live outside the SVG, so narrowing a card cannot shrink
+        # their text along with the plot coordinates.
+        assert '<text class="pgslabel"' not in page.text
 
 
 def _rewrite(path: Path, name: str, change: Any) -> None:
@@ -364,8 +501,83 @@ def _rewrite(path: Path, name: str, change: Any) -> None:
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
 
+def test_mental_pack_preserves_model_scope_and_uncertainty_in_both_interfaces(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    authored = Path(__file__).parents[2] / "knowledge" / "mental_health" / "polygenic.yaml"
+    text = authored.read_text(encoding="utf-8")
+    for pgs_id in ("PGS000134", "PGS000140"):
+        text = text.replace(pgs_id, "PGS000001").replace(
+            f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
+        )
+    (setup["knowledge"] / "polygenic.yaml").write_text(text, encoding="utf-8")
+    analysis = run(setup, fake)
+    assert len(analysis.cards) == 2
+    assert all(c.status is MatchStatus.COMPUTED for c in analysis.cards)
+    assert all(c.section.value == "mental_health" for c in analysis.cards)
+    assert all(c.card.decile_outcomes is None for c in analysis.cards)
+    assert all(c.card.evidence.within_family_attenuation is None for c in analysis.cards)
+    assert all(NOT_A_RISK in c.summary for c in analysis.cards)
+    bundle = read_bundle(save(analysis))
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    cards = json.loads(shown.stdout)["cards"]
+    assert {c["evidence"]["effect"]["value"] for c in cards} == {4.6, 0.018}
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=mental_health")
+        assert page.status_code == 200
+        assert page.text.count('class="pgschart pgschart-compact"') == 2
+        assert "highest versus" in page.text and "Geisinger-only calibration" in page.text
+        assert "Nagelkerke pseudo-R2" in page.text and "not a patient proportion" in page.text
+        detail = client.get(f"/runs/{bundle.run_id}/cards/mental_health_help_seeking_gp_prs")
+        assert detail.status_code == 200
+        assert "UK Biobank-only" in detail.text and "332,629" in detail.text
+        assert "23andMe" in detail.text and "not this model" in detail.text
+        assert "within-family" in detail.text
+
+
 def _card(data: dict[str, Any]) -> dict[str, Any]:
     return next(c for c in data["cards"] if c["kind"] == "polygenic")
+
+
+def test_display_one_reloads_without_reinterpreting_its_face(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    analysis = run(setup, fake)
+    path = save(analysis)
+    card = polygenic_card(analysis)
+    record = analysis.polygenic[card.card_id]
+    authored = card.computation["result"]["authored"]
+    legacy = build_result(authored, record, display_schema_version=1)
+    legacy_face = face_text(card.title, card.card.trait, legacy, 0.6, None)
+
+    def old_display(data: dict[str, Any]) -> None:
+        stored = _card(data)
+        stored["computation"]["result"] = legacy
+        stored["summary"] = legacy_face
+
+    _rewrite(path, CARDS_NAME, old_display)
+    stored = next(c for c in read_bundle(path).cards if c.card_id == card.card_id)
+    assert stored.summary == legacy_face
+    assert "Original array:" not in stored.summary
+    assert stored.computation is not None
+    assert stored.computation["result"]["schema_version"] == 1
+
+
+@pytest.mark.parametrize("version", [True, 0, 3])
+def test_unknown_display_versions_are_refused(
+    setup: dict[str, Any], fake: MultiPlink, version: int
+) -> None:
+    path = save(run(setup, fake))
+    _rewrite(
+        path,
+        CARDS_NAME,
+        lambda data: _card(data)["computation"]["result"].update(schema_version=version),
+    )
+    with pytest.raises(BundleError, match="display schema"):
+        read_bundle(path)
 
 
 def tamper_cases() -> dict[str, Any]:
@@ -385,7 +597,13 @@ def tamper_cases() -> dict[str, Any]:
         _card(data)["status"] = "not_run"
         _card(data)["computation"]["status"] = "not_run"
 
-    return {f.__name__: (CARDS_NAME, f) for f in (face, point, tier, evidence_tier, status)} | {
+    def phase_coverage(data: dict[str, Any]) -> None:
+        _card(data)["computation"]["result"]["phase_coverage"]["before"]["variants_covered"] += 1
+
+    return {
+        f.__name__: (CARDS_NAME, f)
+        for f in (face, point, tier, evidence_tier, status, phase_coverage)
+    } | {
         "record_sum": (
             PGS_NAME,
             lambda d: d["scores"]["synthetic_polygenic"]["before"].update(sum=99.0),

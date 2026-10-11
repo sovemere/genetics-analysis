@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
@@ -65,6 +65,8 @@ class Target(NoGenotypeRepr):
     region: Region
     sites: dict[int, TypedSite]
     decisions: dict[int, str]
+    reference_duplicates: Mapping[tuple[int, str, str], int] = field(default_factory=dict)
+    """Verified reference multiplicities; never a licence to repeat typed calls."""
 
     @property
     def n_called(self) -> int:

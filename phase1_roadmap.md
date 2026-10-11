@@ -42,7 +42,7 @@ M8 is complete: pinned Beagle/Java and full autosomal/X panels/maps, shared defa
 phasing/imputation, native dosage quality, durable format-16 provenance and dedicated
 imputed rare-call gate regressions. The [M8 overview review](docs/review_m8_overview.md)
 fixes saved rarity/provenance validation and error paths before the M9 handoff.
-The current native suite passes **2,772 tests, five existing Windows skips**;
+The final reviewed native suite passes **2,875 tests, five existing Windows skips**;
 strict four-way types, lint/format, fixture reproduction and full dbSNP card lint pass.
 M9.1 is implemented: streaming format-2 scoring-file ingestion, authoritative per-score
 metadata licences, source-bound reference processing and offline CLI inspection.
@@ -56,7 +56,12 @@ moves panel verification ahead of personal input and tightens reload validation;
 study-to-sample ancestry portability** to every schema-4 score result
 ([PGS portability](docs/pgs_portability.md)). **M9.6 renders polygenic cards** in runs and
 on the dashboard as a reference distribution with the person's interval, never a point
-([PGS cards](docs/pgs_cards.md)); the handoff holds M9.7's entry contract.
+([PGS cards](docs/pgs_cards.md)). **M9.7 physical-health and M9.8 mental-health
+cards are accepted**, including full-panel extraction and both default-imputed
+and explicit no-impute public-stand-in scoring. The
+[session review](docs/review_m97_m98_session.md) tightens frozen duplicate-proof
+allocation and corrects CAD's European subgroup association.
+**M9.9 psychometrics is next**; the handoff records its entry scope.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -68,8 +73,8 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 16**, with formats 1–15 preserved. The pack has 51 cards;
-full local dbSNP lint resolves all 35 authored marker references (268 template renders).
+**Current bundle format: 17**, with formats 1–16 preserved. The pack has 55 cards;
+full local dbSNP lint resolves all 35 authored marker references (276 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
 regressions cover count/denominator honesty, exclusions, source states, saved integrity,
@@ -2635,9 +2640,32 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       - [Session review](docs/review_m96_session.md): a score missing from metadata no longer
         aborts a run; damaged polygenic records are `BundleError`; within-family estimates
         above 1 are worded correctly. [Handoff](docs/handoff.md) holds M9.7's contract.
-- [ ] **M9.7** Section: **Physical health** PRS cards.
-- [ ] **M9.8** Section: **Mental health**. Record reduced-N (excluding-23andMe) releases
+- [x] **M9.7** Section: **Physical health** PRS cards.
+      - PRS3820 breast cancer and GPS_Mult coronary artery disease cards authored;
+        permissive score licences checked, GRCh37 weights fetched/pinned/locked.
+      - Streaming coordinate-group extraction and catalogue assembly aliases address
+        real-file scale/compatibility findings. No bundle-format change.
+      - Full card lint and synthetic shared-engine/bundle/CLI/dashboard checks pass.
+        Full-panel scale, default-on native imputation across 22 autosomes, both
+        public scoring stand-ins and retained-score reload validation pass.
+        Pre-review M9.7 suite: 2,872 passed, five existing Windows skips; all four
+        strict type targets, lint/format and fixtures pass. Owner screenshot
+        review corrected compact labels; the guide records the post-fix browser
+        gap. [Session review](docs/review_m97_m98_session.md).
+        [Guide](docs/physical_health_prs.md).
+- [x] **M9.8** Section: **Mental health**. Record reduced-N (excluding-23andMe) releases
       on the card ([AGENTS.md §5.3](AGENTS.md)).
+      - Public SCZ_GHS and UK Biobank-only GPpsy models authored and fetched;
+        source versions, discovery N, study populations and calibration limits
+        are explicit. No restricted 23andMe summary statistics are downloaded.
+      - Synthetic shared-engine/bundle/CLI/dashboard parity and full-panel scoring
+        on both default-imputed and explicit no-impute public stand-ins pass.
+        Pre-review suite: 2,873 passed, five existing Windows skips; lint: 55 cards,
+        276 renders, 35/35 marker keys. The session review also tightens frozen
+        duplicate-proof allocation, with failing-before-fix and valid-group tests.
+        Final reviewed suite: 2,875 passed, five existing Windows skips; all four
+        strict type targets, full card lint, fixtures and staged privacy checks pass.
+        [Model audit and acceptance](docs/mental_health_prs.md).
 - [ ] **M9.9** Section: **Psychometrics**. Most constrained on both corpus and science —
       both constraints stated on the cards ([AGENTS.md §4.5](AGENTS.md)). Ships in full,
       unflattering results included.

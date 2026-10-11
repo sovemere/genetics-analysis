@@ -24,7 +24,8 @@ from genetics.qc.report import InferredSex
 from genetics.refs.imputation import SUPPORTED, BrefTools, VcfSummary, _canonical_bytes, _write_json
 
 from .dosages import DosageRecord, iter_records, read_output
-from .reference import PreparedReference, read_markers
+from .reference import PreparedReference, ReferenceMarkers, read_markers
+from .reference_compatibility import prepare_native_reference
 from .target import ImputationError, Target, prepare_target, regions
 
 
@@ -237,8 +238,30 @@ def impute(
                 options.memory_mb,
                 emit,
             )
+            native_panel, reference_evidence = (
+                prepare_native_reference(
+                    bref,
+                    panel_path,
+                    chrom,
+                    VcfSummary(**entry["summary"]),
+                    markers,
+                    root,
+                    options.memory_mb,
+                    emit,
+                )
+                if isinstance(markers, ReferenceMarkers)
+                else (panel_path, None)
+            )
+            native_suffix = ".native" if reference_evidence and reference_evidence["folded"] else ""
             for region in regions(chrom, sex):
-                target = prepare_target(table, region, markers)
+                target = replace(
+                    prepare_target(table, region, markers),
+                    reference_duplicates=(
+                        markers.stream.native_duplicates
+                        if isinstance(markers, ReferenceMarkers)
+                        else getattr(markers, "duplicates", {})
+                    ),
+                )
                 report = target.summary()
                 # Beagle requires marker information; no inference across a region with
                 # fewer than two observed anchors is represented as a completed job.
@@ -260,9 +283,9 @@ def impute(
                 emit("Phasing eligible typed observations")
                 phase = beagle.run(
                     gt=target_file,
-                    ref=panel_path,
+                    ref=native_panel,
                     genetic_map=maps[region.map_key],
-                    out=root / f"{region.name}.phase",
+                    out=root / f"{region.name}.phase{native_suffix}",
                     options=replace(
                         options, impute=False, chrom=region.interval, target_ploidy=region.ploidy
                     ),
@@ -278,9 +301,9 @@ def impute(
                 emit("Imputing full reference variants from phased observations")
                 result = beagle.run(
                     gt=phase.vcf,
-                    ref=panel_path,
+                    ref=native_panel,
                     genetic_map=maps[region.map_key],
-                    out=root / f"{region.name}.impute",
+                    out=root / f"{region.name}.impute{native_suffix}",
                     options=replace(options, chrom=region.interval, target_ploidy=region.ploidy),
                     progress=emit,
                     allow_in_repo=allow_in_repo,
@@ -300,6 +323,9 @@ def impute(
                         "decisions": sorted(target.decisions.items()),
                         "phase": dict(phase.provenance),
                         "impute": dict(result.provenance),
+                        **(
+                            {"reference_evidence": reference_evidence} if reference_evidence else {}
+                        ),
                     }
                 )
                 resumed = resumed and phase.resumed and result.resumed

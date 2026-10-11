@@ -79,6 +79,7 @@ def _no_fetched_references_for_ancestry(
         patch.setattr("genetics.health.secondary.references_dir", lambda: empty)
         patch.setattr("genetics.imputation.reference.references_dir", lambda: empty)
         patch.setattr("genetics.pgs.reference.references_dir", lambda: empty)
+        patch.setattr("genetics.pgs.runner.references_dir", lambda: empty)
         yield
 
 

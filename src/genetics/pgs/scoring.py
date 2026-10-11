@@ -22,7 +22,8 @@ from genetics.pgs.catalog import Catalog, PgsError, ScoreMetadata, check_id, fin
 
 FLAGS = ("is_haplotype", "is_diplotype", "is_interaction", "is_dominant", "is_recessive")
 DOSAGE_WEIGHTS = ("dosage_0_weight", "dosage_1_weight", "dosage_2_weight")
-BUILDS = {"GRCh37", "GRCh38", "NR"}
+BUILDS = {"GRCh37", "GRCh38", "hg19", "hg38", "NCBI36", "NR"}
+BUILD_ALIASES = {"hg19": "GRCh37", "hg38": "GRCh38"}
 
 
 def _number(value: str, label: str, line: int) -> float:
@@ -73,7 +74,7 @@ def _header(handle: TextIO) -> tuple[dict[str, str], tuple[str, ...]]:
     check_id(headers["pgs_id"])
     if headers["genome_build"] not in BUILDS:
         raise PgsError("Unknown original scoring-file genome build.")
-    if "HmPOS_build" in headers and headers["HmPOS_build"] not in BUILDS - {"NR"}:
+    if "HmPOS_build" in headers and headers["HmPOS_build"] not in {"GRCh37", "GRCh38"}:
         raise PgsError("Unknown harmonized scoring-file genome build.")
     if (
         not re.fullmatch(r"[0-9]+", headers["variants_number"])
@@ -195,7 +196,8 @@ class ScoringFile:
 
     @property
     def build(self) -> str:
-        return self.headers.get("HmPOS_build", self.headers["genome_build"])
+        declared = self.headers.get("HmPOS_build", self.headers["genome_build"])
+        return BUILD_ALIASES.get(declared, declared)
 
     @classmethod
     def open(
@@ -224,7 +226,10 @@ class ScoringFile:
         if len(metadata.records) == 1:
             row = metadata.records[0]
             original = row.get("Original Genome Build", "")
-            if original not in {"", "NR"} and original != headers["genome_build"]:
+            declared = headers["genome_build"]
+            if original not in {"", "NR"} and BUILD_ALIASES.get(
+                original, original
+            ) != BUILD_ALIASES.get(declared, declared):
                 raise PgsError("Metadata and scoring file disagree on original genome build.")
             count = row.get("Number of Variants", "")
             if count and (not count.isdecimal() or int(count) != int(headers["variants_number"])):

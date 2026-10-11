@@ -13,7 +13,17 @@ from genetics.paths import references_dir
 from genetics.refs.imputation import BrefTools, VcfSummary, _vcf_stream, validate_catalog
 from genetics.refs.postprocess import ProcessError, declared_artifact_provenance
 
+from .reference_stream import ReferenceStream
 from .target import ImputationError
+
+
+class ReferenceMarkers(dict[int, tuple[str, str] | None]):
+    """Requested allele definitions and duplicates found in the verified full panel."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.duplicates: dict[tuple[int, str, str], int] = {}
+        self.stream = ReferenceStream()
 
 
 @dataclass(frozen=True)
@@ -55,23 +65,28 @@ def read_markers(
     log: Path,
     memory_mb: int,
     progress: Callable[[str], None],
-) -> dict[int, tuple[str, str] | None]:
-    """Decode the full panel; retain only requested allele definitions in memory.
+    native_sink: Callable[[bytes], Any] | None = None,
+) -> ReferenceMarkers:
+    """Decode the full panel; buffer phased records at only one coordinate.
 
-    No source VCF is needed, no reference genotype is logged or materialized in Python
-    objects, and no reduced panel is passed to Beagle. Duplicate positions are declined.
+    Retain requested allele definitions and verified duplicate metadata, never a
+    genome-wide Python GT matrix. No source VCF is needed or reference GT logged.
+    Duplicate positions are declined as typed anchors; every distinct reference
+    observation remains available to Beagle's full-panel imputation.
     """
-    sites: dict[int, tuple[str, str] | None] = {}
+    sites = ReferenceMarkers()
+    sites.stream = ReferenceStream(native_sink)
 
     def consume(raw: bytes) -> None:
+        sites.stream.consume(raw)
         if raw.startswith(b"#"):
             return
         fields = raw.split(b"\t", 5)
         pos = int(fields[1])
+        ref, alt = fields[3].decode("ascii"), fields[4].decode("ascii")
+        pair = (ref, alt)
         if pos in wanted:
-            sites[pos] = (
-                None if pos in sites else (fields[3].decode("ascii"), fields[4].decode("ascii"))
-            )
+            sites[pos] = None if pos in sites else pair
 
     process: subprocess.Popen[bytes] | None = None
     with log.open("wb") as diagnostics:
@@ -100,7 +115,9 @@ def read_markers(
                 or observed.semantic_sha256 != expected.semantic_sha256
             ):
                 raise ImputationError("Decoded reference no longer matches its prepared summary.")
-        except (OSError, ValueError, UnicodeError, ProcessError):
+        except (OSError, ValueError, UnicodeError, ProcessError) as exc:
+            if isinstance(exc, ImputationError):
+                raise
             raise ImputationError(
                 "Full-reference marker decoding failed; inspect private logs."
             ) from None
@@ -109,4 +126,6 @@ def read_markers(
                 _stop(process)
                 if process.stdout is not None:
                     process.stdout.close()
+    sites.stream.summary()
+    sites.duplicates = sites.stream.duplicates
     return sites

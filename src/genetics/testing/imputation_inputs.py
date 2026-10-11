@@ -32,7 +32,7 @@ def _table(rows: list[tuple[str, int, str | None, str]]) -> GenotypeTable:
 
 
 def native_reference(
-    root: Path, native: BrefTools
+    root: Path, native: BrefTools, *, duplicate_markers: bool = False
 ) -> tuple[PreparedReference, GenotypeTable, GenotypeTable]:
     """Seeded reference frequencies; no real reference individual or export."""
     rng = random.Random(8303)
@@ -69,6 +69,8 @@ def native_reference(
                     + "\t".join(reference_calls)
                     + "\n"
                 )
+                if duplicate_markers and chrom == "1" and i == 5:
+                    lines.append(lines[-1])
                 if i % 2 == 0:
                     male_gt = "".join(
                         "AG"[h] for h in ([haplotypes[40]] * 2 if nonpar else haplotypes[40:42])

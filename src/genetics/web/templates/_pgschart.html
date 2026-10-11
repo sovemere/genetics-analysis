@@ -8,6 +8,7 @@
   `pgs` is a PolygenicView; `compact` drops the axis labels for the card face.
 #}
 <figure class="pgschart{% if compact %} pgschart-compact{% endif %}">
+  {% if compact %}<p class="pgsinterval-label">{{ pgs.band_label }}</p>{% endif %}
   <svg viewBox="0 0 480 {{ 120 if compact else 138 }}" role="img"
        aria-label="Distribution of {{ pgs.reference_label }} reference scores, with your 95% interval shaded: {{ pgs.band_label }}">
     <rect class="pgsband" x="{{ '%.2f' | format(pgs.band_x) }}" y="16" width="{{ '%.2f' | format(pgs.band_width) }}" height="102">
@@ -19,8 +20,8 @@
     <line class="pgsbandedge" x1="{{ '%.2f' | format(pgs.band_x) }}" x2="{{ '%.2f' | format(pgs.band_x) }}" y1="16" y2="118" />
     <line class="pgsbandedge" x1="{{ '%.2f' | format(pgs.band_x + pgs.band_width) }}" x2="{{ '%.2f' | format(pgs.band_x + pgs.band_width) }}" y1="16" y2="118" />
     <line class="pgsaxis" x1="0" x2="480" y1="118.5" y2="118.5" />
-    <text class="pgslabel" x="{{ '%.2f' | format(pgs.band_label_x) }}" y="11" text-anchor="{{ pgs.band_label_anchor }}">{{ pgs.band_label }}</text>
     {% if not compact %}
+      <text class="pgslabel" x="{{ '%.2f' | format(pgs.band_label_x) }}" y="11" text-anchor="{{ pgs.band_label_anchor }}">{{ pgs.band_label }}</text>
       {% for tick in pgs.ticks %}
         <line class="pgsaxis" x1="{{ '%.2f' | format(tick.x) }}" x2="{{ '%.2f' | format(tick.x) }}" y1="118" y2="123" />
         <text class="pgstick" x="{{ '%.2f' | format(tick.x) }}" y="134" text-anchor="{{ tick.anchor }}">{{ tick.label }}</text>
