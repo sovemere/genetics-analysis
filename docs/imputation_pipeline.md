@@ -27,8 +27,10 @@ to a remote model. The CLI prints counts/statuses; private records are read loca
 
 Reference allele definitions are streamed from the prepared bref3 with the pinned
 decoder. The full decoded sample/marker/allele/GT summary is compared with its prepared
-identity; only requested marker definitions remain in memory. Original source VCFs
-are not read. Both Beagle invocations receive the original full chromosome panel;
+identity; requested marker definitions and exact duplicate identities/multiplicities
+remain in memory. Original source VCFs
+are not read. Both Beagle invocations receive the full chromosome panel, using
+the lossless native representation described below when required;
 there is no array, LD, MAF or sample subset.
 
 The target keys on chromosome/GRCh37 position and reference alleles. It reuses the
@@ -37,6 +39,22 @@ conflicting duplicate probes and duplicate reference positions are declined expl
 No-calls at usable reference positions enter as missing GT. Every distinct array
 position receives a decision, with counts on each region report. Predictions at an
 excluded array position remain imputed observations and never replace its original call.
+
+An untyped Beagle variant may repeat only when the verified full reference contains
+that exact identity with the same multiplicity. Every copy remains in the dosage
+stream for downstream ambiguity handling. Typed repeats, unknown/excess repeats
+and collapsed reference duplicates fail; the reader never chooses a preferred copy.
+
+Beagle itself rejects native-equal markers (chromosome, position, alleles and END).
+When every phased reference GT is identical across their copies, the engine supplies
+a lossless native VCF representation with one copy and retains the original panel,
+sample order, multiplicities and source/native semantic-hash proof. It never folds
+conflicting phased vectors or distinct END values. Frozen provenance binds the exact
+native input; saved validation permits only its verified untyped multiplicities.
+The proof also requires that distinct folded END groups allocate no more copies
+than exist in the original source identity. Native-cache gzip uses compression
+level 1; this changes storage/CPU cost, while the full semantic hash verifies
+unchanged genetic observations.
 
 Autosomes have diploid jobs. X is partitioned into PAR1, PAR2 and the three remaining
 intervals using the shared inclusive GRCh37 boundaries. PAR jobs use their separate

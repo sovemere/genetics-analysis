@@ -1,0 +1,102 @@
+schema_version: 4
+cards:
+  - id: breast_cancer_prs3820
+    section: physical_health
+    kind: polygenic
+    title: Breast cancer polygenic susceptibility
+    pgs: {id: PGS000007, source: pgs000007_grch37}
+    trait: overall invasive breast cancer
+    summary: >-
+      PRS3820 combines inherited susceptibility to overall invasive breast cancer.
+      Its published odds ratio is an association in European-ancestry women,
+      not an absolute probability for this reader.
+    detail: >-
+      Mavaddat et al. derived this lasso score in European-ancestry women.
+      Table 2 reports an odds ratio of 1.66 per study-standardized SD
+      (95% CI 1.61-1.70) in an independent test set of 11,428 cases and
+      18,323 controls from ten prospective studies. Those sampled case/control
+      counts are not a population base rate, and the studies do not share one
+      follow-up horizon. This overall-disease model performed better than
+      PRS313 for overall disease in that test set. The displayed reference
+      position is not the study's standardized SD or a lifetime-risk estimate.
+      No complete, matched set of absolute decile rates is assigned here.
+    evidence:
+      tier: gwas
+      effect:
+        measure: odds_ratio
+        value: 1.66
+        ci_low: 1.61
+        ci_high: 1.70
+        context: >-
+          Mavaddat 2019 Table 2, overall PRS3820: per study-standardized SD
+          in European-ancestry women in ten independent prospective test
+          studies; logistic models adjusted for study and 15 ancestry PCs.
+          Cohort-specific follow-up, not a common fixed-horizon probability.
+      sample_size: 29751
+      ancestry: [EUR]
+      replication: independent
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2018.11.002
+        title: Polygenic Risk Scores for Prediction of Breast Cancer and Breast Cancer Subtypes
+      - type: accession
+        database: PGS Catalog
+        id: PGS000007
+        title: PGS Catalog PRS3820_BC harmonized GRCh37 score
+    caveats:
+      - "The estimate was evaluated in women; it is not calibrated for male breast cancer."
+      - "A polygenic position does not establish or exclude BRCA1, BRCA2 or another monogenic variant."
+      - "No applicable absolute baseline or decile risks, or published within-family attenuation, are assigned."
+      - "Array coverage, imputation quality and ancestry portability remain confidence inputs; missing evidence is retained."
+
+  - id: coronary_artery_disease_gps_mult
+    section: physical_health
+    kind: polygenic
+    title: Coronary artery disease polygenic susceptibility
+    pgs: {id: PGS003725, source: pgs003725_grch37}
+    trait: coronary artery disease
+    summary: >-
+      GPS_Mult combines inherited coronary artery disease susceptibility.
+      Its discovery data span five ancestries, while model mixing weights
+      were trained in European-ancestry participants.
+    detail: >-
+      Patel et al. integrated coronary disease and related-trait associations,
+      then trained the model in 116,649 European-ancestry UK Biobank participants.
+      Figure 5 reports an incident-disease hazard ratio per standardized SD
+      of 1.74 (95% CI 1.71-1.78) in 297,772 European-ancestry participants.
+      This is a time-to-event association during cohort follow-up, not a
+      personal ten-year or lifetime probability. Validation included other
+      ancestries, but effect sizes differed. The study's combined clinical
+      risk model needs clinical inputs that this genome does not supply.
+      No matched absolute baseline and complete decile-rate series are
+      assigned; the reference position must not be converted into risk.
+    evidence:
+      tier: gwas
+      effect:
+        measure: hazard_ratio
+        value: 1.74
+        ci_low: 1.71
+        ci_high: 1.78
+        context: >-
+          Patel 2023 Figure 5: incident CAD per study-standardized SD in
+          European-ancestry UK Biobank participants during cohort follow-up,
+          adjusted for age, sex, genotyping array and ten ancestry PCs.
+          This is the European subgroup estimate; the overall validation
+          estimate of 1.73 (1.70-1.76) is not assigned to this subgroup.
+          No fixed-horizon absolute risk is inferred.
+      sample_size: 297772
+      ancestry: [AFR, EAS, EUR, AMR, SAS]
+      replication: independent
+    citations:
+      - type: doi
+        id: 10.1038/s41591-023-02429-x
+        title: A multi-ancestry polygenic risk score improves risk prediction for coronary artery disease
+      - type: accession
+        database: PGS Catalog
+        id: PGS003725
+        title: PGS Catalog GPS_Mult harmonized GRCh37 score
+    caveats:
+      - "Evidence ancestry lists the five discovery ancestries. Mixing-weight training and the quoted hazard ratio are European; discovery ancestry is not validation of equal performance."
+      - "The catalogue aggregates discovery ancestry without exact shares. Portability therefore retains an indeterminate share rather than granting full ancestry match."
+      - "No applicable absolute baseline or complete decile risks, or published within-family attenuation, are assigned."
+      - "The reference-position interval reflects reference sample size, not uncertainty in disease risk; blood pressure, lipids, smoking and age are not inferred."

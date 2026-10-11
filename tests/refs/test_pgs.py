@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import tarfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -84,6 +85,39 @@ def scoring_file(
 @pytest.fixture
 def catalog(tmp_path: Path) -> Catalog:
     return Catalog.from_archive(metadata_archive(tmp_path / "metadata.tar.gz"))
+
+
+@pytest.mark.parametrize(
+    ("original", "harmonized", "canonical"),
+    [
+        ("hg19", None, "GRCh37"),
+        ("hg38", None, "GRCh38"),
+        ("hg19", "GRCh37", "GRCh37"),
+        ("hg38", "GRCh37", "GRCh37"),
+        ("NCBI36", "GRCh37", "GRCh37"),
+    ],
+)
+def test_catalog_assembly_names_preserve_headers_and_use_selected_coordinates(
+    tmp_path: Path, catalog: Catalog, original: str, harmonized: str | None, canonical: str
+) -> None:
+    meta = catalog.get("PGS000001")
+    row = dict(meta.records[0])
+    row["Original Genome Build"] = {"hg19": "GRCh37", "hg38": "GRCh38"}.get(original, original)
+    catalog = replace(catalog, scores={"PGS000001": replace(meta, records=(row,))})
+    headers = {"genome_build": original}
+    values = dict(BASE)
+    if harmonized:
+        headers["HmPOS_build"] = harmonized
+        values.update(hm_chr="2", hm_pos="202")
+    path = scoring_file(tmp_path / "score.txt", row=values, headers=headers)
+    scoring = ScoringFile.open(path, catalog, expected_build=canonical)
+    assert scoring.build == canonical
+    assert scoring.headers["genome_build"] == original
+    (variant,) = scoring.iter_variants()
+    assert (variant.chrom, variant.position) == (("2", 202) if harmonized else ("1", 101))
+    wrong = "GRCh38" if canonical == "GRCh37" else "GRCh37"
+    with pytest.raises(PgsError, match="requested genome build"):
+        ScoringFile.open(path, catalog, expected_build=wrong)
 
 
 @pytest.mark.parametrize("inferred", ["?", "A", "C,,G"])

@@ -185,6 +185,43 @@ def test_sources_dosage_orientation_quality_and_exclusions_stay_separate(tmp_pat
     )
 
 
+def test_verified_untyped_reference_duplicates_are_retained_and_bounded(tmp_path: Path) -> None:
+    path = output(tmp_path / "output.vcf.gz")
+    lines = gzip.decompress(path.read_bytes()).decode().splitlines()
+    repeated = lines[-1].replace("0|0:0.2", "0|1:1.25")
+    path.write_bytes(gzip.compress(("\n".join([*lines, repeated]) + "\n").encode(), mtime=0))
+    with pytest.raises(ImputationError, match="repeats a variant"):
+        list(read_output(path, example_target()))
+    target = replace(example_target(), reference_duplicates={(400, "G", "A"): 2})
+    with pytest.raises(ImputationError, match="lost a verified"):
+        list(read_output(output(tmp_path / "collapsed.vcf.gz"), target))
+    records = list(read_output(path, target))
+    pair = [r for r in records if r.pos_grch37 == 400]
+    assert len(pair) == 2
+    assert [r.dosage for r in pair] == [(0.2,), (1.25,)]
+    assert all(r.source == "imputed_untyped" for r in pair)
+    path.write_bytes(
+        gzip.compress(("\n".join([*lines, repeated, repeated]) + "\n").encode(), mtime=0)
+    )
+    with pytest.raises(ImputationError, match="repeats a variant"):
+        list(read_output(path, target))
+
+
+@pytest.mark.parametrize("phase_only", [False, True])
+def test_reference_multiplicity_never_allows_repeated_typed_calls(
+    tmp_path: Path, phase_only: bool
+) -> None:
+    target = replace(example_target(), reference_duplicates={(100, "G", "A"): 2})
+    with pytest.raises(ImputationError, match="repeats a variant"):
+        list(
+            read_output(
+                output(tmp_path / "output.vcf.gz", change="duplicate"),
+                target,
+                phase_only=phase_only,
+            )
+        )
+
+
 def test_invalid_deflate_output_is_a_private_domain_error(tmp_path: Path) -> None:
     damaged = bytearray(gzip.compress(b"synthetic", mtime=0))
     damaged[10] = (damaged[10] & ~6) | 6
@@ -548,10 +585,19 @@ def test_full_marker_decoding_checks_summary_duplicates_and_cleanup(
         b"#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tsynthetic_0\n"
     )
     rng = random.Random(8304)
-    for pos, ref, alt in ((100, "A", "G"), (100, "A", "C"), (200, "G", "A")):
+    for index, (pos, ref, alt) in enumerate(
+        (
+            (100, "A", "G"),
+            (100, "A", "C"),
+            (200, "G", "A"),
+            (250, "G", "A"),
+            (250, "G", "A"),
+        )
+    ):
         indices = [int(rng.random() < 0.4) for _ in range(2)]
+        info = "END=251" if index == 4 else "."
         reference += (
-            f"1\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t.\tGT\t{indices[0]}|{indices[1]}\n".encode()
+            f"1\t{pos}\t.\t{ref}\t{alt}\t.\tPASS\t{info}\tGT\t{indices[0]}|{indices[1]}\n".encode()
         )
     expected = _vcf_stream(io.BytesIO(reference), "1")
     if change == "summary":
@@ -568,7 +614,7 @@ def test_full_marker_decoding_checks_summary_duplicates_and_cleanup(
         if change == "interruption":
             raise KeyboardInterrupt
 
-    def decode() -> dict[int, tuple[str, str] | None]:
+    def decode() -> reference_mod.ReferenceMarkers:
         return reference_mod.read_markers(
             fake_stage["bref"],
             tmp_path / "full.bref3",
@@ -590,7 +636,9 @@ def test_full_marker_decoding_checks_summary_duplicates_and_cleanup(
         with pytest.raises(ImputationError):
             decode()
     else:
-        assert decode() == {100: None, 200: ("G", "A")}
+        decoded = decode()
+        assert decoded == {100: None, 200: ("G", "A")}
+        assert decoded.duplicates == {(250, "G", "A"): 2}
     assert cleaned == [True]
 
 

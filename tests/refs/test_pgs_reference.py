@@ -11,7 +11,9 @@ import json
 import math
 import os
 import random
+import tracemalloc
 from collections.abc import Sequence
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
 
@@ -115,7 +117,7 @@ def build_panel(
         names.append(name)
         body = "##fileformat=VCFv4.1\n#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t"
         body += "\t".join(samples) + "\n"
-        for position, ref, alt, calls in rows:
+        for position, ref, alt, calls in sorted(rows, key=lambda row: row[0]):
             body += f"{chrom}\t{position}\t.\t{ref}\t{alt}\t100\tPASS\t.\tGT\t" + "\t".join(calls)
             body += "\n"
         with gzip.open(directory / name, "wt", encoding="utf-8", newline="\n") as handle:
@@ -214,6 +216,56 @@ ROWS = [
     weight(10_000_001, chrom="X", value="1"),
     weight(100_001, chrom="X", value="-1"),
 ]
+
+
+def test_extraction_releases_raw_calls_between_loci(tmp_path: Path) -> None:
+    # Raw Python call strings over all 600 loci need about 30 MB. Resolving a
+    # coordinate at a time retains only the compact 0.6 MB effect-dose matrix.
+    root = tmp_path / "refs"
+    build_panel(
+        root,
+        {"1": [(1000 + i, "C", "A", calls(1000, 0.3, seed=i)) for i in range(600)]},
+        n=1000,
+    )
+    scoring = definition(tmp_path / "def", [weight(1000 + i) for i in range(600)])
+    panel = discover_panel(root)
+    assert not isinstance(panel, str)
+    tracemalloc.start()
+    try:
+        extraction = extract(scoring, panel, workers=1)
+        _, peak = tracemalloc.get_traced_memory()
+    finally:
+        tracemalloc.stop()
+    assert not isinstance(extraction, str)
+    assert len(extraction.doses) == 600
+    assert peak < 8_000_000, f"Raw calls retained across loci: {peak} bytes"
+
+
+def test_extraction_refuses_out_of_order_coordinates(tmp_path: Path) -> None:
+    root = tmp_path / "refs"
+    build_panel(root, {"1": [(101, "C", "A", calls(30, 0.3, seed=1))]})
+    path = root / PANEL_SOURCE / _filename("1")
+    with gzip.open(path, "rt") as handle:
+        lines = handle.readlines()
+    # An unrequested earlier coordinate still invalidates a completed group.
+    lines.append(lines[-1].replace("\t101\t", "\t100\t", 1))
+    with gzip.open(path, "wt") as handle:
+        handle.writelines(lines)
+    locked = refs_lock.read(root / "manifest.lock")
+    source = locked.sources[PANEL_SOURCE]
+    old = source.files[path.name]
+    files = dict(source.files)
+    files[path.name] = refs_lock.LockedFile(
+        old.url, fingerprint(path)["sha256"], path.stat().st_size, old.first_seen
+    )
+    sources = dict(locked.sources)
+    sources[PANEL_SOURCE] = replace(source, files=files)
+    locked = replace(locked, sources=sources)
+    refs_lock.write(root / "manifest.lock", locked)
+    panel = discover_panel(root)
+    assert not isinstance(panel, str)
+    with pytest.raises(PgsError, match="out-of-order"):
+        extract(definition(tmp_path / "def", [weight(101)]), panel, workers=1)
 
 
 def test_extraction_applies_the_shared_allele_and_ploidy_rules(tmp_path: Path) -> None:

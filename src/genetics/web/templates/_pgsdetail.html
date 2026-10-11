@@ -17,12 +17,14 @@
       <div><dt>Score</dt><dd>{{ pgs.pgs_id }} · {{ pgs.trait }}</dd></div>
       <div><dt>Reference group</dt><dd>{{ pgs.reference_label }}{% if not pgs.ancestry_matched %} — not ancestry-matched: {{ pgs.reference_reason }}{% endif %}</dd></div>
       <div><dt>Coverage</dt><dd>{{ pgs.coverage_display }}</dd></div>
+      {% if pgs.phase_coverage_display %}<div><dt>Before and after coverage</dt><dd>{{ pgs.phase_coverage_display }}</dd></div>{% endif %}
       <div><dt>Imputation quality</dt><dd>{{ pgs.quality_display }}</dd></div>
       {% if pgs.portability_display %}<div><dt>Ancestry portability</dt><dd>{{ pgs.portability_display }}</dd></div>{% endif %}
       {% if pgs.licence %}<div><dt>Score licence</dt><dd>{{ pgs.licence.status }} — {{ pgs.licence.reason }}</dd></div>{% endif %}
     </dl>
   {% else %}
     <p>{{ card.computation.reason }}</p>
+    {% if pgs and pgs.phase_coverage_display %}<p>{{ pgs.phase_coverage_display }}</p>{% endif %}
   {% endif %}
 </section>
 

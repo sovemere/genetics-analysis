@@ -265,10 +265,22 @@ def _extract_chromosome(
     sexes: Mapping[str, InferredSex],
 ) -> tuple[list[str], dict[int, tuple[str, bytes]]]:
     """Stream one panel VCF, verifying its lock digest in the same pass."""
-    wanted: dict[int, list[tuple[bytes, tuple[bytes, ...], list[bytes]]]] = {
-        int(r.position): [] for r in rows if r.position is not None
-    }
+    wanted: dict[int, list[ScoreVariant]] = {}
+    for row in rows:
+        if row.position is not None:
+            wanted.setdefault(row.position, []).append(row)
+    resolved: dict[int, tuple[str, bytes]] = {}
     samples: list[str] | None = None
+    current_position: int | None = None
+    records: list[tuple[bytes, tuple[bytes, ...], list[bytes]]] = []
+
+    def finish_position() -> None:
+        if current_position is not None and current_position in wanted:
+            assert samples is not None
+            for row in wanted[current_position]:
+                resolved[row.row_number] = _resolve(row, records, samples, sexes)
+        records.clear()
+
     try:
         with open(path, "rb") as raw:
             reader = _HashingReader(raw)
@@ -289,6 +301,11 @@ def _extract_chromosome(
                     first = line.index(b"\t")
                     second = line.index(b"\t", first + 1)
                     position = int(line[first + 1 : second])
+                    if current_position is not None and position < current_position:
+                        raise PgsError("A 1000 Genomes VCF has out-of-order coordinates.")
+                    if position != current_position:
+                        finish_position()
+                        current_position = position
                     if position not in wanted:
                         continue
                     fields = line.rstrip(b"\r\n").split(b"\t")
@@ -299,7 +316,8 @@ def _extract_chromosome(
                     calls = (
                         fields[9:] if fields[8] == b"GT" else [c.split(b":")[0] for c in fields[9:]]
                     )
-                    wanted[position].append((fields[3], tuple(fields[4].split(b",")), calls))
+                    records.append((fields[3], tuple(fields[4].split(b",")), calls))
+                finish_position()
             digest = reader.finish()
     except (OSError, EOFError, ValueError, zlib.error) as exc:
         if isinstance(exc, PgsError):
@@ -309,9 +327,9 @@ def _extract_chromosome(
         raise PgsError("A 1000 Genomes VCF does not match its lock digest; refetch it.")
     if samples is None:
         raise PgsError("A 1000 Genomes VCF has no sample header.")
-    resolved = {
-        r.row_number: _resolve(r, wanted[int(r.position or 0)], samples, sexes) for r in rows
-    }
+    for row in rows:
+        if row.row_number not in resolved:
+            resolved[row.row_number] = _resolve(row, (), samples, sexes)
     return samples, resolved
 
 

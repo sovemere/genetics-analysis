@@ -1,0 +1,114 @@
+schema_version: 4
+cards:
+  - id: schizophrenia_prscs
+    section: mental_health
+    kind: polygenic
+    title: Schizophrenia polygenic susceptibility
+    pgs: {id: PGS000134, source: pgs000134_grch37}
+    trait: schizophrenia
+    summary: >-
+      SCZ_GHS is the Geisinger implementation of the schizophrenia Bayesian
+      score evaluated by Zheutlin et al. The study's score associations do not
+      establish schizophrenia in an individual.
+    detail: >-
+      These public weights are PGS000134 SCZ_GHS, based on the 2014 Psychiatric
+      Genomics Consortium schizophrenia release and PRS-CS with shrinkage phi=1
+      and European 1000 Genomes linkage disequilibrium. The catalogue records
+      87,534 discovery participants, 94% European and 6% East Asian ancestry.
+      This is the published model release, not a newly obtained restricted
+      23andMe-inclusive summary-statistics release. The selected weights are
+      the Geisinger version; the paper evaluated four cohort-specific Bayesian
+      weight sets. Table 2's quoted association pools those implementations:
+      the highest score decile had 4.6 times the odds of schizophrenia of the
+      lowest decile (95% CI 2.9-7.3), in 106,160 European-American patients.
+      Recorded case prevalence was 1.0% in the highest decile, 0.2% in the
+      lowest, and 0.4% in the remaining 90%. These are retrospective health-system
+      diagnoses across unequal observation periods, not lifetime incidence or
+      calibration of this reader's Geisinger-model score. The reference position
+      is neither that study's standardized decile nor a diagnosis.
+    evidence:
+      tier: gwas
+      effect:
+        measure: odds_ratio
+        value: 4.6
+        ci_low: 2.9
+        ci_high: 7.3
+        context: >-
+          Zheutlin 2019 Table 2, Bayesian schizophrenia scores: highest versus
+          lowest study-standardized decile across four cohort-specific models,
+          not a per-SD effect or Geisinger-only calibration. In those patients,
+          recorded case prevalence was 1.0% versus 0.2%; 0.4% in the other 90%.
+          Unequal retrospective observation periods, not lifetime incidence.
+      sample_size: 106160
+      ancestry: [EUR, EAS]
+      replication: independent
+    citations:
+      - type: doi
+        id: 10.1176/appi.ajp.2019.18091085
+        title: Penetrance and Pleiotropy of Polygenic Risk Scores for Schizophrenia in 106160 Patients Across Four Health Care Systems
+      - type: doi
+        id: 10.1038/nature13595
+        title: Biological insights from 108 schizophrenia-associated genetic loci
+      - type: accession
+        database: PGS Catalog
+        id: PGS000134
+        title: PGS Catalog SCZ_GHS public harmonized GRCh37 model
+    caveats:
+      - "The evidence ancestry lists discovery populations; evaluation was European-American, and the LD reference is European. It does not establish East Asian calibration."
+      - "The public model's catalogue discovery N is 87,534; the 2014 paper's larger multi-stage headline N is not substituted for that model release."
+      - "Published cross-site decile rates are not a complete, matched ten-decile series for the selected Geisinger weights; no individual absolute risk is assigned."
+      - "No published within-family attenuation is assigned. Shared genetic associations with other conditions do not establish those conditions either."
+
+  - id: mental_health_help_seeking_gp_prs
+    section: mental_health
+    kind: polygenic
+    title: Mental-health help-seeking polygenic association
+    pgs: {id: PGS000140, source: pgs000140_grch37}
+    trait: reporting a GP consultation for nerves, anxiety, tension or depression
+    summary: >-
+      GPpsy was trained on a broad self-reported help-seeking phenotype in
+      UK Biobank. That phenotype is not a clinical diagnosis of major depression.
+    detail: >-
+      Cai et al. studied the consequences of how depression is defined.
+      This public GPpsy model uses UK Biobank associations with reporting a
+      general-practitioner consultation for nerves, anxiety, tension or depression.
+      Figure 5 and the catalogue report 332,629 discovery participants.
+      The model does not add 23andMe participants: the paper's 23andMe analysis
+      is a separate comparison, not this model's training cohort.
+      The released weights use LD clumping at r-squared below 0.1 and a
+      p-value threshold of 0.1. The full-sample GPpsy analysis predicted
+      major-depression status in independent PGC29 clinical cohorts with
+      Nagelkerke pseudo-R-squared of 0.018 and AUC of 0.56.
+      Nagelkerke's statistic divides the Cox-Snell model-fit index by its maximum;
+      it is not a fraction of patients, a personal probability, or the proportion
+      of biological trait variance explained. The paper attributes the advantage
+      over stricter depression definitions to sample size, not specificity for
+      depression. The displayed position concerns the broad help-seeking score.
+    evidence:
+      tier: gwas
+      effect:
+        measure: proportion
+        value: 0.018
+        context: >-
+          Cai 2020, Out-of-sample prediction and Figure 7a: Nagelkerke pseudo-R2
+          for the full-sample GPpsy model at p-value threshold 0.1, predicting
+          major-depression status in independent PGC29 cohorts. Numerator:
+          Cox-Snell fit index; denominator: its maximum. AUC was 0.56.
+          This bounded model-fit ratio is not a patient proportion, biological
+          variance explained, or an absolute disease risk.
+      sample_size: 332629
+      ancestry: [EUR]
+      replication: independent
+    citations:
+      - type: doi
+        id: 10.1038/s41588-020-0594-5
+        title: Minimal phenotyping yields genome-wide association signals of low specificity for major depression
+      - type: accession
+        database: PGS Catalog
+        id: PGS000140
+        title: PGS Catalog GPpsy public UK Biobank-only harmonized GRCh37 model
+    caveats:
+      - "Training is UK Biobank-only, European ancestry, N=332,629. The 23andMe comparison cohort and larger combined depression GWAS totals do not contribute to these weights."
+      - "The endpoint is broad help-seeking; anxiety, tension and access to care contribute to it. The score is not a diagnosis of major depression."
+      - "The catalogue's performance mapping differs from the primary paper's model-specific results; the quoted 0.018 and 0.56 are the paper's full-sample GPpsy results, not its downsampled analysis."
+      - "No applicable absolute baseline, complete decile rates or published within-family attenuation is assigned. Population prediction does not isolate a direct within-family effect."

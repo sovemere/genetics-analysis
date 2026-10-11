@@ -666,6 +666,7 @@ a { color: var(--accent); }
 .pgschart { margin: 0.25rem 0 0.5rem; max-width: 34rem; }
 .pgschart svg { display: block; width: 100%; height: auto; overflow: visible; }
 .pgschart-compact { max-width: 22rem; }
+.pgsinterval-label { margin: 0 0 0.15rem; font-size: 0.8rem; line-height: 1.4; }
 .pgsbar { fill: var(--pgs-bar); }
 .pgsband { fill: var(--pgs-band); fill-opacity: 0.16; }
 .pgsbandedge { stroke: var(--pgs-band); stroke-width: 2; }

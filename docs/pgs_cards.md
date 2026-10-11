@@ -77,6 +77,10 @@ card carries is the following:
   matching range in score units. The face states that the interval reflects only the size
   of the reference group.
 - **Coverage.** Rows scored and the comparable share of the score's absolute weight.
+- **Before/after coverage (M9.7).** Display schema 2 also states both phases'
+  variant and row counts, denominators and scored-weight shares on the face and
+  in the detail. Disabled or unavailable phases stay unavailable, never 0%.
+  Historical display-1 cards retain their original presentation on reload.
 - **Quality.** A weight-averaged quality (direct calls count as 1, imputed calls as their
   DR2, unknown quality as 0) and the imputed and unknown-quality shares.
 - **Portability.** The full M9.5 block. The face shows the judgment, the demonstrated

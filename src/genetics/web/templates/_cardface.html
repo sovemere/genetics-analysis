@@ -31,6 +31,11 @@
       {% include "_pgschart.html" %}
     {% endif %}
     <p class="cardsummary">{{ card.summary }}</p>
+    {% if card.polygenic and card.effect %}
+      <p class="cardmeta">Published study association: {{ card.effect.display }}.
+        {% if card.effect.context %}{{ card.effect.context }}{% endif %}
+      </p>
+    {% endif %}
     <p class="cardmeta muted">Imputation {{ card.imputation_mode_label }}</p>
     {% if card.imputation_quality_note %}<p class="caution">{{ card.imputation_quality_note }}</p>{% endif %}
     {% if card.risk_context %}<p class="caution">{{ card.risk_context }}</p>{% endif %}

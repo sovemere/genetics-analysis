@@ -8,15 +8,16 @@ import json
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 from genetics.cli.main import app
-from genetics.imputation import ImputationError, ImputationResult
+from genetics.imputation import ImputationError, ImputationResult, snapshot
 from genetics.imputation.dosages import DosageRecord, parse_record
+from genetics.imputation.reference_compatibility import METHOD
 from genetics.imputation.snapshot import CATALOG_NAMES, PROVENANCE_NAME, digest, validate_snapshot
 from genetics.ingest.schema import GenotypeTable
 from genetics.privacy import assert_no_genotype
@@ -96,6 +97,72 @@ def _rewrite_dosage(path: Path, change: Callable[[list[dict[str, Any]]], None]) 
     manifest = json.loads(manifest_path.read_text())
     manifest["files"][name] = sha
     manifest_path.write_text(json.dumps(manifest))
+
+
+def test_saved_source_verified_duplicates_are_preserved_and_exactly_bounded(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+    tmp_path: Path,
+) -> None:
+    _, result = prepared
+    stage = copy.deepcopy(result.metadata)
+    frozen = tmp_path / "source-verified-duplicates"
+    frozen.mkdir()
+    for key, name in (("panel_catalog", snapshot.PANEL_NAME), ("map_catalog", snapshot.MAP_NAME)):
+        (frozen / name).write_bytes(Path(stage["contract"][key]["path"]).read_bytes())
+    file = stage["files"][0]
+    path = frozen / file["name"]
+    records = [r.to_dict() for r in result.iter_dosages()]
+    records.append(copy.deepcopy(records[-1]))
+
+    def write_payload() -> None:
+        path.write_bytes(
+            gzip.compress(("\n".join(json.dumps(r) for r in records) + "\n").encode(), mtime=0)
+        )
+        file["sha256"] = digest(path)
+        file["records"] = len(records)
+        file["sources"]["imputed_untyped"] = len(records) - 2
+
+    write_payload()
+    with pytest.raises(ValueError):
+        snapshot._payloads(frozen, stage, [])
+    source_ref = stage["jobs"][0]["phase"]["contract"]["inputs"]["ref"]
+    summary = {
+        "records": 100,
+        "samples": 2,
+        "sample_order_sha256": "c" * 64,
+        "semantic_sha256": "d" * 64,
+        "haploid_calls_doubled": 0,
+    }
+    descriptor = {k: source_ref[k] for k in ("sha256", "size_bytes")} | {"summary": summary}
+    variant = records[-1]
+    duplicates = [
+        [variant["pos_grch37"], variant["ref"], ",".join(cast(list[str], variant["alt"])), 2]
+    ]
+    stage["jobs"][0]["reference_evidence"] = {
+        "schema_version": 1,
+        "method": METHOD,
+        "source": descriptor,
+        "native": descriptor,
+        "source_duplicates": duplicates,
+        "native_duplicates": duplicates,
+        "folded": [],
+    }
+    catalog_path = frozen / snapshot.PANEL_NAME
+    catalog = json.loads(catalog_path.read_bytes())
+    catalog["entries"][0]["summary"] = summary
+    catalog_path.write_text(json.dumps(catalog), encoding="utf-8")
+    stage["contract"]["panel_catalog"]["sha256"] = digest(catalog_path)
+    snapshot._catalogs(frozen, stage)
+    snapshot._payloads(frozen, stage, [])
+    records.append(copy.deepcopy(records[-1]))
+    write_payload()
+    with pytest.raises(ValueError):
+        snapshot._payloads(frozen, stage, [])
+    records.pop()
+    records.pop()
+    write_payload()
+    with pytest.raises(ValueError):
+        snapshot._payloads(frozen, stage, [])
 
 
 @pytest.mark.privacy

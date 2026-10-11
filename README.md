@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **16**; formats 1–15 remain readable without reinterpreting saved findings.
+New runs use bundle format **17**; formats 1–16 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -60,8 +60,20 @@ The full native suite passed **2,561 tests, five existing Windows skips**; all f
 strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
 No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
 ingestion, M9.2 scoring, M9.3 coverage and M9.4 reference percentiles are now
-implemented, as are M9.5 ancestry portability and M9.6 polygenic cards. M9.7 is
-next.**
+implemented, as are M9.5 ancestry portability, M9.6 polygenic cards and M9.7
+physical-health cards:** [physical-health PRS cards](docs/physical_health_prs.md)
+add PRS3820 breast cancer and genome-wide GPS_Mult coronary artery disease.
+Full-panel native imputation, both public scoring stand-ins and saved-record
+validation pass. The guide records the screenshot review and post-fix browser gap.
+M9.8 [mental-health cards](docs/mental_health_prs.md) are complete: SCZ_GHS
+schizophrenia and UK Biobank-only GPpsy broad help-seeking models are authored
+and fetched, with their model/release and calibration limits stated. Full-panel
+acceptance passes for both default-imputed and explicit no-impute public stand-ins.
+The [session review](docs/review_m97_m98_session.md) tightens frozen duplicate-proof
+allocation and corrects CAD's European subgroup association.
+Final reviewed validation passes **2,875 tests, five existing Windows skips**,
+all four strict type targets, lint/format, fixtures and staged privacy scanning.
+**M9.9 psychometrics is the next open step.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows

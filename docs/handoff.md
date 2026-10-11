@@ -1,9 +1,65 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-09, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-11, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
-M9.1–M9.6 are implemented and reviewed. Next is M9.7.
+M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
+2026-10-11:
+physical-health PRS3820/GPS_Mult cards and pinned scoring references are authored;
+synthetic pipeline/bundle/CLI/dashboard checks and full card lint pass. Full-panel
+reference extraction and default-on native imputation across all 22 autosomes pass
+on a public stand-in, as do both default-imputed health scores. The second,
+explicitly non-imputed CAD stand-in exposed a display-quality accumulation error;
+accurate summation now passes its three synthetic regressions. That stand-in and
+both retained default-score reload validations passed on 2026-10-10 at 23:58.
+The pre-review M9.7 native suite after the fix passes 2,872 tests with five existing
+Windows skips in 497.27 seconds. All four strict type targets (200 files), fixture
+reproduction and lint/format pass. The owner-supplied synthetic
+dashboard screenshot exposed small compact labels; those are now HTML text above
+the chart. Synthetic HTTP tests verify both chart/detail routes; a post-fix manual
+refresh/detail confirmation was requested but has not arrived, and no automated
+post-fix browser capture is claimed. The quality fix passes all 48 card tests.
+M9.8 is accepted: public SCZ_GHS and UK Biobank-only GPpsy cards are authored,
+reference-pinned and fetched. Synthetic end-to-end checks, both default-imputed
+and explicit no-impute public-stand-in scoring, and saved-record validation pass.
+The pre-review M9.8 native acceptance suite passes 2,873 tests with five existing Windows
+skips in 737.42 seconds; full dbSNP lint resolves all 35 marker keys over 55 cards
+and 276 renders, and strict Windows Python 3.13 checks all 200 source files.
+The primary paper's GPpsy result is used rather than copying a conflicting
+catalogue performance mapping. The schizophrenia association is explicitly the
+paper's cross-site Bayesian model-family result, not Geisinger-only calibration.
+The requested [session diff review](review_m97_m98_session.md) reproduced and
+fixed impossible source-copy allocation in frozen reference proofs, with a valid
+multiple-END-group preservation regression. It also corrected CAD's incident
+association to the European subgroup HR 1.74 (1.71–1.78), rather than assigning
+the overall-validation HR 1.73 (1.70–1.76) to that subgroup. Native sums and
+imputation are unchanged. Both default-imputed and explicit no-impute CAD cards
+were reassembled from retained score records and passed saved-card validation;
+the completed public imputation proofs pass the stricter allocation validator.
+Final reviewed validation: **2,875 tests passed, five existing Windows skips**
+in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
+lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
+fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
+artifact or fetched payload is staged. Both milestones and the requested review
+are complete; M9.9 is the next open implementation step.
+See [physical-health PRS cards](physical_health_prs.md) and
+[mental-health model audit and scale acceptance](mental_health_prs.md).
+
+## Next open step: M9.9 psychometrics
+
+M9.9 is authoring and reference pinning on the existing engine. Verify each
+selected model's permissive score-specific licence and exact public release,
+including reduced-N excluding-23andMe cohorts where applicable; do not replace
+that model's N with a larger publication headline. Check effect and within-family
+attenuation against primary papers for the same phenotype/model. State unknown
+direct effects explicitly instead of borrowing an attenuation from another score.
+Keep reference distributions and intervals visually dominant, with no individual
+point estimate or diagnosis. Use complete matched absolute decile rates only
+where actually published; keep confidence, coverage and portability visible.
+Retain every source row/evidence term and measure full-scale extraction/scoring
+cost before acceptance. Record any needed engine/schema change here before making
+it. The existing full public-stand-in imputation may be reused without rerunning
+the completed native jobs; private artifacts stay outside Git.
 
 ## M9.5–M9.6 review and M9.7 entry contract
 
@@ -27,6 +83,55 @@ only; the engine path, bundle format and renderer exist. If a change to the engi
 out to be needed, record why in this file before making it.
 
 Contract for M9.7:
+
+- **Scale findings recorded before implementation (2026-10-10).** The reference extractor
+  retains the raw VCF calls for every requested locus until the chromosome finishes.
+  For a genome-wide score this holds thousands of Python objects per locus, beyond
+  the already necessary compact effect-dose matrix. Before authoring the large CAD
+  card, change extraction to resolve one coordinate group at a time, preserving all
+  duplicate records at that coordinate, full-file digest verification and every
+  row's exclusion state. Reject out-of-order panel coordinates rather than resolving
+  incomplete groups. This changes memory use, not the scoring method, cached evidence
+  or bundle format. A synthetic memory regression must demonstrate the reduction.
+  The live GPS_Mult file also declares its original build as `hg19`, with explicit
+  harmonized `GRCh37` coordinates. The parser currently rejects this documented
+  assembly synonym before considering harmonization. Accept the hg19/hg38 synonyms
+  with canonical build selection while retaining the source headers verbatim; an
+  unknown build must still fail. Cover both original and harmonized paths.
+  Final presentation review also found that display schema 1 carries only the
+  currently displayed phase's coverage. Before shipping actual health cards,
+  display schema 2 must carry both phases' row/variant coverage, scored-weight
+  shares and explicit unavailable states, and show them on the face/detail.
+  Continue deriving historical schema-1 cards exactly as before on reload;
+  bundle format 17 need not change because the existing display is versioned.
+  Genuine full-panel imputation then exposed an M8 reader assumption on chr3:
+  Beagle emitted the same variant twice because the pinned reference itself
+  contains it twice (verified against the reference, without logging calls).
+  Preserve source-verified untyped duplicates up to their exact multiplicity;
+  continue refusing typed repeats and any unverified/excess repeat. Discover
+  the multiplicities during the existing full, semantically verified decode.
+  Retain both dosage records so the existing card/PRS ambiguity handling applies,
+  rather than deduplicating or choosing one. No saved record format changes.
+  The resumed full-panel run then reached chr8, where Beagle itself refuses
+  two native-equal markers (same chromosome/position/alleles/END). Local comparison
+  verified that their complete phased reference GT vectors are identical.
+  Before continuing, add a lossless native-input representation: fold only these
+  redundant copies, retain every sample and every distinct genetic observation,
+  and keep the original panel plus source/multiplicity/semantic-hash proof.
+  Conflicting phased vectors must fail, never select one. Bind the actual native
+  input in frozen provenance and validate both this proof and source-verified
+  output multiplicities on saved reload; the current saved dosage reader still
+  rejects all repeats. Cover native duplicate failure, unchanged genetic data,
+  conflicting duplicates and tampering before resuming acceptance.
+  The full default-imputed health-score checks then passed, but the second,
+  explicitly non-imputed CAD stand-in exposed another scale defect: display
+  quality accumulates weights with ordinary addition while its denominator uses
+  `math.fsum`, so all-direct observations can round above the unit interval and
+  abort confidence assembly. Before continuing, use accurate summation for both
+  quality numerators in the new display schema 2; preserve schema 1's historical
+  arithmetic on reload. Keep strict confidence input validation. Reproduce the
+  defect with fabricated weights and rerun the second stand-in without repeating
+  the completed full-panel imputation or default-imputed native sums.
 
 - **Choosing scores.**
   - Use PGS Catalog scores whose metadata licence classifies as `permissive`, because a

@@ -13,6 +13,8 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
+from genetics.pgs.cards import phase_coverage_text
+
 WIDTH: Final = 480.0
 TOP: Final = 22.0
 BASELINE: Final = 118.0
@@ -92,6 +94,13 @@ class PolygenicView:
     decile_rows: tuple[DecileRow, ...]
     reliability: Mapping[str, Any]
     licence: Mapping[str, Any] | None
+    phase_coverage: Mapping[str, Any] | None = None
+
+    @property
+    def phase_coverage_display(self) -> str:
+        return phase_coverage_text(
+            None if self.phase_coverage is None else {"phase_coverage": self.phase_coverage}
+        )
 
     @property
     def band_label_x(self) -> float:
@@ -174,6 +183,7 @@ class PolygenicView:
                 decile_rows=rows,
                 reliability=reliability,
                 licence=None,
+                phase_coverage=result.get("phase_coverage"),
             )
         histogram = result["distribution"]["histogram"]
         edges: Sequence[float] = histogram["edges"]
@@ -236,4 +246,5 @@ class PolygenicView:
             decile_rows=rows,
             reliability=reliability,
             licence=result.get("licence"),
+            phase_coverage=result.get("phase_coverage"),
         )

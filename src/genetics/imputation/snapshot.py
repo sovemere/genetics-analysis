@@ -26,6 +26,7 @@ from .context import OUTCOMES, REGIONS, ImputationContext
 from .dosages import DosageRecord, iter_records
 from .pipeline import ImputationResult
 from .quality import ImputationEvidence
+from .reference_compatibility import compatibility_identity, compatibility_key, validate_proof
 from .target import ImputationError, regions
 
 PROVENANCE_NAME = "imputation.provenance.run.json"
@@ -208,8 +209,13 @@ def _metadata(stage: Mapping[str, Any], execution: Mapping[str, Any]) -> None:
     names: set[str] = set()
     totals: Counter[str] = Counter()
     for job, file in zip(jobs, files, strict=True):
-        if set(job) != {"region", "decisions", "phase", "impute"}:
+        if set(job) not in (
+            {"region", "decisions", "phase", "impute"},
+            {"region", "decisions", "phase", "impute", "reference_evidence"},
+        ):
             raise ValueError
+        if "reference_evidence" in job:
+            validate_proof(job["reference_evidence"])
         region = job["region"]
         expected = next(r for r in regions(region["chrom"], sex) if r.name == region["name"])
         if (
@@ -250,6 +256,11 @@ def _metadata(stage: Mapping[str, Any], execution: Mapping[str, Any]) -> None:
             previous = pos
             outcomes[outcome] += 1
         if dict(outcomes) != report["outcomes"]:
+            raise ValueError
+        if "reference_evidence" in job and any(
+            dict(decisions).get(pos) in {"as_written", "complemented", "no_call"}
+            for pos, _, _, _ in job["reference_evidence"]["source_duplicates"]
+        ):
             raise ValueError
         if (
             file["sources"].get("direct", 0) != report["called"]
@@ -343,8 +354,25 @@ def _catalogs(directory: Path, stage: Mapping[str, Any]) -> None:
             item = entries[region["chrom"] if key == "panel_catalog" else region["map_key"]]
             expected = files[item["path"]]
             _sha(expected["sha256"])
+            evidence = job.get("reference_evidence") if key == "panel_catalog" else None
+            if evidence is not None:
+                validate_proof(evidence)
+                if (
+                    evidence["source"]["sha256"] != expected["sha256"]
+                    or evidence["source"]["size_bytes"] != expected["size_bytes"]
+                    or evidence["source"]["summary"] != item["summary"]
+                ):
+                    raise ValueError
+                expected = evidence["native"]
             for phase in ("phase", "impute"):
                 used = job[phase]["contract"]["inputs"]["ref" if key == "panel_catalog" else "map"]
+                if evidence is not None and evidence["folded"]:
+                    parts = used["path"].replace("\\", "/").split("/")
+                    cache_key = compatibility_key(
+                        compatibility_identity(evidence, stage["contract"]["bref"])
+                    )
+                    if parts[-3:] != [cache_key, "complete", "native-reference.vcf.gz"]:
+                        raise ValueError
                 if (
                     used["sha256"] != expected["sha256"]
                     or used["size_bytes"] != expected["size_bytes"]
@@ -387,7 +415,20 @@ def _payloads(
         retained: set[int] = set()
         counts: Counter[str] = Counter()
         previous = 0
-        at_position: set[tuple[str, tuple[str, ...]]] = set()
+        at_position: Counter[tuple[str, tuple[str, ...]]] = Counter()
+        duplicates = (
+            validate_proof(job["reference_evidence"]) if "reference_evidence" in job else {}
+        )
+
+        def finish_position(
+            position: int,
+            observations: Mapping[tuple[str, tuple[str, ...]], int],
+            multiplicities: Mapping[tuple[int, str, str], int],
+        ) -> None:
+            for (ref, alt), observed in observations.items():
+                if observed != multiplicities.get((position, ref, ",".join(alt)), 1):
+                    raise ValueError
+
         for index, record in enumerate(iter_records(path), start=1):
             if progress and index % 100_000 == 0 and time.monotonic() - heartbeat >= 30:
                 emit("Validating saved imputation dosage evidence")
@@ -400,12 +441,15 @@ def _payloads(
             ):
                 raise ValueError
             if pos != previous:
+                finish_position(previous, at_position, duplicates)
                 at_position.clear()
             previous = pos
             variant_key = (record.ref, record.alt)
-            if variant_key in at_position:
+            at_position[variant_key] += 1
+            if at_position[variant_key] > duplicates.get(
+                (pos, record.ref, ",".join(record.alt)), 1
+            ) or (pos in eligible and at_position[variant_key] > 1):
                 raise ValueError
-            at_position.add(variant_key)
             decision = decisions.get(pos)
             source = (
                 "direct"
@@ -434,6 +478,7 @@ def _payloads(
                 if card["match"]["observed_genotype"] != genotype:
                     raise ValueError
                 found[locus, card_index] += 1
+        finish_position(previous, at_position, duplicates)
         if (
             retained != eligible
             or dict(counts) != file["sources"]

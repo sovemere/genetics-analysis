@@ -51,7 +51,7 @@ from genetics.engine.matcher import MatchResult, MatchStatus
 from genetics.pgs.catalog import PgsError
 
 SOURCE: Final = "polygenic_score"
-DISPLAY_SCHEMA_VERSION: Final = 1
+DISPLAY_SCHEMA_VERSION: Final = 2
 PHASES: Final = ("after", "before")
 """Post-imputation first: it is the default scoring mode and covers more of the score."""
 
@@ -117,7 +117,9 @@ def unavailable_reason(record: Mapping[str, Any]) -> str:
     )
 
 
-def derive_position(record: Mapping[str, Any]) -> dict[str, Any] | None:
+def derive_position(
+    record: Mapping[str, Any], *, display_schema_version: int = DISPLAY_SCHEMA_VERSION
+) -> dict[str, Any] | None:
     """The person's place in the reference, as an interval over a distribution; or None.
 
     Pure function of the private record. No sum and no point percentile leave it.
@@ -145,19 +147,34 @@ def derive_position(record: Mapping[str, Any]) -> dict[str, Any] | None:
     terms = {t["row_number"]: t for t in record["terms"]}
     comparable = [terms[n] for n in data["comparable_rows"]]
     total = math.fsum(abs(t["weight"]) for t in comparable if t["weight"] is not None)
-    quality = unknown = 0.0
-    for term in comparable:
-        weight = abs(term["weight"] or 0.0)
-        dose = term[phase]
-        if dose["source"] == "direct":
-            quality += weight
-        elif dose["dr2"] is not None:
-            quality += weight * dose["dr2"]
-        else:
-            unknown += weight
+    if display_schema_version >= 2:
+        # Match the denominator's accurate summation. Ordinary accumulation can
+        # round all-direct or all-unknown weights above one at genome-wide scale.
+        quality = math.fsum(
+            abs(term["weight"] or 0.0)
+            * (1.0 if term[phase]["source"] == "direct" else (term[phase]["dr2"] or 0.0))
+            for term in comparable
+        )
+        unknown = math.fsum(
+            abs(term["weight"] or 0.0)
+            for term in comparable
+            if term[phase]["source"] != "direct" and term[phase]["dr2"] is None
+        )
+    else:
+        # Historical display-1 snapshots must reproduce their stored numbers.
+        quality = unknown = 0.0
+        for term in comparable:
+            weight = abs(term["weight"] or 0.0)
+            dose = term[phase]
+            if dose["source"] == "direct":
+                quality += weight
+            elif dose["dr2"] is not None:
+                quality += weight * dose["dr2"]
+            else:
+                unknown += weight
     coverage = record["coverage"][phase]
-    return {
-        "schema_version": DISPLAY_SCHEMA_VERSION,
+    display = {
+        "schema_version": display_schema_version,
         "pgs_id": record["pgs_id"],
         "score_sha256": record_digest(record),
         "phase": phase,
@@ -200,6 +217,49 @@ def derive_position(record: Mapping[str, Any]) -> dict[str, Any] | None:
         },
         "portability": record["portability"],
     }
+    if display_schema_version >= 2:
+        display["phase_coverage"] = phase_coverage(record)
+    return display
+
+
+def phase_coverage(record: Mapping[str, Any]) -> dict[str, Any]:
+    """Both phases' counts and denominators; no genotype proof or personal score."""
+    summaries = {}
+    for phase in ("before", "after"):
+        coverage = record["coverage"][phase]
+        rows, variants, weight = (coverage[k] for k in ("rows", "variants", "weight"))
+        summaries[phase] = {
+            "status": coverage["status"],
+            "reason": coverage["reason"],
+            "rows_scored": None if rows is None else rows["scored"],
+            "rows_total": None if rows is None else rows["total"],
+            "variants_covered": None if variants is None else variants["with_usable_dose"],
+            "variants_total": None if variants is None else variants["total"],
+            "variant_fraction": None if variants is None else variants["fraction"],
+            "weight_fraction": None if weight is None else weight["fraction"],
+        }
+    return summaries
+
+
+def phase_coverage_text(result: Mapping[str, Any] | None) -> str:
+    """Shared face/detail wording, including unavailable phases without false zeros."""
+    if result is None or "phase_coverage" not in result:
+        return ""  # Historical display 1 is preserved exactly.
+    parts = []
+    for phase, label in (("before", "Original array"), ("after", "After imputation")):
+        coverage = result["phase_coverage"][phase]
+        if coverage["status"] in {"unavailable", "unsupported_model"}:
+            parts.append(f"{label}: unavailable ({coverage['reason'] or coverage['status']}).")
+            continue
+        fraction = coverage["variant_fraction"]
+        weight = coverage["weight_fraction"]
+        parts.append(
+            f"{label}: {coverage['variants_covered']:,}/{coverage['variants_total']:,} "
+            f"variants ({'unknown' if fraction is None else _percent(fraction)}); "
+            f"{coverage['rows_scored']:,}/{coverage['rows_total']:,} rows scored; "
+            f"{'unknown' if weight is None else _percent(weight)} of absolute score weight."
+        )
+    return " ".join(parts)
 
 
 def _deciles(card_deciles: Mapping[str, Any] | None, position: Mapping[str, Any] | None) -> Any:
@@ -251,7 +311,9 @@ def face_text(
             "effect here."
         )
     if result is None or result.get("position") is None:
-        return f"{title}: not placed. {reason or 'The score was not computed.'} {within}"
+        summary = f"{title}: not placed. {reason or 'The score was not computed.'} {within}"
+        comparison = phase_coverage_text(result)
+        return summary + (f" {comparison}" if comparison else "")
     ref = result["reference"]
     low, high = result["position"]["percentile_interval_95"]
     d_low, d_high = result["position"]["deciles"]
@@ -282,6 +344,9 @@ def face_text(
         port,
         within,
     ]
+    comparison = phase_coverage_text(result)
+    if comparison:
+        parts.append(comparison)
     rates = result["authored"]["decile_outcomes"]
     if rates is None:
         parts.append(NOT_A_RISK)
@@ -350,24 +415,33 @@ def _authored(card: Card) -> dict[str, Any]:
     }
 
 
-def build_result(authored: Mapping[str, Any], record: Mapping[str, Any] | None) -> Any:
+def build_result(
+    authored: Mapping[str, Any],
+    record: Mapping[str, Any] | None,
+    *,
+    display_schema_version: int = DISPLAY_SCHEMA_VERSION,
+) -> Any:
     """The stored display: derived position plus the card's authored blocks."""
     if record is None:
         return None
+    if type(display_schema_version) is not int or display_schema_version not in {1, 2}:
+        raise PgsError("Unsupported polygenic display schema version.")
     if record.get("pgs_id") != authored["pgs_id"]:
         raise PgsError("The score result belongs to a different PGS than the card.")
-    position = derive_position(record)
+    position = derive_position(record, display_schema_version=display_schema_version)
     base = (
         position
         if position is not None
         else {
-            "schema_version": DISPLAY_SCHEMA_VERSION,
+            "schema_version": display_schema_version,
             "pgs_id": record["pgs_id"],
             "score_sha256": record_digest(record),
             "position": None,
             "portability": record.get("portability"),
         }
     )
+    if display_schema_version >= 2 and position is None:
+        base["phase_coverage"] = phase_coverage(record)
     return {
         **base,
         "authored": {
@@ -497,7 +571,14 @@ def validate_stored(data: Mapping[str, Any], record: Mapping[str, Any] | None) -
             if deciles is None
             else {k: v for k, v in deciles.items() if k not in {"overlapped", "overlapped_range"}}
         )
-        if json.loads(json.dumps(build_result(authored, record))) != result:
+        if (
+            json.loads(
+                json.dumps(
+                    build_result(authored, record, display_schema_version=result["schema_version"])
+                )
+            )
+            != result
+        ):
             raise PgsError("The stored polygenic display disagrees with its score record.")
     placed = result is not None and result.get("position") is not None
     expected_status = "computed" if placed else "not_run"

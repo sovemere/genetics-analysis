@@ -152,9 +152,18 @@ def read_output(path: Path, target: Target, *, phase_only: bool = False) -> Iter
         raise ImputationError("Cannot interpret output with unresolved biological ploidy.")
     seen_typed: set[int] = set()
     previous: tuple[int, str, str] | None = None
-    at_position: set[tuple[str, str]] = set()
+    at_position: dict[tuple[str, str], int] = {}
     header = False
     count = 0
+
+    def finish_position() -> None:
+        if previous is None or phase_only or previous[0] in target.sites:
+            return
+        for (ref, alt), observed in at_position.items():
+            expected = target.reference_duplicates.get((previous[0], ref, alt), 1)
+            if observed != expected:
+                raise ImputationError("Beagle output lost a verified reference duplicate.")
+
     try:
         with gzip.open(path, "rt", encoding="utf-8") as handle:
             for line in handle:
@@ -201,10 +210,15 @@ def read_output(path: Path, target: Target, *, phase_only: bool = False) -> Iter
                         "Beagle output markers/alleles disagree with the job region."
                     )
                 if previous is None or pos != previous[0]:
+                    finish_position()
                     at_position.clear()
-                if (ref, raw_alt) in at_position:
+                identity = (ref, raw_alt)
+                at_position[identity] = at_position.get(identity, 0) + 1
+                limit = target.reference_duplicates.get((pos, ref, raw_alt), 1)
+                if at_position[identity] > 1 and (
+                    phase_only or pos in target.sites or at_position[identity] > limit
+                ):
                     raise ImputationError("Beagle output repeats a variant.")
-                at_position.add((ref, raw_alt))
                 previous = (pos, ref, raw_alt)
                 names = fields[8].split(":")
                 values = fields[9].split(":")
@@ -291,6 +305,7 @@ def read_output(path: Path, target: Target, *, phase_only: bool = False) -> Iter
                     if dr2 is not None
                     else "not_estimated",
                 )
+        finish_position()
         if not count or seen_typed != set(target.sites):
             raise ImputationError("Beagle output is empty or lost eligible typed markers.")
     except (OSError, EOFError, UnicodeError, ValueError, zlib.error) as exc:
