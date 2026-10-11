@@ -234,7 +234,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 13; formats 1–12 remain readable.
+attached to a computed card. New runs use bundle format 17; formats 1–16 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD
@@ -265,5 +265,6 @@ entry that fetches it (`pgs: {id, source}`). They carry a `trait`, plain-text `s
 `decile_outcomes`: ten absolute rates by score decile plus the base rate, cited to one of
 the card's own citations. The engine writes the face itself: an interval in a reference
 distribution (never a point), coverage, ancestry portability, within-family attenuation and
-the decile rates. No polygenic card ships yet; M9.7 onwards author them. See
-[polygenic cards](../docs/pgs_cards.md).
+the decile rates. Authored polygenic cards cover physical health (M9.7), mental health
+(M9.8) and psychometrics (M9.9). See [polygenic cards](../docs/pgs_cards.md) and the
+[psychometric model audit](../docs/psychometrics_prs.md).

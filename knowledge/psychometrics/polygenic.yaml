@@ -1,0 +1,176 @@
+schema_version: 4
+cards:
+  - id: fluid_intelligence_ldpred2
+    section: psychometrics
+    kind: polygenic
+    title: Fluid intelligence polygenic association
+    pgs: {id: PGS002135, source: pgs002135_grch37}
+    trait: UK Biobank verbal-numerical reasoning test performance
+    summary: >-
+      This score is associated with performance on a short verbal-numerical
+      reasoning test. It does not measure an individual's intelligence or IQ.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto model uses HapMap3
+      variants. The catalogue lists a 391,124-person Northwestern European
+      training pool, but the authors' phenotype-info.csv gives 99,976 training
+      participants with fluid-intelligence observations. No 23andMe cohort or
+      restricted summary statistics enter this model. The phenotype is UK
+      Biobank field 20191, the online verbal-numerical reasoning test, not a
+      comprehensive IQ assessment. In 5,092 held-out UK-ancestry participants,
+      the authors' pred-cor-ldpred2.csv reports partial correlation 0.1998
+      (95% CI 0.1733-0.2261). Squaring that correlation gives about 3.99% of
+      covariate-residual test variance, leaving about 96% unexplained by this
+      score. That is a population association, not an individual's test result.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 3.99
+        ci_low: 3.00
+        ci_high: 5.11
+        context: >-
+          Prive 2022, published pred-cor-ldpred2.csv: held-out UK-ancestry
+          partial-r 0.1998 (95% CI 0.1733-0.2261), N=5,092. The displayed
+          percentage is derived as 100*r-squared, after adjustment for sex,
+          age, birth date, deprivation index and 16 PCs; it describes residual
+          test variance, not total variance, an IQ estimate or direct genetic
+          causation. About 96% remains unexplained. Within-family attenuation
+          for these exact weights is unknown.
+      sample_size: 5092
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002135
+        title: Public UK Biobank LDpred2 fluid-intelligence model
+    caveats:
+      - "Training N=99,976 is phenotype-specific; 391,124 is the eligible training pool, not the number with cognitive-test observations."
+      - "Held-out participants come from the same biobank. This is not independent-cohort replication or validation of consumer-array performance."
+      - "No model-specific within-family attenuation or calibrated individual IQ conversion is available; neither is inferred from educational-attainment studies."
+      - "No complete matched absolute decile-outcome series is available. Reference score deciles do not predict test-score deciles."
+
+  - id: educational_attainment_ldpred2
+    section: psychometrics
+    kind: polygenic
+    title: Educational attainment polygenic association
+    pgs: {id: PGS002231, source: pgs002231_grch37}
+    trait: qualifications mapped to years of education
+    summary: >-
+      This UK Biobank-only score is associated with educational qualifications.
+      It does not predict an individual's years of schooling or ability.
+    detail: >-
+      These are Prive et al.'s public LDpred2-auto HapMap3 weights, not the
+      SSGAC EA4 model. The authors' phenotype-info.csv records 320,190 training
+      observations within the catalogue's 391,124-person Northwestern European
+      pool. No 23andMe participants contribute. Qualifications were mapped to
+      years of education in UK Biobank field 6138. The released prediction
+      correlations give partial-r 0.2008 (95% CI 0.1860-0.2154) in 16,350
+      held-out UK-ancestry participants: about 4.03% of covariate-residual
+      outcome variance, leaving about 96% unexplained. Education also reflects
+      opportunity, institutions and family environment. Okbay et al.'s separate
+      EA4 analysis reports 12-16% population-level variance explained and direct
+      association effects roughly half the population effects after controlling
+      for parental scores. Those figures describe EA4, whose public genome-wide
+      summary statistics exclude 23andMe; they are not measured performance or
+      attenuation of this UK Biobank model. Half the association is not half
+      the variance explained. This model's within-family attenuation is unknown.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 4.03
+        ci_low: 3.46
+        ci_high: 4.64
+        context: >-
+          Prive 2022, published pred-cor-ldpred2.csv: held-out UK-ancestry
+          partial-r 0.2008 (95% CI 0.1860-0.2154), N=16,350. Derived percentage
+          100*r-squared of residual qualifications-to-years variance, adjusted
+          for sex, age, birth date, deprivation index and 16 PCs; about 96%
+          remains unexplained. Within-family attenuation of these exact weights
+          is unknown. Separately, Okbay 2022 EA4 reports population R2 of 12-16%
+          and direct association effects roughly half as large; neither number
+          calibrates this UK Biobank-only model or an individual's education.
+      sample_size: 16350
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: doi
+        id: 10.1038/s41588-022-01016-z
+        title: Polygenic prediction of educational attainment within and between families from genome-wide association analyses in 3 million individuals
+      - type: accession
+        database: PGS Catalog
+        id: PGS002231
+        title: Public UK Biobank LDpred2 qualifications-to-years model
+    caveats:
+      - "Training N=320,190 is phenotype-specific; the larger catalogue training pool is not this phenotype's N. This is not a reduced-N EA4 release or its 3-million-person model."
+      - "Population associations combine direct effects, indirect family effects, assortative mating and residual structure. No numeric attenuation from another model is applied."
+      - "Held-out testing uses the same biobank, not an independent cohort. Education systems and social conditions affect transfer even within European ancestry."
+      - "EA4's college-completion decile rates are for different weights and cohorts; they are not assigned to this model. No individual absolute outcome or schooling estimate is produced."
+
+  - id: neuroticism_ldpred2
+    section: psychometrics
+    kind: polygenic
+    title: Neuroticism polygenic association
+    pgs: {id: PGS002213, source: pgs002213_grch37}
+    trait: self-reported neuroticism questionnaire score
+    summary: >-
+      This score is associated with self-reported neuroticism, including worry
+      and emotional reactivity. It does not establish an individual's personality
+      or a psychiatric diagnosis.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model uses
+      neuroticism questionnaire field 20127. The authors' phenotype-info.csv
+      gives 317,218 training observations, within the catalogue's 391,124-person
+      Northwestern European pool. It includes no 23andMe cohort; larger
+      neuroticism GWAS headlines are not this release's sample size. The authors'
+      pred-cor-ldpred2.csv gives partial-r 0.2040 (95% CI 0.1892-0.2188) in
+      16,206 held-out UK-ancestry participants, about 4.16% of covariate-residual
+      questionnaire variance. About 96% remains unexplained by this score.
+      This is a questionnaire association rather than an assessment of the
+      reader's current emotions, behaviour or mental health. This exact model
+      has no published within-family attenuation assigned here.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 4.16
+        ci_low: 3.58
+        ci_high: 4.79
+        context: >-
+          Prive 2022, published pred-cor-ldpred2.csv: held-out UK-ancestry
+          partial-r 0.2040 (95% CI 0.1892-0.2188), N=16,206. Derived percentage
+          100*r-squared of residual questionnaire variance, adjusted for sex,
+          age, birth date, deprivation index and 16 PCs; about 96% remains
+          unexplained. Within-family attenuation of these exact weights is
+          unknown; educational-attainment attenuation is not substituted.
+      sample_size: 16206
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002213
+        title: Public UK Biobank LDpred2 neuroticism model
+    caveats:
+      - "Training N=317,218 is phenotype-specific; 391,124 is the overall training pool. This is UK Biobank-only, not a restricted 23andMe-inclusive or excluding-23andMe meta-analysis."
+      - "Testing is held-out within UK Biobank, not independent-cohort replication. Ancestry portability does not establish questionnaire or consumer-chip calibration."
+      - "No applicable complete absolute decile rates or model-specific within-family attenuation are supplied. A reference position is not a personality assessment."
