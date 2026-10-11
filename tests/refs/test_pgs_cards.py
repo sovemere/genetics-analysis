@@ -538,6 +538,71 @@ def test_mental_pack_preserves_model_scope_and_uncertainty_in_both_interfaces(
         assert "within-family" in detail.text
 
 
+@pytest.mark.parametrize("matched", [True, False])
+def test_psychometric_pack_keeps_model_specific_evidence_and_no_person_estimate(
+    setup: dict[str, Any], fake: MultiPlink, matched: bool
+) -> None:
+    authored = Path(__file__).parents[2] / "knowledge" / "psychometrics" / "polygenic.yaml"
+    text = authored.read_text(encoding="utf-8")
+    for pgs_id in ("PGS002135", "PGS002231", "PGS002213"):
+        text = text.replace(pgs_id, "PGS000001").replace(
+            f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
+        )
+    (setup["knowledge"] / "polygenic.yaml").write_text(text, encoding="utf-8")
+    placement = CEU if matched else Placed("KHV", "EAS", [("KHV", 1.0), ("CEU", 9.0)])
+    analysis = run(setup, fake, placement=placement)
+    assert len(analysis.cards) == 3
+    assert all(c.status is MatchStatus.COMPUTED for c in analysis.cards)
+    assert all(c.section.value == "psychometrics" for c in analysis.cards)
+    for card in analysis.cards:
+        assert card.card.evidence is not None and card.computation is not None
+        assert card.card.evidence.replication is Replication.SAME_COHORT
+        assert card.card.evidence.within_family_attenuation is None
+        assert card.card.decile_outcomes is None
+        assert "No within-family estimate" in card.summary and "unknown" in card.summary
+        assert NOT_A_RISK in card.summary
+        assert "96%" in card.card.evidence.effect.context
+        result = card.computation["result"]
+        assert set(result["position"]) == {
+            "percentile_interval_95",
+            "deciles",
+            "score_interval",
+            "basis",
+        }
+        assert result["portability"]["judgment"] == ("matched" if matched else "mismatched")
+        if not matched:
+            assert card.computation["reliability"]["tier"] == "limited"
+    bundle = read_bundle(save(analysis))
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    cards = json.loads(shown.stdout)["cards"]
+    assert {c["evidence"]["effect"]["value"] for c in cards} == {3.99, 4.03, 4.16}
+    assert {c["evidence"]["sample_size"] for c in cards} == {5092, 16350, 16206}
+    assert all(c["evidence"]["effect"]["measure"] == "percent_variance_explained" for c in cards)
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=psychometrics")
+        assert page.status_code == 200
+        assert page.text.count('class="pgschart pgschart-compact"') == 3
+        assert page.text.count("Published study association:") == 3
+        assert "No within-family estimate" in page.text
+        assert "12-16%" in page.text and "neither number" in page.text
+        assert "100*r-squared" in page.text and "residual" in page.text
+        assert "Original array:" in page.text and "Ancestry portability:" in page.text
+        for card_id, training_n in (
+            ("fluid_intelligence_ldpred2", "99,976"),
+            ("educational_attainment_ldpred2", "320,190"),
+            ("neuroticism_ldpred2", "317,218"),
+        ):
+            detail = client.get(f"/runs/{bundle.run_id}/cards/{card_id}")
+            assert detail.status_code == 200
+            assert training_n in detail.text and "23andMe" in detail.text
+            assert 'class="pgschart"' in detail.text
+        cognition = client.get(f"/runs/{bundle.run_id}/cards/fluid_intelligence_ldpred2")
+        assert "20191" in cognition.text and "online" in cognition.text
+
+
 def _card(data: dict[str, Any]) -> dict[str, Any]:
     return next(c for c in data["cards"] if c["kind"] == "polygenic")
 

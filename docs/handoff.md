@@ -41,11 +41,38 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete; M9.9 is the next open implementation step.
+are complete; M9.9 is the current implementation step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
-## Next open step: M9.9 psychometrics
+## Current step: M9.9 psychometrics — paused
+
+Three public UK Biobank-only LDpred2 models are authored and reference-pinned:
+cognition (PGS002135), qualifications-to-years (PGS002231), and neuroticism
+(PGS002213). They use schema 4, bundle format 17 and the existing renderer;
+no shared-engine/schema change was needed. Phenotype-specific training counts,
+held-out residual-variance associations and unknown within-family effects are
+explicit. The synthetic suite and native arithmetic check pass 2,877 unique
+checks, with five documented Windows platform skips remaining. All four strict
+type targets, lint/format, fixture reproduction and full card lint pass
+(58 cards, 282 renders, 35/35 marker keys).
+
+Paused at the owner's request on 2026-10-11. All three full reference preparations
+and the default-imputed cognition and education checks passed. Neuroticism was
+interrupted and must restart its scoring stage. Three explicit no-impute checks
+and six retained JSON disk-read validations remain. No acceptance job is running.
+
+The verified durable checkpoint is
+`%LOCALAPPDATA%/genetics-analysis/acceptance/m99`, outside Git. It contains both
+completed scores, both public-array inputs, all 22 completed imputation dosage
+files, provenance, measurements and the resume runner. Its integrity-only check
+passes. The runner reuses warm reference caches and completed imputation, skips
+completed scoring markers and checkpoints new stages. Use the command in the
+[model audit and resume instructions](psychometrics_prs.md). Keep all checkpoint
+contents private, including hashes; do not paste genetic summaries into chat.
+Require both acceptance and retained-disk validation to pass before marking
+M9.9 complete and moving to M9.10. Broad code checks already pass; repeat them
+only when new changes, failures or unresolved concerns justify it.
 
 M9.9 is authoring and reference pinning on the existing engine. Verify each
 selected model's permissive score-specific licence and exact public release,

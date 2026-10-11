@@ -641,6 +641,70 @@ sources:
         size_bytes: 485483
         sha256: c7f3afe578eca431fa7914dc7564607ad7f24327edad329dca07470b42c37ee4
 
+  # M9.9 public psychometric models. Digests measured on 2026-10-11.
+  - id: pgs002135_grch37
+    name: PGS002135 LDpred2 fluid intelligence, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002135/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - psychometrics fluid intelligence polygenic card (M9.9)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European training pool
+      N=391124; author-reported cognitive-test training observations N=99976.
+      No 23andMe data. EMBL-EBI default terms verified in the authoritative
+      score metadata CSV; no model-specific within-family effect is assigned.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002135/ScoringFiles/Harmonized/PGS002135_hmPOS_GRCh37.txt.gz
+        filename: PGS002135_hmPOS_GRCh37.txt.gz
+        size_bytes: 20795716
+        sha256: 2b5a827ab56480ed58b6a776cc3802d6a62fd8e5eed23356d2ee67d56051a7c2
+
+  - id: pgs002231_grch37
+    name: PGS002231 LDpred2 educational attainment, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002231/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - psychometrics educational attainment polygenic card (M9.9)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European training pool
+      N=391124; author-reported qualifications-to-years training observations N=320190.
+      No 23andMe data. EMBL-EBI default terms verified in the authoritative
+      score metadata CSV; no model-specific within-family effect is assigned.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002231/ScoringFiles/Harmonized/PGS002231_hmPOS_GRCh37.txt.gz
+        filename: PGS002231_hmPOS_GRCh37.txt.gz
+        size_bytes: 21906972
+        sha256: e141341f835920eb2656809e32eef7c34b9daf67a6a791e966c28bfa5f87b223
+
+  - id: pgs002213_grch37
+    name: PGS002213 LDpred2 neuroticism, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002213/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - psychometrics neuroticism polygenic card (M9.9)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European training pool
+      N=391124; author-reported neuroticism-questionnaire training observations N=317218.
+      No 23andMe data. EMBL-EBI default terms verified in the authoritative
+      score metadata CSV; no model-specific within-family effect is assigned.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002213/ScoringFiles/Harmonized/PGS002213_hmPOS_GRCh37.txt.gz
+        filename: PGS002213_hmPOS_GRCh37.txt.gz
+        size_bytes: 21873634
+        sha256: 86ec244773320f0d4b12b071ea3760dd6305c4dc5096afa2e1e64c0253c762c5
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

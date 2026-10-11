@@ -61,7 +61,11 @@ cards are accepted**, including full-panel extraction and both default-imputed
 and explicit no-impute public-stand-in scoring. The
 [session review](docs/review_m97_m98_session.md) tightens frozen duplicate-proof
 allocation and corrects CAD's European subgroup association.
-**M9.9 psychometrics is next**; the handoff records its entry scope.
+**M9.9 psychometrics is paused at the owner's request**: three public UK Biobank-only
+models are authored, pinned and synthetically verified. All reference preparations
+and the cognition/education default-imputed checks passed; neuroticism, three
+no-impute checks and retained JSON disk validation remain. The durable checkpoint
+and resume command are in the [psychometric model audit](docs/psychometrics_prs.md).
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -73,8 +77,8 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 17**, with formats 1–16 preserved. The pack has 55 cards;
-full local dbSNP lint resolves all 35 authored marker references (276 template renders).
+**Current bundle format: 17**, with formats 1–16 preserved. The pack has 58 cards;
+full local dbSNP lint resolves all 35 authored marker references (282 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
 regressions cover count/denominator honesty, exclusions, source states, saved integrity,
@@ -2666,9 +2670,13 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         Final reviewed suite: 2,875 passed, five existing Windows skips; all four
         strict type targets, full card lint, fixtures and staged privacy checks pass.
         [Model audit and acceptance](docs/mental_health_prs.md).
-- [ ] **M9.9** Section: **Psychometrics**. Most constrained on both corpus and science —
+- [~] **M9.9** Section: **Psychometrics**. Most constrained on both corpus and science —
       both constraints stated on the cards ([AGENTS.md §4.5](AGENTS.md)). Ships in full,
       unflattering results included.
+      Authored and pinned: cognitive test performance, qualifications-to-years and
+      neuroticism. Paused on 2026-10-11 at the owner's request after all three full
+      reference preparations and two default-imputed scores passed. Remaining
+      acceptance and the durable resume command: [audit](docs/psychometrics_prs.md).
 - [ ] **M9.10** Section: **Substance use & behavioural propensity**. GSCAN public
       excluding-23andMe stats are well powered (smoking initiation N=805,431;
       drinks/week N=666,978).
