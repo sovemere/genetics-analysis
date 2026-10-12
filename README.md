@@ -73,11 +73,12 @@ The [session review](docs/review_m97_m98_session.md) tightens frozen duplicate-p
 allocation and corrects CAD's European subgroup association.
 Final reviewed validation passes **2,875 tests, five existing Windows skips**,
 all four strict type targets, lint/format, fixtures and staged privacy scanning.
-**M9.9 psychometrics is paused:** cognition, education and neuroticism
-cards are authored, reference-pinned and synthetically verified. All three full
-reference preparations and the cognition/education default-imputed checks passed.
-Neuroticism, explicit no-impute checks and retained JSON disk validation remain.
-See the [model audit, checkpoint and resume command](docs/psychometrics_prs.md).
+**M9.9 psychometrics is complete:** cognition, education and neuroticism cards
+are authored and reference-pinned, with exact model evidence and unknown direct
+within-family effects stated. Full reference preparation, all three default-imputed
+and explicit no-impute checks, and six retained JSON disk-read validations passed.
+See the [model audit and scale acceptance](docs/psychometrics_prs.md).
+**M9.10 substance use and behavioural propensity is the next open step.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows

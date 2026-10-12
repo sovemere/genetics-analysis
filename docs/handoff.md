@@ -1,6 +1,6 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-11, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-12, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
@@ -41,11 +41,28 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete; M9.9 is the current implementation step.
+are complete. M9.9 is also accepted; M9.10 is the next open implementation step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
-## Current step: M9.9 psychometrics — paused
+## Next open step: M9.10 substance use and behavioural propensity
+
+Author and pin public models on the existing shared PRS engine. The roadmap's
+GSCAN excluding-23andMe sample sizes are context, not automatically the N of a
+selected score. Verify each exact public model/release, score-specific licence,
+phenotype, discovery/evaluation N, study ancestry and reported performance against
+primary sources. Keep population association distinct from causal/direct effects;
+state unknown within-family attenuation and outcome calibration explicitly.
+Use complete matched absolute outcome rates only where actually published.
+Retain every source row and keep confidence, coverage and portability visible.
+Include sourced unflattering results without moralising or a confirmation gate.
+
+Full-scale acceptance should measure extraction/scoring/record costs and validate
+written snapshots. The completed public-stand-in imputation may be reused; keep
+all genetic artifacts and hashes outside Git and out of chat. Record any needed
+engine/schema change here before implementing it. M9.10 has not been started.
+
+## Accepted M9.9 psychometrics
 
 Three public UK Biobank-only LDpred2 models are authored and reference-pinned:
 cognition (PGS002135), qualifications-to-years (PGS002231), and neuroticism
@@ -57,22 +74,24 @@ checks, with five documented Windows platform skips remaining. All four strict
 type targets, lint/format, fixture reproduction and full card lint pass
 (58 cards, 282 renders, 35/35 marker keys).
 
-Paused at the owner's request on 2026-10-11. All three full reference preparations
-and the default-imputed cognition and education checks passed. Neuroticism was
-interrupted and must restart its scoring stage. Three explicit no-impute checks
-and six retained JSON disk-read validations remain. No acceptance job is running.
+Accepted on 2026-10-12. All three complete reference preparations, three
+default-imputed and three explicit no-impute public-stand-in scores passed.
+All six written score/card pairs were read from disk and passed frozen validation
+of their retained digest, coverage, distribution, portability, display and
+reliability. No source term was truncated. The checkpoint was paused on
+2026-10-11, then resumed with both completed scores and full imputation reused.
 
-The verified durable checkpoint is
-`%LOCALAPPDATA%/genetics-analysis/acceptance/m99`, outside Git. It contains both
-completed scores, both public-array inputs, all 22 completed imputation dosage
-files, provenance, measurements and the resume runner. Its integrity-only check
-passes. The runner reuses warm reference caches and completed imputation, skips
-completed scoring markers and checkpoints new stages. Use the command in the
-[model audit and resume instructions](psychometrics_prs.md). Keep all checkpoint
-contents private, including hashes; do not paste genetic summaries into chat.
-Require both acceptance and retained-disk validation to pass before marking
-M9.9 complete and moving to M9.10. Broad code checks already pass; repeat them
-only when new changes, failures or unresolved concerns justify it.
+The completed durable checkpoint remains at
+`%LOCALAPPDATA%/genetics-analysis/acceptance/m99`, outside Git. Both acceptance
+and retained-validation records report `passed`; the checkpoint reports
+`complete`, and the runner exited successfully. Keep all contents private,
+including hashes; do not paste genetic summaries into chat. The
+[model audit and resource record](psychometrics_prs.md) records measured costs
+and the unavailable browser visual check. The renderer is unchanged; synthetic
+HTTP and chart geometry checks pass. Broad code checks already pass; repeat
+them only when new changes, failures or unresolved concerns justify it.
+
+### M9.9 entry contract (retained for review)
 
 M9.9 is authoring and reference pinning on the existing engine. Verify each
 selected model's permissive score-specific licence and exact public release,

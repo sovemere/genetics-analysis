@@ -141,42 +141,46 @@ set. Source checksums are verified; no model is reduced to speed up extraction.
 | PGS002231 | 296,480,955 |
 | PGS002213 | 296,208,909 |
 
-The cognition and education default-imputed checks passed, retaining every source
-term and validating card consistency before writing the complete score records.
+**Full-scale acceptance passed on 2026-10-12.** All three models pass both
+default-imputed scoring on a public European-ancestry stand-in and explicit
+no-impute scoring on a public East Asian stand-in. Every source term is retained;
+card consistency is validated before writing each complete score record.
 
-| Model | Default-imputed scoring, consistency validation and writing (seconds) | Peak tree working-set bytes | Complete record bytes |
-| --- | ---: | ---: | ---: |
-| PGS002135 | 4,110.40 | 11,082,002,432 | 2,022,102,153 |
-| PGS002231 | 3,226.95 | 11,683,201,024 | 2,127,199,014 |
+| Model | Default-imputed scoring, consistency validation and writing (seconds) | Peak tree working-set bytes | Complete default record bytes | No-impute check (seconds) | No-impute peak bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| PGS002135 | 4,110.40 | 11,082,002,432 | 2,022,102,153 | 178.02 | 8,537,501,696 |
+| PGS002231 | 3,226.95 | 11,683,201,024 | 2,127,199,014 | 185.91 | 9,236,799,488 |
+| PGS002213 | 3,689.52 | 11,803,545,600 | 2,125,789,663 | 187.04 | 9,233,055,744 |
 
-These are observed workstation costs, not predictive calibration. Both public
-stand-ins belong to the reference panel. **Acceptance was paused at the owner's
-request on 2026-10-11.** Neuroticism was interrupted; that scoring stage must
-restart. The three explicit no-impute checks and six retained JSON disk-read
-validations remain. M9.9 is not yet accepted.
+All six written score/card pairs were then read from disk and passed frozen
+validation of the retained score digest, coverage, reference distribution,
+portability, display and reliability. This checks the serialized data, not just
+the in-memory objects used during scoring.
 
-The durable checkpoint is `%LOCALAPPDATA%/genetics-analysis/acceptance/m99`.
-It includes both completed scores, both public-array inputs, all 22 completed
-imputation dosage files, provenance, measurements and the resume scripts.
-Copied data was verified against the originals, and the runner's integrity-only
-check passed. Reference weights and all three reference caches already live in
-the durable application directories. The checkpoint contains private genetic
-data and hashes; keep its contents outside Git and out of chat.
+| Model | Default record disk-read validation (seconds) | No-impute record disk-read validation (seconds) |
+| --- | ---: | ---: |
+| PGS002135 | 73.43 | 36.93 |
+| PGS002231 | 72.70 | 36.89 |
+| PGS002213 | 72.92 | 38.02 |
 
-From the repository root, resume with:
+The six disk-read validations took 330.89 seconds in total; their largest observed
+peak tree working set was 6,281,510,912 bytes. These are workstation costs, not
+predictive calibration. Both public stand-ins belong to the reference panel.
 
-```powershell
-$m99Checkpoint = Join-Path $env:LOCALAPPDATA 'genetics-analysis\acceptance\m99'
-.venv\Scripts\python.exe "$m99Checkpoint\genetics_m99_acceptance.py" --check-only
-.venv\Scripts\python.exe "$m99Checkpoint\genetics_m99_acceptance.py" *> "$m99Checkpoint\resume.log"
-```
+Acceptance was paused at the owner's request on 2026-10-11 and resumed on
+2026-10-12. Copied checkpoint data was verified against the originals. The runner
+verified retained file sizes/hashes and the knowledge-pack digest, reused the
+complete imputation and skipped the completed cognition/education scores. Warm
+reference preparation took 939.42 seconds with 9,164,361,728 bytes peak tree
+working set; all three reference caches were reused.
 
-The runner verifies retained file sizes/hashes and the knowledge-pack digest,
-reuses the reference caches and imputation, and skips completed phase markers.
-Each newly completed scoring stage is checkpointed; an interrupted stage restarts.
-It finishes by validating all six retained JSON records from disk. Require
-`passed` in both `acceptance.run.json` and `retained-validation.json`, and
-`complete` in `checkpoint.json`, before recording final costs and closing M9.9.
+The completed local checkpoint remains at
+`%LOCALAPPDATA%/genetics-analysis/acceptance/m99`. It includes all six scores and
+cards, both public-array inputs, all 22 completed dosage files, provenance,
+measurements and the private runner. `acceptance.run.json` and
+`retained-validation.json` both report `passed`; `checkpoint.json` reports
+`complete`, and the runner exited successfully. This directory contains private
+genetic data and hashes; keep its contents outside Git and out of chat.
 
 All reference matrices, public stand-in runs, per-phase coverage and resource
 measurements stay outside Git, including aggregate genetic summaries.
