@@ -191,3 +191,12 @@ checks passed**, leaving five documented Windows platform skips. All four strict
 type targets (Windows/Linux, Python 3.11/3.13) check 200 source files. Ruff,
 formatting, byte-identical fixture reproduction and full dbSNP card lint pass:
 58 cards, 282 template renders and 35/35 marker keys.
+
+The [2026-10-13 diff review](review_m99_session.md) reconfirmed each public model's
+evidence, fetched reference pins and score-specific licence. The strengthened
+synthetic tests bind the actual model before fixture substitution and verify
+evidence per card after reload; both ancestry cases reject a swapped-model
+mutation. All 51 card tests, full card lint and all six saved score/card
+revalidations pass. Native scoring and imputation were reused; the acceptance
+measurements above remain unchanged. The [M9.10 handoff](handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity)
+records reusable private inputs and the next acceptance contract.

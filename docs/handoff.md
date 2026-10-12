@@ -1,6 +1,6 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-12, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-13, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
@@ -57,10 +57,47 @@ Use complete matched absolute outcome rates only where actually published.
 Retain every source row and keep confidence, coverage and portability visible.
 Include sourced unflattering results without moralising or a confirmation gate.
 
-Full-scale acceptance should measure extraction/scoring/record costs and validate
-written snapshots. The completed public-stand-in imputation may be reused; keep
-all genetic artifacts and hashes outside Git and out of chat. Record any needed
-engine/schema change here before implementing it. M9.10 has not been started.
+Distinguish initiation, consumption quantity and dependence: weights and evidence
+for one endpoint do not establish another, current substance exposure or a
+diagnosis. Preserve published effect units, source population and absolute/base
+rates where available; state missing calibration instead of inventing it. Do not
+apply education's contextual within-family attenuation to these models.
+
+### M9.10 implementation and acceptance contract
+
+- Start with knowledge authoring and manifest/lock pinning on schema 4, bundle
+  format 17 and the shared engine. Record any needed engine/schema change here
+  before implementing it. Missing references must leave visible unrun cards with
+  their fetch command; confidence must never filter a card.
+- Bind each authored card to its exact score ID, source, phenotype, citations,
+  evaluation N, effect and interval **before** normalizing model IDs to a synthetic
+  fixture. Check those quantities per card after bundle reload and in CLI and
+  dashboard output. The [M9.9 review](review_m99_session.md) shows why aggregate
+  sets of effects/counts miss swapped models.
+- Reuse the durable public execution inputs under
+  `%LOCALAPPDATA%/genetics-analysis/acceptance/m99`: the two normalized
+  `standins/*.public-array.parquet` inputs and `standins/imputation.json` locator.
+  Its `directory` and `dosage_files` fields point to the copied full-autosomal
+  dosage files under `public-imputation`; load the matching `imputation.run.json`
+  provenance there. The retained private runner demonstrates reconstruction of
+  `ImputationResult` and reuse of its `iter_dosages` factory. Verify integrity
+  locally, retain all 22 complete dosage files and the unchanged provenance, and
+  keep all genetic artifacts and hashes outside Git and out of chat. Do not dump
+  the locator or checkpoint JSON into chat.
+- Prepare each new model's full reference, retaining every source row. Measure
+  extraction, scoring, record size and peak process-tree memory. Check default-on
+  imputed scoring and explicitly non-imputed scoring on the two public ancestry
+  stand-ins; record mode, both-phase coverage and portability. Do not rerun
+  completed imputation or reduce its panel. These panel members test execution,
+  not predictive calibration.
+- Write complete score/card records, then read each pair from disk and run frozen
+  validation. Keep acceptance outputs in a separate private M9.10 directory;
+  preserve M9.9's accepted records and measurements. Run the relevant synthetic
+  pipeline/bundle/CLI/dashboard checks, card lint, type/lint/fixture and privacy
+  gates for the actual diff before acceptance.
+
+M9.10 has not been started. M9.9's review has no known implementation blocker for
+this handoff; the unchanged renderer's browser visual check remains unavailable.
 
 ## Accepted M9.9 psychometrics
 
@@ -90,6 +127,14 @@ including hashes; do not paste genetic summaries into chat. The
 and the unavailable browser visual check. The renderer is unchanged; synthetic
 HTTP and chart geometry checks pass. Broad code checks already pass; repeat
 them only when new changes, failures or unresolved concerns justify it.
+
+The [2026-10-13 diff review](review_m99_session.md) confirms the shipped model
+bindings, primary-source evidence, reference pins and score-specific licences.
+It strengthens the synthetic test to reject swapped model IDs and per-card
+evidence: both ancestry cases accepted a model swap before the fix and reject
+it now. All 51 card tests and all six retained score/card revalidations pass;
+full dbSNP lint remains 58 cards, 282 renders and 35/35 keys. No scoring,
+imputation, schema or renderer change was needed.
 
 ### M9.9 entry contract (retained for review)
 

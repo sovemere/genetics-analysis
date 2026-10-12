@@ -2,8 +2,9 @@
 
 The export is the committed synthetic fixture; the score's five rows sit on positions it
 carries. The panel is the M9.4 fixed-seed synthetic panel relabelled with real 1000 Genomes
-codes. Every weight, rate and citation here is invented. No real reference, personal export
-or private run is read.
+codes. Score inputs and observations are fabricated. Authored-pack tests retain real
+public study definitions and citations. No real reference payload, personal export or
+private run is read.
 """
 
 from __future__ import annotations
@@ -544,7 +545,28 @@ def test_psychometric_pack_keeps_model_specific_evidence_and_no_person_estimate(
 ) -> None:
     authored = Path(__file__).parents[2] / "knowledge" / "psychometrics" / "polygenic.yaml"
     text = authored.read_text(encoding="utf-8")
-    for pgs_id in ("PGS002135", "PGS002231", "PGS002213"):
+    # Bind each phenotype to its published model and held-out UK result before
+    # replacing the models with one fabricated score. Sets of effects/counts alone
+    # cannot detect a swap between two cards.
+    models = {
+        "fluid_intelligence_ldpred2": ("PGS002135", 5092, 0.1998, 0.1733, 0.2261),
+        "educational_attainment_ldpred2": ("PGS002231", 16350, 0.2008, 0.1860, 0.2154),
+        "neuroticism_ldpred2": ("PGS002213", 16206, 0.2040, 0.1892, 0.2188),
+    }
+    definitions = {card.id: card for card in parse_file(text, str(authored))}
+    assert set(definitions) == set(models)
+    for card_id, (pgs_id, n, correlation, low, high) in models.items():
+        definition = definitions[card_id]
+        assert definition.pgs is not None and definition.evidence is not None
+        assert definition.pgs.pgs_id == pgs_id
+        assert definition.pgs.source == f"{pgs_id.lower()}_grch37"
+        assert definition.evidence.sample_size == n
+        effect = definition.evidence.effect
+        assert effect.measure is EffectMeasure.PERCENT_VARIANCE_EXPLAINED
+        assert effect.value == pytest.approx(round(100 * correlation**2, 2))
+        assert effect.ci_low == pytest.approx(round(100 * low**2, 2))
+        assert effect.ci_high == pytest.approx(round(100 * high**2, 2))
+    for pgs_id, *_ in models.values():
         text = text.replace(pgs_id, "PGS000001").replace(
             f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
         )
@@ -576,8 +598,14 @@ def test_psychometric_pack_keeps_model_specific_evidence_and_no_person_estimate(
     shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
     assert shown.exit_code == 0, shown.output
     cards = json.loads(shown.stdout)["cards"]
-    assert {c["evidence"]["effect"]["value"] for c in cards} == {3.99, 4.03, 4.16}
-    assert {c["evidence"]["sample_size"] for c in cards} == {5092, 16350, 16206}
+    assert {c["card_id"] for c in cards} == set(models)
+    for card in cards:
+        _, n, correlation, low, high = models[card["card_id"]]
+        assert card["evidence"]["sample_size"] == n
+        effect = card["evidence"]["effect"]
+        assert effect["value"] == pytest.approx(round(100 * correlation**2, 2))
+        assert effect["ci_low"] == pytest.approx(round(100 * low**2, 2))
+        assert effect["ci_high"] == pytest.approx(round(100 * high**2, 2))
     assert all(c["evidence"]["effect"]["measure"] == "percent_variance_explained" for c in cards)
     with TestClient(
         create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
