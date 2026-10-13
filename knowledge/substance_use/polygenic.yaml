@@ -1,0 +1,185 @@
+schema_version: 4
+cards:
+  - id: ever_smoked_ldpred2
+    section: substance_use
+    kind: polygenic
+    title: Ever smoking polygenic association
+    pgs: {id: PGS002126, source: pgs002126_grch37}
+    trait: ever having smoked, including trying tobacco once or twice
+    summary: >-
+      This score is associated with ever having smoked. Trying tobacco once or
+      twice counts in this phenotype; it does not establish regular smoking,
+      current exposure or nicotine dependence.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model uses
+      field 20160, derived from current and past tobacco smoking. The authors
+      code any positive category as ever smoked, including trying once or twice.
+      Their phenotype-info.csv records 236,287 cases and 153,277 controls:
+      389,564 training observations within the 391,124-person Northwestern
+      European pool. Cases are 60.66% of that training sample, not a general
+      population base rate or the reader's probability. No 23andMe cohort
+      contributes. In 19,926 held-out UK-ancestry participants, the released
+      pred-cor-ldpred2.csv reports partial-r 0.1431 (95% CI 0.1295-0.1567),
+      about 2.05% of covariate-residual binary-outcome variance. This is not
+      liability-scale variance, an odds ratio or a calibrated absolute risk.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 2.05
+        ci_low: 1.68
+        ci_high: 2.46
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.1431
+          (95% CI 0.1295-0.1567), N=19,926 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and binary outcome
+          on sex, age, birth date, deprivation index and 16 PCs. About 98%
+          remains unexplained. Training prevalence is 236,287/389,564 (60.66%);
+          this is not population or individual risk. No complete matched
+          absolute decile rates or model-specific within-family estimate exist
+          in the audited release.
+      sample_size: 19926
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002126
+        title: Public UK Biobank LDpred2 ever-smoking model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=20160
+        title: Ever smoked, including trying tobacco once or twice
+    caveats:
+      - "This is ever smoking, not GSCAN regular-smoking initiation, cigarettes per day, cessation or tobacco use disorder."
+      - "Testing is held-out within UK Biobank, not independent-cohort or consumer-array validation. The training case fraction is not a transferable baseline."
+      - "Population association includes environmental and indirect family effects. Direct within-family attenuation is unknown; no education-model attenuation is applied."
+      - "No individual smoking probability, exposure history, dependence diagnosis or absolute decile-outcome series is inferred."
+
+  - id: alcohol_frequency_ldpred2
+    section: substance_use
+    kind: polygenic
+    title: Alcohol intake frequency polygenic association
+    pgs: {id: PGS002152, source: pgs002152_grch37}
+    trait: less frequent alcohol intake on an ordinal questionnaire scale
+    summary: >-
+      Higher values of this released score are associated with less frequent
+      drinking. Frequency is distinct from drinks per week, binge drinking
+      and alcohol dependence.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is
+      named less_alcohol. Field 1558 codes daily or almost daily intake as 1
+      and never as 6; higher values mean less frequent drinking. The authors
+      retain that ordinal coding, excluding negative missing-response codes.
+      Their phenotype-info.csv gives 390,606 training observations within
+      the 391,124-person Northwestern European pool. No 23andMe data enter
+      these weights. In 19,981 held-out UK-ancestry participants, the released
+      partial-r is 0.1645 (95% CI 0.1509-0.1779), about 2.71% of
+      covariate-residual ordinal-outcome variance. Unequally spaced categories
+      do not represent a number of drinks or equally spaced days per week.
+      No category-specific baseline or calibrated absolute outcome rates are
+      supplied for this score.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 2.71
+        ci_low: 2.28
+        ci_high: 3.16
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.1645
+          (95% CI 0.1509-0.1779), N=19,981 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and ordinal
+          frequency outcome on sex, age, birth date, deprivation index and
+          16 PCs. About 97% remains unexplained. Higher score means less
+          frequent intake, not more alcohol. Absolute category/decile outcomes
+          and direct within-family attenuation are unknown for these weights.
+      sample_size: 19981
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002152
+        title: Public UK Biobank LDpred2 less-alcohol frequency model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=1558
+        title: Alcohol intake frequency, daily coded 1 and never coded 6
+    caveats:
+      - "The released direction is less frequent drinking at higher score; weights are not inverted or relabelled as an alcohol-risk score."
+      - "Frequency does not determine quantity, intoxication, binge drinking, current consumption or dependence. This is not GSCAN drinks per week."
+      - "Held-out testing is within the same biobank. Social context, ancestry and measurement differences limit transfer."
+      - "There is no matched absolute decile series, individual drinks-per-week conversion or within-family attenuation; no baseline probability is invented."
+
+  - id: self_reported_addiction_ldpred2
+    section: substance_use
+    kind: polygenic
+    title: Self-reported addiction polygenic association
+    pgs: {id: PGS002124, source: pgs002124_grch37}
+    trait: ever reporting substance or behavioural addiction, excluding cigarettes and coffee
+    summary: >-
+      This weak score is associated with ever reporting addiction to a substance
+      or behaviour such as gambling. The questionnaire excludes cigarettes and
+      coffee; it does not establish a clinical dependence diagnosis.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model uses
+      online mental-health questionnaire field 20401. The question combines
+      substance and behavioural addiction, explicitly excluding cigarettes and
+      coffee. It does not identify which substance or behaviour, severity,
+      timing or a clinically assessed disorder. The authors' phenotype-info.csv
+      gives 7,577 cases and 118,040 controls: 125,617 training observations
+      within the 391,124-person Northwestern European pool, with 6.03% cases.
+      That self-report fraction is not a population base rate or the reader's
+      risk. No 23andMe cohort contributes. In 6,380 held-out UK-ancestry
+      participants, partial-r is 0.0328 (95% CI 0.0082-0.0573): about 0.11%
+      of covariate-residual binary-outcome variance, leaving about 99.89%
+      unexplained. The small association remains visible with its uncertainty.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 0.11
+        ci_low: 0.01
+        ci_high: 0.33
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.0328
+          (95% CI 0.0082-0.0573), N=6,380 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and binary
+          self-report on sex, age, birth date, deprivation index and 16 PCs.
+          About 99.89% remains unexplained. Training cases are 7,577/125,617
+          (6.03%), not a general population baseline or personal risk.
+          Absolute decile risks and direct within-family attenuation of these
+          exact weights are unknown.
+      sample_size: 6380
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002124
+        title: Public UK Biobank LDpred2 ever-addicted model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=20401
+        title: Ever addicted to any substance or behaviour, excluding cigarettes and coffee
+    caveats:
+      - "A broad self-report cannot distinguish gambling, alcohol, illicit drugs or medicines, and explicitly excludes cigarettes and coffee."
+      - "Only about 0.11% of residual self-report variance is explained. This does not establish addiction, compulsivity, moral character or a clinical diagnosis."
+      - "Questionnaire participation and disclosure can affect associations. Training prevalence is not a general population baseline; evaluation is within the same biobank."
+      - "No complete calibrated absolute decile series or direct within-family estimate is available for this exact score. Low confidence never suppresses this card."

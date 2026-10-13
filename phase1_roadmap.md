@@ -68,9 +68,13 @@ and six retained JSON disk-read validations passed. See the
 [psychometric model audit and acceptance](docs/psychometrics_prs.md).
 The [M9.9 diff review](docs/review_m99_session.md) confirms model-specific evidence
 and pins, closes a swapped-model test gap and revalidates all six saved pairs.
-**M9.10 substance use and behavioural propensity is next**; verify each selected
-public release's model-specific N, licence and outcome calibration before authoring.
-Its [handoff contract](docs/handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity)
+**M9.10 substance use and behavioural propensity is complete**: three
+UK Biobank-only models are authored, licensed, fetched and pinned; exact-model
+effects and phenotype coding are audited. All complete reference preparations,
+six native scoring checks and six written-record reload validations pass.
+See the [model audit](docs/substance_use_prs.md).
+**M9.11 sleep and circadian is next**; its
+[handoff contract](docs/handoff.md#next-open-step-m911-sleep-and-circadian)
 identifies reusable private inputs and required acceptance checks.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
@@ -83,8 +87,8 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 17**, with formats 1–16 preserved. The pack has 58 cards;
-full local dbSNP lint resolves all 35 authored marker references (282 template renders).
+**Current bundle format: 17**, with formats 1–16 preserved. The pack has 61 cards;
+full local dbSNP lint resolves all 35 authored marker references (288 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
 regressions cover count/denominator honesty, exclusions, source states, saved integrity,
@@ -2689,10 +2693,21 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       [Diff review](docs/review_m99_session.md): shipped evidence and pins confirmed;
       model-binding mutation rejected by both ancestry cases, all 51 card tests
       and all six saved score/card revalidations pass. No engine/schema change.
-- [ ] **M9.10** Section: **Substance use & behavioural propensity**. GSCAN public
+- [x] **M9.10** Section: **Substance use & behavioural propensity**. GSCAN public
       excluding-23andMe stats are well powered (smoking initiation N=805,431;
       drinks/week N=666,978). These are context, not selected-score sample sizes.
       Follow the [entry and acceptance contract](docs/handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity).
+      Three UK Biobank-only models are authored and fetched: ever smoking,
+      alcohol frequency (higher means less frequent), and self-reported substance
+      or behavioural addiction excluding cigarettes/coffee. Exact-model N and
+      partial-r evidence are audited; GSCAN's public-release performance binding
+      could not be established, so its full-study metrics are not substituted.
+      Accepted 2026-10-13: all full references, three default-imputed and three
+      explicit no-impute checks, and six written score/card reload validations
+      pass. All 2,881 unique checks pass, five existing Windows skips; all four
+      strict type targets, lint/format, fixtures, privacy gates, 55 card tests and
+      full card lint (61/288/35 keys) pass. Schema 4 / bundle format 17 unchanged.
+      [Model audit](docs/substance_use_prs.md).
 - [ ] **M9.11** Section: **Sleep & circadian**.
 - [ ] **M9.12** Section: **Fitness & physiology** (ACTN3, ACE, injury, trainability).
       Weak evidence — include and flag honestly.
@@ -2874,6 +2889,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-13 | M9.10 | Three public UK Biobank-only models authored, licence-checked, fetched and pinned: ever smoking, less-frequent alcohol intake and broad self-reported addiction. Exact phenotype N, partial-r evidence, binary/ordinal scope and alcohol direction audited; GSCAN's public-release performance binding could not be established, so full-study metrics are not substituted. All full references, three default-imputed and three no-impute checks, and six written-record reload validations pass. Complete imputation reused; source rows retained. 2,881 unique checks pass with five Windows skips, all four strict type targets and full card lint (61/288/35 keys). Schema 4 / bundle format 17 unchanged. M9.11 handoff ready. [Audit and measured acceptance](docs/substance_use_prs.md). |
 | 2026-10-13 | M9.9 diff review | Reviewed `e63fffb..54e2e7d`: exact phenotype/model bindings, primary-source N/performance, score-specific licences and fetched manifest/lock pins confirmed. Both synthetic ancestry cases previously accepted swapped cognition/education model IDs; strengthened pre-substitution bindings and per-card reloaded evidence now reject that mutation. All 51 card tests, full dbSNP lint (58 cards/282 renders/35 keys) and all six saved native score/card revalidations pass. No native rescoring, reimputation or engine/schema/renderer change. M9.10 handoff records exact-model evidence requirements, reusable private full-imputation inputs and written-record acceptance. [Review](docs/review_m99_session.md). |
 | 2026-10-08 | M9.2 | Pinned PLINK pre/post-imputation score sums from validated native effect doses, using a numeric matrix that preserves biological haploid values. Per-term original probes, native per-ALT quality, exact imputed indel sequences, missing/conflicting/unsupported states and source identities remain private. Full report target/term/count checks and independent signed-dose arithmetic bound PGEN/report precision; used PLINK binary is hashed before/after. Shared ancestry-first/default-on export workflow, explicit no-impute, saved format-16 scoring after cache removal and immutable private score JSON/CLI parity. Saved-only original sums stay unavailable; no percentile, portability or card is introduced. **2,707 tests passed, five existing Windows skips**, all pinned native tools/Java 17 enabled; 47 new synthetic cases, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. New personal-output ignores added; no personal export or new reference payload used. Next M9.3. [Guide](docs/pgs_scoring.md). |
 | 2026-10-09 | M9.3–M9.4 review | Panel discovery, lock verification and extraction moved before personal input in both workflows (`prepare_reference`); the private reference workspace is removed; a prepared reference is bound to its score by extraction key; `pgs placement` refuses structurally damaged and phase-contradictory blocks. All 6 new synthetic regressions reproduced the defects before the fixes. Real-data checks: five public 1000 Genomes samples placed in their true super-populations; parallel extraction under the real `genetics.exe` (3 min 52 s cold, 12 s cached). **2,772 tests passed, five existing Windows skips**, pinned native tools/Java 17; four strict type targets, lint/format, fixtures, full dbSNP card lint and staged privacy scan pass. M9.5 entry contract written. No personal export used. [Review](docs/review_m94_session.md). |

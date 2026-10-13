@@ -705,6 +705,73 @@ sources:
         size_bytes: 21873634
         sha256: 86ec244773320f0d4b12b071ea3760dd6305c4dc5096afa2e1e64c0253c762c5
 
+  # M9.10 public substance-use models. Digests measured on 2026-10-13.
+  - id: pgs002126_grch37
+    name: PGS002126 LDpred2 ever smoked, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002126/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - substance-use ever-smoking polygenic card (M9.10)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=389564 (236287 cases, 153277 controls).
+      Field 20160 includes trying tobacco once or twice, not just regular smoking.
+      No 23andMe data. EMBL-EBI default terms verified in the authoritative
+      per-score metadata CSV; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002126/ScoringFiles/Harmonized/PGS002126_hmPOS_GRCh37.txt.gz
+        filename: PGS002126_hmPOS_GRCh37.txt.gz
+        size_bytes: 21258767
+        sha256: 77e51864d01e4b516544363b7175f746f4e80bc044cd6394dc70f153f46a039c
+
+  - id: pgs002152_grch37
+    name: PGS002152 LDpred2 less-alcohol frequency, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002152/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - substance-use alcohol-frequency polygenic card (M9.10)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=390606. Field 1558 ordinal coding is
+      retained: higher means less frequent drinking, not increased consumption.
+      No 23andMe data. EMBL-EBI default terms verified in the authoritative
+      per-score metadata CSV; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002152/ScoringFiles/Harmonized/PGS002152_hmPOS_GRCh37.txt.gz
+        filename: PGS002152_hmPOS_GRCh37.txt.gz
+        size_bytes: 21625153
+        sha256: c94c52366dc1c03bc92e62c8d03bf1326a6216a409d6e41c3fb63508cd79422e
+
+  - id: pgs002124_grch37
+    name: PGS002124 LDpred2 self-reported addiction, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002124/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - substance-use behavioural and substance addiction polygenic card (M9.10)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=125617 (7577 cases, 118040 controls).
+      Field 20401 combines substances and behaviours and excludes cigarettes
+      and coffee. No 23andMe data. EMBL-EBI default terms verified in the
+      authoritative per-score metadata CSV; direct within-family effects unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002124/ScoringFiles/Harmonized/PGS002124_hmPOS_GRCh37.txt.gz
+        filename: PGS002124_hmPOS_GRCh37.txt.gz
+        size_bytes: 12936862
+        sha256: 50f5af18760470f55b1f8e1f14416519f29f1f6eb0589337a56e01a97de99123
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

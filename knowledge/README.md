@@ -266,5 +266,9 @@ entry that fetches it (`pgs: {id, source}`). They carry a `trait`, plain-text `s
 the card's own citations. The engine writes the face itself: an interval in a reference
 distribution (never a point), coverage, ancestry portability, within-family attenuation and
 the decile rates. Authored polygenic cards cover physical health (M9.7), mental health
-(M9.8) and psychometrics (M9.9). See [polygenic cards](../docs/pgs_cards.md) and the
-[psychometric model audit](../docs/psychometrics_prs.md).
+(M9.8), psychometrics (M9.9) and substance use/behavioural propensity (M9.10).
+See [polygenic cards](../docs/pgs_cards.md), the
+[psychometric model audit](../docs/psychometrics_prs.md) and the
+[substance-use model audit](../docs/substance_use_prs.md). Substance-use definitions
+distinguish ever smoking, less-frequent alcohol intake and broad self-reported
+addiction; the alcohol weights retain their published direction.
