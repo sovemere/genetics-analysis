@@ -73,8 +73,11 @@ UK Biobank-only models are authored, licensed, fetched and pinned; exact-model
 effects and phenotype coding are audited. All complete reference preparations,
 six native scoring checks and six written-record reload validations pass.
 See the [model audit](docs/substance_use_prs.md).
-**M9.11 sleep and circadian is next**; its
-[handoff contract](docs/handoff.md#next-open-step-m911-sleep-and-circadian)
+**M9.11 sleep and circadian is complete**. All three full references, six
+scoring checks and six written-record reload validations pass; all 2,885
+unique checks pass with five Windows skips. See the
+[model audit](docs/sleep_circadian_prs.md). **M9.12 fitness and physiology is
+next**; its [handoff](docs/handoff.md#next-open-step-m912-fitness-and-physiology)
 identifies reusable private inputs and required acceptance checks.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
@@ -2708,7 +2711,20 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       strict type targets, lint/format, fixtures, privacy gates, 55 card tests and
       full card lint (61/288/35 keys) pass. Schema 4 / bundle format 17 unchanged.
       [Model audit](docs/substance_use_prs.md).
-- [ ] **M9.11** Section: **Sleep & circadian**.
+- [x] **M9.11** Section: **Sleep & circadian**.
+      Three public UK Biobank-only LDpred2 models are authored, licence-checked,
+      fetched and pinned: evening preference, log-transformed daily sleep
+      including naps, and ordinal sleeplessness. Exact phenotype coding,
+      direction, effective training/evaluation N and residual variance
+      associations are audited. Four synthetic interface checks, full card
+      lint (64/294/35 keys), all four strict type targets, lint/format and
+      fixture reproduction pass. Full-model acceptance is complete in a
+      separate private checkpoint, reusing all 22 verified dosage files:
+      all three full references, six scoring checks and six written-record
+      reload validations pass. All 2,885 unique checks pass, five existing
+      Windows skips; staged privacy scanning passes.
+      Schema 4 / bundle format 17 and the renderer are unchanged.
+      [Model audit and acceptance](docs/sleep_circadian_prs.md).
 - [ ] **M9.12** Section: **Fitness & physiology** (ACTN3, ACE, injury, trainability).
       Weak evidence — include and flag honestly.
 - [ ] **M9.13** Card-level ancestry match and the `{ancestry}` placeholder. Carved out of
@@ -2889,6 +2905,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-13 | M9.11 | Three public UK Biobank-only LDpred2 models authored, licence-checked, fetched and pinned: evening preference, log-transformed daily sleep including naps, and ordinal sleeplessness. Exact release evidence, coding/direction, phenotype-specific training/evaluation N and calibration limits audited. All three full references, six scoring checks and six disk-read validations pass; full imputation reused, source rows retained. 2,885 unique checks pass with five Windows skips; all four strict type targets, lint/format, fixtures, privacy gates and full card lint (64/294/35 keys) pass. Schema 4 / bundle format 17 and renderer unchanged. M9.12 handoff ready. [Audit and measured acceptance](docs/sleep_circadian_prs.md). |
 | 2026-10-13 | M9.10 | Three public UK Biobank-only models authored, licence-checked, fetched and pinned: ever smoking, less-frequent alcohol intake and broad self-reported addiction. Exact phenotype N, partial-r evidence, binary/ordinal scope and alcohol direction audited; GSCAN's public-release performance binding could not be established, so full-study metrics are not substituted. All full references, three default-imputed and three no-impute checks, and six written-record reload validations pass. Complete imputation reused; source rows retained. 2,881 unique checks pass with five Windows skips, all four strict type targets and full card lint (61/288/35 keys). Schema 4 / bundle format 17 unchanged. M9.11 handoff ready. [Audit and measured acceptance](docs/substance_use_prs.md). |
 | 2026-10-13 | M9.9 diff review | Reviewed `e63fffb..54e2e7d`: exact phenotype/model bindings, primary-source N/performance, score-specific licences and fetched manifest/lock pins confirmed. Both synthetic ancestry cases previously accepted swapped cognition/education model IDs; strengthened pre-substitution bindings and per-card reloaded evidence now reject that mutation. All 51 card tests, full dbSNP lint (58 cards/282 renders/35 keys) and all six saved native score/card revalidations pass. No native rescoring, reimputation or engine/schema/renderer change. M9.10 handoff records exact-model evidence requirements, reusable private full-imputation inputs and written-record acceptance. [Review](docs/review_m99_session.md). |
 | 2026-10-08 | M9.2 | Pinned PLINK pre/post-imputation score sums from validated native effect doses, using a numeric matrix that preserves biological haploid values. Per-term original probes, native per-ALT quality, exact imputed indel sequences, missing/conflicting/unsupported states and source identities remain private. Full report target/term/count checks and independent signed-dose arithmetic bound PGEN/report precision; used PLINK binary is hashed before/after. Shared ancestry-first/default-on export workflow, explicit no-impute, saved format-16 scoring after cache removal and immutable private score JSON/CLI parity. Saved-only original sums stay unavailable; no percentile, portability or card is introduced. **2,707 tests passed, five existing Windows skips**, all pinned native tools/Java 17 enabled; 47 new synthetic cases, all four strict type targets, lint/format, fixtures and full dbSNP card lint pass. New personal-output ignores added; no personal export or new reference payload used. Next M9.3. [Guide](docs/pgs_scoring.md). |

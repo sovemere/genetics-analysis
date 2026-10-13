@@ -772,6 +772,73 @@ sources:
         size_bytes: 12936862
         sha256: 50f5af18760470f55b1f8e1f14416519f29f1f6eb0589337a56e01a97de99123
 
+  # M9.11 public sleep/circadian models. Digests measured on 2026-10-13.
+  - id: pgs002209_grch37
+    name: PGS002209 LDpred2 evening chronotype, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002209/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - sleep and circadian evening chronotype polygenic card (M9.11)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=349238. Field 1180 ordinal coding:
+      higher means evening preference.
+      No 23andMe data. EMBL-EBI default terms verified in authoritative
+      per-score metadata; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002209/ScoringFiles/Harmonized/PGS002209_hmPOS_GRCh37.txt.gz
+        filename: PGS002209_hmPOS_GRCh37.txt.gz
+        size_bytes: 21897908
+        sha256: 5d17dab66c12bc440835336d66e95cc1efc06a63ae1afb4844f605b9ed179202
+
+  - id: pgs002196_grch37
+    name: PGS002196 LDpred2 log sleep duration, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002196/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - sleep and circadian log sleep duration polygenic card (M9.11)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=387799. Field 1160 includes naps;
+      natural log of 4-12 hours per day retained.
+      No 23andMe data. EMBL-EBI default terms verified in authoritative
+      per-score metadata; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002196/ScoringFiles/Harmonized/PGS002196_hmPOS_GRCh37.txt.gz
+        filename: PGS002196_hmPOS_GRCh37.txt.gz
+        size_bytes: 21039633
+        sha256: de5cd4035f8db64b9eef1142714453d5ddaca4e993f06a72bb3c75ac8fdbf726
+
+  - id: pgs002149_grch37
+    name: PGS002149 LDpred2 ordinal sleeplessness, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002149/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - sleep and circadian ordinal sleeplessness polygenic card (M9.11)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=390618. Field 1200 retains never/rarely,
+      sometimes, usually; not a diagnosis.
+      No 23andMe data. EMBL-EBI default terms verified in authoritative
+      per-score metadata; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002149/ScoringFiles/Harmonized/PGS002149_hmPOS_GRCh37.txt.gz
+        filename: PGS002149_hmPOS_GRCh37.txt.gz
+        size_bytes: 21160472
+        sha256: ea694e58981e7bbf2c82baf6bac993ee62a877992fb9c8c8cb0dd0af70314db1
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------
