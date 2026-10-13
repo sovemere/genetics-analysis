@@ -95,6 +95,15 @@ runner finished with an empty error log. A final check reverified all reusable
 inputs and retained checkpoint files. No imputation was rerun or model reduced;
 no engine/schema/renderer change was needed.
 
+The [M9.11 diff review](review_m911_session.md) confirms the exact releases,
+evidence and pins, and fixes a test gap that accepted all three reversed
+face directions. Directed phenotypes are now bound before synthetic
+substitution and in saved CLI/dashboard output; three mutation regressions
+reject those inversions. All 62 card tests, all four strict type targets and
+full card lint pass. Six retained native card model/direction/evidence
+bindings pass without changing or rescoring their frozen records. M9.12
+remains next; carry these direction checks into its model authoring tests.
+
 ### M9.11 entry contract (retained for review)
 
 Author and pin cited public sleep/circadian models on the shared PRS engine,

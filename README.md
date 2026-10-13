@@ -97,6 +97,10 @@ validations pass, with complete models and reused full-autosomal imputation.
 All 2,885 unique checks pass with five Windows skips, all four strict type
 targets and full card lint (64/294/35 keys). **M9.12 fitness and physiology
 is next.**
+The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
+and pins and strengthens directed-phenotype bindings on the face and after
+reload. All 62 card tests and six retained native card bindings pass; no
+production card or engine correction was needed.
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows

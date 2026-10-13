@@ -171,3 +171,14 @@ and the runner finished with an empty error log. A final check independently
 reverified all reusable inputs and retained checkpoint files, with no pending
 scores or disk-read validation. No completed imputation was rerun and no source
 model was reduced.
+
+The [M9.11 diff review](review_m911_session.md) independently confirms the
+exact public releases, source pins, phenotype-specific N and reported
+associations. It closes a testing gap: all three inverted face directions
+previously passed the integration checks despite correct detail text.
+Directed phenotypes are now bound before synthetic substitution and checked
+after reload in CLI/dashboard output, with three retained mutation regressions.
+All 62 card tests, four strict type targets and full card lint pass; all six
+retained native card model/direction/evidence bindings also pass. No authored
+card, engine, schema, renderer or native score change was needed. The original
+full-scale acceptance measurements above are preserved.
