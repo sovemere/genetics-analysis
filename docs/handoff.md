@@ -41,11 +41,61 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9 and M9.10 are also accepted; M9.11 is the next open step.
+are complete. M9.9–M9.11 are also accepted; M9.12 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
-## Next open step: M9.11 sleep and circadian
+## Next open step: M9.12 fitness and physiology
+
+Expand the Fitness & physiology section through the shared engine, knowledge
+schema 4 and bundle format 17. ACTN3, ACE, injury and trainability associations
+need exact endpoint-specific primary evidence: a functional molecular effect
+does not establish elite-athlete status, an injury prediction or a training
+prescription. Retain weak findings with their effect units, source population,
+sample sizes, replication and calibration limits visible. Do not silently
+borrow a performance estimate from a different phenotype or model.
+
+Audit public models and their score-specific licences before authoring. Bind
+each actual model/source, citations, evaluation N and effect/interval before
+synthetic substitution, then check saved per-card CLI/dashboard evidence.
+Keep unknown direct effects and absolute outcomes explicit. For ACE or any
+other indel-dependent claim, AGENTS.md §4.2 still applies: consumer I/D labels
+cannot be allele-matched without an explicit verified representation mapping.
+Do not infer structural variation or a causal effect from a tag association.
+
+Reuse M9.9's durable `standins` inputs, the locator in `standins/imputation.json`
+and all 22 verified dosage files with their matching `public-imputation`
+provenance. M9.11's completed private runner demonstrates full-model
+preparation/scoring, resource measurement and six disk-read validations.
+Preserve M9.9–M9.11 and use a separate private `acceptance/m912` directory.
+Do not rerun completed imputation or reduce a source model. Genetic values,
+coverage summaries and hashes stay outside Git and out of chat. Synthetic
+pipeline/bundle/CLI/dashboard checks, types, card lint, fixtures and privacy
+gates remain required. Record any necessary engine/schema change here before
+implementing it. The unchanged renderer's previous browser visual check
+remains unavailable; no new screenshot review is claimed.
+
+<a id="next-open-step-m911-sleep-and-circadian"></a>
+
+## Accepted M9.11 sleep and circadian
+
+M9.11 is accepted on 2026-10-13:
+PGS002209 evening preference, PGS002196 log sleep duration including naps,
+and PGS002149 ordinal sleeplessness. Exact release evidence, phenotype coding,
+direction and calibration limits are documented in the
+[model audit](sleep_circadian_prs.md). All 2,885 unique checks pass with five
+existing Windows skips, including the four new synthetic interface cases.
+Full card lint (64/294/35 keys), all four strict type targets, lint/format,
+fixture reproduction and staged privacy scanning pass. Full-model acceptance
+completed in the separate private `acceptance/m911` checkpoint, reusing all
+verified M9.9 inputs and full-autosomal dosages: all three full reference
+preparations, six scoring checks and six disk-read validations pass. Both
+acceptance records report `passed`, the checkpoint is `complete`, and the
+runner finished with an empty error log. A final check reverified all reusable
+inputs and retained checkpoint files. No imputation was rerun or model reduced;
+no engine/schema/renderer change was needed.
+
+### M9.11 entry contract (retained for review)
 
 Author and pin cited public sleep/circadian models on the shared PRS engine,
 knowledge schema 4 and bundle format 17. Distinguish chronotype, reported sleep

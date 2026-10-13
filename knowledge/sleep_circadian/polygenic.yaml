@@ -1,0 +1,194 @@
+schema_version: 4
+cards:
+  - id: evening_chronotype_ldpred2
+    section: sleep_circadian
+    kind: polygenic
+    title: Evening chronotype polygenic association
+    pgs: {id: PGS002209, source: pgs002209_grch37}
+    trait: greater self-reported evening preference on an ordinal chronotype scale
+    summary: >-
+      Higher values of this released score are associated with greater evening
+      preference. Chronotype is a reported preference, not a measured bedtime
+      or a circadian rhythm disorder.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is
+      named more_evening. Field 1180 retains the ordinal categories from
+      definitely morning (1) to definitely evening (4), excluding negative
+      missing-response codes. The authors' phenotype-info.csv records
+      349,238 training observations within the 391,124-person Northwestern
+      European pool. No 23andMe cohort contributes. In 17,895 held-out
+      UK-ancestry participants, released partial-r is 0.2185 (95% CI
+      0.2045-0.2324), about 4.77% of covariate-residual ordinal-outcome
+      variance. About 95.23% remains unexplained. This score does not specify
+      clock time, sleep need, melatonin phase or an individual's questionnaire
+      category. The audited release supplies no matched category baselines
+      or calibrated absolute decile outcomes for these weights.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 4.77
+        ci_low: 4.18
+        ci_high: 5.4
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.2185
+          (95% CI 0.2045-0.2324), N=17,895 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and ordinal
+          chronotype on sex, age, birth date, deprivation index and 16 PCs.
+          Higher score means evening preference. About 95.23% remains
+          unexplained; this is not a person's bedtime or probability of a
+          disorder. Matched absolute decile/category rates and direct
+          within-family attenuation are unknown for this model.
+      sample_size: 17895
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002209
+        title: Public UK Biobank LDpred2 more-evening chronotype model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=1180
+        title: Morning/evening person, definitely morning coded 1 and definitely evening coded 4
+    caveats:
+      - "Ordinal preference categories do not establish equal time intervals or a person's bedtime, wake time or circadian disorder."
+      - "Testing is held-out within UK Biobank, not independent-cohort or consumer-array validation. Population, work schedules and measurement differences limit transfer."
+      - "No category-specific baseline, complete matched absolute decile series or model-specific within-family estimate is supplied by the audited release."
+      - "Population association includes indirect family and environmental effects; no educational-attainment attenuation is borrowed."
+
+  - id: sleep_duration_ldpred2
+    section: sleep_circadian
+    kind: polygenic
+    title: Reported sleep duration polygenic association
+    pgs: {id: PGS002196, source: pgs002196_grch37}
+    trait: longer log-transformed self-reported daily sleep duration including naps
+    summary: >-
+      Higher values of this released score are associated with longer reported
+      daily sleep, including naps. The model uses log-transformed reports;
+      a reference position does not predict your sleep hours or sleep need.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is
+      named log_sleep. Field 1160 asks for sleep over 24 hours including
+      naps. The authors remove negative missing responses and reports below
+      4 or above 12 hours, then take the natural logarithm. This is neither
+      actigraphy nor an untransformed hours-per-day model. Their
+      phenotype-info.csv records 387,799 training observations within the
+      391,124-person Northwestern European pool; no 23andMe data contribute.
+      In 19,860 held-out UK-ancestry participants, released partial-r is
+      0.1451 (95% CI 0.1315-0.1587), about 2.11% of covariate-residual
+      log-duration variance. About 97.89% remains unexplained. Neither
+      exponentiating the score nor mapping its reference decile to hours
+      reconstructs a person's sleep. No matched absolute decile series,
+      individual hours calibration or appropriate population baseline for
+      this selected, transformed endpoint is supplied by the audited release.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 2.11
+        ci_low: 1.73
+        ci_high: 2.52
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.1451
+          (95% CI 0.1315-0.1587), N=19,860 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and natural-log
+          daily sleep duration on sex, age, birth date, deprivation index and
+          16 PCs. Training retains reported 4-12 hours including naps;
+          higher score associates with longer reported sleep. About 97.89%
+          remains unexplained. The result is not variance explained in raw
+          hours, a sleep-need estimate or calibrated individual hours.
+          Direct within-family attenuation and matched absolute decile
+          outcomes are unknown.
+      sample_size: 19860
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002196
+        title: Public UK Biobank LDpred2 log-sleep-duration model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=1160
+        title: Reported sleep duration over 24 hours including naps
+    caveats:
+      - "The response is self-reported and log-transformed after restricting to 4-12 hours. The association is not a prediction in raw hours or measured sleep."
+      - "Longer sleep is a direction of association, not inherently better sleep, restorative sleep or greater physiological need."
+      - "Testing is held-out within the same biobank. Published questionnaire summaries are not calibration of these exact weights."
+      - "No personal hours, appropriate population baseline, complete matched absolute decile outcomes or direct within-family estimate is inferred."
+
+  - id: sleeplessness_ldpred2
+    section: sleep_circadian
+    kind: polygenic
+    title: Sleeplessness polygenic association
+    pgs: {id: PGS002149, source: pgs002149_grch37}
+    trait: more frequent self-reported difficulty falling asleep or waking during the night
+    summary: >-
+      Higher values of this released score are associated with more frequent
+      reported sleeplessness. The ordinal questionnaire is not a clinical
+      insomnia diagnosis, sleep duration measurement or narcolepsy test.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is
+      named insomnia. Field 1200 asks about difficulty falling asleep or
+      waking in the middle of the night. The authors retain never/rarely
+      (1), sometimes (2) and usually (3), removing negative missing codes.
+      The endpoint is ordinal, not a binary diagnosed-insomnia case/control
+      definition. The authors' phenotype-info.csv gives 390,618 training
+      observations within the 391,124-person Northwestern European pool.
+      No 23andMe data contribute. In 19,978 held-out UK-ancestry participants,
+      released partial-r is 0.1411 (95% CI 0.1275-0.1547), about 1.99% of
+      covariate-residual ordinal-outcome variance, leaving about 98.01%
+      unexplained. No category-specific baseline, matched absolute decile
+      risks or diagnosis calibration is supplied for these exact weights.
+      HLA-linked narcolepsy requires the separate HLA capability; neither
+      this score nor one tag SNP establishes that condition.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 1.99
+        ci_low: 1.63
+        ci_high: 2.39
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.1411
+          (95% CI 0.1275-0.1547), N=19,978 held-out UK-ancestry participants.
+          Derived as 100*r-squared after residualizing score and ordinal
+          sleeplessness on sex, age, birth date, deprivation index and 16 PCs.
+          Higher score means more frequent reported sleeplessness; about
+          98.01% remains unexplained. This is not liability-scale variance,
+          an odds ratio or a clinical diagnosis. No matched absolute
+          decile/category risks or direct within-family estimate are
+          available for this model in the audited release.
+      sample_size: 19978
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002149
+        title: Public UK Biobank LDpred2 ordinal sleeplessness model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=1200
+        title: Difficulty falling asleep or waking during the night, ordinal frequency response
+    caveats:
+      - "Never/rarely, sometimes and usually are ordinal responses, not diagnosed cases. No clinical insomnia probability, severity or chronicity is inferred."
+      - "Sleep timing, duration, insomnia symptoms and HLA-linked narcolepsy are distinct endpoints. A day-dozing questionnaire labelled narcolepsy in a catalogue does not diagnose narcolepsy."
+      - "Only about 1.99% of residual ordinal variance is explained; weak findings remain visible with coverage, quality and portability."
+      - "Held-out testing remains within UK Biobank. Direct within-family attenuation, category baselines and complete calibrated decile risks are unknown."

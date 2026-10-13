@@ -88,7 +88,15 @@ direction and release-selection limits are documented in the
 public-stand-in scoring checks and six written-record reload validations pass,
 with complete models and reused full-autosomal imputation. All 2,881 unique
 checks pass, with five existing Windows skips. **M9.11 sleep and circadian is
-next**; see the [handoff](docs/handoff.md#next-open-step-m911-sleep-and-circadian).
+complete**: evening preference,
+log-transformed daily sleep including naps and ordinal sleeplessness remain
+distinct endpoints. See the [model audit](docs/sleep_circadian_prs.md) and
+[handoff](docs/handoff.md#next-open-step-m912-fitness-and-physiology).
+All three full references, six scoring checks and six written-record reload
+validations pass, with complete models and reused full-autosomal imputation.
+All 2,885 unique checks pass with five Windows skips, all four strict type
+targets and full card lint (64/294/35 keys). **M9.12 fitness and physiology
+is next.**
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows

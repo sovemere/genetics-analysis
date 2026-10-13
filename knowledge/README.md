@@ -24,10 +24,11 @@ This is intentionally a curated pack, not a bulk database import. Later mileston
 the other sections through the same schema and lint path.
 
 M6 adds four computed genome-structure cards under `structure/`: long ROH,
-Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns. The current
-pack now has 51 cards: 33 single-variant interpretations, one two-marker interpretation,
-12 assay-limit cards and five computed cards. M7.5 adds cited common health associations
-under `health/`, with outcome-specific `risk_context` on the card face and in CLI output.
+Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns.
+M7.5 adds cited common health associations under `health/`, with outcome-specific
+`risk_context` on the card face and in CLI output. The current pack has 64 cards:
+33 single-variant interpretations, one two-marker interpretation, 12 assay-limit
+cards, five computed cards and 13 polygenic cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -44,6 +45,10 @@ knowledge/
 ├── pgx/
 ├── nutrition/
 ├── health/
+├── mental_health/
+├── psychometrics/
+├── substance_use/
+├── sleep_circadian/
 ├── structure/
 └── impossibilities/
 ```
@@ -266,9 +271,14 @@ entry that fetches it (`pgs: {id, source}`). They carry a `trait`, plain-text `s
 the card's own citations. The engine writes the face itself: an interval in a reference
 distribution (never a point), coverage, ancestry portability, within-family attenuation and
 the decile rates. Authored polygenic cards cover physical health (M9.7), mental health
-(M9.8), psychometrics (M9.9) and substance use/behavioural propensity (M9.10).
+(M9.8), psychometrics (M9.9), substance use/behavioural propensity (M9.10)
+and sleep/circadian (M9.11).
 See [polygenic cards](../docs/pgs_cards.md), the
 [psychometric model audit](../docs/psychometrics_prs.md) and the
 [substance-use model audit](../docs/substance_use_prs.md). Substance-use definitions
 distinguish ever smoking, less-frequent alcohol intake and broad self-reported
 addiction; the alcohol weights retain their published direction.
+
+The [sleep/circadian model audit](../docs/sleep_circadian_prs.md) distinguishes
+evening preference, log-transformed daily sleep including naps and ordinal
+sleeplessness. None supplies a bedtime, individual sleep hours or diagnosis.

@@ -778,6 +778,160 @@ def test_substance_pack_missing_references_stays_visible_with_exact_fetch_comman
             assert f"genetics refs fetch --only {pgs_id.lower()}_grch37" in page.text
 
 
+SLEEP_MODELS = {
+    "evening_chronotype_ldpred2": ("PGS002209", "1180", 17895, 0.2185, 0.2045, 0.2324),
+    "sleep_duration_ldpred2": ("PGS002196", "1160", 19860, 0.1451, 0.1315, 0.1587),
+    "sleeplessness_ldpred2": ("PGS002149", "1200", 19978, 0.1411, 0.1275, 0.1547),
+}
+
+
+def _sleep_pack(setup: dict[str, Any], *, substitute: bool = True) -> None:
+    authored = Path(__file__).parents[2] / "knowledge" / "sleep_circadian" / "polygenic.yaml"
+    text = authored.read_text(encoding="utf-8")
+    definitions = {card.id: card for card in parse_file(text, str(authored))}
+    assert set(definitions) == set(SLEEP_MODELS)
+    # Bind published endpoints before replacing IDs with a fabricated five-row score.
+    for card_id, (pgs_id, field, n, correlation, low, high) in SLEEP_MODELS.items():
+        definition = definitions[card_id]
+        assert definition.pgs is not None and definition.evidence is not None
+        assert definition.pgs.pgs_id == pgs_id
+        assert definition.pgs.source == f"{pgs_id.lower()}_grch37"
+        assert definition.section.value == "sleep_circadian"
+        assert {(c.type.value, c.id) for c in definition.citations} == {
+            ("doi", "10.1016/j.ajhg.2021.11.008"),
+            ("doi", "10.6084/m9.figshare.14074760.v2"),
+            ("accession", pgs_id),
+            ("url", f"https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id={field}"),
+        }
+        evidence = definition.evidence
+        assert evidence.sample_size == n
+        assert evidence.replication is Replication.SAME_COHORT
+        assert evidence.within_family_attenuation is None
+        assert evidence.effect.measure is EffectMeasure.PERCENT_VARIANCE_EXPLAINED
+        assert evidence.effect.value == pytest.approx(round(100 * correlation**2, 2))
+        assert evidence.effect.ci_low == pytest.approx(round(100 * low**2, 2))
+        assert evidence.effect.ci_high == pytest.approx(round(100 * high**2, 2))
+        assert definition.decile_outcomes is None
+        if substitute:
+            text = text.replace(pgs_id, "PGS000001").replace(
+                f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
+            )
+    (setup["knowledge"] / "polygenic.yaml").write_text(text, encoding="utf-8")
+
+
+@pytest.mark.parametrize("matched", [True, False])
+def test_sleep_pack_preserves_endpoints_direction_and_exact_evidence(
+    setup: dict[str, Any], fake: MultiPlink, matched: bool
+) -> None:
+    _sleep_pack(setup)
+    placement = CEU if matched else Placed("KHV", "EAS", [("KHV", 1.0), ("CEU", 9.0)])
+    analysis = run(setup, fake, placement=placement)
+    assert len(analysis.cards) == 3
+    for card in analysis.cards:
+        assert card.status is MatchStatus.COMPUTED and card.computation is not None
+        assert "No within-family estimate" in card.summary and NOT_A_RISK in card.summary
+        assert "Original array:" in card.summary
+        assert "After imputation: unavailable (disabled)" in card.summary
+        result = card.computation["result"]
+        assert result["portability"]["judgment"] == ("matched" if matched else "mismatched")
+        assert '"person_sum"' not in json.dumps(result) and '"percentile"' not in json.dumps(result)
+        assert card.computation["reliability"]["tier"] is not None
+        if not matched:
+            assert card.computation["reliability"]["tier"] == "limited"
+    bundle = read_bundle(save(analysis))
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    cards = json.loads(shown.stdout)["cards"]
+    assert {c["card_id"] for c in cards} == set(SLEEP_MODELS)
+    for card in cards:
+        _, _, n, correlation, low, high = SLEEP_MODELS[card["card_id"]]
+        assert card["evidence"]["sample_size"] == n
+        assert card["evidence"]["replication"] == "same_cohort"
+        assert card["evidence"]["within_family_attenuation"] is None
+        field = SLEEP_MODELS[card["card_id"]][1]
+        assert any(c["id"].endswith(f"id={field}") for c in card["citations"])
+        stored = next(c for c in bundle.cards if c.card_id == card["card_id"])
+        assert card["computation"] == stored.computation
+        effect = card["evidence"]["effect"]
+        assert effect["measure"] == "percent_variance_explained"
+        assert effect["value"] == pytest.approx(round(100 * correlation**2, 2))
+        assert effect["ci_low"] == pytest.approx(round(100 * low**2, 2))
+        assert effect["ci_high"] == pytest.approx(round(100 * high**2, 2))
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=sleep_circadian")
+        assert page.status_code == 200
+        assert page.text.count('class="pgschart pgschart-compact"') == 3
+        assert page.text.count("Published study association:") == 3
+        assert "No within-family estimate" in page.text
+        assert "Ancestry portability:" in page.text
+        for card_id, (_, field, *_rest) in SLEEP_MODELS.items():
+            detail = client.get(f"/runs/{bundle.run_id}/cards/{card_id}")
+            assert detail.status_code == 200 and 'class="pgschart"' in detail.text
+            assert field in detail.text and "23andMe" in detail.text
+            assert "Before and after coverage" in detail.text
+        chronotype = client.get(f"/runs/{bundle.run_id}/cards/evening_chronotype_ldpred2").text
+        assert "349,238" in chronotype and "definitely morning (1)" in chronotype
+        assert "definitely evening (4)" in chronotype and "95.23%" in chronotype
+        duration = client.get(f"/runs/{bundle.run_id}/cards/sleep_duration_ldpred2").text
+        assert "387,799" in duration and "natural logarithm" in duration
+        assert "below 4 or above 12 hours" in duration and "including naps" in duration
+        assert "97.89%" in duration and "individual hours calibration" in duration
+        insomnia = client.get(f"/runs/{bundle.run_id}/cards/sleeplessness_ldpred2").text
+        assert "390,618" in insomnia and "sometimes (2) and usually (3)" in insomnia
+        assert "98.01%" in insomnia and "HLA capability" in insomnia
+        assert "ordinal, not a binary" in insomnia
+
+
+def test_sleep_pack_keeps_both_phase_coverage_and_imputation_quality(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    _sleep_pack(setup)
+    original = ingest(EXPORT).table
+    last = ROWS[-1][0]
+    reduced = GenotypeTable(original.frame.filter(pl.col("pos_grch37") != last), vendor="synthetic")
+    prepared = stage(setup, fake)
+    prepared.prepare(KnowledgePack.load(setup["knowledge"]))
+    cards, records = prepared.score(
+        table=reduced,
+        sex=InferredSex.MALE,
+        dosages=lambda: iter([dosage(last, ref="G", quality=(0.2,))]),
+        ancestry=AncestryContext.not_run("synthetic acceptance").to_dict(),
+        imputation_provenance=None,
+    )
+    assert set(cards) == set(SLEEP_MODELS)
+    for card_id, card in cards.items():
+        assert card.computation is not None
+        assert records[card_id]["imputation_mode"] == "enabled"
+        assert "Original array: 4/5 variants (80%)" in card.summary
+        assert "After imputation: 5/5 variants (100%)" in card.summary
+        assert card.computation["result"]["quality"]["weighted_quality"] < 1
+
+
+def test_sleep_pack_missing_references_stays_visible_with_exact_fetch_commands(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _sleep_pack(setup, substitute=False)
+    monkeypatch.setattr(runner, "locate_scoring_file", locate_scoring_file)
+    analysis = run(setup, fake)
+    assert len(analysis.cards) == 3
+    bundle = read_bundle(save(analysis))
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    for card in json.loads(shown.stdout)["cards"]:
+        pgs_id = SLEEP_MODELS[card["card_id"]][0]
+        assert card["status"] == "not_run"
+        assert f"genetics refs fetch --only {pgs_id.lower()}_grch37" in card["summary"]
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=sleep_circadian")
+        assert page.status_code == 200
+        for pgs_id, *_ in SLEEP_MODELS.values():
+            assert f"genetics refs fetch --only {pgs_id.lower()}_grch37" in page.text
+
+
 def _card(data: dict[str, Any]) -> dict[str, Any]:
     return next(c for c in data["cards"] if c["kind"] == "polygenic")
 
