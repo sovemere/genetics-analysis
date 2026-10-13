@@ -41,11 +41,40 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9 is also accepted; M9.10 is the next open implementation step.
+are complete. M9.9 and M9.10 are also accepted; M9.11 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
-## Next open step: M9.10 substance use and behavioural propensity
+## Next open step: M9.11 sleep and circadian
+
+Author and pin cited public sleep/circadian models on the shared PRS engine,
+knowledge schema 4 and bundle format 17. Distinguish chronotype, reported sleep
+duration and insomnia; do not convert a reference score into a person's bedtime,
+sleep hours or a diagnosis. HLA-linked narcolepsy needs the separate HLA
+capability, not an inferred diagnosis from one tag SNP.
+
+Audit each exact model's phenotype coding and direction, training/evaluation N,
+ancestry, per-score licence, performance and public release against primary
+sources. Retain all source rows and state unknown direct effects and outcome
+calibration. Bind each actual model and evidence before synthetic substitution;
+verify per-card saved CLI and dashboard evidence rather than aggregate sets.
+
+Reuse the verified durable inputs in `acceptance/m99/standins` and all 22 full
+autosomal dosage files located by its `imputation.json`, with matching provenance
+in `public-imputation`. M9.10's completed private runner demonstrates reuse,
+full-row preparation/scoring, process-tree resource measurement and disk-read
+validation. Preserve both accepted checkpoints and use a separate private M9.11
+directory. Do not rerun completed imputation or reduce a model for speed.
+Genetic values, coverage summaries and input/output hashes stay outside Git
+and out of chat. Synthetic/interface, card/type/lint/fixture and privacy gates
+remain required. The unchanged renderer's prior browser visual check is still
+unavailable; no new screenshot review is claimed.
+
+<a id="next-open-step-m910-substance-use-and-behavioural-propensity"></a>
+
+## Accepted M9.10 substance use and behavioural propensity
+
+The entry and acceptance contract below is retained for review.
 
 Author and pin public models on the existing shared PRS engine. The roadmap's
 GSCAN excluding-23andMe sample sizes are context, not automatically the N of a
@@ -96,8 +125,25 @@ apply education's contextual within-family attenuation to these models.
   pipeline/bundle/CLI/dashboard checks, card lint, type/lint/fixture and privacy
   gates for the actual diff before acceptance.
 
-M9.10 has not been started. M9.9's review has no known implementation blocker for
-this handoff; the unchanged renderer's browser visual check remains unavailable.
+M9.10 is accepted as of 2026-10-13. Three public
+UK Biobank-only models are authored, licence-checked, fetched and pinned:
+PGS002126 ever smoking, PGS002152 less-frequent alcohol intake and PGS002124
+self-reported substance/behavioural addiction. Exact phenotype counts,
+partial-r evidence and alcohol direction are verified against the authors'
+release/code. GSCAN public weights exclude 23andMe, whereas its performance
+methods use all studies except Add Health; exact public-release performance
+binding could not be established, so those metrics are not substituted.
+All 55 card tests and full local dbSNP lint (61/288/35 keys) pass. Full-scale
+public-stand-in acceptance passed in a separate private `acceptance/m910`
+checkpoint, reusing all 22 verified durable dosage files and both normalized
+inputs without rerunning imputation or changing M9.9's accepted records.
+All three complete references, three default-imputed and three explicit
+no-impute checks, and six written-record reload validations pass. Both acceptance
+records report `passed`; the checkpoint reports `complete` and the runner
+completed successfully. All 2,881 unique checks pass with five Windows skips;
+all four strict type targets, lint/format, fixtures and privacy gates pass.
+See the [model audit and acceptance record](substance_use_prs.md).
+The unchanged renderer's prior browser visual check remains unavailable.
 
 ## Accepted M9.9 psychometrics
 

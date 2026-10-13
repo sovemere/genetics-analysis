@@ -80,9 +80,15 @@ and explicit no-impute checks, and six retained JSON disk-read validations passe
 See the [model audit and scale acceptance](docs/psychometrics_prs.md).
 The [M9.9 diff review](docs/review_m99_session.md) confirms the authored evidence
 and pins, strengthens per-card model-binding tests, and revalidates all six saved
-score/card pairs. **M9.10 substance use and behavioural propensity is the next
-open step**; its [handoff contract](docs/handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity)
-identifies reusable private inputs and required acceptance checks.
+score/card pairs. **M9.10 substance use and behavioural propensity is complete**:
+ever smoking, less-frequent alcohol intake and broad self-reported addiction
+cards are authored and reference-pinned. Exact model evidence, phenotype
+direction and release-selection limits are documented in the
+[model audit](docs/substance_use_prs.md). Full reference preparation, all six
+public-stand-in scoring checks and six written-record reload validations pass,
+with complete models and reused full-autosomal imputation. All 2,881 unique
+checks pass, with five existing Windows skips. **M9.11 sleep and circadian is
+next**; see the [handoff](docs/handoff.md#next-open-step-m911-sleep-and-circadian).
 The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
 provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
 It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
