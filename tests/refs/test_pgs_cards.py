@@ -784,6 +784,58 @@ SLEEP_MODELS = {
     "sleeplessness_ldpred2": ("PGS002149", "1200", 19978, 0.1411, 0.1275, 0.1547),
 }
 
+SLEEP_TRAITS = {
+    "evening_chronotype_ldpred2": (
+        "greater self-reported evening preference on an ordinal chronotype scale"
+    ),
+    "sleep_duration_ldpred2": (
+        "longer log-transformed self-reported daily sleep duration including naps"
+    ),
+    "sleeplessness_ldpred2": (
+        "more frequent self-reported difficulty falling asleep or waking during the night"
+    ),
+}
+
+
+@pytest.mark.parametrize(
+    ("card_id", "wrong_trait"),
+    [
+        (
+            "evening_chronotype_ldpred2",
+            "greater self-reported morning preference on an ordinal chronotype scale",
+        ),
+        (
+            "sleep_duration_ldpred2",
+            "shorter log-transformed self-reported daily sleep duration including naps",
+        ),
+        (
+            "sleeplessness_ldpred2",
+            "less frequent self-reported difficulty falling asleep or waking during the night",
+        ),
+    ],
+)
+def test_sleep_integration_rejects_reversed_display_direction(
+    setup: dict[str, Any],
+    fake: MultiPlink,
+    monkeypatch: pytest.MonkeyPatch,
+    card_id: str,
+    wrong_trait: str,
+) -> None:
+    authored = Path(__file__).parents[2] / "knowledge" / "sleep_circadian" / "polygenic.yaml"
+    read = Path.read_text
+
+    def mutated(path: Path, *args: Any, **kwargs: Any) -> str:
+        text = read(path, *args, **kwargs)
+        if path == authored:
+            original = f"trait: {SLEEP_TRAITS[card_id]}"
+            assert text.count(original) == 1
+            return text.replace(original, f"trait: {wrong_trait}", 1)
+        return text
+
+    monkeypatch.setattr(Path, "read_text", mutated)
+    with pytest.raises(AssertionError, match="Wrong displayed direction"):
+        test_sleep_pack_preserves_endpoints_direction_and_exact_evidence(setup, fake, True)
+
 
 def _sleep_pack(setup: dict[str, Any], *, substitute: bool = True) -> None:
     authored = Path(__file__).parents[2] / "knowledge" / "sleep_circadian" / "polygenic.yaml"
@@ -797,6 +849,7 @@ def _sleep_pack(setup: dict[str, Any], *, substitute: bool = True) -> None:
         assert definition.pgs.pgs_id == pgs_id
         assert definition.pgs.source == f"{pgs_id.lower()}_grch37"
         assert definition.section.value == "sleep_circadian"
+        assert definition.trait == SLEEP_TRAITS[card_id], f"Wrong displayed direction for {card_id}"
         assert {(c.type.value, c.id) for c in definition.citations} == {
             ("doi", "10.1016/j.ajhg.2021.11.008"),
             ("doi", "10.6084/m9.figshare.14074760.v2"),
@@ -829,6 +882,7 @@ def test_sleep_pack_preserves_endpoints_direction_and_exact_evidence(
     assert len(analysis.cards) == 3
     for card in analysis.cards:
         assert card.status is MatchStatus.COMPUTED and card.computation is not None
+        assert SLEEP_TRAITS[card.card_id] in card.summary
         assert "No within-family estimate" in card.summary and NOT_A_RISK in card.summary
         assert "Original array:" in card.summary
         assert "After imputation: unavailable (disabled)" in card.summary
@@ -845,6 +899,7 @@ def test_sleep_pack_preserves_endpoints_direction_and_exact_evidence(
     assert {c["card_id"] for c in cards} == set(SLEEP_MODELS)
     for card in cards:
         _, _, n, correlation, low, high = SLEEP_MODELS[card["card_id"]]
+        assert SLEEP_TRAITS[card["card_id"]] in card["summary"]
         assert card["evidence"]["sample_size"] == n
         assert card["evidence"]["replication"] == "same_cohort"
         assert card["evidence"]["within_family_attenuation"] is None
@@ -867,8 +922,10 @@ def test_sleep_pack_preserves_endpoints_direction_and_exact_evidence(
         assert "No within-family estimate" in page.text
         assert "Ancestry portability:" in page.text
         for card_id, (_, field, *_rest) in SLEEP_MODELS.items():
+            assert SLEEP_TRAITS[card_id] in page.text
             detail = client.get(f"/runs/{bundle.run_id}/cards/{card_id}")
             assert detail.status_code == 200 and 'class="pgschart"' in detail.text
+            assert SLEEP_TRAITS[card_id] in detail.text
             assert field in detail.text and "23andMe" in detail.text
             assert "Before and after coverage" in detail.text
         chronotype = client.get(f"/runs/{bundle.run_id}/cards/evening_chronotype_ldpred2").text
