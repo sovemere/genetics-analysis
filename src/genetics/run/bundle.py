@@ -452,7 +452,9 @@ def _check_card_ancestry(
             raise BundleError("Card ancestry comparison requires the saved run placement")
         return
     try:
-        sample = sample_context(placement, ancestry["population"] if ancestry is not None else None)
+        sample = sample_context(
+            placement, ancestry["population"] if ancestry is not None else None, require_fits=True
+        )
         for entry in entries:
             validate_card(entry, sample)
     except (ValueError, TypeError, KeyError, AttributeError) as exc:

@@ -74,3 +74,19 @@ behavior, frozen CLI/dashboard parity, placement reuse and private repr output.
 The endpoint/effect model corpus is unchanged; no new personal input or scoring
 reference was used. Synthetic HTTP face/detail checks pass; the renderer markup
 is unchanged and no new browser screenshot review is claimed.
+
+
+## Diff review
+
+The [M9.13 session review](review_m913_session.md) binds measured saved placements
+to their retained population/region fits and first admissible threshold result,
+with distance/radius checks. Frozen scalar calibration now checks declared allele
+membership and strand orientation; numeric comparison rejects booleans while
+preserving equivalent JSON number spelling. Card detail and modal views retain
+the actual damaged-run refusal. The schema, weighted variant policy and valid
+interpretations remain unchanged.
+
+Reviewed validation: **3,015 tests pass, five existing Windows skips**, in one
+complete native run. Twenty new synthetic regressions and four strict type targets
+pass; full card lint, lint/format and fixture reproduction pass. See the review
+record for the reproduced failures and the next-step source-preparation audit.

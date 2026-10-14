@@ -99,7 +99,10 @@ class Placed(Stub):
 
     def __init__(self, population: str, region: str, fits: list[tuple[str, float]]):
         super().__init__("placed", population, region)
-        self.fits = [{"population": p, "region": "?", "fit": f} for p, f in fits]
+        self.fits = [
+            {"population": p, "region": region if p == population else "?", "fit": f}
+            for p, f in fits
+        ]
 
     def to_dict(self) -> dict[str, Any]:
         return {**self.data, "decline_threshold": 2.5, "fits": self.fits}

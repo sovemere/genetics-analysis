@@ -1,8 +1,16 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-14, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-14, **M0-M9 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
+The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
+validation and retains damaged-run errors in card detail views. Its full native
+suite passes **3,015 tests, five existing Windows skips**, with four strict type
+targets, complete card lint, fixtures and lint/format passing. **M10.1 source
+ingestion is next**; its concrete [entry contract](#next-open-step-m101-pharmacogenomics-ingestion)
+records existing manifest IDs, absent payloads, pending ZIP extraction and source
+coverage/licence checks. Earlier milestone records below remain historical.
+
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
 2026-10-11:
 physical-health PRS3820/GPS_Mult cards and pinned scoring references are authored;
@@ -129,14 +137,56 @@ the native helper's corrected tools-directory recheck and 67 new synthetic cases
 
 ### Next open step: M10.1 pharmacogenomics ingestion
 
-Follow the [M10 roadmap](../phase1_roadmap.md#m10--pharmacogenomics): fetched
-PharmGKB/ClinPGx and CPIC source adapters, star-allele definitions and phenotype
-mapping. Audit the exact source releases and licences before new manifest entries;
-keep share-alike sources explicitly opt-in. Definitions remain data, consumed by
-one engine and saved for both front-ends. Call only the SNP-tractable scope in
-AGENTS.md; CYP2D6 structural/CNV limitations remain an explicit not-callable card.
-Keep native Windows compatibility, per-source provenance and synthetic privacy
-gates. M9.13's placement/comparison contract is now available to downstream cards.
+M10.1 builds public reference ingestion and offline allele-definition/phenotype
+inspection. Sample diplotype calling is M10.2; guideline-linked cards are M10.4.
+Follow the [M10 roadmap](../phase1_roadmap.md#m10--pharmacogenomics).
+
+- Reuse the existing optional manifest IDs `pharmgkb` and `cpic`; do not add
+  duplicate sources. Neither source directory is present locally at this handoff.
+  PharmGKB/ClinPGx archives have rolling filenames and explicit share-alike opt-in.
+  Recheck URLs, current sizes, terms and archive contents before refreshing pins.
+  CPIC declares the pinned v1.60.0 full/inserts SQL dumps; inspect their actual
+  schemas, definitions and licence rather than assuming the manifest's capability
+  descriptions establish coverage.
+- PharmGKB currently declares `extract_zip`, which remains an unimplemented
+  post-process step. Supply a verified executor or an explicit domain-specific
+  ingestion step with safe archive containment, atomic outputs, source/checksum
+  binding and offline verification. Keep fetched payloads and derived reference
+  caches outside Git; do not vendor archives or definition tables.
+- Establish where complete star-allele definitions, allele functions and
+  diplotype-to-phenotype tables actually reside. Clinical annotation/variant ZIPs
+  alone must not be treated as proof of full definition coverage. Audit any extra
+  required primary source and its licence before extending the manifest.
+- Normalize definition coordinates/alleles to verified GRCh37 forward-strand keys,
+  retaining rsID merge identity, source release, definition version and citations.
+  Preserve absent/conflicting definitions and unsupported structural/CNV alleles
+  as explicit states. Build one versioned data contract and offline CLI inspection
+  with provenance, for later use by the shared engine and both front-ends.
+  Keep M9.13's v1 frozen confidence arithmetic stable; any later PGx-specific
+  method or saved-contract extension needs a recorded versioned schema/format plan.
+- Synthetic tests must cover malformed/unsafe archives and SQL/tabular input,
+  ambiguous allele/build representations, missing mappings, licence opt-in,
+  checksum/source drift, restart/reuse and complete saved reference validation.
+  Validate ingestion against the full fetched sources before acceptance; Windows
+  compatibility and privacy gates remain mandatory.
+
+The tractable calling scope for M10.2 is CYP2C19, CYP2C9, VKORC1, SLCO1B1, TPMT,
+DPYD, NUDT15 and G6PD. CYP2D6's `cyp2d6_structural_variation` limitation card
+already shipped in M3.7; M10.3 must place it beside called diplotypes, not author
+a duplicate. M9.13's selected-evidence ancestry comparison is available to later
+cards; PRS transfer ceilings remain specific to PRS.
+
+Useful source-preparation commands (audit rolling metadata before fetching):
+
+```text
+genetics refs probe --only pharmgkb --only cpic --json
+genetics refs fetch --only pharmgkb --opt-in pharmgkb
+genetics refs fetch --only cpic
+genetics refs verify --only pharmgkb --only cpic --json
+```
+
+The [M9.13 session review](review_m913_session.md) records saved-fit/allele/type
+validation fixes and preservation of damaged-run refusals in card detail views.
 
 ### M9.13 entry contract (retained for review)
 

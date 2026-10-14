@@ -495,7 +495,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             # dropped from the knowledge pack, or a URL carried across data directories --
             # and every other "nothing to show" state here is explained rather than thrown
             # (M0.6's rule for `doctor`, which `/healthz` and `runs list` also follow).
-            missing = (
+            missing = shell.problem or (
                 f"This run has no card called {card_id!r}. It may be from another run, or "
                 "from a version of the knowledge pack that no longer carries it."
             )

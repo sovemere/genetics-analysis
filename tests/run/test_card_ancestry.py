@@ -39,7 +39,7 @@ def placement(code: str = "EUR", *, declined: bool = False) -> PopulationResult:
         placement=Placement(
             sample_id="SAMPLE",
             coordinates=(0.1, 0.2),
-            fits=(PopulationFit("SYNTHETIC", code, 30, 1.0, 1.0, 0.5),),
+            fits=(PopulationFit("SYNTHETIC", code, 30, 3.0 if declined else 1.0, 1.0, 0.5),),
             population=None if declined else "SYNTHETIC",
             declined_because="Synthetic panel does not fit." if declined else "",
             decline_threshold=2.0,
@@ -396,3 +396,187 @@ def test_observation_repr_does_not_expose_inferred_population(
     observation = replace(base.observation, ancestry_context=sample_context(placement().to_dict()))
     assert "SYNTHETIC" not in repr(observation)
     assert "EUR" not in repr(observation)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["region", "missing_population", "inadmissible", "false_decline"]
+)
+def test_review_saved_population_must_agree_with_retained_fits(mutation: str) -> None:
+    raw = placement().to_dict()
+    if mutation == "region":
+        raw["region"] = "EAS"
+    elif mutation == "missing_population":
+        raw["population"] = "NOT_IN_FITS"
+    elif mutation == "inadmissible":
+        raw["fits"][0]["distance"] = 3.0
+        raw["fits"][0]["fit"] = 3.0
+    else:
+        raw.update(status="declined", reason="Synthetic refusal.", population=None, region=None)
+    with pytest.raises(ValueError):
+        sample_context(raw)
+
+
+@pytest.mark.parametrize(
+    "mutation", ["boolean_component", "foreign_frequency", "call_outside_variant"]
+)
+def test_review_scalar_calibration_refuses_wrong_typed_or_allele_inputs(
+    sample_cards: tuple[AssembledCard, ...],
+    mutation: str,
+) -> None:
+    sample = sample_context(placement().to_dict())
+    result = assembled(sample_cards[0], sample, (Ancestry.EUR,))
+    raw = _card_payload(result)
+    if mutation == "boolean_component":
+        raw["confidence"]["inputs"]["ancestry_score"] = True
+    elif mutation == "foreign_frequency":
+        foreign = dict(raw["frequencies"][0], allele="C", frequency=0.0)
+        raw["frequencies"].append(foreign)
+    else:
+        # Replace a fabricated called allele and its frequency with an allele the
+        # declared biallelic variant does not carry. Its numeric calibration is unchanged.
+        raw["match"]["genotype"] = "AC"
+        raw["match"]["observed_genotype"] = "AC"
+        raw["frequencies"][1]["allele"] = "C"
+        raw["confidence_frequency"]["allele"] = "C"
+    with pytest.raises(ValueError):
+        validate_card(raw, sample)
+
+
+@pytest.mark.parametrize("field", ["decline_threshold", "fit"])
+def test_review_oversized_population_values_are_domain_failures(field: str) -> None:
+    raw = placement().to_dict()
+    if field == "fit":
+        raw["fits"][0]["fit"] = 10**400
+    else:
+        raw[field] = 10**400
+    with pytest.raises(ValueError):
+        sample_context(raw)
+
+
+def test_review_first_admissible_fit_can_follow_a_closer_tight_population() -> None:
+    raw = placement().to_dict()
+    closer = dict(
+        raw["fits"][0], population="CLOSER", region="AFR", distance=0.5, radius=0.1, fit=5.0
+    )
+    raw["fits"].insert(0, closer)
+    assert sample_context(raw, require_fits=True)["population"] == "SYNTHETIC"
+
+
+def test_review_zero_radius_is_inadmissible_without_losing_a_valid_later_fit() -> None:
+    raw = placement().to_dict()
+    closer = dict(
+        raw["fits"][0],
+        population="DEGENERATE",
+        region="AFR",
+        distance=0.5,
+        radius=0.0,
+        fit=float("inf"),
+    )
+    raw["fits"].insert(0, closer)
+    assert sample_context(raw, require_fits=True)["population"] == "SYNTHETIC"
+
+
+@pytest.mark.parametrize("field", ["ancestry_score", "score"])
+def test_review_numeric_spelling_is_preserved_but_extreme_numbers_are_refused(
+    sample_cards: tuple[AssembledCard, ...],
+    field: str,
+) -> None:
+    sample = sample_context(placement().to_dict())
+    result = assembled(sample_cards[0], sample, (Ancestry.EUR,))
+    raw = _card_payload(result)
+    raw["confidence"]["inputs"]["ancestry_score"] = 1
+    validate_card(raw, sample)
+    target = raw["confidence"] if field == "score" else raw["confidence"]["inputs"]
+    target[field] = 10**400
+    with pytest.raises(ValueError):
+        validate_card(raw, sample)
+
+
+@pytest.mark.parametrize("member", ["placement", "gate"])
+def test_review_false_reasons_cannot_masquerade_as_absent_text(member: str) -> None:
+    raw = placement().to_dict()
+    if member == "placement":
+        raw["reason"] = False
+        with pytest.raises(ValueError):
+            sample_context(raw)
+    else:
+        with pytest.raises(ValueError):
+            sample_context(raw, {"status": "placed", "reason": False})
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["region", "false_decline", "boolean_component", "foreign_frequency", "call_outside_variant"],
+)
+def test_review_digest_consistent_defects_are_categorical_in_all_saved_views(
+    sample_cards: tuple[AssembledCard, ...],
+    sample_pack: KnowledgePack,
+    sample_qc: QCReport,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mutation: str,
+) -> None:
+    from genetics.run.bundle import ANCESTRY_NAME
+
+    reference = placement()
+    context = replace(
+        AncestryContext.not_run("Synthetic other stages."), reference_population=reference
+    )
+    sample = sample_context(reference.to_dict(), context.population.to_dict())
+    result = assembled(sample_cards[0], sample, (Ancestry.EUR,))
+    runs = tmp_path / "runs"
+    directory = write_bundle(
+        qc=sample_qc,
+        cards=(result,),
+        pack=sample_pack,
+        ancestry=context,
+        runs_root=runs,
+        run_id="review-synthetic",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    member = ANCESTRY_NAME if mutation in {"region", "false_decline"} else CARDS_NAME
+    raw = json.loads((directory / member).read_text())
+    if mutation == "region":
+        raw["reference_population"]["region"] = "EAS"
+    elif mutation == "false_decline":
+        raw["reference_population"].update(
+            status="declined", reason="Synthetic refusal.", population=None, region=None
+        )
+    else:
+        card = raw["cards"][0]
+        if mutation == "boolean_component":
+            card["confidence"]["inputs"]["ancestry_score"] = True
+        elif mutation == "foreign_frequency":
+            card["frequencies"].append(dict(card["frequencies"][0], allele="C", frequency=0.0))
+        else:
+            card["match"]["genotype"] = "AC"
+            card["match"]["observed_genotype"] = "AC"
+            card["frequencies"][1]["allele"] = "C"
+            card["confidence_frequency"]["allele"] = "C"
+    text = json.dumps(raw)
+    (directory / member).write_text(text, encoding="utf-8")
+    manifest_path = directory / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][member] = hashlib.sha256(text.encode()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(BundleError, match="ancestry"):
+        read_bundle(directory)
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    cli = CliRunner().invoke(app, ["runs", "show", directory.name, "--json"])
+    assert cli.exit_code != 0
+    assert json.loads(cli.stdout)["error"]["kind"] == "bundle"
+    with TestClient(
+        create_app(WebConfig(runs_root=runs)), base_url="http://127.0.0.1:8765"
+    ) as client:
+        for route in (f"/runs/{directory.name}", f"/runs/{directory.name}/cards/{result.card_id}"):
+            response = client.get(route)
+            assert response.status_code == 200
+            assert "Invalid or inconsistent saved card ancestry context" in response.text
+            assert result.summary not in html.unescape(response.text)
+        fragment = client.get(
+            f"/runs/{directory.name}/cards/{result.card_id}", headers={"HX-Request": "true"}
+        )
+        assert fragment.status_code == 200
+        assert "Invalid or inconsistent saved card ancestry context" in fragment.text
+        assert result.summary not in html.unescape(fragment.text)

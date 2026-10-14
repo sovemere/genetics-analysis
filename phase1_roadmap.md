@@ -2765,6 +2765,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       synthetic cases. Strict four-way types, lint/format, fixtures, staged privacy
       and full dbSNP lint (69/320/39 keys) pass.
       [Evidence decisions, contract and exact acceptance](docs/card_ancestry.md).
+      The [M9.13 diff review](docs/review_m913_session.md) fixes retained-fit,
+      allele/type validation and card-detail refusal messages. All 3,015 tests
+      pass, five existing Windows skips; 20 new cases, strict four-way types,
+      full card lint, fixtures and lint/format pass. The
+      [M10.1 entry contract](docs/handoff.md#next-open-step-m101-pharmacogenomics-ingestion)
+      covers existing PGx sources, pending extraction and actual definition coverage.
 
 
 ---
@@ -2937,6 +2943,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-14 | M9.13 diff review | Reviewed `3c13ac9..38afe9c`; seven mutation probes reproduced missing retained-fit and scalar allele/type validation. Bind placement to the first admissible fit, verify orientation/frequency membership and numeric types, and preserve damaged-run errors in card detail/modal views. 20 new synthetic cases; complete native suite passes 3,015 tests, five Windows skips, with four strict type targets, full card lint (69/320/39), fixtures and lint/format passing. Format 18 and valid findings unchanged. M10.1 handoff now records absent existing PGx sources, pending ZIP extraction, definition coverage, licences and reuse of the existing CYP2D6 card. [Review](docs/review_m913_session.md). |
 | 2026-10-14 | M9.13 | Shared run-owned 1000 Genomes placement before imputation; selected-evidence variant ancestry states and `{ancestry}` on face/detail; separate weighted variant policy preserves rarity/quality/evidence limits. Format 18 frozen comparison/confidence and shared PRS validation; historical snapshots retained. 2,995 unique checks pass, five Windows skips; 67 new synthetic cases, strict four-way types, lint/format, fixtures, privacy and full dbSNP lint (69/320/39). M9 complete; M10.1 next. [Contract and exact acceptance](docs/card_ancestry.md). |
 | 2026-10-14 | M9.12 diff review | Reviewed `1c4921e..e894b5d`: four reversed variant face claims and wrong effect units passed original guards; published claims and units are now bound before fabricated observations and after saved CLI/dashboard reload, with five rejecting mutation regressions. All 102 focused card tests, four strict type targets and full dbSNP lint (69/320/39 keys) pass. Full grip payload pin/terms and both retained native evidence bindings agree; original full-scale acceptance is preserved. Stale handoff wording is corrected; M9.13 ancestry context and confidence decisions are documented next. No production card, engine, schema or renderer change. [Review](docs/review_m912_session.md). |
 | 2026-10-14 | M9.12 | Five Fitness/physiology cards: ACTN3 resistance training, ACE serum concentration, COL5A1 chronic Achilles tendinopathy, ACSL1 aerobic response and complete PGS002143 mean grip strength. Exact endpoints, effect/interval, N, population and replication are audited; unknown ancestry, null comparator effects and failed replication stay explicit. Forward-only variant matching excludes I/D and unsupported alleles. Full model is permissive per score, fetched and pinned; all source terms are retained. Complete reference preparation, both native scoring modes and both disk-read validations passed with verified reused imputation and no earlier checkpoint changed. 2,923 unique checks pass, five existing Windows skips; four strict type targets, lint/format, fixtures, staged privacy scan and full dbSNP lint (69/320/39 keys) pass. The initial broad run used Java 8; all 23 affected native checks passed with portable Java 17. Engine, schema 3/4, bundle format 17 and renderer unchanged. M9.13 handoff ready. [Audit and measured acceptance](docs/fitness_physiology.md). |

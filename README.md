@@ -112,6 +112,12 @@ specific to PRS. Format 18 validates frozen evidence/context and preserves older
 snapshots. All 2,995 unique checks pass with five existing Windows skips;
 strict four-way types, lint/format, fixtures, full card lint and privacy gates pass.
 See [the contract and evidence audit](docs/card_ancestry.md). **M10.1 is next.**
+The [M9.13 diff review](docs/review_m913_session.md) hardens frozen fit, allele
+and numeric validation and preserves damaged-run errors in card detail. All
+3,015 tests pass with five existing Windows skips; types, lint, card lint and
+fixtures pass. The
+[next-step handoff](docs/handoff.md#next-open-step-m101-pharmacogenomics-ingestion)
+identifies existing sources, pending extraction and definition-coverage checks.
 The [M9.12 diff review](docs/review_m912_session.md) adds guards against
 reversed variant claims and wrong effect units, with all 102 focused card tests
 passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)
