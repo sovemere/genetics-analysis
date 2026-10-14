@@ -49,8 +49,11 @@
     {% if group.blurb %}
       <p class="muted">{{ group.blurb }}</p>
     {% endif %}
+    {% if group.key == "pharmacogenomics" and shell.has_selection %}
+      {% include "_pgxfaces.html" %}
+    {% endif %}
 
-    {% if group.empty_reason %}
+    {% if group.empty_reason and not (group.key == "pharmacogenomics" and shell.pgx) %}
       <p class="empty">{{ group.empty_reason }}</p>
     {% endif %}
 

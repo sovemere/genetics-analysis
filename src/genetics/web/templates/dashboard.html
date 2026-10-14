@@ -45,4 +45,10 @@
   {% endif %}
 
   {% include "_cardgrid.html" %}
+  {% if shell.has_selection and shell.grid.query.group != "section" %}
+    <section class="panel" id="section-pharmacogenomics">
+      <h2>Pharmacogenomics sample calls</h2>
+      {% include "_pgxfaces.html" %}
+    </section>
+  {% endif %}
 {% endblock %}

@@ -470,6 +470,31 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             acmg_policy_url=citation_url("doi", DOI),
         )
 
+    @app.get("/runs/{run_id}/pgx", response_class=HTMLResponse)
+    def pgx(run_id: str, request: Request, gene: str | None = None, page: int = 1) -> Response:
+        from genetics.pgx.calling import CallingError, report
+
+        shell = _shell(run_id, _query(request))
+        if not shell.has_selection:
+            return _render(shell)
+        try:
+            data = report(shell.pgx, gene)
+        except CallingError as exc:
+            return HTMLResponse(str(exc), status_code=400, headers=SECURITY_HEADERS)
+        candidates = [] if gene is None else data["genes"].get(gene, {}).get("candidates", [])
+        pages = max(1, (len(candidates) + 99) // 100)
+        number = min(max(1, page), pages)
+        return _render(
+            shell,
+            "pgx.html",
+            pgx_report=data,
+            pgx_gene=gene,
+            pgx_candidates=candidates[(number - 1) * 100 : number * 100],
+            pgx_page=number,
+            pgx_pages=pages,
+            pgx_total=len(candidates),
+        )
+
     @app.get("/runs/{run_id}/cards/{card_id}", response_class=HTMLResponse)
     def card(run_id: str, card_id: str, request: Request) -> HTMLResponse:
         """One card in full: effect size, populations, caveats and citations (M4.6).

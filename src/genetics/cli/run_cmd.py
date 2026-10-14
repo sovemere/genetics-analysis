@@ -53,6 +53,7 @@ from genetics.health.clinvar import ClinVarError
 from genetics.health.frequencies import FrequencyError
 from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestError
+from genetics.pgx.calling import CallingError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
 from genetics.refs.postprocess import ProcessError
@@ -77,6 +78,8 @@ def _error_kind(exc: Exception) -> str:
     three different things for an agent to do next, and prose is not something it can
     branch on.
     """
+    if isinstance(exc, CallingError):
+        return "pgx"
     if isinstance(exc, ImputationError | BeagleError | ProcessError):
         return "imputation"
     if isinstance(exc, IngestError | AnchorError):
@@ -136,6 +139,7 @@ def _payload(analysis: Analysis, path: Path) -> dict[str, Any]:
         "ancestry": analysis.ancestry.summary(),
         "clinvar": {"status": analysis.clinvar.status},
         "imputation": analysis.imputation.to_dict(),
+        "pgx": {"status": None if analysis.pgx is None else analysis.pgx["status"]},
         "cards": {
             "total": analysis.n_cards,
             "with_interpretation": analysis.with_interpretation,
@@ -210,6 +214,7 @@ def run(
         ImputationError,
         BeagleError,
         ProcessError,
+        CallingError,
     ) as exc:
         _fail(exc, as_json=as_json)
 

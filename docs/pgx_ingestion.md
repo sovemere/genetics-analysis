@@ -151,10 +151,13 @@ do not establish sample sex/ploidy. CYP2C19/G6PD and other partial definitions
 must remain candidates with explicit unresolved constraints. A reference allele
 must never become a default merely because a chip omits its defining markers.
 
-M10.2 needs its own versioned sample-call contract and saved-run plan before
-changing bundle format or confidence. Restrict it to the eight listed genes;
-retain phase, coverage, rare-call and structural uncertainty. Reuse the existing
-`cyp2d6_structural_variation` card in M10.3 rather than creating a duplicate.
+M10.2 now has a separate [versioned sample-call contract](pgx_calling.md) and
+additive bundle format 19, with the previous confidence method unchanged.
+Calling is restricted to the eight listed genes and retains phase, coverage,
+rare-call and structural uncertainty. The reference artifact's
+`sample_calling_implemented: false` continues to describe reference-only
+inspection; sample results live in the separate private contract. Reuse the
+existing `cyp2d6_structural_variation` card in M10.3 rather than creating a duplicate.
 
 Synthetic validation covers independent SQL encodings, unsafe archives,
 malformed rows/joins, ambiguous builds/alleles, licence gates, checksum/source

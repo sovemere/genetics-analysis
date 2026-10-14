@@ -226,6 +226,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         # itself distinguishes from a stage that ran and recorded not_run.
         "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
         "clinvar": None if bundle.clinvar is None else dict(bundle.clinvar),
+        "pgx": None if bundle.pgx is None else dict(bundle.pgx),
         "imputation": None if bundle.imputation is None else dict(bundle.imputation),
         "imputation_provenance": None
         if bundle.imputation_provenance is None

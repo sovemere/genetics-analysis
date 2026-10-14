@@ -91,8 +91,10 @@ all supplied CPIC definition/function/phenotype tables and ClinPGx annotation
 tables are ingested, with source-bound GRCh37 proofs and offline inspection.
 The [diff review](docs/review_m101_session.md) corrects publication attribution,
 atomic publication and parsing/validation defects. **M10.2 SNP-tractable diplotype
-calling is next.** Start with the
-[current handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
+calling is implemented**, with all compatible alternatives, native ploidy and
+source-specific phenotype joins retained in format 19. See the
+[calling contract](docs/pgx_calling.md). **M10.3 is next.** Start with the
+[current handoff](docs/handoff.md#next-open-step-m103-cyp2d6-placement).
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2789,9 +2791,14 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       Complete source tables, independent SQL encoding checks, source-bound GRCh37
       normalization and offline `pgx prepare`/`pgx inspect` are implemented. Missing,
       conflicting and structural definitions remain explicit. See the
-      [source audit and acceptance](docs/pgx_ingestion.md). **M10.2 is next.**
-- [ ] **M10.2** Diplotype calling for **SNP-tractable genes only**: CYP2C19, CYP2C9,
+      [source audit and acceptance](docs/pgx_ingestion.md).
+- [x] **M10.2** Diplotype calling for **SNP-tractable genes only**: CYP2C19, CYP2C9,
       VKORC1, SLCO1B1, TPMT, DPYD, NUDT15, G6PD.
+      Shared conservative calling, versioned private snapshots, offline saved-call
+      CLI/dashboard inspection and synthetic full-source acceptance are implemented.
+      Missing/partial/structural alternatives and measurement uncertainty remain
+      explicit; no reference allele is supplied from missing data. Bundle format
+      19 is additive; M9.13 confidence remains frozen. See [the contract](docs/pgx_calling.md).
 - [ ] **M10.3** **CYP2D6 explicit "not callable" card.** PharmCAT declines to call it from
       a VCF because structural/CNV variation dominates, and a `*5` whole-gene deletion
       makes the other allele read as homozygous (`*5/*29` → `*29/*29`). Render the
@@ -2953,6 +2960,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-14 | M10.2 | Conservative eight-gene sample calling, source phenotype joins and phase/ploidy/missing-definition alternatives; rare and imputed reliability remain explicit. Separate sample schema 1 and additive bundle format 19 freeze complete evidence for offline CLI/dashboard parity, preserving older runs and M9.13 confidence. 3,188 native tests pass, five existing Windows skips; four strict type targets (212 files), complete card lint, fixtures, style and privacy pass. Full public-source synthetic calling and reload pass offline in 223.65 seconds including frequency-source verification; no personal export opened. M10.3 is next. [Contract and acceptance](docs/pgx_calling.md). |
 | 2026-10-14 | M10.1 | Complete CPIC/ClinPGx reference ingestion and offline inspection; source-bound GRCh37 normalization retains all gaps. Diff review fixes null guideline citations, safe atomic JSON publication, lossless COPY byte decoding, strict TSV/lookup/frozen-source validation and nested output locking. 3,137 native tests pass with five Windows skips; four strict type targets, full card lint, fixtures, style and privacy pass. Full-source offline reparse/reuse/inspection passes; no personal export used. M10.2 is next. [Review and handoff](docs/review_m101_session.md). |
 | 2026-10-14 | M9.13 diff review | Reviewed `3c13ac9..38afe9c`; seven mutation probes reproduced missing retained-fit and scalar allele/type validation. Bind placement to the first admissible fit, verify orientation/frequency membership and numeric types, and preserve damaged-run errors in card detail/modal views. 20 new synthetic cases; complete native suite passes 3,015 tests, five Windows skips, with four strict type targets, full card lint (69/320/39), fixtures and lint/format passing. Format 18 and valid findings unchanged. M10.1 handoff now records absent existing PGx sources, pending ZIP extraction, definition coverage, licences and reuse of the existing CYP2D6 card. [Review](docs/review_m913_session.md). |
 | 2026-10-14 | M9.13 | Shared run-owned 1000 Genomes placement before imputation; selected-evidence variant ancestry states and `{ancestry}` on face/detail; separate weighted variant policy preserves rarity/quality/evidence limits. Format 18 frozen comparison/confidence and shared PRS validation; historical snapshots retained. 2,995 unique checks pass, five Windows skips; 67 new synthetic cases, strict four-way types, lint/format, fixtures, privacy and full dbSNP lint (69/320/39). M9 complete; M10.1 next. [Contract and exact acceptance](docs/card_ancestry.md). |
