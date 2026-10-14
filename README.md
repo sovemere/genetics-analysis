@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M7 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M9 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **17**; formats 1–16 remain readable without reinterpreting saved findings.
+New runs use bundle format **18**; formats 1–17 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -103,11 +103,19 @@ with every source term retained and completed imputation reused.
 All 2,923 unique checks pass, five existing Windows skips; all four strict type
 targets and full dbSNP lint (69/320/39 keys) pass. See the
 [evidence audit and measured acceptance](docs/fitness_physiology.md).
-**M9.13 card-level ancestry match is next.**
+**M9.13 card-level ancestry match is complete.** Variant and polygenic cards
+share one 1000 Genomes placement. Selected-outcome study populations and
+matched, mismatched, declined, not-run and unknown states appear on the face
+and detail. Variant confidence uses the weighted comparison while retaining
+rarity/quality limits and the existing unknown cap; PRS transfer ceilings remain
+specific to PRS. Format 18 validates frozen evidence/context and preserves older
+snapshots. All 2,995 unique checks pass with five existing Windows skips;
+strict four-way types, lint/format, fixtures, full card lint and privacy gates pass.
+See [the contract and evidence audit](docs/card_ancestry.md). **M10.1 is next.**
 The [M9.12 diff review](docs/review_m912_session.md) adds guards against
 reversed variant claims and wrong effect units, with all 102 focused card tests
 passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)
-records the ancestry context, confidence decisions and saved-run checks to address next.
+records the ancestry context, confidence decisions and saved-run requirements.
 The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
 and pins and strengthens directed-phenotype bindings on the face and after
 reload. All 62 card tests and six retained native card bindings pass; no

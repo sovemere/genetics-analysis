@@ -83,8 +83,13 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 17
+BUNDLE_FORMAT_VERSION: Final[int] = 18
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 18 (M9.13) saves the run's shared 1000 Genomes placement and selected-evidence
+variant ancestry comparisons. Variant membership uses weighted ancestry confidence without
+PRS transfer ceilings. Formats 1-17 retain their saved confidence and unknown comparison;
+new validation uses only frozen evidence and the run's recorded placement.
 
 Version 17 (M9.6) adds polygenic cards and ``pgs.run.json``, holding each polygenic card's
 full private score record. A stored card's display, reliability and face are re-derived
@@ -429,7 +434,29 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "multi_marker": assembled.multi_marker,
         "risk_context": assembled.risk_context,
         "imputation_mode": assembled.imputation_mode,
+        "ancestry_comparison": assembled.ancestry_comparison,
     }
+
+
+def _check_card_ancestry(
+    entries: Sequence[Any], ancestry: Mapping[str, Any] | None, version: int
+) -> None:
+    from genetics.ancestry.card_match import sample_context, validate_card
+
+    placement = None if ancestry is None else ancestry.get("reference_population")
+    has_comparison = any(e.get("ancestry_comparison") is not None for e in entries)
+    if version < 18 and has_comparison:
+        raise BundleError("Card ancestry comparison requires bundle format 18")
+    if placement is None:
+        if has_comparison:
+            raise BundleError("Card ancestry comparison requires the saved run placement")
+        return
+    try:
+        sample = sample_context(placement, ancestry["population"] if ancestry is not None else None)
+        for entry in entries:
+            validate_card(entry, sample)
+    except (ValueError, TypeError, KeyError, AttributeError) as exc:
+        raise BundleError("Invalid or inconsistent saved card ancestry context") from exc
 
 
 def _array_observations(data: Mapping[str, Any]) -> bool:
@@ -476,6 +503,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "multi_marker",
         "risk_context",
         "imputation_mode",
+        "ancestry_comparison",
     }
 )
 
@@ -637,6 +665,7 @@ class StoredCard(NoGenotypeRepr):
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
     imputation_mode: str | None = None
+    ancestry_comparison: Mapping[str, Any] | None = None
 
 
 @dataclass(frozen=True)
@@ -854,6 +883,7 @@ def write_bundle(
             staging / CARDS_NAME,
             _render({"cards": card_payloads}),
         )
+        _check_card_ancestry(card_payloads, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
         ancestry_text = _render(ancestry.to_dict())
         # Scanned like the QC report and for the same reason: it is a derived summary with
         # no business carrying a call. A haplogroup name implies genotypes at its defining
@@ -878,6 +908,7 @@ def write_bundle(
         _write_text(staging / CLINVAR_NAME, _render(clinvar_payload))
         scores = {key: dict(value) for key, value in (polygenic or {}).items()}
         _check_polygenic(card_payloads, scores)
+        _check_shared_pgs_placement(scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
         _write_text(staging / PGS_NAME, _render({"schema_version": 1, "scores": scores}))
 
         manifest = {
@@ -1049,6 +1080,23 @@ def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
         except (PgsError, KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
             # Every structural failure is damage to this bundle, never a raw traceback.
             raise BundleError(f"{CARDS_NAME}: polygenic card {card_id!r}: {exc}") from exc
+
+
+def _check_shared_pgs_placement(
+    scores: Mapping[str, Mapping[str, Any]], ancestry: Mapping[str, Any] | None, version: int
+) -> None:
+    """A new run must use the same frozen placement/gate for variants and every PRS."""
+    placement = None if ancestry is None else ancestry.get("reference_population")
+    if version < 18 or placement is None:
+        return
+    for record in scores.values():
+        block = record.get("reference_distribution")
+        if record.get("ancestry") != ancestry or (
+            isinstance(block, Mapping)
+            and block.get("status") == "computed"
+            and block.get("placement") != placement
+        ):
+            raise BundleError("Saved polygenic ancestry disagrees with the shared run placement")
 
 
 def _stored_card(raw: Any, where: str) -> StoredCard:
@@ -1324,6 +1372,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         multi_marker=None if multi_marker is None else _mapping(multi_marker, where),
         risk_context=risk_context,
         imputation_mode=data.get("imputation_mode"),
+        ancestry_comparison=data.get("ancestry_comparison"),
     )
 
 
@@ -1481,9 +1530,14 @@ def read_bundle(path: Path) -> RunBundle:
         raise BundleError("Full dosage provenance requires bundle format 16")
     if declared >= ANCESTRY_FORMAT_VERSION:
         ancestry = _load_json(directory / ANCESTRY_NAME)
-        _reject_unknown(ancestry, ANCESTRY_KEYS, ANCESTRY_NAME)
+        _reject_unknown(
+            ancestry,
+            ANCESTRY_KEYS | ({"reference_population"} if declared >= 18 else frozenset()),
+            ANCESTRY_NAME,
+        )
         for key in sorted(ANCESTRY_KEYS):
             _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
+    _check_card_ancestry(entries, ancestry, declared)
     if declared >= 7:
         from genetics.health.clinvar import ClinVarError, validate_lookup
 
@@ -1512,6 +1566,7 @@ def read_bundle(path: Path) -> RunBundle:
             str(key): _mapping(value, f"{PGS_NAME}.scores.{key}") for key, value in scores.items()
         }
         _check_polygenic(entries, polygenic)
+        _check_shared_pgs_placement(polygenic, ancestry, declared)
     elif any(isinstance(e, Mapping) and e.get("kind") == "polygenic" for e in entries):
         raise BundleError(f"Polygenic cards require bundle format {PGS_FORMAT_VERSION}")
 

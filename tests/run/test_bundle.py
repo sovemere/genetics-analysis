@@ -607,6 +607,7 @@ def test_the_payload_key_sets_are_pinned_to_the_format_version() -> None:
             "multi_marker",
             "risk_context",
             "imputation_mode",
+            "ancestry_comparison",
         }
     )
     expected_manifest = frozenset(
@@ -701,6 +702,7 @@ def test_the_whole_nested_payload_shape_is_pinned(written: Path) -> None:
         "cards",
         f"{card}.card_id",
         f"{card}.imputation_mode",
+        f"{card}.ancestry_comparison",
         f"{card}.section",
         f"{card}.kind",
         f"{card}.title",

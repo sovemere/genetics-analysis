@@ -239,7 +239,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 17; formats 1–16 remain readable.
+attached to a computed card. New runs use bundle format 18; formats 1–17 remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD
@@ -291,3 +291,11 @@ They retain weak/conflicting evidence and explicitly unknown calibration.
 The injury comparator outcomes retain null estimates; all four variants use
 forward-only matching, with no consumer I/D interpretation or inferred ACE
 insertion/deletion state.
+
+
+M9.13 makes `{ancestry}` available in interpretation outcomes. It supplies a
+complete selected-study comparison sentence, including declined and unknown
+states; it never renders a bare guessed population. Every pipeline interpretation
+card displays that sentence on its face and detail even without the placeholder.
+Outcome-specific evidence (including null) controls its study population.
+See [card ancestry](../docs/card_ancestry.md) for the versioned confidence policy.

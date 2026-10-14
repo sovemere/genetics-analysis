@@ -181,7 +181,7 @@ def test_snapshot_is_independent_and_uses_exact_stage_identities(
     )
     original_metadata = copy.deepcopy(stage.metadata)
     bundle = read_bundle(path)
-    assert bundle.format_version == 17
+    assert bundle.format_version == 18
     assert bundle.imputation_provenance is not None
     assert bundle.imputation_provenance["stage"] == original_metadata
     for file in stage.metadata["files"]:
@@ -665,6 +665,9 @@ def test_historical_format_15_keeps_card_evidence_without_inventing_full_dosages
     prepared: tuple[pipeline.Analysis, ImputationResult],
 ) -> None:
     path = pipeline.save(prepared[0])
+    from genetics.testing.imputation_snapshots import remove_card_ancestry_for_historical_fixture
+
+    remove_card_ancestry_for_historical_fixture(path)
     manifest_path = path / "manifest.json"
     manifest = json.loads(manifest_path.read_text())
     for name in (PROVENANCE_NAME, *CATALOG_NAMES, "chr7.dosages.jsonl.gz"):

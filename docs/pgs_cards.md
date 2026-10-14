@@ -126,9 +126,8 @@ checks:
 
 ## Not in M9.6
 
-- **Single-marker ancestry match and the `{ancestry}` placeholder** are carved out as
-  **M9.13**. Applying the PRS ancestry ceilings to one large-effect variant would re-tier
-  every card in the pack. That is a decision about the evidence, not about rendering, and
-  it also needs the run's own 1000 Genomes placement.
+- **Variant ancestry match and the `{ancestry}` placeholder** were carved out as
+  **M9.13**, now implemented with a shared run placement and a separate weighted
+  variant policy. See [card ancestry](card_ancestry.md).
 - **Opting into restricted licences inside a run.** `genetics pgs score
   --allow-restricted` remains the only opt-in.

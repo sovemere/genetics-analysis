@@ -167,6 +167,6 @@ extraction cache does not affect it: a cold run and a warm run give identical bl
   `imputed_absolute_weight_fraction`, DR2 bins) are confidence inputs *beside* ancestry.
   They are recorded by M9.3/M9.4, and they enter a PRS card's confidence when M9.6 builds
   the card.
-- **Single-marker cards** keep `ancestry_match` unset, and the `{ancestry}` template
-  placeholder stays locked (now naming M9.6). The run pipeline has only the AADR
-  placement; supplying either needs the 1000 Genomes placement carried into the run.
+- **Variant cards (M9.13)** compare selected evidence at super-population resolution
+  using the same run placement. Their weighted confidence policy does not borrow
+  PRS transfer ceilings; see [card ancestry](card_ancestry.md).

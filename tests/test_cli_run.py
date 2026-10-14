@@ -329,11 +329,11 @@ def test_the_run_command_is_registered_and_is_not_the_runs_group() -> None:
 
 
 def _with_ancestry(monkeypatch: pytest.MonkeyPatch, context: AncestryContext) -> None:
-    """Run the real pipeline, then hand the CLI a chosen ancestry result."""
+    """Inject the chosen ancestry before card evaluation, retaining the shared placement."""
     from genetics.run.pipeline import Analysis, analyse
 
     def chosen(input_path: Path, **kwargs: Any) -> Analysis:
-        return replace(analyse(input_path, **kwargs), ancestry=context)
+        return analyse(input_path, ancestry=lambda table, qc: context, **kwargs)
 
     monkeypatch.setattr("genetics.cli.run_cmd.analyse", chosen)
 
@@ -405,7 +405,11 @@ def test_the_saved_run_keeps_the_result_the_output_withheld(
 ) -> None:
     _with_ancestry(monkeypatch, placed_ancestry)
     run_id = json.loads(_run(export, "--json").stdout)["run_id"]
-    assert read_bundle(store_root / run_id).ancestry == placed_ancestry.to_dict()
+    saved = read_bundle(store_root / run_id).ancestry
+    assert saved is not None and "reference_population" in saved
+    assert {
+        k: v for k, v in saved.items() if k != "reference_population"
+    } == placed_ancestry.to_dict()
 
 
 @pytest.mark.parametrize("args", [[], ["--json"]], ids=["human", "json"])

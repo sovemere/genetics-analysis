@@ -83,8 +83,11 @@ class PolygenicStage:
     placement: PopulationResult | None = None
     """Injected only by tests; otherwise placed once per run from the export."""
     prepared: dict[str, Prepared] = field(default_factory=dict)
+    _run_target: GenotypeTable | None = field(default=None, init=False, repr=False)
+    _run_placement: PopulationResult | None = field(default=None, init=False, repr=False)
 
     def prepare(self, pack: KnowledgePack, progress: Callable[[str], None] | None = None) -> None:
+        self.prepared.clear()
         cards = [c for c in pack.cards if c.kind is CardKind.POLYGENIC]
         if not cards:
             return
@@ -136,6 +139,23 @@ class PolygenicStage:
             )
             self.prepared[card.id] = Prepared(card, scoring, reference)
 
+    def place(
+        self, table: GenotypeTable, progress: Callable[[str], None] | None = None
+    ) -> PopulationResult:
+        """One run placement shared with variant cards, even without runnable PRS."""
+        if self.placement is not None:
+            return self.placement
+        if self._run_target is not table or self._run_placement is None:
+            placed = place_among_reference_populations(
+                table,
+                references_root=self.references_root,
+                tools_root=self.tools_root,
+                progress=progress,
+            )
+            self._run_target = table
+            self._run_placement = placed
+        return self._run_placement
+
     def score(
         self,
         *,
@@ -149,19 +169,11 @@ class PolygenicStage:
         """Assembled polygenic cards and their private score records, by card id."""
         cards: dict[str, AssembledCard] = {}
         records: dict[str, dict[str, Any]] = {}
-        runnable = [p for p in self.prepared.values() if p.scoring is not None]
-        placement = self.placement
-        if (
-            runnable
-            and placement is None
-            and any(isinstance(p.reference, PreparedReference) for p in runnable)
+        placement = self.placement or (self._run_placement if self._run_target is table else None)
+        if placement is None and any(
+            isinstance(p.reference, PreparedReference) for p in self.prepared.values()
         ):
-            placement = place_among_reference_populations(
-                table,
-                references_root=self.references_root,
-                tools_root=self.tools_root,
-                progress=progress,
-            )
+            placement = self.place(table, progress)
         for item in self.prepared.values():
             if item.scoring is None:
                 cards[item.card.id] = assemble_polygenic_card(item.card, None, reason=item.reason)

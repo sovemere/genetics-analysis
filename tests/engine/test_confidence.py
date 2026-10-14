@@ -407,3 +407,35 @@ def test_all_numeric_inputs_that_produced_the_result_are_exposed() -> None:
 def test_confidence_ladder_vocabulary_is_disjoint_from_authored_evidence() -> None:
     assert {tier.value for tier in ConfidenceTier}.isdisjoint({tier.value for tier in EvidenceTier})
     assert [tier.rank for tier in ConfidenceTier] == list(range(len(ConfidenceTier)))
+
+
+def test_variant_membership_does_not_apply_prs_transfer_ceiling() -> None:
+    from genetics.engine.cards import (
+        Ancestry,
+        Effect,
+        EffectMeasure,
+        Evidence,
+        EvidenceTier,
+        Replication,
+    )
+
+    evidence = Evidence(
+        EvidenceTier.FUNCTIONAL,
+        Effect(EffectMeasure.PROPORTION, 1.0),
+        100,
+        (Ancestry.EAS,),
+        Replication.INDEPENDENT,
+    )
+    variant = calculate_confidence(
+        evidence,
+        population_allele_frequency=0.2,
+        call_source=CallSource.DIRECT,
+        ancestry_match=0.0,
+        variant_ancestry=True,
+    )
+    legacy = calculate_confidence(
+        evidence, population_allele_frequency=0.2, call_source=CallSource.DIRECT, ancestry_match=0.0
+    )
+    assert variant.tier is ConfidenceTier.WELL_ESTABLISHED
+    assert variant.inputs.ancestry_match == 0.0 and variant.inputs.ancestry_score == 0.0
+    assert legacy.tier is ConfidenceTier.LIMITED

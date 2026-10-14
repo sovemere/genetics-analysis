@@ -185,7 +185,7 @@ def test_recorded_enabled_mode_and_execution_survive_without_cache(
     analysis = pipeline.analyse(export, knowledge_dir=PACK)
     path = pipeline.save(analysis)
     bundle = read_bundle(path)
-    assert bundle.format_version == 17 and bundle.imputation == analysis.imputation.to_dict()
+    assert bundle.format_version == 18 and bundle.imputation == analysis.imputation.to_dict()
     assert bundle.imputation["status"] == ("no_eligible_jobs" if empty else "computed")
     assert all(c.imputation_mode == "enabled" for c in bundle.cards)
     assert analysis.imputation_result is not None
@@ -357,6 +357,9 @@ def test_historical_formats_do_not_infer_disabled_or_enabled_mode(
     export: Path, version: int
 ) -> None:
     path = pipeline.save(pipeline.analyse(export, knowledge_dir=PACK, no_impute=True))
+    from genetics.testing.imputation_snapshots import remove_card_ancestry_for_historical_fixture
+
+    remove_card_ancestry_for_historical_fixture(path)
     cards_path = path / "cards.run.json"
     cards = json.loads(cards_path.read_text())
     for card in cards["cards"]:

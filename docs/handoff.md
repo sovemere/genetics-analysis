@@ -41,7 +41,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.12 are also accepted; M9.13 is the next open step.
+are complete. M9.9–M9.13 are also accepted; M10.1 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -111,7 +111,40 @@ gates remain required. Record any necessary engine/schema change here before
 implementing it. The unchanged renderer's previous browser visual check
 remains unavailable; no new screenshot review is claimed.
 
-## Next open step: M9.13 card-level ancestry match
+<a id="next-open-step-m913-card-level-ancestry-match"></a>
+
+## Accepted M9.13 card-level ancestry match
+
+M9.13 is accepted on 2026-10-14. One run-owned 1000 Genomes placement is shared
+before imputation with variant and PRS evaluation. Selected-outcome evidence
+controls the comparison; explicit UNKNOWN/MULTI, decline, not-run and null states
+are visible. The separate weighted variant policy keeps PRS transfer ceilings
+out of single-variant interpretation and preserves frequency/quality limits.
+Format 18 verifies frozen scalar/multi-marker comparisons/confidence and PRS/run
+placement equality, preserving formats 1–17. All 2,995 unique checks pass with
+five existing Windows skips; four strict type targets, full card lint, fixtures,
+lint/format, whitespace and staged privacy gates pass. The
+[contract and exact acceptance](card_ancestry.md#acceptance-2026-10-14) explains
+the native helper's corrected tools-directory recheck and 67 new synthetic cases.
+
+### Next open step: M10.1 pharmacogenomics ingestion
+
+Follow the [M10 roadmap](../phase1_roadmap.md#m10--pharmacogenomics): fetched
+PharmGKB/ClinPGx and CPIC source adapters, star-allele definitions and phenotype
+mapping. Audit the exact source releases and licences before new manifest entries;
+keep share-alike sources explicitly opt-in. Definitions remain data, consumed by
+one engine and saved for both front-ends. Call only the SNP-tractable scope in
+AGENTS.md; CYP2D6 structural/CNV limitations remain an explicit not-callable card.
+Keep native Windows compatibility, per-source provenance and synthetic privacy
+gates. M9.13's placement/comparison contract is now available to downstream cards.
+
+### M9.13 entry contract (retained for review)
+
+
+M9.13 saved contract and confidence decisions are recorded in
+[card-level ancestry match](card_ancestry.md) before implementation: format 18,
+shared 1000 Genomes placement, selected-outcome comparisons and variant-specific
+weighted confidence without borrowing PRS transfer ceilings.
 
 Card-level ancestry match and the `{ancestry}` placeholder are the remaining
 M9 task. Use the run's own 1000 Genomes placement and its reported
