@@ -785,3 +785,68 @@ def test_full_pipeline_queries_every_authored_locus(
     assert all(c.status is MatchStatus.MATCHED for c in analysis.cards if c.card.match is not None)
     assert all(c.status is MatchStatus.NOT_RUN for c in analysis.cards if c.card.match is None)
     assert ("19", 45411941) in seen and ("19", 45412079) in seen
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [("CC", "CC"), ("CC", "TT"), ("CT", "CT"), (None, "CC")],
+    ids=["resolved", "unestimated", "unphased", "missing"],
+)
+@pytest.mark.parametrize("region", ["EUR", "EAS"])
+@pytest.mark.parametrize("root_only", [False, True])
+def test_multi_marker_ancestry_uses_selected_evidence_and_keeps_weakest_gate(
+    health_pack: KnowledgePack,
+    pairs: tuple[str | None, str | None],
+    region: str,
+    root_only: bool,
+) -> None:
+    from genetics.ancestry.card_match import sample_context, validate_card
+
+    card = _apoe(health_pack)
+    pack = KnowledgePack((card,), Path("synthetic-memory"))
+    match = match_pack(pack, _table(card, pairs), merges=MergeTable.empty())[0]
+    sample = sample_context(
+        {"status": "placed", "reason": "", "population": "SYNTHETIC", "region": region}
+    )
+    runtime = observations(pack, (match,), ancestry_context=sample)[card.id]
+    if root_only:
+        runtime = replace(
+            runtime, markers=tuple(replace(m, ancestry_context=None) for m in runtime.markers)
+        )
+    result = assemble_card(card, match, runtime)
+    payload = _card_payload(result)
+    validate_snapshot(payload)
+    validate_card(payload, sample)
+    assert result.ancestry_comparison is not None
+    if pairs == ("CC", "CC"):
+        assert result.ancestry_comparison["state"] == (
+            "matched" if region == "EUR" else "mismatched"
+        )
+        assert result.confidence and result.confidence.tier is ConfidenceTier.MODERATE
+    else:
+        assert result.ancestry_comparison["state"] == "no_applicable_evidence"
+        assert result.ancestry_comparison["study"] == []
+    assert result.ancestry_comparison["text"] in result.summary
+    assert result.ancestry_comparison["text"] in result.detail
+    for marker in payload["multi_marker"]["markers"]:
+        assert marker["ancestry_comparison"] == result.ancestry_comparison
+
+
+def test_multi_marker_ancestry_corruption_cannot_change_one_marker(
+    health_pack: KnowledgePack,
+) -> None:
+    from genetics.ancestry.card_match import sample_context, validate_card
+
+    card = _apoe(health_pack)
+    pack = KnowledgePack((card,), Path("synthetic-memory"))
+    match = match_pack(pack, _table(card, ("CC", "CC")), merges=MergeTable.empty())[0]
+    sample = sample_context(
+        {"status": "placed", "reason": "", "population": "SYNTHETIC", "region": "EUR"}
+    )
+    result = assemble_card(
+        card, match, observations(pack, (match,), ancestry_context=sample)[card.id]
+    )
+    payload = _card_payload(result)
+    payload["multi_marker"]["markers"][0]["observation"]["ancestry_match"] = 0.0
+    with pytest.raises(ValueError, match="ancestry"):
+        validate_card(payload, sample)

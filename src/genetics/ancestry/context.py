@@ -408,6 +408,7 @@ class AncestryContext(NoGenotypeRepr):
     mt: LineageResult
     y: LineageResult
     ancient: AffinityResult
+    reference_population: PopulationResult | None = None
 
     def __post_init__(self) -> None:
         if self.mt.lineage != "MT" or self.y.lineage != "Y":
@@ -435,6 +436,11 @@ class AncestryContext(NoGenotypeRepr):
             "mt": self.mt.to_dict(),
             "y": self.y.to_dict(),
             "ancient": self.ancient.to_dict(),
+            **(
+                {"reference_population": self.reference_population.to_dict()}
+                if self.reference_population is not None
+                else {}
+            ),
         }
 
     def summary(self) -> dict[str, Any]:

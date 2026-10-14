@@ -10,8 +10,8 @@ no-call loci, retaining native dosage quality. ClinVar, coverage and genome-stru
 modules continue to consume the original array. Execution mode is separate from call_source:
 an enabled run does not make an original observed call an imputed observation.
 Missing allele frequencies remain unknown. Study-to-sample ancestry portability is computed
-for PGS results (M9.5) and polygenic cards are scored here (M9.6); single-marker card
-observations keep ancestry_match unset until M9.13.
+for PGS results (M9.5) and polygenic cards are scored here (M9.6). M9.13 shares the
+run's 1000 Genomes placement with selected-outcome variant evidence before imputation.
 """
 
 from __future__ import annotations
@@ -135,6 +135,7 @@ def observations(
     matches: tuple[MatchResult, ...] = (),
     frequency_records: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
     imputed: dict[tuple[str, int], ImputationEvidence] | None = None,
+    ancestry_context: Mapping[str, Any] | None = None,
 ) -> dict[str, ObservationEvidence]:
     """One observation per interpretation card. See this module's docstring for why.
 
@@ -155,6 +156,7 @@ def observations(
             frequencies=frequencies,
             imputation_quality=None if detail is None else detail.card_quality,
             imputation=detail,
+            ancestry_context=ancestry_context,
         )
 
     result: dict[str, ObservationEvidence] = {}
@@ -184,7 +186,9 @@ def observations(
                     )
                 )
             result[card.id] = ObservationEvidence(
-                call_source=CallSource.DIRECT, markers=tuple(marker_observations)
+                call_source=CallSource.DIRECT,
+                markers=tuple(marker_observations),
+                ancestry_context=ancestry_context,
             )
             continue
         variant = card.match.variant.key
@@ -240,6 +244,11 @@ def analyse(
         context = infer_ancestry(result.table, result.qc, progress=progress)
     else:
         context = ancestry(result.table, result.qc)
+    from genetics.ancestry.card_match import sample_context
+
+    placement = polygenic_stage.place(result.table, progress)
+    context = replace(context, reference_population=placement)
+    card_ancestry = sample_context(placement.to_dict(), context.population.to_dict())
     imputation_result = None
     if no_impute:
         imputation_context = ImputationContext.disabled()
@@ -291,7 +300,9 @@ def analyse(
     frequency_records = frequency_index.lookup(loci) if frequency_index else {}
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
     clinvar = surface(clinvar, default_reference())
-    cards = assemble_pack(pack, matches, observations(pack, matches, frequency_records, imputed))
+    cards = assemble_pack(
+        pack, matches, observations(pack, matches, frequency_records, imputed, card_ancestry)
+    )
     cards = tuple(
         assemble_coverage_card(c.card, clinvar.coverage)
         if c.card.computation == "clinvar_coverage"

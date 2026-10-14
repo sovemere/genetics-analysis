@@ -99,4 +99,9 @@ def marker_payload(assembled: AssembledCard) -> dict[str, Any]:
         if assembled.confidence is None
         else confidence_payload(assembled.confidence),
         "computed_caveats": list(assembled.computed_caveats),
+        **(
+            {"ancestry_comparison": assembled.ancestry_comparison}
+            if assembled.ancestry_comparison is not None
+            else {}
+        ),
     }

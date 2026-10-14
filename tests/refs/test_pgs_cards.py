@@ -1272,6 +1272,9 @@ def test_an_older_format_cannot_carry_a_polygenic_card(
     setup: dict[str, Any], fake: MultiPlink
 ) -> None:
     path = save(run(setup, fake))
+    from genetics.testing.imputation_snapshots import remove_card_ancestry_for_historical_fixture
+
+    remove_card_ancestry_for_historical_fixture(path)
     manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
     manifest["format_version"] = 16
     del manifest["files"][PGS_NAME]
@@ -1398,3 +1401,56 @@ def test_review_structural_damage_is_a_bundle_error(
         monkeypatch.setattr("genetics.pgs.cards.validate_stored", broken)
         with pytest.raises(BundleError, match="synthetic structural damage"):
             read_bundle(path)
+
+
+def test_run_shares_one_placement_between_variants_and_polygenic_cards(
+    setup: dict[str, Any],
+    fake: MultiPlink,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    import shutil
+
+    for path in (Path(__file__).parents[1] / "fixtures" / "cards").glob("*.yaml"):
+        shutil.copyfile(path, setup["knowledge"] / path.name)
+    calls: list[str] = []
+
+    def place_once(*args: Any, **kwargs: Any) -> Any:
+        calls.append("place")
+        return CEU
+
+    monkeypatch.setattr(runner, "place_among_reference_populations", place_once)
+    analysis = run(setup, fake, placement=None)
+    assert calls == ["place"]
+    saved_placement = analysis.ancestry.to_dict()["reference_population"]
+    assert (
+        analysis.polygenic["synthetic_polygenic"]["reference_distribution"]["placement"]
+        == saved_placement
+    )
+    for card in analysis.cards:
+        if card.kind.value == "interpretation":
+            assert card.ancestry_comparison is not None
+            assert card.ancestry_comparison["sample"]["super_population"] == "EUR"
+    frozen = read_bundle(save(analysis))
+    assert frozen.ancestry is not None
+    assert frozen.ancestry["reference_population"] == saved_placement
+
+
+def test_saved_run_cannot_swap_its_shared_population_context(
+    setup: dict[str, Any],
+    fake: MultiPlink,
+) -> None:
+    from genetics.run.bundle import ANCESTRY_NAME
+
+    directory = save(run(setup, fake))
+    path = directory / ANCESTRY_NAME
+    ancestry = json.loads(path.read_text())
+    ancestry["reference_population"]["population"] = "KHV"
+    ancestry["reference_population"]["region"] = "EAS"
+    text = json.dumps(ancestry)
+    path.write_text(text, encoding="utf-8")
+    manifest_path = directory / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text())
+    manifest["files"][ANCESTRY_NAME] = hashlib.sha256(text.encode()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(BundleError, match="shared run placement"):
+        read_bundle(directory)

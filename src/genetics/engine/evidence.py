@@ -77,7 +77,7 @@ class PopulationFrequency:
 
 
 @dataclass(frozen=True)
-class ObservationEvidence:
+class ObservationEvidence(NoGenotypeRepr):
     """Runtime inputs that are not authored by a knowledge card.
 
     Frequencies are per allele rather than a caller-selected singleton. For a matched
@@ -88,12 +88,15 @@ class ObservationEvidence:
     imputation detail. Direct observations forbid imputation quality/detail.
     """
 
+    _repr_fields: ClassVar[tuple[str, ...]] = ("call_source",)
+
     call_source: CallSource
     frequencies: tuple[PopulationFrequency, ...] = ()
     imputation_quality: float | None = None
     ancestry_match: float | None = None
     markers: tuple[ObservationEvidence, ...] = ()
     imputation: ImputationEvidence | None = None
+    ancestry_context: Mapping[str, Any] | None = None
 
     def __post_init__(self) -> None:
         if not isinstance(self.call_source, CallSource):
@@ -196,6 +199,7 @@ class AssembledCard(NoGenotypeRepr):
     multi_marker: Mapping[str, Any] | None = None
     risk_context: str | None = None
     imputation_mode: str | None = None
+    ancestry_comparison: Mapping[str, Any] | None = None
 
     @property
     def has_interpretation(self) -> bool:
@@ -207,6 +211,7 @@ def _template_values(
     match: MatchResult,
     confidence: ConfidenceResult,
     frequency: PopulationFrequency | None = None,
+    ancestry_comparison: Mapping[str, Any] | None = None,
 ) -> dict[str, object]:
     """Build the closed template context validated by ``cards.py``.
 
@@ -223,6 +228,11 @@ def _template_values(
 
     ppv = confidence.empirical_ppv
     return {
+        "ancestry": (
+            ancestry_comparison["text"]
+            if ancestry_comparison is not None
+            else "Ancestry: not recorded; study-to-sample agreement is unknown."
+        ),
         "genotype": match.genotype or match.observed_genotype or "unresolved",
         "rsid": match.observed_rsid or variant.rsid,
         # M3.5 requires knowledge cards to use current dbSNP identifiers.  When the export
@@ -416,8 +426,31 @@ def assemble_card(
         card = replace(card, evidence=match.outcome.evidence)
     elif is_multi and match.status is not MatchStatus.MATCHED:
         card = replace(card, evidence=None)
+    from genetics.ancestry.card_match import compare, display
+
+    comparison = None
+    if observation is not None and observation.ancestry_context is not None:
+        comparison = compare(card.evidence, observation.ancestry_context)
+        observation = replace(
+            observation,
+            ancestry_match=comparison["ancestry_match"],
+            markers=tuple(
+                replace(
+                    m,
+                    ancestry_match=comparison["ancestry_match"],
+                    ancestry_context=observation.ancestry_context,
+                )
+                for m in observation.markers
+            ),
+        )
     if is_multi:
-        return _assemble_multi(card, match, observation)
+        assembled = _assemble_multi(card, match, observation)
+        return replace(
+            assembled,
+            ancestry_comparison=comparison,
+            summary=display(assembled.summary, comparison),
+            detail=display(assembled.detail, comparison),
+        )
     if observation is None:
         raise EvidenceAssemblyError(
             f"interpretation card {card.id!r} requires ObservationEvidence; silently "
@@ -442,8 +475,9 @@ def assemble_card(
             kind=card.kind,
             title=card.title,
             status=match.status,
-            summary=match.reason,
-            detail=match.reason,
+            summary=display(match.reason, comparison),
+            detail=display(match.reason, comparison),
+            ancestry_comparison=comparison,
             card=card,
             match=match,
             observation=observed,
@@ -469,8 +503,9 @@ def assemble_card(
         imputation_quality_unknown=observed.call_source is CallSource.IMPUTED
         and observed.imputation_quality is None,
         ancestry_match=observed.ancestry_match,
+        variant_ancestry=comparison is not None,
     )
-    template_values = _template_values(card, match, confidence, confidence_frequency)
+    template_values = _template_values(card, match, confidence, confidence_frequency, comparison)
     computed_caveats = match.caveats
     if observed.call_source is CallSource.IMPUTED:
         computed_caveats += (
@@ -508,8 +543,9 @@ def assemble_card(
         kind=card.kind,
         title=card.title,
         status=match.status,
-        summary=render_template(match.outcome.summary, template_values),
-        detail=render_template(match.outcome.detail, template_values),
+        summary=display(render_template(match.outcome.summary, template_values), comparison),
+        detail=display(render_template(match.outcome.detail, template_values), comparison),
+        ancestry_comparison=comparison,
         card=card,
         match=match,
         observation=observed,
@@ -554,7 +590,14 @@ def _assemble_multi(
         confidence = max(confidences, key=lambda c: (c.tier.rank, -c.score))
     summary = detail = match.reason
     if confidence is not None and match.outcome is not None:
-        values = _template_values(card, match, confidence)
+        from genetics.ancestry.card_match import compare
+
+        comparison = (
+            compare(card.evidence, observation.ancestry_context)
+            if observation.ancestry_context is not None
+            else None
+        )
+        values = _template_values(card, match, confidence, ancestry_comparison=comparison)
         summary = render_template(match.outcome.summary, values)
         detail = render_template(match.outcome.detail, values)
     caveats = tuple(dict.fromkeys(note for a in assembled for note in a.computed_caveats))

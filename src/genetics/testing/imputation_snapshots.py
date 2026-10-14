@@ -215,3 +215,29 @@ def remove_snapshot_for_historical_fixture(directory: Path, manifest: dict[str, 
     for name in tuple(manifest["files"]):
         if name in {PROVENANCE_NAME, *CATALOG_NAMES} or is_dosage_name(name):
             manifest["files"].pop(name)
+
+
+def remove_card_ancestry_for_historical_fixture(directory: Path) -> None:
+    """Fabricate pre-M9.13 bytes only from synthetic unknown-ancestry records."""
+    manifest_path = directory / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    for name in ("cards.run.json", "ancestry.run.json"):
+        path = directory / name
+        raw = json.loads(path.read_text(encoding="utf-8"))
+        if name == "ancestry.run.json":
+            raw.pop("reference_population", None)
+        else:
+            for card in raw["cards"]:
+                comparison = card.pop("ancestry_comparison", None)
+                if comparison is not None:
+                    assert comparison["ancestry_match"] is None
+                    for key in ("summary", "detail"):
+                        card[key] = card[key].replace(comparison["text"], "").rstrip()
+                multi = card.get("multi_marker")
+                if multi is not None:
+                    for marker in multi["markers"]:
+                        marker.pop("ancestry_comparison", None)
+        text = json.dumps(raw)
+        path.write_text(text, encoding="utf-8")
+        manifest["files"][name] = hashlib.sha256(text.encode()).hexdigest()
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")

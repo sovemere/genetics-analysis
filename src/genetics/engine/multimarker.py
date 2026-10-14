@@ -60,7 +60,11 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
         "computed_caveats",
     }
     for marker in markers:
-        record = _map(marker, marker_keys)
+        record = _map(
+            marker,
+            marker_keys
+            | ({"ancestry_comparison"} if card.get("ancestry_comparison") is not None else set()),
+        )
         variant = _map(record["variant"], {"rsid", "chrom", "pos_grch37", "alleles"})
         CardVariant.parse(variant, "saved marker")
         variants.append(dict(variant))

@@ -194,38 +194,17 @@ class EffectMeasure(StrEnum):
 
 
 class Ancestry(StrEnum):
-    """Study population, as 1000 Genomes superpopulation codes.
+    """Study population, in the 1000 Genomes super-population vocabulary.
 
-    A controlled vocabulary rather than free text, because M9.5's portability adjustment
-    has to *compare* a study's population against the sample's inferred ancestry, and
-    "European"/"EUR"/"european"/"White British" cannot be compared. These five codes have
-    been stable since 1000G phase 3 and need no reference download to write down.
+    M9.13 compares selected outcome evidence to the run's additional 1000 Genomes
+    placement, whose region comes directly from the panel's labels. AADR regions are
+    sampling countries and are never converted into these codes; an AADR decline is
+    a separate gate. UNKNOWN and unspecified MULTI cannot establish agreement.
 
-    **The sample's side of that comparison is no longer in this vocabulary, and nothing maps
-    between the two yet (found at M5.8, 2026-09-24).** This docstring said finer labels --
-    the twenty-six 1000G populations -- would arrive with M5.3. They did not, and M5.9 then
-    moved placement to AADR Human Origins' 100 present-day populations, whose region is the
-    *country a population was sampled in* rather than a continental code
-    (:func:`~genetics.ancestry.populations.read_aadr_population_labels` explains why no
-    continental grouping was invented). So a placement reads "Druze, Israel" and a study
-    reads ``EUR``. M5.8 carries the placement forward unmapped; writing the mapping, and
-    deciding what a *declined* placement does to a study-to-sample match, is M9.5's.
-
-    M9.4 (2026-10-09) narrowed this: its 1000 Genomes placement
-    (:func:`~genetics.ancestry.context.place_among_reference_populations`) names a
-    super-population straight from the panel's own labels, so a *placed* sample is
-    describable in these codes without a hand-written mapping.
-
-    M9.5 (2026-10-09) closed it for polygenic scores in :mod:`genetics.pgs.portability`:
-    the placed 1000 Genomes *population* maps to a Morales et al. 2018 category (cited,
-    Table 1), and the PGS Catalog's study distributions are compared in the catalog's own
-    display categories. The AADR placement is not mapped onto a category -- no cited
-    mapping exists for its sampling-country regions -- and acts as a decline gate instead.
-    Note the super-population codes here are coarser than that mapping: ``EAS`` contains
-    KHV, which Morales classes as South East Asian.
-
-    A study stays describable at continental granularity, which is the granularity
-    portability arguments are usually made at anyway.
+    PRS portability (M9.5) uses a finer, cited Morales/PGS Catalog mapping instead:
+    EAS includes KHV, which Morales describes as South East Asian. Both evaluation
+    paths share the placement, but neither borrows the other's study vocabulary or
+    confidence policy. See genetics.ancestry.card_match and genetics.pgs.portability.
     """
 
     AFR = "AFR"
@@ -280,9 +259,8 @@ _TEMPLATE_VARS: Final[tuple[TemplateVar, ...]] = (
     TemplateVar("ppv", "Scoped empirical confirmation benchmark, or explicit unavailable."),
     # M9.5 settled the mapping and what *declined* means, for PGS results. Single-marker
     # cards still need the run's own 1000 Genomes placement and a decision on whether the
-    # PRS ancestry ceilings apply to one large-effect variant -- which would re-tier every
-    # card in the pack. Carved out of M9.6 as M9.13; until then naming this is refused.
-    TemplateVar("ancestry", "The sample's inferred ancestry.", milestone="M9.13"),
+    # M9.13 supplies a selected-study comparison, including explicit unknown states.
+    TemplateVar("ancestry", "Selected-study comparison with the run's 1000 Genomes placement."),
     TemplateVar("imputation_quality", "Per-variant r2/DR2.", milestone="M8.5"),
     TemplateVar("percentile", "Placement in the reference distribution.", milestone="M9.4"),
 )

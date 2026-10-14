@@ -279,6 +279,7 @@ def calculate_confidence(
     imputation_quality: float | None = None,
     imputation_quality_unknown: bool = False,
     ancestry_match: float | None = None,
+    variant_ancestry: bool = False,
 ) -> ConfidenceResult:
     """Compute a finding's confidence without hiding low-confidence findings.
 
@@ -293,11 +294,15 @@ def calculate_confidence(
             remains None; its contribution is zero and confidence cannot exceed limited.
         ancestry_match: Numeric study-to-sample match in [0, 1], or ``None`` until
             ancestry is available.
+        variant_ancestry: M9.13 categorical membership policy: retain the weighted
+            component and unknown cap, without borrowing PRS transfer ceilings.
 
     The function labels; it never filters. Callers receive a result even at the weakest
     tier, including the empirical rare-call benchmark when applicable.
     """
 
+    if type(variant_ancestry) is not bool:
+        raise ConfidenceError("variant_ancestry must be an explicit boolean")
     frequency = _finite_fraction(population_allele_frequency, "population_allele_frequency")
     imputation = _finite_fraction(imputation_quality, "imputation_quality")
     ancestry = _finite_fraction(ancestry_match, "ancestry_match")
@@ -391,7 +396,9 @@ def calculate_confidence(
     # from being mistaken for measured agreement while the M5/M7 references are absent.
     if frequency is None:
         tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-    ceiling = ancestry_ceiling(ancestry)
+    # M9.13 variant membership changes the weighted component, not PRS transfer ceilings.
+    # Preserve the historical unknown-ancestry strong cap and legacy caller behavior.
+    ceiling = None if variant_ancestry and ancestry is not None else ancestry_ceiling(ancestry)
     if ceiling is not None:
         tier = _weaker_of(tier, ceiling)
 

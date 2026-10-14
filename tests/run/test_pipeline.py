@@ -327,7 +327,8 @@ def test_ancestry_is_inferred_before_any_card_is_assembled(
     analysis = analyse(export, knowledge_dir=SYNTHETIC_CARDS, ancestry=stage, no_impute=True)
 
     assert order == ["ancestry", "assemble"]
-    assert analysis.ancestry is placed_ancestry
+    assert analysis.ancestry.population is placed_ancestry.population
+    assert analysis.ancestry.reference_population is not None
 
 
 def test_the_stage_is_handed_the_ploidy_resolved_table_and_its_qc(export: Path) -> None:
@@ -368,4 +369,5 @@ def test_save_keeps_the_ancestry_record(
         export, knowledge_dir=SYNTHETIC_CARDS, ancestry=lambda t, q: placed_ancestry, no_impute=True
     )
     bundle = read_bundle(save(analysis))
-    assert bundle.ancestry == placed_ancestry.to_dict()
+    assert bundle.ancestry == analysis.ancestry.to_dict()
+    assert analysis.ancestry.population is placed_ancestry.population
