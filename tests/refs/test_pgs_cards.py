@@ -1446,6 +1446,7 @@ def test_saved_run_cannot_swap_its_shared_population_context(
     ancestry = json.loads(path.read_text())
     ancestry["reference_population"]["population"] = "KHV"
     ancestry["reference_population"]["region"] = "EAS"
+    ancestry["reference_population"]["fits"][0].update(population="KHV", region="EAS")
     text = json.dumps(ancestry)
     path.write_text(text, encoding="utf-8")
     manifest_path = directory / MANIFEST_NAME

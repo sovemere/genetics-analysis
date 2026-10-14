@@ -2,28 +2,40 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
-from genetics.engine.cards import Ancestry, Evidence
+from genetics.engine.cards import Ancestry, CardVariant, Evidence
 
 CODES = frozenset({"AFR", "AMR", "EAS", "EUR", "SAS"})
 
 
 def sample_context(
-    placement: Mapping[str, Any] | None, gate: Mapping[str, Any] | None = None
+    placement: Mapping[str, Any] | None,
+    gate: Mapping[str, Any] | None = None,
+    *,
+    require_fits: bool = False,
 ) -> dict[str, Any]:
     """Compact saved context; population codes come from the panel's own labels."""
     if placement is None:
         placement = {"status": "not_run", "reason": "1000 Genomes placement not supplied."}
     status = placement.get("status")
-    reason = placement.get("reason") or None
+    raw_reason = placement.get("reason")
+    if raw_reason is not None and not isinstance(raw_reason, str):
+        raise ValueError("Placement reason must be text")
+    reason = raw_reason or None
     population = placement.get("population")
     region = placement.get("region")
     if status not in {"placed", "declined", "not_run"}:
         raise ValueError("Unknown 1000 Genomes placement state")
     if status == "placed":
-        if not isinstance(population, str) or not population or region not in CODES or reason:
+        if (
+            not isinstance(population, str)
+            or not population.strip()
+            or region not in CODES
+            or reason
+        ):
             raise ValueError("Placed sample requires panel population and super-population")
     elif (
         not isinstance(reason, str)
@@ -32,10 +44,16 @@ def sample_context(
         or region is not None
     ):
         raise ValueError("Unplaced sample requires a reason and no population")
+    _check_fits(placement, require_fits=require_fits)
     gate_status = "not_supplied" if gate is None else gate.get("status")
-    gate_reason = None if gate is None else gate.get("reason") or None
+    raw_gate_reason = None if gate is None else gate.get("reason")
+    if raw_gate_reason is not None and not isinstance(raw_gate_reason, str):
+        raise ValueError("AADR gate reason must be text")
+    gate_reason = raw_gate_reason or None
     if gate_status not in {"not_supplied", "placed", "declined", "not_run"}:
         raise ValueError("Unknown AADR decline gate")
+    if gate_status == "placed" and gate_reason is not None:
+        raise ValueError("A placed AADR gate cannot carry a refusal reason")
     if gate_status in {"declined", "not_run"} and (
         not isinstance(gate_reason, str) or not gate_reason.strip()
     ):
@@ -48,6 +66,95 @@ def sample_context(
         "aadr_status": gate_status,
         "aadr_reason": gate_reason,
     }
+
+
+def _number(value: Any, *, finite: bool = True) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise ValueError("Placement fit requires a numeric value")
+    try:
+        numeric = float(value)
+    except OverflowError:
+        raise ValueError("Invalid placement fit value") from None
+    if math.isnan(numeric) or numeric < 0 or (finite and not math.isfinite(numeric)):
+        raise ValueError("Invalid placement fit value")
+    return numeric
+
+
+def _check_fits(placement: Mapping[str, Any], *, require_fits: bool) -> None:
+    """Bind the reported call to the producer's first admissible retained fit.
+
+    Compact runtime callers may omit fits; new saved run contexts must retain them.
+    A zero-radius population has infinite fit in the producer and cannot be selected.
+    """
+    fits = placement.get("fits")
+    threshold = placement.get("decline_threshold")
+    if placement["status"] == "not_run":
+        if fits is not None or threshold is not None:
+            raise ValueError("Not-run placement cannot carry measured fits")
+        return
+    if fits is None and threshold is None and not require_fits:
+        return
+    limit = _number(threshold)
+    if limit <= 0 or not isinstance(fits, list) or not fits:
+        raise ValueError("Measured placement requires retained fits and a positive threshold")
+    chosen = None
+    populations: set[str] = set()
+    previous_distance = -1.0
+    for fit in fits:
+        if not isinstance(fit, Mapping):
+            raise ValueError("Malformed retained population fit")
+        population, region = fit.get("population"), fit.get("region")
+        if (
+            not isinstance(population, str)
+            or not population.strip()
+            or population in populations
+            or not isinstance(region, str)
+            or not region.strip()
+        ):
+            raise ValueError("Invalid retained population label")
+        populations.add(population)
+        value = _number(fit.get("fit"), finite=False)
+        if "distance" in fit or "radius" in fit:
+            distance, radius = _number(fit.get("distance")), _number(fit.get("radius"))
+            expected = distance / radius if radius else math.inf
+            if distance < previous_distance or not math.isclose(value, expected, rel_tol=1e-12):
+                raise ValueError("Retained distance, radius and fit disagree")
+            previous_distance = distance
+        if chosen is None and value <= limit:
+            chosen = fit
+    if placement["status"] == "declined":
+        if chosen is not None:
+            raise ValueError("Declined placement has an admissible population")
+    elif (
+        chosen is None
+        or chosen["population"] != placement["population"]
+        or chosen["region"] != placement["region"]
+    ):
+        raise ValueError("Reported population/region disagrees with the first admissible fit")
+
+
+def _same(actual: Any, expected: Any) -> bool:
+    """Numeric spelling may vary in JSON; booleans cannot stand in for numbers."""
+    if isinstance(expected, Mapping):
+        return (
+            isinstance(actual, Mapping)
+            and set(actual) == set(expected)
+            and all(_same(actual[k], v) for k, v in expected.items())
+        )
+    if isinstance(expected, list):
+        return (
+            isinstance(actual, list)
+            and len(actual) == len(expected)
+            and all(_same(a, e) for a, e in zip(actual, expected, strict=True))
+        )
+    if isinstance(expected, int | float) and not isinstance(expected, bool):
+        return (
+            isinstance(actual, int | float)
+            and not isinstance(actual, bool)
+            and actual == expected
+            and math.isfinite(float(actual))
+        )
+    return type(actual) is type(expected) and actual == expected
 
 
 def compare(evidence: Evidence | None, sample: Mapping[str, Any]) -> dict[str, Any]:
@@ -136,14 +243,14 @@ def validate_card(card: Mapping[str, Any], sample: Mapping[str, Any]) -> None:
         if not isinstance(actual, Mapping) or type(actual.get("schema_version")) is not int:
             raise ValueError
         numeric = actual.get("ancestry_match")
-        if isinstance(numeric, bool) or actual != expected:
+        if isinstance(numeric, bool) or not _same(actual, expected):
             raise ValueError
         if any(expected["text"] not in card[key] for key in ("summary", "detail")):
             raise ValueError
         multi = card.get("multi_marker")
         records = multi["markers"] if isinstance(multi, Mapping) else [card]
         for record in records:
-            if multi is not None and record.get("ancestry_comparison") != expected:
+            if multi is not None and not _same(record.get("ancestry_comparison"), expected):
                 raise ValueError
             observed = record["observation"]
             if (
@@ -166,7 +273,38 @@ def validate_card(card: Mapping[str, Any], sample: Mapping[str, Any]) -> None:
                 imputation=detail,
             )
             match = record["match"]
-            called = set(match["genotype"] or match["observed_genotype"])
+            variant = CardVariant.parse(record["variant"], "saved variant")
+            declared = set(variant.key.alleles)
+            if any(f.allele not in declared for f in frequencies):
+                raise ValueError
+            genotype, observed_pair = match["genotype"], match["observed_genotype"]
+            for pair in (genotype, observed_pair):
+                if pair is not None and (
+                    not isinstance(pair, str)
+                    or len(pair) != 2
+                    or pair != "".join(sorted(pair))
+                    or not set(pair) <= set("ACGT")
+                ):
+                    raise ValueError
+            if observed_pair is None:
+                raise ValueError
+            strand = match["strand"]
+            if strand == "ambiguous":
+                if (
+                    genotype is not None
+                    or not set(observed_pair) <= declared
+                    or not set(complement(observed_pair)) <= declared
+                ):
+                    raise ValueError
+            elif (
+                strand not in {"as_written", "complemented"}
+                or genotype is None
+                or not set(genotype) <= declared
+                or genotype
+                != (complement(observed_pair) if strand == "complemented" else observed_pair)
+            ):
+                raise ValueError
+            called = set(genotype or observed_pair)
             if match["strand"] == "ambiguous":
                 called.update(complement(match["observed_genotype"]))
             frequency, _ = select_observed_frequency(called, frequencies)
@@ -184,7 +322,7 @@ def validate_card(card: Mapping[str, Any], sample: Mapping[str, Any]) -> None:
                 ancestry_match=numeric,
                 variant_ancestry=True,
             )
-            if record["confidence"] != confidence_payload(result):
+            if not _same(record["confidence"], confidence_payload(result)):
                 raise ValueError
     except (ValueError, TypeError, KeyError, IndexError, AttributeError):
         raise ValueError("Invalid or inconsistent saved card ancestry comparison") from None
