@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M9 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M9 and M10.1 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -111,13 +111,25 @@ rarity/quality limits and the existing unknown cap; PRS transfer ceilings remain
 specific to PRS. Format 18 validates frozen evidence/context and preserves older
 snapshots. All 2,995 unique checks pass with five existing Windows skips;
 strict four-way types, lint/format, fixtures, full card lint and privacy gates pass.
-See [the contract and evidence audit](docs/card_ancestry.md). **M10.1 is next.**
+See [the contract and evidence audit](docs/card_ancestry.md).
 The [M9.13 diff review](docs/review_m913_session.md) hardens frozen fit, allele
 and numeric validation and preserves damaged-run errors in card detail. All
 3,015 tests pass with five existing Windows skips; types, lint, card lint and
 fixtures pass. The
 [next-step handoff](docs/handoff.md#next-open-step-m101-pharmacogenomics-ingestion)
-identifies existing sources, pending extraction and definition-coverage checks.
+records M10.1's original source-ingestion entry contract.
+
+**M10.1 pharmacogenomics ingestion is complete:** complete CPIC allele definitions,
+functions and phenotype relationships, plus all ClinPGx annotation tables, are ingested
+and checksum-bound. SQL is read without execution; COPY and INSERT dumps agree.
+`genetics pgx prepare` joins source HGVS assembly mappings to verified dbSNP GRCh37
+keys; `genetics pgx inspect` exposes frozen definitions, functions, phenotype mappings,
+licences and explicit gaps offline. All 1,354 definitions and 112,820 diplotype rows
+are retained. Normalization remains partial and VKORC1 has no source phenotype table.
+The archive-specific licence audit corrects ClinPGx's non-commercial terms and records
+the CPIC database-policy scope for review. See [PGx ingestion](docs/pgx_ingestion.md)
+and the [M10.2 handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
+Sample calling remains M10.2; bundle format and confidence arithmetic are unchanged.
 The [M9.12 diff review](docs/review_m912_session.md) adds guards against
 reversed variant claims and wrong effect units, with all 102 focused card tests
 passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)

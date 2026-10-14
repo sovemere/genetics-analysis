@@ -354,6 +354,39 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         notes="CPIC guidelines and allele tables are freely available for any use with citation.",
     ),
     LicenseTerms(
+        id="CC-BY-NC-SA-4.0",
+        name="Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+        terms_url="https://creativecommons.org/licenses/by-nc-sa/4.0/",
+        commercial_ok=False,
+        derivative_ok=True,
+        redistribution_ok=True,
+        share_alike=True,
+        attribution_required=True,
+        review_status="confirmed",
+        notes=(
+            "ClinPGx October 2026 archive LICENSE.txt notices; July 2025 clinical "
+            "annotations retain BY-SA. No payloads are vendored."
+        ),
+    ),
+    LicenseTerms(
+        id="LicenseRef-CPIC-Database-ClinPGx",
+        name="CPIC database: CC0 curated content plus ClinPGx database/API terms",
+        terms_url="https://github.com/cpicpgx/cpic-data/blob/v1.60.0/LICENSE.md",
+        commercial_ok=False,
+        derivative_ok=True,
+        redistribution_ok=True,
+        share_alike=True,
+        attribution_required=True,
+        review_status="needs-review",
+        notes=(
+            "Release license grants CC0 for curated content, but paragraph 6 also binds "
+            "database/API users to ClinPGx data usage policy. Current ClinPGx archive notices "
+            "and site footer say BY-NC-SA; older notices say BY-SA. Conservatively gate the "
+            "database on opt-in and retain the policy conflict for M15.4. This classification "
+            "does not relicense all CPIC content as BY-NC-SA."
+        ),
+    ),
+    LicenseTerms(
         id="LicenseRef-PhyloTree-Academic-Attribution",
         name="PhyloTree mtDNA build 17 (van Oven), citation required",
         terms_url="https://www.phylotree.org/",

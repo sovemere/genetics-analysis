@@ -190,6 +190,22 @@ _STEPS: tuple[Step, ...] = (
         implemented=True,
         milestone="M9.1",
     ),
+    Step(
+        name="parse_pharmgkb_annotations",
+        summary="Validate complete ClinPGx archives and ingest their tables without extraction.",
+        required_params=("output",),
+        implemented=True,
+        milestone="M10.1",
+        workspace_multiplier=30.0,
+    ),
+    Step(
+        name="parse_cpic_database",
+        summary="Read CPIC data without executing SQL; compare COPY and inserts dumps.",
+        required_params=("output",),
+        implemented=True,
+        milestone="M10.1",
+        workspace_multiplier=50.0,
+    ),
 )
 
 STEPS: Final[dict[str, Step]] = {step.name: step for step in _STEPS}
@@ -411,6 +427,40 @@ def declared_artifact_provenance(
             from genetics.refs.imputation import declared_panel_provenance
 
             return declared_panel_provenance(source, declared)
+        if declared.step in {"parse_pharmgkb_annotations", "parse_cpic_database"}:
+            from genetics.pgx.sources import expected_provenance
+
+            pgx_locked = lockfile.read(paths.reference_lock()).sources.get(source_id)
+            if (
+                pgx_locked is None
+                or pgx_locked.version != source.version
+                or pgx_locked.license_id != source.license.id
+                or (source.license.needs_opt_in and not pgx_locked.opt_in_granted)
+            ):
+                raise ProcessError(
+                    "PGx source version/license/opt-in does not match manifest.lock."
+                )
+            records = []
+            for pgx_remote in sorted(source.files, key=lambda f: f.filename):
+                item = pgx_locked.files.get(pgx_remote.filename)
+                if (
+                    item is None
+                    or item.url != pgx_remote.url
+                    or (pgx_remote.sha256 is not None and pgx_remote.sha256 != item.sha256)
+                    or (
+                        pgx_remote.size_bytes is not None
+                        and pgx_remote.size_bytes != item.size_bytes
+                    )
+                ):
+                    raise ProcessError("PGx pgx_locked file identity differs from the manifest.")
+                records.append(
+                    {
+                        "filename": pgx_remote.filename,
+                        "sha256": item.sha256,
+                        "size_bytes": item.size_bytes,
+                    }
+                )
+            return expected_provenance(declared, source, records)
         input_name = str(declared.params["input"])
         remote = next((item for item in source.files if item.filename == input_name), None)
         if remote is None:
@@ -510,6 +560,10 @@ def _artifact_rows(output: Path) -> int:
                 if type(payload.get("rows")) is not int or payload["rows"] < 0:
                     raise ProcessError("Malformed prepared-reference row count")
                 return int(payload["rows"])
+            if isinstance(payload, dict) and payload.get("kind") in {"pgx_cpic", "pgx_annotations"}:
+                from genetics.pgx.sources import validate_source
+
+                return validate_source(payload)
         if output.suffix == ".pgen":
             # A pgen is opaque binary whose variant count lives in the companion .pvar, so
             # "rows" is read from there. That is not a workaround: it also means a .pvar
@@ -2341,6 +2395,21 @@ def run(
             )
             continue
         try:
+            if declared.step in {"parse_pharmgkb_annotations", "parse_cpic_database"}:
+                from genetics.pgx.sources import run_ingestion
+
+                results.append(
+                    run_ingestion(
+                        declared,
+                        source,
+                        source_dir,
+                        verify_only=verify_only,
+                        input_digests=input_digests,
+                    )
+                )
+                if results[-1].status is ProcessStatus.FAILED:
+                    break
+                continue
             if declared.step in {"convert_to_bref3", "prepare_genetic_maps"}:
                 from genetics.refs.imputation import run_preparation
 
@@ -2545,6 +2614,8 @@ def assert_registry_is_honest() -> None:
         "convert_to_bref3",
         "prepare_genetic_maps",
         "parse_pgs_score_licenses",
+        "parse_pharmgkb_annotations",
+        "parse_cpic_database",
     }
     claimed = {name for name, step in STEPS.items() if step.implemented}
     if claimed != executable:

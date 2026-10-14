@@ -868,11 +868,11 @@ sources:
     name: PharmGKB clinical annotations and variants (ClinPGx)
     tier: A
     required: false
-    version: latest
+    version: archive-set-2026-10-14
     homepage: https://www.clinpgx.org/
-    license: LicenseRef-PharmGKB-CC-BY-SA-4.0
+    license: CC-BY-NC-SA-4.0
     enables:
-      - star-allele definitions and phenotype mapping (M10.1)
+      - reference variant HGVS assembly mappings and clinical annotations (M10.1)
       - drug-label annotations (M10.4)
     notes: >-
       PharmGKB now serves under ClinPGx: pharmgkb.org/downloads redirects to
@@ -880,12 +880,16 @@ sources:
       The URLs below are the redirect targets of the old download API, used directly so
       a fetch does not depend on a redirect staying in place.
 
-      Share-alike, so the licence gate requires an explicit opt-in for this source id.
+      Audited 2026-10-14: four archives declare BY-NC-SA 4.0; clinicalAnnotations.zip
+      remains the 2025-07-05 BY-SA 4.0 release. Preserve per-archive notices and dates.
+      Non-commercial/share-alike obligations require an explicit opt-in for this source id.
       The opt-in is expected to be taken -- the point of gating it is that the
       share-alike obligation lands in manifest.lock and reaches the M15.4 audit, not
       that the data is avoided.
     post_process:
-      - step: extract_zip
+      - step: parse_pharmgkb_annotations
+        params:
+          output: pgx_annotations.json
     files:
       - url: https://s3.pgkb.org/data/clinicalAnnotations.zip
         filename: clinicalAnnotations.zip
@@ -893,19 +897,19 @@ sources:
         unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
       - url: https://s3.pgkb.org/data/variants.zip
         filename: variants.zip
-        size_bytes: 894788
+        size_bytes: 908661
         unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
       - url: https://s3.pgkb.org/data/clinicalVariants.zip
         filename: clinicalVariants.zip
-        size_bytes: 74385
+        size_bytes: 74004
         unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
       - url: https://s3.pgkb.org/data/drugLabels.zip
         filename: drugLabels.zip
-        size_bytes: 59489
+        size_bytes: 60036
         unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
       - url: https://s3.pgkb.org/data/relationships.zip
         filename: relationships.zip
-        size_bytes: 2370578
+        size_bytes: 4300897
         unpinned_reason: "ClinPGx/PharmGKB republishes these archives on every data release under a fixed name"
 
   - id: cpic
@@ -914,13 +918,21 @@ sources:
     required: false
     version: v1.60.0
     homepage: https://cpicpgx.org/
-    license: LicenseRef-CPIC-Open
+    license: LicenseRef-CPIC-Database-ClinPGx
     enables:
       - CPIC guideline-linked dosing implications with evidence level (M10.4)
-      - diplotype-to-phenotype mapping for SNP-tractable genes (M10.2)
+      - complete allele definitions, functions and phenotype mappings (M10.1)
     notes: >-
       Version-pinned dump rather than the rolling cpic_db_dump.sql.gz, so both files
-      carry a real sha256 computed during authoring.
+      carry a real sha256 computed during authoring. The complete definitions and
+      phenotype tables reside here, not in PharmGKB clinical annotation ZIPs.
+      The release license grants CC0 curated content but additionally binds database/API
+      users to ClinPGx terms; a conservative explicit cpic opt-in records that unresolved
+      licence scope instead of assuming all database content is unrestricted.
+    post_process:
+      - step: parse_cpic_database
+        params:
+          output: pgx_cpic.json
     files:
       - url: https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0.sql.gz
         filename: cpic_db_dump-v1.60.0.sql.gz

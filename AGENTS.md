@@ -513,7 +513,7 @@ vendored). This tier alone supports the great majority of planned cards.
 | **ClinVar** | Full variant + classification set | US public domain |
 | **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | Free; open access |
 | **Pan-UK Biobank** | GWAS across thousands of traits, multi-ancestry | **CC BY 4.0**, explicitly unrestricted |
-| **PharmGKB + CPIC** | Clinical annotations, dosing guidelines. PharmGKB now serves under **ClinPGx** — `pharmgkb.org/downloads` redirects to `clinpgx.org/downloads` and the historic `api.pharmgkb.org` host no longer resolves (checked 2026-08-15) | PharmGKB CC BY-SA 4.0 (share-alike — opt-in in the fetcher); CPIC free |
+| **PharmGKB + CPIC** | Clinical annotations, allele definitions, dosing guidelines. PharmGKB serves under **ClinPGx**; complete allele definitions/functions/phenotype mappings are in CPIC's database (audited M10.1, 2026-10-14) | ClinPGx archive-specific BY-SA / BY-NC-SA 4.0; CPIC curated content CC0, database additionally bound to ClinPGx policy — both database sources opt-in |
 | **1000 Genomes** | Reference panel, GRCh37, 2,504 samples / 26 populations | Open (Fort Lauderdale) |
 | **HGDP** | ~~Reference panel~~ **withdrawn by CEPH for GDPR; no GRCh37 genotype distribution survives** (checked 2026-08-22) | n/a |
 | **SGDP** | Reference panel, GRCh37 (measured), but 70 of 345 samples need a signed letter and the public 279 span 130 populations | Open (Fort Lauderdale) + per-sample gate |
@@ -524,6 +524,15 @@ vendored). This tier alone supports the great majority of planned cards.
 
 **gnomAD is load-bearing**, not optional: the frequency-based confidence inversion in
 §4.1 cannot be computed without it.
+
+**PGx licence correction at M10.1 (2026-10-14).** Four ClinPGx ZIPs dated
+2026-10-05 carry BY-NC-SA 4.0 notices; `clinicalAnnotations.zip` remains the
+2025-07-05 BY-SA release. Do not classify all archives from a catalogue-wide
+statement. CPIC's v1.60.0 release licence grants CC0 curated content, but its
+database/API paragraph also binds users to ClinPGx policy. The database manifest
+uses a separate conservative opt-in classification with this scope conflict
+retained for M15.4; it does not relicense every CPIC resource. See the
+[audit and frozen reference contract](docs/pgx_ingestion.md).
 
 **gnomAD build note (measured at M2.3, 2026-08-15).** The v4 figures above describe a
 **GRCh38-only** release. This pipeline is GRCh37 end to end (§2), so the usable release is

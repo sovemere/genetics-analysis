@@ -37,6 +37,9 @@ def _add_refs_commands() -> None:
     from genetics.cli.pgs_cmd import pgs_app
 
     app.add_typer(pgs_app, name="pgs")
+    from genetics.cli.pgx_cmd import pgx_app
+
+    app.add_typer(pgx_app, name="pgx")
 
 
 def _add_cards_commands() -> None:

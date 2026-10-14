@@ -117,6 +117,45 @@
       "opt_in_required": false,
       "version": "2026-08-04"
     },
+    "cpic": {
+      "files": {
+        "cpic_db_dump-v1.60.0.sql.gz": {
+          "first_seen": "2026-10-14",
+          "sha256": "1f02d87a492fffacb52a6d3ca5f45c5f7d6862bdfd382436d2cf7595b08d1ffe",
+          "size_bytes": 3833028,
+          "url": "https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0.sql.gz"
+        },
+        "cpic_db_dump-v1.60.0_inserts.sql.gz": {
+          "first_seen": "2026-10-14",
+          "sha256": "c6a0ca294445aca70e73debe85aef270e57ba9c4fd5cda80f3e95f370c0b0b8c",
+          "size_bytes": 4360071,
+          "url": "https://files.cpicpgx.org/data/database/cpic_db_dump-v1.60.0_inserts.sql.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": true,
+        "id": "LicenseRef-CPIC-Database-ClinPGx",
+        "name": "CPIC database: CC0 curated content plus ClinPGx database/API terms",
+        "redistribution_ok": true,
+        "review_status": "needs-review",
+        "share_alike": true,
+        "standing": "restricted",
+        "terms_url": "https://github.com/cpicpgx/cpic-data/blob/v1.60.0/LICENSE.md"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "share-alike: derivatives inherit the licence",
+        "non-commercial use only",
+        "classification not yet checked against the published terms (M15.4)"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "v1.60.0"
+    },
     "dbsnp_b157_grch37": {
       "files": {
         "GCF_000001405.25.gz": {
@@ -708,6 +747,62 @@
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "latest"
+    },
+    "pharmgkb": {
+      "files": {
+        "clinicalAnnotations.zip": {
+          "first_seen": "2026-10-14",
+          "sha256": "9c6512c54f3c9321effacb11178fb2ae1c45fa3f1710f08c3c365ee7537ced07",
+          "size_bytes": 1231768,
+          "url": "https://s3.pgkb.org/data/clinicalAnnotations.zip"
+        },
+        "clinicalVariants.zip": {
+          "first_seen": "2026-10-14",
+          "sha256": "2ae6f1cd93198da74e5b070b06781d69e9580ebbb3daa1e3b2dbdbec3210c6f8",
+          "size_bytes": 74004,
+          "url": "https://s3.pgkb.org/data/clinicalVariants.zip"
+        },
+        "drugLabels.zip": {
+          "first_seen": "2026-10-14",
+          "sha256": "ad892f2a413882d4d0f83e27453c811f79b8cc15e15eb0860b73b5bf0e8a7ef8",
+          "size_bytes": 60036,
+          "url": "https://s3.pgkb.org/data/drugLabels.zip"
+        },
+        "relationships.zip": {
+          "first_seen": "2026-10-14",
+          "sha256": "a126f11045adc16bc2b2ccf825d9ed0be055410ef84120adee90ba1a34492f7a",
+          "size_bytes": 4300897,
+          "url": "https://s3.pgkb.org/data/relationships.zip"
+        },
+        "variants.zip": {
+          "first_seen": "2026-10-14",
+          "sha256": "13750bffd5f97b615c0fc77a83183051551ad791f373c6feecb708ab7cf3e99e",
+          "size_bytes": 908661,
+          "url": "https://s3.pgkb.org/data/variants.zip"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": true,
+        "id": "CC-BY-NC-SA-4.0",
+        "name": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": true,
+        "standing": "restricted",
+        "terms_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "share-alike: derivatives inherit the licence",
+        "non-commercial use only"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "archive-set-2026-10-14"
     },
     "phylotree_17": {
       "files": {
