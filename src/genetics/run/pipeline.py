@@ -52,6 +52,7 @@ from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.ingest.keys import LocusKey
 from genetics.ingest.schema import Chrom
 from genetics.pgs.runner import PolygenicStage
+from genetics.pgx.calling import CallingStage
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
@@ -88,6 +89,7 @@ class Analysis(NoGenotypeRepr):
     imputation_result: ImputationResult | None = None
     polygenic: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     """Private M9 score records by polygenic card id, saved as ``pgs.run.json``."""
+    pgx: Mapping[str, Any] | None = None
 
     @property
     def vendor(self) -> str:
@@ -212,6 +214,7 @@ def analyse(
     progress: Callable[[str], None] | None = None,
     no_impute: bool = False,
     polygenic: PolygenicStage | None = None,
+    pgx: CallingStage | None = None,
 ) -> Analysis:
     """Parse, QC, infer ancestry, impute by default, then evaluate quality-aware cards.
 
@@ -239,6 +242,8 @@ def analyse(
     # them before the export is read, so a tampered reference fails before a genome is.
     polygenic_stage = polygenic if polygenic is not None else PolygenicStage()
     polygenic_stage.prepare(pack, progress)
+    pgx_stage = pgx if pgx is not None else CallingStage()
+    pgx_stage.prepare()
     result: IngestResult = ingest(input_path)
     if ancestry is None:
         context = infer_ancestry(result.table, result.qc, progress=progress)
@@ -297,6 +302,10 @@ def analyse(
         if c.match is not None
         for v in c.match.variants
     )
+    if pgx_stage.catalog is not None:
+        from genetics.pgx.calling import loci as pgx_loci
+
+        loci.update(pgx_loci(pgx_stage.catalog))
     frequency_records = frequency_index.lookup(loci) if frequency_index else {}
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
     clinvar = surface(clinvar, default_reference())
@@ -323,6 +332,14 @@ def analyse(
     cards = tuple(polygenic_cards.get(card.card_id, card) for card in cards)
     cards = tuple(replace(card, imputation_mode=imputation_context.mode) for card in cards)
     matches = tuple(card.match for card in cards)
+    if progress:
+        progress("Calling SNP-tractable PGx genes with unresolved alternatives retained")
+    pgx_calls = pgx_stage.run(
+        result.table,
+        sex=result.qc.sex.inferred,
+        dosages=None if imputation_result is None else imputation_result.iter_dosages,
+        frequencies=frequency_records,
+    )
     return Analysis(
         source=result.source,
         qc=result.qc,
@@ -334,6 +351,7 @@ def analyse(
         imputation=imputation_context,
         imputation_result=imputation_result,
         polygenic=polygenic_records,
+        pgx=pgx_calls.to_dict(),
     )
 
 
@@ -368,6 +386,7 @@ def save(
         imputation=analysis.imputation,
         imputation_result=analysis.imputation_result,
         polygenic=analysis.polygenic,
+        pgx=analysis.pgx,
         progress=progress,
         runs_root=runs_root,
         run_id=run_id,

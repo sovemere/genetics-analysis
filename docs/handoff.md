@@ -1,6 +1,6 @@
 # Handoff: M10 pharmacogenomics
 
-As of 2026-10-14, **M0-M9 and M10.1 are implemented**. Full local reference verification was
+As of 2026-10-14, **M0-M9 and M10.1-M10.2 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
@@ -14,7 +14,14 @@ full card lint, fixtures and lint/format pass. The [PGx audit and contract](pgx_
 records source licences, partial normalization and the full-source offline acceptance.
 The [session diff review](review_m101_session.md) records citation/publication,
 parser and frozen-metadata fixes with all source pins and mapping counts unchanged.
-**M10.2 SNP-tractable diplotype calling is next.** Earlier milestone records below remain historical.
+**M10.2 calling is implemented**, with a separate schema-1 sample contract and
+additive bundle format 19. The [calling contract](pgx_calling.md) records
+uncertainty, complete frozen evidence and full-source synthetic acceptance.
+**M10.3 CYP2D6 placement is next.** Earlier milestone records below remain historical.
+M10.2 acceptance passes **3,188 native tests**, five existing Windows skips,
+all four strict type targets, complete card lint, fixtures, style and staged
+privacy checks. Full-source offline synthetic calling/reload passes; no
+personal export was opened. See [the acceptance record](pgx_calling.md#acceptance).
 
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
 2026-10-11:
@@ -54,7 +61,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 and M10.1 are also accepted; M10.2 is the next open step.
+are complete. M9.9–M9.13 and M10.1–M10.2 are also accepted; M10.3 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -185,7 +192,7 @@ remain unchanged. No personal export was opened.
 
 <a id="next-open-step-m102-snp-tractable-diplotype-calling"></a>
 
-### Next open step: M10.2 SNP-tractable diplotype calling
+### M10.2 entry contract (implemented; retained for review)
 
 Use `pgx/catalog.py` as the versioned public reference interface. Plan and record
 a separate versioned sample-call record and saved-bundle extension before
@@ -221,6 +228,30 @@ implementing calling. Do not alter M9.13's frozen confidence method.
   biological ploidy, partial/conflicting definitions, rare/imputed reliability
   and corruption/historical compatibility. All low-confidence findings remain
   visible. M10.3 reuses `cyp2d6_structural_variation`; do not author a duplicate.
+
+<a id="next-open-step-m103-cyp2d6-placement"></a>
+
+### Next open step: M10.3 CYP2D6 placement
+
+M10.2 computes phase-unresolved definition-ID candidates for the eight tractable
+genes. Each result retains coverage, unresolved/missing/unassigned constraints,
+source functions, exact phenotype joins, DPYD activity semantics and native G6PD
+ploidy alternatives. Unknown/poor imputation quality and rare-call bands lower
+reliability without suppressing candidates. `pgx.run.json` saves the complete
+catalog and private observations; readers reproduce the results and bind sex
+and imputation mode to the run. Formats 1–18 expose PGx as not recorded.
+`genetics pgx calls RUN --gene GENE --json` includes source and observation
+provenance. The dashboard shows all gene faces, including when grouping by
+confidence, and paginates all candidates with their total stated.
+
+M10.3 should verify and finish the placement of the already-authored
+`cyp2d6_structural_variation` card beside these calls. It is already assigned to
+pharmacogenomics; do not author a second card, reinterpret its SNP definitions,
+or duplicate the source snapshot contract. Inspect unavailable-reference and
+historical runs too, and check the presentation when grouping by tier. M10.4
+then owns guideline-linked interpretation; M10.2 returns source mappings only,
+with no dosing claims. VKORC1's genotype-linked recommendation keys are exposed
+for that audit, while its absent phenotype table remains explicit.
 
 ### M10.1 entry contract (implemented; retained for review)
 

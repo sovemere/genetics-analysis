@@ -1,4 +1,4 @@
-"""Offline public PGx reference commands; no personal input or calling."""
+"""Offline public PGx references and private saved sample calls."""
 
 from __future__ import annotations
 
@@ -12,8 +12,53 @@ import typer
 from genetics.refs.postprocess import ProcessError
 
 pgx_app = typer.Typer(
-    help="Inspect public pharmacogenomic definitions and phenotype mappings.", no_args_is_help=True
+    help="Inspect public pharmacogenomic references and saved sample calls.", no_args_is_help=True
 )
+
+
+@pgx_app.command("calls")
+def calls(
+    run_id: Annotated[str, typer.Argument(help="Saved run ID.")],
+    gene: Annotated[str | None, typer.Option("--gene", help="SNP-tractable gene.")] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit private saved call evidence.")
+    ] = False,
+) -> None:
+    from genetics.pgx.calling import CallingError, report
+    from genetics.run import store
+    from genetics.run.bundle import BundleError
+
+    try:
+        result = report(store.load_run(run_id).pgx, gene)
+    except (CallingError, BundleError, OSError, ValueError) as exc:
+        _error(exc, as_json)
+    else:
+        if as_json:
+            typer.echo(json.dumps(result, indent=2))
+        else:
+            typer.echo(f"PGx: {result['status']}")
+            if result["reason"]:
+                typer.echo(result["reason"])
+            for symbol, record in result["genes"].items():
+                tier = record.get("reliability", {}).get("tier", "unavailable")
+                typer.echo(
+                    f"{symbol}: {record['status']}; {tier}; "
+                    f"{len(record['candidates'])} compatible candidates"
+                )
+                for reason in record.get("reliability", {}).get("reasons", []):
+                    typer.echo(f"  {reason}")
+                for model in record.get("models", []):
+                    coverage = model["coverage"]
+                    typer.echo(
+                        f"  {model['ploidy']} copy model: "
+                        f"{coverage['observed_loci']}/{coverage['resolved_loci']} resolved loci "
+                        f"observed; {coverage['unresolved_locations']} source locations unresolved"
+                    )
+                for candidate in record["candidates"]:
+                    typer.echo(
+                        f"  {'/'.join(candidate['alleles'])}: {candidate['support']}; "
+                        f"{candidate['mapping_status']}"
+                    )
 
 
 @pgx_app.command("prepare")
@@ -81,7 +126,7 @@ def inspect(
             counts = report["counts"]
             typer.echo(
                 f"GRCh37 forward-strand reference: {counts['definitions']} definitions; "
-                "sample calling is M10.2."
+                "reference-only inspection; use pgx calls for saved sample calls."
             )
             for state, count in counts["definition_states"].items():
                 typer.echo(f"  {state}: {count}")

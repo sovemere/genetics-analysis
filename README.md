@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M9 and M10.1 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M9 and M10.1–M10.2 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -129,7 +129,15 @@ are retained. Normalization remains partial and VKORC1 has no source phenotype t
 The archive-specific licence audit corrects ClinPGx's non-commercial terms and records
 the CPIC database-policy scope for review. See [PGx ingestion](docs/pgx_ingestion.md)
 and the [M10.2 handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
-Sample calling remains M10.2; bundle format and confidence arithmetic are unchanged.
+**M10.2 sample calling is implemented:** `genetics run` evaluates the eight
+SNP-tractable genes and freezes complete candidate evidence in bundle format 19.
+`genetics pgx calls RUN --gene CYP2C19 --json` and the dashboard inspect the same
+saved calls offline. Phase, ploidy, missing/unresolved constraints, phenotype gaps,
+and rare/imputed reliability remain visible. DPYD uses source activity-score
+joins; G6PD keeps native copy counts; VKORC1's missing phenotype table is explicit.
+An absent prepared reference saves an unavailable stage; a damaged one fails.
+Formats 1–18 remain readable and M9.13 confidence arithmetic is unchanged.
+See [the calling contract](docs/pgx_calling.md). M10.3 is next.
 The [M10.1 diff review](docs/review_m101_session.md) fixes null guideline citation
 joins, safe atomic publication and parsing/frozen-reference validation, and updates
 the next-step contract. Complete source tables and verified mapping counts are unchanged.

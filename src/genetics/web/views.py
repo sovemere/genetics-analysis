@@ -1767,6 +1767,7 @@ class Shell(NoGenotypeRepr):
 
     clinvar: Mapping[str, Any] | None
     grid: Grid
+    pgx: Mapping[str, Any] | None = None
     """The cards, arranged (M4.6/M4.7). Empty rather than ``None`` when no run is open, so
     the page has one shape: a template that had to ask whether a grid exists before asking
     what is in it would answer "nothing here" two different ways."""
@@ -1819,6 +1820,7 @@ def shell_for(
         # only existed once a bundle loaded would mean the empty-store page and the
         # populated one render through different branches, which is how the two drift.
         clinvar=None if bundle is None else bundle.clinvar,
+        pgx=None if bundle is None else bundle.pgx,
         grid=grid_for(cards, query or GridQuery()),
         problem=problem,
     )

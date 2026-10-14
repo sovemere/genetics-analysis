@@ -8,21 +8,516 @@ import json
 import os
 import stat
 import zipfile
+from collections.abc import Iterable
+from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 import pytest
 from typer.testing import CliRunner
 
 from genetics.cli.main import app
-from genetics.pgx import catalog, sources
+from genetics.imputation.dosages import DosageRecord
+from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
+from genetics.pgx import calling, catalog, sources
 from genetics.pgx.archives import HEADERS, MEMBERS, read_archive
 from genetics.pgx.locking import publication_lock
 from genetics.pgx.sql import REQUIRED, Tables, copy_value, read_dump
+from genetics.qc.report import InferredSex
 from genetics.refs import manifest, postprocess
 from genetics.refs.postprocess import ProcessError, ProcessStatus
+
+if TYPE_CHECKING:
+    from genetics.engine.cards import KnowledgePack
+    from genetics.engine.evidence import AssembledCard
+    from genetics.qc.report import QCReport
+
+
+def sample_table(
+    pairs: Iterable[tuple[int, str | None, str | None, str]], *, chrom: str = "10"
+) -> GenotypeTable:
+    """Fabricated boundary cases, assembled in memory; never subset from a genome."""
+    rows = [
+        ("synthetic-probe", chrom, pos, a1, a2, None if a1 is None else a1 + (a2 or ""), status)
+        for pos, a1, a2, status in pairs
+    ]
+    return GenotypeTable(
+        pl.DataFrame(rows, schema=NORMALIZED_SCHEMA, orient="row"), vendor="synthetic"
+    )
+
+
+def refresh_call_reference(record: dict[str, Any]) -> catalog.Catalog:
+    record["cpic"]["rows"] = sum(len(t) for t in record["cpic"]["tables"].values())
+    record["locations"], record["definitions"] = catalog.normalize(
+        record["cpic"], record["annotations"]["variants"], record["dbsnp"]
+    )
+    catalog.validate_record(record)
+    return catalog.Catalog(record)
+
+
+def _call_gene(frozen: dict[str, Any], table: GenotypeTable, **kwargs: Any) -> dict[str, Any]:
+    result = calling.call(
+        refresh_call_reference(frozen), table, sex=kwargs.pop("sex", InferredSex.FEMALE), **kwargs
+    ).record["genes"][frozen["cpic"]["tables"]["gene"][0]["symbol"]]
+    return dict(result)
+
+
+def gene_reference(record: dict[str, Any], gene: str, *, chrom: str = "10") -> None:
+    tables = record["cpic"]["tables"]
+    tables["gene"][0].update(
+        symbol=gene, chr="chr" + chrom, chromosequenceid=catalog.accession(chrom, "GRCh37")
+    )
+    for name in ("allele_definition", "sequence_location", "allele", "gene_result"):
+        for row in tables[name]:
+            row["genesymbol"] = gene
+    tables["sequence_location"][0].update(position="101", chromosomelocation="g.101A>G")
+    record["dbsnp"]["variants"][0]["chrom"] = chrom
+    tables["gene_result_diplotype"][0]["diplotypekey"] = json.dumps({gene: {"*1": 1, "*2": 1}})
+
+
+@pytest.mark.parametrize(
+    "pair,expected", [("AA", ["*1", "*1"]), ("AG", ["*1", "*2"]), ("GG", ["*2", "*2"])]
+)
+def test_sample_caller_joint_allele_counts(
+    frozen: dict[str, Any], pair: str, expected: list[str]
+) -> None:
+    result = _call_gene(frozen, sample_table([(101, pair[0], pair[1], "called")]))
+    assert result["status"] == "unique-compatible"
+    assert [c["alleles"] for c in result["candidates"]] == [expected]
+    assert result["phase"] == "unresolved"
+    assert result["models"][0]["coverage"]["observed_loci"] == 1
+
+
+@pytest.mark.parametrize("kind", ["untyped", "no_call", "indel", "duplicate", "wrong-alleles"])
+def test_missing_or_unusable_markers_never_default_reference(
+    frozen: dict[str, Any], kind: str
+) -> None:
+    pairs = (
+        []
+        if kind == "untyped"
+        else [(101, None, None, "no_call")]
+        if kind == "no_call"
+        else [(101, "D", "I", "called")]
+        if kind == "indel"
+        else [(101, "A", "C", "called")]
+        if kind == "wrong-alleles"
+        else [(101, "A", "A", "called"), (101, "G", "G", "called")]
+    )
+    result = _call_gene(frozen, sample_table(pairs))
+    assert result["status"] == "ambiguous"
+    assert len(result["candidates"]) == 3
+    assert all(c["support"] == "conditional" for c in result["candidates"])
+    assert result["models"][0]["coverage"]["observed_loci"] == 0
+
+
+@pytest.mark.parametrize("gene", catalog.TRACTABLE)
+def test_all_eight_genes_use_the_source_contract(frozen: dict[str, Any], gene: str) -> None:
+    gene_reference(frozen, gene, chrom="X" if gene == "G6PD" else "10")
+    result = _call_gene(
+        frozen, sample_table([(101, "A", "G", "called")], chrom="X" if gene == "G6PD" else "10")
+    )
+    assert result["candidates"][0]["phenotypes"] == ["Intermediate Metabolizer"]
+    assert result["candidates"][0]["mapping_ids"] == ["8"]
+
+
+def test_native_haploid_mapping_and_unknown_sex(frozen: dict[str, Any]) -> None:
+    gene_reference(frozen, "G6PD", chrom="X")
+    tables = frozen["cpic"]["tables"]
+    tables["gene_result_diplotype"][0].update(diplotype="*2", diplotypekey='{"G6PD":{"*2":1}}')
+    tables["gene_result_lookup"][0].update(
+        lookupkey='{"No function":1}', function1="No function", function2="N/A"
+    )
+    table = sample_table([(101, "G", "G", "hemizygous")], chrom="X")
+    result = _call_gene(frozen, table, sex=InferredSex.MALE)
+    assert result["phase"] == "single-copy"
+    assert result["candidates"][0]["alleles"] == ["*2"]
+    assert result["candidates"][0]["ploidy"] == 1
+    assert result["candidates"][0]["mapping_ids"] == ["8"]
+    ambiguous = _call_gene(
+        frozen, sample_table([(101, "G", "G", "called")], chrom="X"), sex=InferredSex.AMBIGUOUS
+    )
+    assert ambiguous["ploidy_status"] == "unresolved"
+    assert {c["ploidy"] for c in ambiguous["candidates"]} == {1, 2}
+
+
+def test_haploid_heterozygosity_does_not_create_two_haplotypes(frozen: dict[str, Any]) -> None:
+    gene_reference(frozen, "G6PD", chrom="X")
+    result = _call_gene(
+        frozen, sample_table([(101, "A", "G", "het_haploid")], chrom="X"), sex=InferredSex.MALE
+    )
+    assert all(c["ploidy"] == 1 and c["support"] == "conditional" for c in result["candidates"])
+    assert result["models"][0]["observations"][0]["state"] == "ploidy-conflict"
+
+
+def add_second_locus(record: dict[str, Any]) -> None:
+    gene_reference(record, "CYP2C19")
+    tables = record["cpic"]["tables"]
+    tables["sequence_location"].append(
+        {
+            **tables["sequence_location"][0],
+            "id": "9",
+            "position": "102",
+            "chromosomelocation": "g.102C>T",
+            "dbsnpid": "rs1000002",
+        }
+    )
+    record["dbsnp"]["resolutions"]["rs1000002"] = {
+        "status": "current",
+        "current_rsid": "rs1000002",
+        "targets": [],
+    }
+    record["dbsnp"]["variants"].append(
+        {"rsid": "rs1000002", "chrom": "10", "pos_grch37": 102, "ref": "C", "alts": ["T"]}
+    )
+    tables["allele_definition"].extend(
+        [
+            {**tables["allele_definition"][1], "id": "10", "name": "*3"},
+            {**tables["allele_definition"][1], "id": "11", "name": "*4"},
+        ]
+    )
+    tables["allele_location_value"] = [
+        {"alleledefinitionid": i, "locationid": loc, "variantallele": base, "version": "1"}
+        for i, first, second in (
+            ("1", "A", "C"),
+            ("2", "G", "C"),
+            ("10", "A", "T"),
+            ("11", "G", "T"),
+        )
+        for loc, base in (("3", first), ("9", second))
+    ]
+
+
+def test_cis_trans_phase_alternatives_are_enumerated(frozen: dict[str, Any]) -> None:
+    add_second_locus(frozen)
+    result = _call_gene(
+        frozen, sample_table([(101, "A", "G", "called"), (102, "C", "T", "called")])
+    )
+    assert {tuple(c["alleles"]) for c in result["candidates"]} == {("*1", "*4"), ("*3", "*2")}
+    assert result["status"] == "ambiguous"
+    assert all(c["support"] == "complete" for c in result["candidates"])
+
+
+@pytest.mark.parametrize(
+    "kind",
+    ["unresolved", "structural", "conflict", "sparse", "missing-function", "missing-phenotype"],
+)
+def test_definition_and_mapping_gaps_remain_explicit(frozen: dict[str, Any], kind: str) -> None:
+    tables = frozen["cpic"]["tables"]
+    if kind == "unresolved":
+        tables["sequence_location"][0]["dbsnpid"] = None
+        frozen["dbsnp"]["resolutions"] = {}
+        frozen["dbsnp"]["variants"] = []
+    elif kind == "structural":
+        tables["allele_definition"][1]["structuralvariation"] = "t"
+    elif kind == "conflict":
+        tables["allele_definition"].append({**tables["allele_definition"][1], "id": "99"})
+    elif kind == "sparse":
+        tables["allele_location_value"] = tables["allele_location_value"][1:]
+        tables["allele_definition"][0]["matchesreferencesequence"] = "f"
+    elif kind == "missing-function":
+        tables["allele"] = []
+    else:
+        tables["gene_result_diplotype"] = []
+    result = _call_gene(frozen, sample_table([(101, "A", "G", "called")]))
+    assert result["candidates"]
+    if kind in {"unresolved", "structural", "conflict", "sparse"}:
+        assert any(c["support"] == "conditional" for c in result["candidates"])
+    elif kind == "missing-function":
+        assert result["candidates"][0]["function_issues"] == ["1", "2"]
+    else:
+        assert result["candidates"][0]["mapping_status"] == "missing-mapping"
+
+
+def test_activity_score_is_source_lookup_not_generic_sum(frozen: dict[str, Any]) -> None:
+    gene_reference(frozen, "DPYD")
+    tables = frozen["cpic"]["tables"]
+    tables["gene"][0]["lookupmethod"] = "ACTIVITY_SCORE"
+    for allele in tables["allele"]:
+        allele["activityvalue"] = "source-specific expression, not a number"
+    tables["gene_result_lookup"][0]["totalactivityscore"] = "source score: 1.5"
+    result = _call_gene(frozen, sample_table([(101, "A", "G", "called")]))
+    assert result["lookup_method"] == "ACTIVITY_SCORE"
+    assert result["candidates"][0]["activity_scores"] == ["source score: 1.5"]
+
+
+def test_vkorc1_missing_phenotype_is_not_invented(frozen: dict[str, Any]) -> None:
+    gene_reference(frozen, "VKORC1")
+    for name in ("gene_result_diplotype", "gene_result_lookup", "gene_result"):
+        frozen["cpic"]["tables"][name] = []
+    result = _call_gene(frozen, sample_table([(101, "A", "G", "called")]))
+    assert result["phenotype_mapping_status"] == "not-provided"
+    assert result["candidates"][0]["phenotypes"] == []
+
+
+def imputed_marker(*, source: str = "imputed_untyped", quality: float = 0.1) -> DosageRecord:
+    return DosageRecord(
+        "10",
+        101,
+        "A",
+        ("G",),
+        (0, 1),
+        (0, 1),
+        (1.0,) if source == "imputed_no_call" else (0.72,),
+        (1.0,) if source == "imputed_no_call" else (0.72,),
+        None if source == "imputed_no_call" else (quality,),
+        2,
+        source,
+        "resolved",
+        None,
+        "phased_hardcall_only" if source == "imputed_no_call" else "beagle_DS",
+        "not_estimated" if source == "imputed_no_call" else "beagle_diploid_dosage",
+    )
+
+
+@pytest.mark.parametrize(
+    "kind", ["untyped", "no_call", "blocked", "duplicate", "dosage_only", "wrong_ploidy"]
+)
+def test_imputation_preserves_native_evidence_and_blocks_replacement(
+    frozen: dict[str, Any], kind: str
+) -> None:
+    marker = imputed_marker(source="imputed_no_call" if kind == "no_call" else "imputed_untyped")
+    pairs = (
+        [(101, None, None, "no_call")]
+        if kind == "no_call"
+        else [(101, "D", "I", "called")]
+        if kind == "blocked"
+        else []
+    )
+    table = sample_table(pairs)
+    if kind == "dosage_only":
+        marker = replace(marker, genotype=None)
+        with pytest.raises(ValueError, match="malformed"):
+            _call_gene(frozen, table, dosages=[marker])
+        return
+    if kind == "wrong_ploidy":
+        marker = replace(
+            marker,
+            genotype=(1,),
+            storage_genotype=(1,),
+            ploidy=1,
+            dosage=(0.72,),
+            storage_dosage=(0.72,),
+            quality_scope="beagle_haploid_dosage",
+        )
+    result = _call_gene(
+        frozen, table, dosages=[marker, marker] if kind == "duplicate" else [marker]
+    )
+    observation = result["models"][0]["observations"][0]
+    assert result["reliability"]["tier"] == "limited"
+    if kind in {"untyped", "no_call"}:
+        assert observation["source"] == marker.source
+        assert result["candidates"][0]["alleles"] == ["*1", "*2"]
+    else:
+        assert observation["state"] != "observed"
+        assert len(result["candidates"]) == 3
+
+
+@pytest.mark.parametrize("imputed", [False, True])
+def test_rare_call_tier_survives_imputation(frozen: dict[str, Any], imputed: bool) -> None:
+    from genetics.health.frequencies import parse_record
+
+    public = parse_record(
+        "\t".join(["10", "101", ".", "A", "G", ".", "PASS", "AF=0.000001;AC=1;AN=1000000"])
+    )
+    result = _call_gene(
+        frozen,
+        sample_table([] if imputed else [(101, "A", "G", "called")]),
+        dosages=[imputed_marker()] if imputed else [],
+        frequencies={("10", 101): [public]},
+    )
+    assert result["reliability"]["tier"] == "likely-artifact"
+    assert len(result["candidates"]) == 1
+    benchmark = result["models"][0]["observations"][0]["rare_call_benchmark"]
+    assert benchmark["estimate"] == 0.16 and "not a personal" in benchmark["scope"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "schema",
+        "sex",
+        "derived",
+        "coordinates",
+        "duplicate",
+        "reference",
+        "dosage",
+        "alleles",
+        "frequency",
+    ],
+)
+def test_sample_snapshot_corruption_fails_closed(frozen: dict[str, Any], mutation: str) -> None:
+    raw = deepcopy(
+        calling.call(
+            refresh_call_reference(frozen),
+            sample_table([(101, "A", "G", "called")]),
+            sex=InferredSex.FEMALE,
+        ).to_dict()
+    )
+    calling.validate(raw)
+    if mutation == "schema":
+        raw["schema_version"] = True
+    elif mutation == "sex":
+        raw["sex"] = "invented"
+    elif mutation == "derived":
+        raw["genes"]["CYP2C19"]["candidates"][0]["ploidy"] = True
+    elif mutation == "coordinates":
+        raw["observations"][0]["pos_grch37"] = 102
+    elif mutation == "duplicate":
+        raw["observations"].append(raw["observations"][0])
+    elif mutation == "reference":
+        raw["reference"]["definitions"]["1"]["constraints"] = []
+        raw["reference_sha256"] = sources.digest(raw["reference"])
+    elif mutation == "dosage":
+        raw["observations"][0]["dosages"] = [{}]
+    elif mutation == "frequency":
+        raw["observations"][0]["frequencies"] = [
+            {
+                "chrom": "10",
+                "pos_grch37": 101,
+                "ref": "A",
+                "alts": ["G"],
+                "populations": {"global": {"an": -1}},
+            }
+        ]
+    else:
+        raw["observations"][0]["probes"][0]["a1"] = "bad"
+    with pytest.raises(calling.CallingError, match="malformed or inconsistent"):
+        calling.validate(raw)
+
+
+def test_missing_stage_and_scope_are_explicit(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(calling, "references_dir", lambda: tmp_path)
+    stage = calling.CallingStage()
+    stage.prepare()
+    record = stage.run(sample_table([]), sex=InferredSex.AMBIGUOUS).to_dict()
+    calling.validate(record)
+    assert record["status"] == "unavailable" and set(record["genes"]) == set(catalog.TRACTABLE)
+    assert calling.report(None)["status"] == "not-recorded"
+    with pytest.raises(calling.CallingError, match="eight"):
+        calling.report(record, "CYP2D6")
+
+
+def test_sample_calls_never_print_observations(frozen: dict[str, Any]) -> None:
+    result = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    )
+    assert "observations" not in repr(result) and "rs1000001" not in repr(result)
+    calling.validate(json.loads(json.dumps(result.to_dict())))
+
+
+def test_saved_pgx_cli_dashboard_and_historical_parity(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.run.bundle import PGX_NAME, read_bundle, write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    calls = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+    )
+    root = tmp_path / "runs"
+    path = write_bundle(
+        qc=sample_qc,
+        cards=sample_cards,
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic PGx acceptance"),
+        pgx=calls.to_dict(),
+        runs_root=root,
+        run_id="pgx-synthetic",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    expected = calling.report(calls.record, "CYP2C19")
+    assert calling.report(read_bundle(path).pgx, "CYP2C19") == expected
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    result = CliRunner().invoke(app, ["pgx", "calls", path.name, "--gene", "CYP2C19", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output) == expected
+    client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
+    face = client.get(f"/runs/{path.name}")
+    assert face.status_code == 200 and "compatible candidate(s)" in face.text
+    assert "limited" in face.text and "1/1 resolved loci observed" in face.text
+    detail = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19")
+    assert detail.status_code == 200 and "Intermediate Metabolizer" in detail.text
+    assert "All 1 candidates remain available" in detail.text
+    tier_page = client.get(f"/runs/{path.name}?group=tier")
+    assert "Pharmacogenomics sample calls" in tier_page.text
+    assert client.get(f"/runs/{path.name}/pgx?gene=CYP2D6").status_code == 400
+    manifest_path = path / "manifest.json"
+    header = json.loads(manifest_path.read_text())
+    header["format_version"] = 18
+    header["files"].pop(PGX_NAME)
+    (path / PGX_NAME).unlink()
+    manifest_path.write_text(json.dumps(header), encoding="utf-8")
+    assert read_bundle(path).pgx is None
+    historical = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19")
+    assert historical.status_code == 200 and "not-recorded" in historical.text
+
+
+@pytest.mark.parametrize("kind", ["sex", "imputation", "digest"])
+def test_pgx_bundle_refuses_inconsistent_inputs(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    kind: str,
+) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.run.bundle import BundleError, write_bundle
+
+    calls = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([] if kind == "imputation" else [(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+        dosages=[imputed_marker()] if kind == "imputation" else [],
+    ).to_dict()
+    if kind == "sex":
+        calls["sex"] = "female" if sample_qc.sex.inferred != InferredSex.FEMALE else "male"
+    elif kind == "digest":
+        calls["reference_sha256"] = "a" * 64
+    with pytest.raises(BundleError):
+        write_bundle(
+            qc=sample_qc,
+            cards=sample_cards,
+            pack=sample_pack,
+            ancestry=AncestryContext.not_run("Synthetic acceptance"),
+            pgx=calls,
+            runs_root=tmp_path / "runs",
+            lock_path=tmp_path / "missing.lock",
+            tools_root=tmp_path / "tools",
+        )
+
+
+def test_pipeline_executes_the_shared_pgx_stage(frozen: dict[str, Any]) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.run.pipeline import analyse
+
+    export = Path(__file__).resolve().parents[1] / "fixtures" / "synthetic" / "ancestry_v2_male.txt"
+    analysis = analyse(
+        export,
+        no_impute=True,
+        pgx=calling.CallingStage(refresh_call_reference(frozen)),
+        ancestry=lambda _table, _qc: AncestryContext.not_run("Synthetic acceptance"),
+    )
+    assert analysis.pgx is not None and analysis.pgx["status"] == "completed"
+    assert set(analysis.pgx["genes"]) == set(catalog.TRACTABLE)
 
 
 def tables_fixture() -> Tables:

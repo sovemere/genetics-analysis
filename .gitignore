@@ -137,6 +137,8 @@ incoming/
 /out/
 /reports/
 *.run.json
+# M10.2 frozen PGx calls and their public-reference snapshot: private run payload.
+# pgx.run.json is deliberately covered by this suffix and the knowledge/ rule below.
 # M7.1's private ClinVar snapshot, also covered by the general run-payload rule.
 clinvar.run.json
 *.run.json.gz

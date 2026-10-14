@@ -1,0 +1,47 @@
+{% extends "base.html" %}
+{% block title %}Pharmacogenomics{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>Pharmacogenomics{% if pgx_gene %}: {{ pgx_gene }}{% endif %}</h1>
+  <p><a href="{{ shell.run_url }}#section-pharmacogenomics">Back to the run</a></p>
+  <p>{{ pgx_report.status }}{% if pgx_report.reason %}: {{ pgx_report.reason }}{% endif %}</p>
+  {% for gene, result in pgx_report.genes.items() %}
+  <h2>{{ gene }} · {{ result.get("reliability", {}).get("tier", "unavailable") }}</h2>
+  <p>{{ result.status }} · {{ result.candidates | length }} compatible candidate(s).</p>
+  {% for reason in result.get("reliability", {}).get("reasons", []) %}<p>{{ reason }}</p>{% endfor %}
+  {% for model in result.get("models", []) %}
+  <p>{{ model.ploidy }} copy model: {{ model.coverage.observed_loci }}/{{ model.coverage.resolved_loci }} resolved loci observed;
+     {{ model.coverage.unresolved_locations }}/{{ model.coverage.source_locations }} source locations unresolved.</p>
+  {% endfor %}
+  <p>Phase: {{ result.get("phase", "not available") }}. Phenotype mappings: {{ result.get("phenotype_mapping_status", "not available") }}.</p>
+  {% if not pgx_gene %}<p><a href="{{ shell.run_url }}/pgx?gene={{ gene }}">Inspect all {{ gene }} candidates</a></p>{% endif %}
+  {% endfor %}
+  {% if pgx_gene %}
+  {% for model in pgx_report.genes.get(pgx_gene, {}).get("models", []) %}
+  <h3>Observed loci · {{ model.ploidy }} copy model</h3>
+  <table>
+    <thead><tr><th>GRCh37 locus</th><th>Array probe</th><th>State</th><th>Alleles</th><th>Call source</th><th>Imputation DR2</th><th>Rarity</th></tr></thead>
+    <tbody>{% for o in model.observations %}<tr>
+      <td>{{ o.chrom }}:{{ o.pos_grch37 }}</td><td>{{ o.probe_ids | join(", ") }}</td><td>{{ o.state }}</td>
+      <td>{{ o.bases | join(" / ") if o.bases else "unavailable" }}</td><td>{{ o.source or "unavailable" }}</td>
+      <td>{{ o.quality if o.quality is not none else "unknown" }}</td><td>{{ o.rarity }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% endfor %}
+  <p>Candidate page {{ pgx_page }} of {{ pgx_pages }}. All {{ pgx_total }} candidates remain available.</p>
+  {% if pgx_page > 1 %}<a href="?gene={{ pgx_gene }}&amp;page={{ pgx_page - 1 }}">Previous</a>{% endif %}
+  {% if pgx_page < pgx_pages %}<a href="?gene={{ pgx_gene }}&amp;page={{ pgx_page + 1 }}">Next</a>{% endif %}
+  <table>
+    <thead><tr><th>Source alleles</th><th>Copies</th><th>Support</th><th>Missing loci</th><th>Unresolved constraints</th><th>Unassigned loci</th><th>Function gaps</th><th>Source phenotype</th><th>Activity score</th></tr></thead>
+    <tbody>{% for c in pgx_candidates %}<tr>
+      <td>{{ c.alleles | join(" / ") }}</td><td>{{ c.ploidy }}</td><td>{{ c.support }}</td>
+      <td>{{ c.missing_loci | length }}</td><td>{% for identity, constraints in c.unresolved_constraints.items() %}{{ constraints | length }} for allele {{ loop.index }}; {% else %}0{% endfor %}</td><td>{{ c.unassigned_loci | length }}</td><td>{{ c.function_issues | length }}</td>
+      <td>{{ c.phenotypes | join(", ") if c.phenotypes else c.mapping_status }}</td><td>{{ c.activity_scores | join(", ") }}</td>
+    </tr>{% endfor %}</tbody>
+  </table>
+  {% endif %}
+</section>
+{% endblock %}

@@ -83,8 +83,11 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 18
+BUNDLE_FORMAT_VERSION: Final[int] = 19
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 19 (M10.2) adds reproducible PGx sample-call schema 1 in ``pgx.run.json``.
+Formats 1-18 expose PGx as not recorded; card confidence remains unchanged.
 
 Version 18 (M9.13) saves the run's shared 1000 Genomes placement and selected-evidence
 variant ancestry comparisons. Variant membership uses weighted ancestry confidence without
@@ -216,6 +219,8 @@ IMPUTATION_NAME: Final[str] = "imputation.run.json"
 IMPUTATION_PROVENANCE_NAME: Final[str] = imputation_snapshot.PROVENANCE_NAME
 PGS_NAME: Final[str] = "pgs.run.json"
 PGS_FORMAT_VERSION: Final[int] = 17
+PGX_NAME: Final[str] = "pgx.run.json"
+PGX_FORMAT_VERSION: Final[int] = 19
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -240,6 +245,7 @@ PAYLOAD_FILES: Final[tuple[str, ...]] = (
     IMPUTATION_NAME,
     IMPUTATION_PROVENANCE_NAME,
     PGS_NAME,
+    PGX_NAME,
 )
 """Every payload file this format version writes, and so every file a bundle may hold.
 
@@ -258,6 +264,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     IMPUTATION_NAME: 14,
     IMPUTATION_PROVENANCE_NAME: 16,
     PGS_NAME: PGS_FORMAT_VERSION,
+    PGX_NAME: PGX_FORMAT_VERSION,
 }
 
 
@@ -693,6 +700,8 @@ class RunBundle(NoGenotypeRepr):
     imputation_provenance: Mapping[str, Any] | None = None
     polygenic: Mapping[str, Mapping[str, Any]] | None = None
     """Private score records by polygenic card id (format 17+); None when not recorded."""
+    pgx: Mapping[str, Any] | None = None
+    """Frozen PGx sample-call schema 1; None for pre-format-19 runs."""
 
     def iter_dosages(self) -> Iterator[DosageRecord]:
         """Stream validated native full dosages from this bundle, without a stage cache."""
@@ -802,6 +811,7 @@ def write_bundle(
     imputation: ImputationContext | None = None,
     imputation_result: ImputationResult | None = None,
     polygenic: Mapping[str, Mapping[str, Any]] | None = None,
+    pgx: Mapping[str, Any] | None = None,
     progress: Callable[[str], None] | None = None,
     runs_root: Path | None = None,
     run_id: str | None = None,
@@ -912,6 +922,22 @@ def write_bundle(
         _check_polygenic(card_payloads, scores)
         _check_shared_pgs_placement(scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
         _write_text(staging / PGS_NAME, _render({"schema_version": 1, "scores": scores}))
+        from genetics.pgx.calling import CallingError, unavailable, validate_execution
+
+        pgx_payload = (
+            dict(pgx)
+            if pgx is not None
+            else unavailable(
+                "PGx calling was not supplied to the bundle writer.", sex=qc.sex.inferred.value
+            ).to_dict()
+        )
+        try:
+            validate_execution(
+                pgx_payload, sex=qc.sex.inferred.value, imputation_mode=execution["mode"]
+            )
+        except CallingError as exc:
+            raise BundleError(str(exc)) from exc
+        _write_text(staging / PGX_NAME, _render(pgx_payload))
 
         manifest = {
             "format_version": BUNDLE_FORMAT_VERSION,
@@ -1578,6 +1604,20 @@ def read_bundle(path: Path) -> RunBundle:
         ):
             raise BundleError("ClinVar coverage card disagrees with saved lookup")
 
+    pgx = None
+    if declared >= PGX_FORMAT_VERSION:
+        from genetics.pgx.calling import CallingError, validate_execution
+
+        pgx = _load_json(directory / PGX_NAME)
+        try:
+            validate_execution(
+                pgx,
+                sex=_load_json(directory / QC_NAME)["sex"]["inferred"],
+                imputation_mode=(imputation or {}).get("mode", "not_recorded"),
+            )
+        except (CallingError, KeyError, TypeError) as exc:
+            raise BundleError("Saved PGx record is inconsistent with its run.") from exc
+
     return RunBundle(
         path=directory,
         run_id=str(_require(manifest, "run_id", MANIFEST_NAME)),
@@ -1595,4 +1635,5 @@ def read_bundle(path: Path) -> RunBundle:
         imputation=imputation,
         imputation_provenance=imputation_provenance,
         polygenic=polygenic,
+        pgx=pgx,
     )
