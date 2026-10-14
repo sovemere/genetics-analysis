@@ -839,6 +839,28 @@ sources:
         size_bytes: 21160472
         sha256: ea694e58981e7bbf2c82baf6bac993ee62a877992fb9c8c8cb0dd0af70314db1
 
+  - id: pgs002143_grch37
+    name: PGS002143 LDpred2 mean hand grip strength, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002143/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - fitness and physiology mean hand grip strength polygenic card (M9.12)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only
+      LDpred2-auto HapMap3 weights. Northwestern European pool N=391124;
+      phenotype-specific training N=388700. Mean of fields 46/47,
+      excludes missing hands and mean below 1 kg. No 23andMe data.
+      EMBL-EBI default terms verified in authoritative per-score metadata;
+      direct within-family attenuation and kilogram calibration unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002143/ScoringFiles/Harmonized/PGS002143_hmPOS_GRCh37.txt.gz
+        filename: PGS002143_hmPOS_GRCh37.txt.gz
+        size_bytes: 22268195
+        sha256: 64a75133946423d6dc25f76a93ca790ac0c6856af1b2dbc2dc61b3a25cff3b39
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

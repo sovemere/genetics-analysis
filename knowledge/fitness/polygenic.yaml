@@ -1,0 +1,47 @@
+schema_version: 4
+cards:
+  - id: grip_strength_ldpred2
+    section: fitness
+    kind: polygenic
+    title: Hand grip strength polygenic association
+    pgs: {id: PGS002143, source: pgs002143_grch37}
+    trait: greater measured hand grip strength averaged across both hands
+    summary: >-
+      Higher released score values associate with greater mean hand grip strength.
+      A reference interval does not estimate your grip in kilograms, overall
+      strength, elite-athlete status or training response.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model uses
+      fields 46 and 47: the mean of left and right grip measurements, excluding
+      means below 1 kg and missing hands. The effective training N is 388,700
+      within the 391,124-person Northwestern European pool. Held-out UK testing
+      in 19,855 participants gives partial-r 0.2620 (95% CI 0.2490-0.2749),
+      about 6.86% of covariate-residual outcome variance; 93.14% remains
+      unexplained. No 23andMe data contribute. Population association is
+      not a direct genetic effect or personal kilogram calibration.
+    evidence:
+      tier: gwas
+      replication: same_cohort
+      sample_size: 19855
+      ancestry: [EUR]
+      effect:
+        measure: percent_variance_explained
+        value: 6.86
+        ci_low: 6.20
+        ci_high: 7.56
+        context: >-
+          Released pred-cor-ldpred2.csv, UK hand_grip_strength: 100*r-squared
+          after residualizing score and outcome on sex, age, birth date,
+          deprivation index and 16 PCs. This is not raw-kilogram prediction.
+          Direct within-family attenuation, matched absolute decile outcomes
+          and individual strength calibration are unknown.
+    citations:
+      - {type: doi, id: 10.1016/j.ajhg.2021.11.008, title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort}
+      - {type: doi, id: 10.6084/m9.figshare.14074760.v2, title: Author-released UKBB-PGS weights and model-specific prediction correlations}
+      - {type: accession, database: PGS Catalog, id: PGS002143, title: Public UK Biobank LDpred2 hand-grip-strength model}
+      - {type: url, id: "https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=46", title: Left hand grip strength in kilograms}
+      - {type: url, id: "https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=47", title: Right hand grip strength in kilograms}
+    caveats:
+      - "Grip is a measured endpoint distinct from aerobic fitness, injury susceptibility and response to resistance training. No individual kilograms or sport selection is inferred."
+      - "Testing is held-out within the same biobank, not independent-cohort or consumer-array validation. Age, population and measurement differences limit transfer."
+      - "No appropriate model-specific baseline, matched absolute decile series or within-family estimate is supplied by the audited release."

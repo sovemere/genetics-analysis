@@ -1,6 +1,6 @@
 # Handoff: M9 PRS engine
 
-As of 2026-10-13, **M0-M8 are implemented**. Full local reference verification was
+As of 2026-10-14, **M0-M8 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
@@ -41,11 +41,38 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.11 are also accepted; M9.12 is the next open step.
+are complete. M9.9–M9.12 are also accepted; M9.13 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
-## Next open step: M9.12 fitness and physiology
+<a id="next-open-step-m912-fitness-and-physiology"></a>
+
+## Accepted M9.12 fitness and physiology
+
+Implementation is authored on 2026-10-14: four schema-3 variant cards for
+ACTN3 resistance training, ACE serum concentration, COL5A1 chronic Achilles
+tendinopathy and ACSL1 aerobic response, plus schema-4 PGS002143 mean grip
+strength. No engine, bundle-format or renderer change is needed. Source
+population and effect applicability are explicit; conflicting replication
+caps the two affected variant cards at limited, and the injury comparator
+outcomes retain null evidence. Forward-only variant matching excludes I/D
+and unsupported alleles. The complete 966,283-row grip model is fetched,
+per-score licence-checked and checksum-pinned. Full dbSNP lint passes
+69 cards/320 renders/39 keys; style and fixtures pass. All 97 focused
+variant/polygenic-card checks, four strict type targets (201 files) and the
+staged privacy scan pass. All 2,923 unique checks pass with five existing
+Windows skips: the broad run passed 2,900 checks, and its 23 Java-8 setup
+failures/errors passed with the documented portable Java 17 runtime.
+Full-model native acceptance passed in a separate `acceptance/m912` checkpoint:
+complete reference preparation, default-imputed and explicit no-impute scoring,
+and both written-record disk-read validations. Every source term is retained;
+all verified inputs and completed imputation were reused. Both acceptance
+records report `passed`, the checkpoint is `complete`, and the runner exited
+with an empty error log. A final check reverified every reusable input and
+retained checkpoint file; nothing remains pending. See the
+[evidence audit and measured acceptance](fitness_physiology.md).
+
+### M9.12 entry contract (retained for review)
 
 Expand the Fitness & physiology section through the shared engine, knowledge
 schema 4 and bundle format 17. ACTN3, ACE, injury and trainability associations
@@ -74,6 +101,26 @@ pipeline/bundle/CLI/dashboard checks, types, card lint, fixtures and privacy
 gates remain required. Record any necessary engine/schema change here before
 implementing it. The unchanged renderer's previous browser visual check
 remains unavailable; no new screenshot review is claimed.
+
+## Next open step: M9.13 card-level ancestry match
+
+Card-level ancestry match and the `{ancestry}` placeholder are the remaining
+M9 task. Use the run's own 1000 Genomes placement and its reported
+super-population; do not invent a mapping from AADR sampling-country labels.
+Share one placement between single-marker and polygenic evaluation and keep
+CLI/dashboard computation identical. State matched, mismatched, declined,
+not-run and unknown-study-population states explicitly. M9.12's ACE study
+population is `UNKNOWN` and ACTN3 is `MULTI`: neither means measured agreement.
+
+Audit the actual evidence before choosing confidence consequences for common
+large-effect or functional variants; PRS transfer ceilings cannot be applied
+mechanically to their different claims. Preserve low-confidence findings,
+per-marker frequency/quality gates and outcome-specific null evidence. Bind
+the selected study population to the matched outcome, not an unused parent
+estimate. Verify the placeholder on the face and detail, plus frozen
+CLI/dashboard parity and historical-bundle behavior. Record any new saved
+contract here before changing schema or format; immutable saved runs must
+retain their original evidence and unknown ancestry state.
 
 <a id="next-open-step-m911-sleep-and-circadian"></a>
 
