@@ -104,6 +104,10 @@ All 2,923 unique checks pass, five existing Windows skips; all four strict type
 targets and full dbSNP lint (69/320/39 keys) pass. See the
 [evidence audit and measured acceptance](docs/fitness_physiology.md).
 **M9.13 card-level ancestry match is next.**
+The [M9.12 diff review](docs/review_m912_session.md) adds guards against
+reversed variant claims and wrong effect units, with all 102 focused card tests
+passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)
+records the ancestry context, confidence decisions and saved-run checks to address next.
 The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
 and pins and strengthens directed-phenotype bindings on the face and after
 reload. All 62 card tests and six retained native card bindings pass; no

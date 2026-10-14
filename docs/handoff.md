@@ -72,6 +72,15 @@ with an empty error log. A final check reverified every reusable input and
 retained checkpoint file; nothing remains pending. See the
 [evidence audit and measured acceptance](fitness_physiology.md).
 
+The [M9.12 diff review](review_m912_session.md) found that the existing
+variant checks accepted four reversed face claims and a wrong effect measure.
+Published directions and units are now bound before evaluating fabricated
+observations and checked after saved CLI/dashboard reload; five mutation
+regressions reject those changes. All 102 focused card tests pass. The
+complete grip payload pin/terms and both retained native card evidence
+bindings pass locally; the original full-scale acceptance is preserved.
+The review changes tests and documentation only. M9.13 remains next.
+
 ### M9.12 entry contract (retained for review)
 
 Expand the Fitness & physiology section through the shared engine, knowledge
@@ -122,6 +131,17 @@ CLI/dashboard parity and historical-bundle behavior. Record any new saved
 contract here before changing schema or format; immutable saved runs must
 retain their original evidence and unknown ancestry state.
 
+Start by tracing `run/pipeline.py::observations`, the existing
+`ancestry/context.py::_reference_population` placement, `pgs/portability.py`
+and `engine/evidence.py` template context. Interpretation observations
+currently leave ancestry match unknown; the run's AADR result cannot supply
+1000 Genomes super-population labels. Define the shared 1000 Genomes context
+and selected-outcome study comparison first, then wire `{ancestry}` and saved
+CLI/dashboard output. Document how unknown, mixed and declined populations
+affect each evidence class before changing confidence or the saved contract.
+Use the portable Java 17 setup recorded in the M9.12 audit for native checks;
+the system Java 8 is insufficient for bref3.
+
 <a id="next-open-step-m911-sleep-and-circadian"></a>
 
 ## Accepted M9.11 sleep and circadian
@@ -149,7 +169,8 @@ substitution and in saved CLI/dashboard output; three mutation regressions
 reject those inversions. All 62 card tests, all four strict type targets and
 full card lint pass. Six retained native card model/direction/evidence
 bindings pass without changing or rescoring their frozen records. M9.12
-remains next; carry these direction checks into its model authoring tests.
+subsequently completed and carried these direction checks into model authoring;
+M9.13 is now the next open step.
 
 ### M9.11 entry contract (retained for review)
 
