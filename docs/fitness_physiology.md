@@ -42,9 +42,9 @@ differences are stated without erasing the failed confirmation. Case-control
 sampling fractions are not population base rates; absolute risk is unknown.
 
 [Bouchard 2011](https://pmc.ncbi.nlm.nih.gov/articles/PMC3098655/) supplies the
-ACSL1 single-locus discovery estimate. Its P=1.31e-6 is below genome-wide
-significance. The authors explicitly report no confirmation in HERITAGE black
-participants, DREW or STRRIDE. This exploratory finding is `candidate_gene`
+ACSL1 single-locus discovery estimate. Its P=1.31e-6 does not meet the
+genome-wide significance threshold. The authors explicitly report no confirmation
+in HERITAGE black participants, DREW or STRRIDE. This exploratory finding is `candidate_gene`
 with `conflicting` replication, not a genome-wide significant or validated
 trainability model. The paper's 3.5% multivariable contribution and 48.6%
 21-SNP fit are different estimates and are not substituted. Neither a training
@@ -114,6 +114,14 @@ fetch instructions are checked through saved CLI/dashboard views. Variant
 checks bind exact loci, allele direction, endpoints, estimates and replication;
 all supported pairs, unexpected alleles, I/D, missing markers, rarity and saved
 per-card evidence are exercised. Null injury estimates stay null after reload.
+
+The subsequent [diff review](review_m912_session.md) strengthens the variant
+checks: four reversed face claims and a wrong effect measure passed the original
+guards, and are now rejected by five retained mutation regressions. Published
+directions and units are bound before fabricated observations and after saved
+CLI/dashboard reload. All 102 focused card tests pass; this review does not
+claim a new full-suite or native scoring run. M9.13's current entry contract
+is in the [handoff](handoff.md#next-open-step-m913-card-level-ancestry-match).
 
 All **2,923 unique checks pass**, with five existing Windows skips. The broad
 run passed 2,900 checks in 863.64 seconds; five failures and eighteen setup

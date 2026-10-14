@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import itertools
 import json
+from html import unescape
 from pathlib import Path
+from typing import Any
 
 import polars as pl
 import pytest
@@ -50,11 +52,48 @@ STUDY_ANCESTRIES = {
     "col5a1_achilles_tendinopathy": ("EUR",),
     "acsl1_aerobic_trainability": ("EUR",),
 }
+# Published directions, independent of the authored outcome names. Keep both
+# functional/association claims and group contrasts bound to their actual endpoint.
+PUBLISHED_CLAIMS: dict[str, dict[str, tuple[str, ...]]] = {
+    "actn3_resistance_training": {
+        "retained": ("R577 copy preserves alpha-actinin-3", "about 2% of women's strength-gain"),
+        "absent": ("associated with absent alpha-actinin-3", "XX gained more one-repetition"),
+    },
+    "ace_serum_association": {
+        "lower": ("associated with lower serum ACE",),
+        "intermediate": ("associated with intermediate serum ACE",),
+        "higher": ("associated with higher serum ACE",),
+    },
+    "col5a1_achilles_tendinopathy": {
+        "lower_case_odds": ("associated with lower chronic", "OR 0.42 (95% CI 0.20-0.86)"),
+        "comparator": ("CT/TT comparator group", "No separate genotype risk"),
+    },
+    "acsl1_aerobic_trainability": {
+        "lower": ("AA had lower VO2max gains than GG",),
+        "intermediate": ("AG had intermediate VO2max gains",),
+        "higher": ("GG had higher VO2max gains than AA",),
+    },
+}
+
+
+def assert_published_claims(card: Card) -> None:
+    assert card.evidence is not None
+    measure = (
+        "odds_ratio" if card.id == "col5a1_achilles_tendinopathy" else "percent_variance_explained"
+    )
+    assert card.evidence.effect.measure.value == measure, f"Wrong published units for {card.id}"
+    for outcome_name, claims in PUBLISHED_CLAIMS[card.id].items():
+        summary = " ".join(card.outcomes[outcome_name].summary.split())
+        assert all(claim in summary for claim in claims), (
+            f"Wrong published direction or estimate for {card.id}/{outcome_name}"
+        )
 
 
 def variant_pack() -> KnowledgePack:
     cards = parse_file(AUTHORED.read_text(encoding="utf-8"), str(AUTHORED))
     assert {c.id for c in cards} == set(BINDINGS)
+    for card in cards:
+        assert_published_claims(card)
     return KnowledgePack(cards, AUTHORED.parent)
 
 
@@ -101,6 +140,41 @@ def test_exact_variant_endpoint_bindings_and_estimate_scope() -> None:
             assert card.evidence.effect.ci_low == 0.20 and card.evidence.effect.ci_high == 0.86
             assert card.outcomes["comparator"].overrides_evidence
             assert card.outcomes["comparator"].evidence is None
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("XX gained more one-repetition", "XX gained less one-repetition"),
+        ("associated with lower serum ACE", "associated with higher serum ACE"),
+        ("associated with lower chronic", "associated with higher chronic"),
+        ("AA had lower VO2max gains", "AA had higher VO2max gains"),
+        ("measure: percent_variance_explained", "measure: odds_ratio"),
+    ],
+    ids=[
+        "actn3_direction",
+        "ace_direction",
+        "injury_direction",
+        "trainability_direction",
+        "effect_units",
+    ],
+)
+def test_variant_binding_rejects_reversed_claims_and_wrong_units(
+    monkeypatch: pytest.MonkeyPatch, old: str, new: str
+) -> None:
+    read = Path.read_text
+
+    def mutated(path: Path, *args: Any, **kwargs: Any) -> str:
+        text = read(path, *args, **kwargs)
+        if path == AUTHORED:
+            assert old in text
+            return text.replace(old, new, 1)
+        return text
+
+    monkeypatch.setattr(Path, "read_text", mutated)
+    # The mutation changes only authored claims; observations remain fabricated.
+    with pytest.raises(AssertionError, match="Wrong published"):
+        variant_pack()
 
 
 @pytest.mark.parametrize("card_id", BINDINGS)
@@ -221,6 +295,10 @@ def test_variant_bundle_cli_dashboard_preserve_endpoint_evidence(
         for original in assembled:
             saved = payload[original.card_id]
             assert saved["summary"] == original.summary
+            assert original.match.outcome_name is not None
+            claims = PUBLISHED_CLAIMS[original.card_id][original.match.outcome_name]
+            assert all(claim in " ".join(saved["summary"].split()) for claim in claims)
+            assert all(claim in " ".join(unescape(page.text).split()) for claim in claims)
             assert {c["id"] for c in saved["citations"] if c["type"] == "doi"} == DOIS[
                 original.card_id
             ]
@@ -229,9 +307,14 @@ def test_variant_bundle_cli_dashboard_preserve_endpoint_evidence(
             else:
                 assert saved["evidence"]["sample_size"] == BINDINGS[original.card_id][4]
                 assert saved["evidence"]["effect"]["value"] == BINDINGS[original.card_id][5]
+                assert (
+                    saved["evidence"]["effect"]["measure"]
+                    == original.card.evidence.effect.measure.value
+                )
             assert original.title in page.text
             detail = client.get(f"/runs/{bundle.run_id}/cards/{original.card_id}")
             assert detail.status_code == 200
+            assert all(claim in " ".join(unescape(detail.text).split()) for claim in claims)
             for doi in DOIS[original.card_id]:
                 assert doi in detail.text
         assert "failed replication" in page.text
