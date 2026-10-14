@@ -77,8 +77,12 @@ See the [model audit](docs/substance_use_prs.md).
 scoring checks and six written-record reload validations pass; all 2,885
 unique checks pass with five Windows skips. See the
 [model audit](docs/sleep_circadian_prs.md). **M9.12 fitness and physiology is
-next**; its [handoff](docs/handoff.md#next-open-step-m912-fitness-and-physiology)
-identifies reusable private inputs and required acceptance checks.
+complete**: four variant cards and complete mean-grip PGS002143, with full
+reference preparation, both scoring modes and both disk-read validations
+passed. All 2,923 unique checks pass, five existing Windows skips.
+See the [evidence audit](docs/fitness_physiology.md). **M9.13 card-level
+ancestry match is next**; its [handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)
+records the evidence and compatibility requirements.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2725,8 +2729,22 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       Windows skips; staged privacy scanning passes.
       Schema 4 / bundle format 17 and the renderer are unchanged.
       [Model audit and acceptance](docs/sleep_circadian_prs.md).
-- [ ] **M9.12** Section: **Fitness & physiology** (ACTN3, ACE, injury, trainability).
+- [x] **M9.12** Section: **Fitness & physiology** (ACTN3, ACE, injury, trainability).
       Weak evidence — include and flag honestly.
+      Five declarative cards are authored: ACTN3 resistance training, ACE
+      serum concentration, COL5A1 chronic Achilles tendinopathy, ACSL1 aerobic
+      response and complete PGS002143 mean grip strength. Exact endpoints,
+      model evidence, population and replication limits are audited; source
+      terms are permissive and the fetched full model is checksum-pinned.
+      All 97 focused card checks, four strict type targets, full dbSNP lint
+      (69/320/39 keys), style, fixtures and staged privacy scan pass.
+      All 2,923 unique checks pass, five existing Windows skips; Java-dependent
+      checks passed with portable Java 17 after the initial run used Java 8.
+      Full-model acceptance passed in the separate private M9.12 checkpoint:
+      complete reference preparation, both scoring modes and both written-record
+      disk-read validations. Every source term is retained; completed imputation
+      and all verified inputs were reused. Schema 3/4, bundle format 17 and
+      renderer unchanged. [Evidence audit and measured acceptance](docs/fitness_physiology.md).
 - [ ] **M9.13** Card-level ancestry match and the `{ancestry}` placeholder. Carved out of
       M9.6 because it is a decision about evidence, not rendering: applying M9.5's
       ancestry ceilings to single large-effect variants would re-tier every card in the
@@ -2905,6 +2923,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-14 | M9.12 | Five Fitness/physiology cards: ACTN3 resistance training, ACE serum concentration, COL5A1 chronic Achilles tendinopathy, ACSL1 aerobic response and complete PGS002143 mean grip strength. Exact endpoints, effect/interval, N, population and replication are audited; unknown ancestry, null comparator effects and failed replication stay explicit. Forward-only variant matching excludes I/D and unsupported alleles. Full model is permissive per score, fetched and pinned; all source terms are retained. Complete reference preparation, both native scoring modes and both disk-read validations passed with verified reused imputation and no earlier checkpoint changed. 2,923 unique checks pass, five existing Windows skips; four strict type targets, lint/format, fixtures, staged privacy scan and full dbSNP lint (69/320/39 keys) pass. The initial broad run used Java 8; all 23 affected native checks passed with portable Java 17. Engine, schema 3/4, bundle format 17 and renderer unchanged. M9.13 handoff ready. [Audit and measured acceptance](docs/fitness_physiology.md). |
 | 2026-10-13 | M9.11 diff review | Reviewed `1bebcff..92d2efb`: exact model releases, phenotype-specific N/performance, per-score terms, source pins and corpus counts confirmed. All three in-memory reversed face directions passed the original integration checks; directed phenotypes are now bound before substitution and checked in saved CLI/dashboard output, with three rejecting mutation regressions. All 62 card tests, four strict type targets and full card lint (64/294/35 keys) pass. Six retained native card model/direction/evidence bindings pass; original scores and full-scale acceptance are preserved. No production card, engine, schema or renderer change. M9.12 remains next. [Review](docs/review_m911_session.md). |
 | 2026-10-13 | M9.11 | Three public UK Biobank-only LDpred2 models authored, licence-checked, fetched and pinned: evening preference, log-transformed daily sleep including naps, and ordinal sleeplessness. Exact release evidence, coding/direction, phenotype-specific training/evaluation N and calibration limits audited. All three full references, six scoring checks and six disk-read validations pass; full imputation reused, source rows retained. 2,885 unique checks pass with five Windows skips; all four strict type targets, lint/format, fixtures, privacy gates and full card lint (64/294/35 keys) pass. Schema 4 / bundle format 17 and renderer unchanged. M9.12 handoff ready. [Audit and measured acceptance](docs/sleep_circadian_prs.md). |
 | 2026-10-13 | M9.10 | Three public UK Biobank-only models authored, licence-checked, fetched and pinned: ever smoking, less-frequent alcohol intake and broad self-reported addiction. Exact phenotype N, partial-r evidence, binary/ordinal scope and alcohol direction audited; GSCAN's public-release performance binding could not be established, so full-study metrics are not substituted. All full references, three default-imputed and three no-impute checks, and six written-record reload validations pass. Complete imputation reused; source rows retained. 2,881 unique checks pass with five Windows skips, all four strict type targets and full card lint (61/288/35 keys). Schema 4 / bundle format 17 unchanged. M9.11 handoff ready. [Audit and measured acceptance](docs/substance_use_prs.md). |

@@ -1,0 +1,190 @@
+schema_version: 3
+cards:
+  - id: actn3_resistance_training
+    section: fitness
+    kind: interpretation
+    title: ACTN3 protein and resistance-training association
+    gene: ACTN3
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1815739, chrom: "11", pos_grch37: 66328095, alleles: [C, T]}
+      genotypes: {CC: retained, CT: retained, TT: absent}
+    outcomes:
+      retained:
+        summary: >-
+          At least one ACTN3 R577 copy preserves alpha-actinin-3. Weak training
+          evidence: a 12-week study attributed about 2% of women's strength-gain
+          variance to this genotype; it found no association in men.
+        detail: >-
+          The C allele encodes R577; T encodes the X577 stop. Protein function
+          does not establish sprinting ability. Clarkson et al. studied 247 men
+          and 355 women, with European and Asian subgroup analyses, training
+          the nondominant arm. Women with XX had greater adjusted one-repetition
+          maximum gains than RR. This is an omnibus genotype association,
+          not an estimate for either of your alleles or your expected gains.
+      absent:
+        summary: >-
+          ACTN3 X577 on both copies is associated with absent alpha-actinin-3.
+          Weak training evidence: women with XX gained more one-repetition
+          maximum strength than RR in one 12-week study; no association in men.
+        detail: >-
+          Alpha-actinin-3 deficiency is common in healthy people. It does not
+          mean absence of fast-twitch fibres, disease or inability to sprint.
+          Clarkson et al.'s 355 women showed about 2% of strength-gain variance
+          associated with genotype; 247 men showed no association. The endpoint
+          was nondominant-arm training, not whole-body fitness or aerobic response.
+    evidence:
+      tier: candidate_gene
+      replication: same_cohort
+      sample_size: 355
+      ancestry: [MULTI]
+      effect:
+        measure: percent_variance_explained
+        value: 2
+        context: >-
+          Approximate omnibus ACTN3 contribution to women's 1-RM strength-gain
+          variance in Clarkson 2005; not a per-allele effect, percentage gain
+          or estimate in men. No confidence interval or personal gain calibration.
+    citations:
+      - {type: doi, id: 10.1152/japplphysiol.01139.2004, title: ACTN3 genotype is associated with increases in muscle strength in response to resistance training in women}
+      - {type: doi, id: 10.1086/377590, title: ACTN3 genotype is associated with human elite athletic performance}
+      - {type: accession, database: dbSNP, id: rs1815739, title: GRCh37 forward-strand ACTN3 R577X variant}
+    caveats:
+      - "The molecular stop-codon effect is distinct from weak performance prediction. This card's evidence and reliability describe the training association."
+      - "Same-cohort ethnic subgroup checks are not independent replication. No individual gains, athlete-status probability or training prescription is calibrated."
+      - "The reported sex-specific association is not automatically applicable to men; the study found no male association."
+
+  - id: ace_serum_association
+    section: fitness
+    kind: interpretation
+    title: ACE serum-concentration SNP association
+    gene: ACE
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs4343, chrom: "17", pos_grch37: 61566031, alleles: [A, G]}
+      genotypes: {AA: lower, AG: intermediate, GG: higher}
+    outcomes:
+      lower:
+        summary: "ACE rs4343 is associated with lower serum ACE in a small twin study. This SNP does not determine ACE I/D state, endurance or power."
+        detail: "AA had the lowest group serum ACE concentrations; individual concentrations overlap and are not measured by this array."
+      intermediate:
+        summary: "ACE rs4343 is associated with intermediate serum ACE in a small twin study. This SNP does not determine ACE I/D state, endurance or power."
+        detail: "AG had intermediate group serum ACE concentrations; individual concentrations overlap and are not measured by this array."
+      higher:
+        summary: "ACE rs4343 is associated with higher serum ACE in a small twin study. This SNP does not determine ACE I/D state, endurance or power."
+        detail: "GG had the highest group serum ACE concentrations; individual concentrations overlap and are not measured by this array."
+    evidence:
+      tier: candidate_gene
+      replication: same_cohort
+      sample_size: 92
+      ancestry: [UNKNOWN]
+      effect:
+        measure: percent_variance_explained
+        value: 46.6
+        context: >-
+          Schuler 2017 NUGAT, 46 healthy nonobese twin pairs recruited in Germany:
+          adjusted R-squared 0.466 for rs4343 and serum ACE concentration.
+          No interval reported. This is a biomarker association in related
+          participants, not variance explained in athletic performance.
+    citations:
+      - {type: doi, id: 10.1161/JAHA.116.004465, title: "High-Saturated-Fat Diet Increases Circulating Angiotensin-Converting Enzyme, Which Is Enhanced by the rs4343 Polymorphism Defining Persons at Risk of Nutrient-Dependent Increases of Blood Pressure"}
+      - {type: accession, database: dbSNP, id: rs4343, title: GRCh37 forward-strand ACE synonymous SNP}
+    caveats:
+      - "Serum concentration is not enzyme activity, fitness, blood pressure or disease risk. No athlete-status probability or training response is established."
+      - "The paper uses rs4343 as an I/D proxy; linkage disequilibrium is population-dependent. No insertion/deletion, structural or causal state is called here. Consumer I/D labels remain excluded."
+      - "The study's separate blood-pressure replication is not replication of this 46.6% serum-concentration estimate. Direct effects and personal concentration calibration are unknown."
+      - "The audited NUGAT methods describe German recruitment but do not specify ancestry; ancestry is recorded as unknown, not borrowed from MeSyBePo or inferred from geography."
+
+  - id: col5a1_achilles_tendinopathy
+    section: fitness
+    kind: interpretation
+    title: COL5A1 Achilles tendinopathy association
+    gene: COL5A1
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs12722, chrom: "9", pos_grch37: 137734416, alleles: [C, T]}
+      genotypes: {CC: lower_case_odds, CT: comparator, TT: comparator}
+    outcomes:
+      lower_case_odds:
+        summary: >-
+          Weak, conflicting injury evidence: CC was associated with lower chronic
+          Achilles tendinopathy case odds, OR 0.42 (95% CI 0.20-0.86), in 295
+          Australian participants. Absolute risk and base rate are unknown.
+        detail: >-
+          September et al. compared 85 Australian cases with 210 controls,
+          and 93 South African cases with 132 controls. The Australian estimate
+          compares CC with CT/TT combined, not each T copy. Kim et al.'s larger
+          GERA study did not confirm rs12722 for its broader Achilles endpoint.
+      comparator:
+        evidence: null
+        summary: >-
+          Weak, conflicting injury evidence: this genotype belongs to the CT/TT
+          comparator group in a small Achilles study. No separate genotype risk,
+          absolute injury rate or increased personal risk is established.
+        detail: >-
+          The Australian study's OR 0.42 (95% CI 0.20-0.86) describes CC versus
+          CT/TT combined. It is not a per-T effect or a distinct estimate for CT
+          or TT. GERA's broader Achilles endpoint did not confirm rs12722.
+    evidence:
+      tier: candidate_gene
+      replication: conflicting
+      sample_size: 295
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 0.42
+        ci_low: 0.20
+        ci_high: 0.86
+        context: "Australian chronic Achilles tendinopathy cases versus controls, CC versus CT/TT combined; 85 cases and 210 controls. No population base rate, absolute risk or time horizon is calibrated."
+    citations:
+      - {type: doi, id: 10.1136/bjsm.2008.048793, title: Variants within the COL5A1 gene are associated with Achilles tendinopathy in two populations}
+      - {type: doi, id: 10.1371/journal.pone.0170422, title: Genome-wide association screens for Achilles tendon and ACL tears and tendinopathy}
+      - {type: accession, database: dbSNP, id: rs12722, title: GRCh37 forward-strand COL5A1 variant}
+    caveats:
+      - "Case-control sampling fractions are not population base rates. No absolute injury probability, ACL-tear prediction, tendon-rupture prediction or prevention prescription follows."
+      - "GERA included 102,979 participants and 5,148 Achilles cases (bursitis/tendinitis, rupture or repair). Its phenotype differs from chronic athletic tendinopathy; lack of confirmation still limits transfer."
+      - "Only CC receives the published genotype-group estimate. CT and TT remain visible with no applicable separate estimate."
+
+  - id: acsl1_aerobic_trainability
+    section: fitness
+    kind: interpretation
+    title: ACSL1 aerobic-training response association
+    gene: ACSL1
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs6552828, chrom: "4", pos_grch37: 185725416, alleles: [A, G]}
+      genotypes: {AA: lower, AG: intermediate, GG: higher}
+    outcomes:
+      lower:
+        summary: "Weak, unconfirmed trainability finding: AA had lower VO2max gains than GG in HERITAGE. This association failed replication; it does not predict your response."
+        detail: "After 20 weeks, adjusted gains were 125 mL/min lower for AA than GG, and 63 mL/min lower than AG. These are discovery group contrasts, not personal expected gains."
+      intermediate:
+        summary: "Weak, unconfirmed trainability finding: AG had intermediate VO2max gains in HERITAGE. This association failed replication; it does not predict your response."
+        detail: "AG gains were between the two homozygous groups in discovery. The omnibus variance estimate is not a per-allele effect or a training prescription."
+      higher:
+        summary: "Weak, unconfirmed trainability finding: GG had higher VO2max gains than AA in HERITAGE. This association failed replication; it does not predict your response."
+        detail: "The discovery group comparison favoured GG over AA. It establishes neither elite endurance status nor an individual's VO2max or training response."
+    evidence:
+      tier: candidate_gene
+      replication: conflicting
+      sample_size: 473
+      ancestry: [EUR]
+      effect:
+        measure: percent_variance_explained
+        value: 6.1
+        context: >-
+          Bouchard 2011, single-SNP discovery association with age/sex/baseline-adjusted
+          VO2max gains after 20 weeks in 473 sedentary white adults from 99 families.
+          P=1.31e-6 did not meet genome-wide significance. No interval reported;
+          rs6552828 was not confirmed in any of the three replication cohorts.
+    citations:
+      - {type: doi, id: 10.1152/japplphysiol.00973.2010, title: Genomic predictors of the maximal O2 uptake response to standardized exercise training programs}
+      - {type: accession, database: dbSNP, id: rs6552828, title: GRCh37 forward-strand ACSL1 intronic variant}
+    caveats:
+      - "The source also reports 3.5% in its multivariable model; neither that value nor the 21-SNP model's 48.6% is the selected single-SNP estimate."
+      - "Replication cohorts were HERITAGE black participants (247), DREW (112) and STRRIDE (183). This locus was not associated in any; other loci's replication does not validate it."
+      - "No individual response, responder/nonresponder classification, absolute gain calibration or causal/direct effect is established. Training programme and population differences limit transfer."

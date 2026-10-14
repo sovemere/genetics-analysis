@@ -96,7 +96,14 @@ All three full references, six scoring checks and six written-record reload
 validations pass, with complete models and reused full-autosomal imputation.
 All 2,885 unique checks pass with five Windows skips, all four strict type
 targets and full card lint (64/294/35 keys). **M9.12 fitness and physiology
-is next.**
+is complete**: four endpoint-specific variant cards and complete PGS002143
+mean grip strength are authored and source-audited. Full reference preparation,
+both native scoring modes and both written-record disk-read validations pass,
+with every source term retained and completed imputation reused.
+All 2,923 unique checks pass, five existing Windows skips; all four strict type
+targets and full dbSNP lint (69/320/39 keys) pass. See the
+[evidence audit and measured acceptance](docs/fitness_physiology.md).
+**M9.13 card-level ancestry match is next.**
 The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
 and pins and strengthens directed-phenotype bindings on the face and after
 reload. All 62 card tests and six retained native card bindings pass; no

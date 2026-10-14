@@ -272,7 +272,7 @@ the card's own citations. The engine writes the face itself: an interval in a re
 distribution (never a point), coverage, ancestry portability, within-family attenuation and
 the decile rates. Authored polygenic cards cover physical health (M9.7), mental health
 (M9.8), psychometrics (M9.9), substance use/behavioural propensity (M9.10)
-and sleep/circadian (M9.11).
+and sleep/circadian (M9.11), plus fitness/physiology mean grip strength (M9.12).
 See [polygenic cards](../docs/pgs_cards.md), the
 [psychometric model audit](../docs/psychometrics_prs.md) and the
 [substance-use model audit](../docs/substance_use_prs.md). Substance-use definitions
@@ -282,3 +282,12 @@ addiction; the alcohol weights retain their published direction.
 The [sleep/circadian model audit](../docs/sleep_circadian_prs.md) distinguishes
 evening preference, log-transformed daily sleep including naps and ordinal
 sleeplessness. None supplies a bedtime, individual sleep hours or diagnosis.
+
+The [fitness/physiology audit](../docs/fitness_physiology.md) distinguishes
+grip strength from training response and injury susceptibility. Four schema-3
+variant cards separately cover ACTN3 resistance training, ACE serum
+concentration, COL5A1 chronic Achilles tendinopathy and ACSL1 aerobic response.
+They retain weak/conflicting evidence and explicitly unknown calibration.
+The injury comparator outcomes retain null estimates; all four variants use
+forward-only matching, with no consumer I/D interpretation or inferred ACE
+insertion/deletion state.
