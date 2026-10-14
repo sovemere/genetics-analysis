@@ -32,7 +32,8 @@ and opt-ins; the parsers make no network calls.
 
 ClinPGx's five ZIPs contain nine annotation tables. They do **not** supply a
 complete star-allele definition corpus. The actual complete definitions,
-allele functions and phenotype relationships are in the CPIC database.
+allele functions and phenotype relationships supplied by the pinned release are
+in the CPIC database. Complete ingestion does not establish clinical completeness.
 [CPIC's data model](https://github.com/cpicpgx/cpic-data) describes the source
 tables and [release history](https://github.com/cpicpgx/cpic-data/releases)
 confirms that v1.60.1 is application-only; v1.60.0 remains the pinned dump.
@@ -71,7 +72,10 @@ there is no PostgreSQL dependency. Source scalars stay strings/null; escapes,
 quoted text, activity-score expressions, clinical substrate context, citation
 arrays and version fields retain their original meanings. Primary identities,
 definition/location/function joins and the diplotype → function-lookup →
-phenotype chain are checked. Missing functions/mappings stay explicit.
+phenotype chain are checked. Required labels are nonempty and duplicate lookup
+JSON keys are rejected. COPY octal/hex byte escapes decode as UTF-8, preserving
+multibyte text. Missing functions/mappings stay explicit. CYP2D6's copy-number
+function aliases legitimately reference base definition IDs; names are retained.
 
 Preparation writes `cpic/pgx_reference.json`, catalog schema **1**. It freezes
 all selected CPIC tables, the complete ClinPGx variant table and archive
@@ -80,12 +84,21 @@ definitions. Readers recompute normalized states from the frozen evidence,
 check exact numeric types and source/provenance consistency, and require the
 output checksum. Explicit snapshots remain readable without stage caches;
 default reads additionally check declared releases/licences/hashes and opt-ins.
+Both source and frozen readers require the complete release-specific file set,
+valid archive dates and notices, and aggregate terms that retain embedded obligations.
 
-Publication uses kernel-owned Windows/Linux locks and atomic file replacement.
+Publication uses kernel-owned Windows/Linux locks and atomic file replacement
+through exclusive temporary files; a pre-existing scratch hardlink cannot be
+truncated. Nested declared outputs create their contained parent before locking.
 Interruption leaves a verifiable completion or an incomplete artifact that
 verification refuses; retry restarts the small transform. Valid completions
 are reused. Input drift, changed parameters, damaged sidecars and incompatible
 snapshots cannot be reused as healthy references.
+
+Gene/allele inspection returns directly cited papers and papers from actual,
+non-null gene guideline links. A missing guideline ID never associates unrelated
+publications. The [M10.1 diff review](review_m101_session.md) records the reproduced
+defects, regressions and full-source checks.
 
 ## Coordinate and definition limits
 
@@ -153,3 +166,10 @@ including twelve added after broad collection. All four strict type targets
 (211 files), full card lint (69 cards/320 renders/39 keys), fixtures and style
 pass. Full-source prepare/reuse, eight-gene inspection and frozen reloads pass
 with networking blocked in 39.98 seconds. No personal export was opened.
+
+The subsequent [diff review](review_m101_session.md) adds 33 regressions and
+passes **3,137 native tests**, with five existing Windows skips, in 486.78 seconds.
+Strict four-way typing, complete card lint, fixtures, style and privacy checks pass.
+Full-source offline reparse, source verification, corrected publication joins,
+verified reuse and frozen reloads pass in 55.06 seconds. Existing schema-1 healthy
+snapshots and source pins remain valid; no sample-call or run-bundle change is made.

@@ -86,7 +86,13 @@ ancestry match is complete**: selected-outcome variant cards and PRS share one
 Format 18 preserves old snapshots and verifies saved comparisons/confidence.
 All 2,995 unique checks pass, five existing Windows skips; four strict type
 targets, full card lint, fixtures and privacy gates pass.
-See [the evidence/contract audit](docs/card_ancestry.md). **M10.1 is next.**
+See [the evidence/contract audit](docs/card_ancestry.md). **M10.1 is complete:**
+all supplied CPIC definition/function/phenotype tables and ClinPGx annotation
+tables are ingested, with source-bound GRCh37 proofs and offline inspection.
+The [diff review](docs/review_m101_session.md) corrects publication attribution,
+atomic publication and parsing/validation defects. **M10.2 SNP-tractable diplotype
+calling is next.** Start with the
+[current handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2947,6 +2953,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-14 | M10.1 | Complete CPIC/ClinPGx reference ingestion and offline inspection; source-bound GRCh37 normalization retains all gaps. Diff review fixes null guideline citations, safe atomic JSON publication, lossless COPY byte decoding, strict TSV/lookup/frozen-source validation and nested output locking. 3,137 native tests pass with five Windows skips; four strict type targets, full card lint, fixtures, style and privacy pass. Full-source offline reparse/reuse/inspection passes; no personal export used. M10.2 is next. [Review and handoff](docs/review_m101_session.md). |
 | 2026-10-14 | M9.13 diff review | Reviewed `3c13ac9..38afe9c`; seven mutation probes reproduced missing retained-fit and scalar allele/type validation. Bind placement to the first admissible fit, verify orientation/frequency membership and numeric types, and preserve damaged-run errors in card detail/modal views. 20 new synthetic cases; complete native suite passes 3,015 tests, five Windows skips, with four strict type targets, full card lint (69/320/39), fixtures and lint/format passing. Format 18 and valid findings unchanged. M10.1 handoff now records absent existing PGx sources, pending ZIP extraction, definition coverage, licences and reuse of the existing CYP2D6 card. [Review](docs/review_m913_session.md). |
 | 2026-10-14 | M9.13 | Shared run-owned 1000 Genomes placement before imputation; selected-evidence variant ancestry states and `{ancestry}` on face/detail; separate weighted variant policy preserves rarity/quality/evidence limits. Format 18 frozen comparison/confidence and shared PRS validation; historical snapshots retained. 2,995 unique checks pass, five Windows skips; 67 new synthetic cases, strict four-way types, lint/format, fixtures, privacy and full dbSNP lint (69/320/39). M9 complete; M10.1 next. [Contract and exact acceptance](docs/card_ancestry.md). |
 | 2026-10-14 | M9.12 diff review | Reviewed `1c4921e..e894b5d`: four reversed variant face claims and wrong effect units passed original guards; published claims and units are now bound before fabricated observations and after saved CLI/dashboard reload, with five rejecting mutation regressions. All 102 focused card tests, four strict type targets and full dbSNP lint (69/320/39 keys) pass. Full grip payload pin/terms and both retained native evidence bindings agree; original full-scale acceptance is preserved. Stale handoff wording is corrected; M9.13 ancestry context and confidence decisions are documented next. No production card, engine, schema or renderer change. [Review](docs/review_m912_session.md). |

@@ -92,11 +92,13 @@ _ESCAPES = {"b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v", "\
 def copy_value(value: str) -> str | None:
     if value == r"\N":
         return None
-    result: list[str] = []
+    # COPY octal/hex escapes encode bytes, not Unicode code points. Decode the
+    # completed byte stream once so multibyte UTF-8 remains identical to INSERT.
+    result = bytearray()
     i = 0
     while i < len(value):
         if value[i] != "\\":
-            result.append(value[i])
+            result.extend(value[i].encode("utf-8"))
             i += 1
             continue
         i += 1
@@ -104,22 +106,28 @@ def copy_value(value: str) -> str | None:
             raise ProcessError("Truncated PostgreSQL COPY escape.")
         char = value[i]
         if char in _ESCAPES:
-            result.append(_ESCAPES[char])
+            result.extend(_ESCAPES[char].encode("utf-8"))
             i += 1
         elif char in "01234567":
             match = re.match(r"[0-7]{1,3}", value[i:])
             assert match is not None
-            result.append(chr(int(match[0], 8)))
+            number = int(match[0], 8)
+            if number > 255:
+                raise ProcessError("PostgreSQL octal escape is outside the byte range.")
+            result.append(number)
             i += len(match[0])
         elif char == "x":
             match = re.match(r"[0-9a-fA-F]{1,2}", value[i + 1 :])
             if match is None:
                 raise ProcessError("Malformed PostgreSQL hex escape.")
-            result.append(chr(int(match[0], 16)))
+            result.append(int(match[0], 16))
             i += 1 + len(match[0])
         else:
             raise ProcessError("Unsupported PostgreSQL COPY escape.")
-    return "".join(result)
+    try:
+        return result.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ProcessError("PostgreSQL COPY escapes do not form valid UTF-8.") from exc
 
 
 def _insert_values(text: str) -> list[str | None]:

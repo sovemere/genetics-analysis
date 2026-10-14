@@ -8,10 +8,12 @@ validation and retains damaged-run errors in card detail views. Its full native
 suite passes **3,015 tests, five existing Windows skips**, with four strict type
 targets, complete card lint, fixtures and lint/format passing. **M10.1 reference
 ingestion is now accepted**: complete CPIC/ClinPGx source processing, offline
-inspection, frozen GRCh37 mapping proofs and explicit gaps. All **3,104 unique
-checks pass**, with five existing Windows skips; four strict type targets,
+inspection, frozen GRCh37 mapping proofs and explicit gaps. The M10.1 diff review
+passes **3,137 native tests**, with five existing Windows skips; four strict type targets,
 full card lint, fixtures and lint/format pass. The [PGx audit and contract](pgx_ingestion.md)
 records source licences, partial normalization and the full-source offline acceptance.
+The [session diff review](review_m101_session.md) records citation/publication,
+parser and frozen-metadata fixes with all source pins and mapping counts unchanged.
 **M10.2 SNP-tractable diplotype calling is next.** Earlier milestone records below remain historical.
 
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
@@ -161,7 +163,7 @@ verified completed-catalog reuse pass with networking blocked in **39.98 seconds
 Raw/derived source verification passes with no pending steps. No personal export
 was opened. See the [full audit and per-gene coverage](pgx_ingestion.md).
 
-Final validation: **3,104 unique checks passed**, five existing Windows skips.
+Original implementation validation: **3,104 unique checks passed**, five existing Windows skips.
 The broad native run passed **3,091** checks in **614.05 seconds**; its one
 additional PGS arithmetic skip passed with `GENETICS_PGS_TEST_TOOLS` configured
 (all 27 reference tests pass). The final **89 PGx tests** include twelve cases
@@ -169,6 +171,17 @@ added after broad-suite collection, all passing in **18.42 seconds**. Four stric
 Windows/Linux × Python 3.11/3.13 type targets pass (211 files); full dbSNP card
 lint passes 69 cards/320 renders/39 keys. Style, fixture reproduction, whitespace
 and privacy gates pass. Fetched payloads, indexes and audit outputs stay ignored.
+
+**The subsequent [M10.1 diff review](review_m101_session.md) is complete.** It fixes
+null guideline citation joins, hardlinked scratch publication, COPY UTF-8 byte
+decoding, permissive TSV/JSON parsing, incomplete/inconsistent frozen source
+metadata and nested output locking. **3,137 tests pass**, five existing Windows
+skips, in **486.78 seconds**; four strict type targets, full card lint, fixtures,
+style and privacy checks pass. Full-source offline acceptance reparses both SQL
+dumps, checks the saved tables, verifies both sources, retains prepared-catalog
+reuse and validates all eight gene publication joins/reloads in **55.06 seconds**.
+Source pins, normalization counts, catalog/source schema 1 and bundle format 18
+remain unchanged. No personal export was opened.
 
 <a id="next-open-step-m102-snp-tractable-diplotype-calling"></a>
 
@@ -196,6 +209,13 @@ implementing calling. Do not alter M9.13's frozen confidence method.
   retains gene-specific notes; do not substitute a generic two-star-allele
   sum. VKORC1 has no phenotype lookup rows in v1.60.0; expose that gap and audit
   genotype-linked guideline/recommendation semantics before interpreting it.
+- Keep definition-ID joins and raw function names distinct. CPIC's CYP2D6
+  copy-number aliases reference base definitions, and 4,124 source diplotype
+  rows have absent definition labels in CYP2D6/HLA-A/B. Those genes are outside
+  M10.2's calling scope; never synthesize missing definitions. The eight target
+  genes have no missing definition labels in their source diplotype rows.
+  Citation inspection now excludes null guideline joins; use actual returned
+  citations/source records when authoring later guideline cards.
 - Maintain one engine with saved CLI/dashboard parity. Add synthetic cases for
   phase ambiguity, missing positions/functions/phenotypes, I/D exclusions,
   biological ploidy, partial/conflicting definitions, rare/imputed reliability
@@ -204,18 +224,21 @@ implementing calling. Do not alter M9.13's frozen confidence method.
 
 ### M10.1 entry contract (implemented; retained for review)
 
+Historical contract from `3f8c189`, before M10.1 source fetching. The accepted
+state and M10.2 instructions above supersede this checkpoint's local conditions.
+
 M10.1 builds public reference ingestion and offline allele-definition/phenotype
 inspection. Sample diplotype calling is M10.2; guideline-linked cards are M10.4.
 Follow the [M10 roadmap](../phase1_roadmap.md#m10--pharmacogenomics).
 
 - Reuse the existing optional manifest IDs `pharmgkb` and `cpic`; do not add
-  duplicate sources. Neither source directory is present locally at this handoff.
+  duplicate sources. Neither source directory was present at the original handoff.
   PharmGKB/ClinPGx archives have rolling filenames and explicit share-alike opt-in.
   Recheck URLs, current sizes, terms and archive contents before refreshing pins.
   CPIC declares the pinned v1.60.0 full/inserts SQL dumps; inspect their actual
   schemas, definitions and licence rather than assuming the manifest's capability
   descriptions establish coverage.
-- PharmGKB currently declares `extract_zip`, which remains an unimplemented
+- At entry, PharmGKB declared `extract_zip`, an unimplemented
   post-process step. Supply a verified executor or an explicit domain-specific
   ingestion step with safe archive containment, atomic outputs, source/checksum
   binding and offline verification. Keep fetched payloads and derived reference

@@ -23,7 +23,7 @@ from genetics.pgx.sources import (
     digest,
     load_source,
     object_field,
-    validate_archive_metadata,
+    validate_archive_set,
     validate_identity,
     validate_source,
 )
@@ -492,21 +492,9 @@ def validate_record(record: Mapping[str, Any]) -> None:
         for r in variants
     ):
         raise ProcessError("Malformed frozen ClinPGx mapping rows.")
-    if (
-        not isinstance(archives, list)
-        or len(archives) != 5
-        or {a.get("filename") for a in archives if isinstance(a, dict)}
-        != {
-            "variants.zip",
-            "clinicalVariants.zip",
-            "clinicalAnnotations.zip",
-            "relationships.zip",
-            "drugLabels.zip",
-        }
-    ):
-        raise ProcessError("Incomplete frozen ClinPGx release metadata.")
+    validate_archive_set(archives, annotations["source"])
+    assert isinstance(archives, list)
     for archive in archives:
-        validate_archive_metadata(archive)
         if not isinstance(archive.get("table_rows"), dict) or any(
             type(n) is not int or n < 0 for n in archive["table_rows"].values()
         ):
@@ -662,7 +650,11 @@ class Catalog:
             for citation in (function["citations"] or "").strip("{}").split(",")
             if citation
         }
-        gene_guidelines = {p["guidelineid"] for p in tables["pair"] if p["genesymbol"] == gene}
+        gene_guidelines = {
+            p["guidelineid"]
+            for p in tables["pair"]
+            if p["genesymbol"] == gene and p["guidelineid"] is not None
+        }
         result["guidelines"] = [g for g in tables["guideline"] if g["id"] in gene_guidelines]
         result["publications"] = [
             p

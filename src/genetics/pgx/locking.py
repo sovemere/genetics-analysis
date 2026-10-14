@@ -12,6 +12,7 @@ from genetics.refs.postprocess import ProcessError, _inside
 
 @contextmanager
 def publication_lock(output: Path) -> Iterator[None]:
+    output.parent.mkdir(parents=True, exist_ok=True)
     path = _inside(output.parent, f".{output.name}.lock", label="publication lock")
     with path.open("a+b") as handle:
         if handle.tell() == 0:

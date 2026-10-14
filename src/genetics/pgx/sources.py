@@ -7,6 +7,7 @@ import json
 import re
 from collections import Counter
 from collections.abc import Mapping
+from datetime import date
 from pathlib import Path
 from typing import Any
 
@@ -59,6 +60,16 @@ def validate_identity(source: Any, source_id: str) -> None:
         ):
             raise ProcessError("PGx source file identity is malformed.")
         seen.add(file["filename"])
+    expected_files = (
+        set(MEMBERS)
+        if source_id == "pharmgkb"
+        else {
+            f"cpic_db_dump-{source['version']}.sql.gz",
+            f"cpic_db_dump-{source['version']}_inserts.sql.gz",
+        }
+    )
+    if seen != expected_files:
+        raise ProcessError("PGx source file set is incomplete or inconsistent with its release.")
 
 
 def validate_archive_metadata(archive: Any) -> None:
@@ -73,9 +84,38 @@ def validate_archive_metadata(archive: Any) -> None:
         or (archive.get("versions") is not None and not isinstance(archive["versions"], str))
     ):
         raise ProcessError("Malformed ClinPGx archive release/license metadata.")
-    expected_url = "by-nc-sa" if archive["license_id"] == "CC-BY-NC-SA-4.0" else "by-sa"
-    if f"creativecommons.org/licenses/{expected_url}/4.0/" not in archive["license_notice"]:
+    found = {
+        identifier
+        for identifier, label in (
+            ("CC-BY-NC-SA-4.0", "by-nc-sa"),
+            ("CC-BY-SA-4.0", "by-sa"),
+        )
+        if f"creativecommons.org/licenses/{label}/4.0/" in archive["license_notice"]
+    }
+    if found != {archive["license_id"]}:
         raise ProcessError("ClinPGx archive license notice disagrees with classification.")
+    try:
+        date.fromisoformat(archive["created"])
+    except ValueError as exc:
+        raise ProcessError("ClinPGx archive release date is invalid.") from exc
+
+
+def validate_archive_set(archives: Any, source: Any) -> None:
+    if (
+        not isinstance(archives, list)
+        or len(archives) != len(MEMBERS)
+        or {a.get("filename") for a in archives if isinstance(a, dict)} != set(MEMBERS)
+    ):
+        raise ProcessError("ClinPGx reference archive coverage is incomplete.")
+    for archive in archives:
+        validate_archive_metadata(archive)
+    terms = licenses.get(source["license_id"])
+    if (
+        not terms.share_alike
+        or not terms.attribution_required
+        or (terms.commercial_ok and any(a["license_id"] == "CC-BY-NC-SA-4.0" for a in archives))
+    ):
+        raise ProcessError("ClinPGx source terms omit embedded archive obligations.")
 
 
 def _unique(tables: Tables, table: str, key: str = "id") -> dict[str, Row]:
@@ -88,9 +128,18 @@ def _unique(tables: Tables, table: str, key: str = "id") -> dict[str, Row]:
     return result
 
 
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    result: dict[str, Any] = {}
+    for key, value in pairs:
+        if key in result:
+            raise ProcessError("CPIC lookup JSON contains a duplicate key.")
+        result[key] = value
+    return result
+
+
 def object_field(value: str | None) -> dict[str, Any]:
     try:
-        parsed = json.loads(value or "null")
+        parsed = json.loads(value or "null", object_pairs_hook=_unique_object)
         if not isinstance(parsed, dict):
             raise ValueError
         digest(parsed)  # Reject NaN/Infinity even in nested objects.
@@ -119,6 +168,16 @@ def validate_tables(tables: Any) -> None:
             ):
                 raise ProcessError(f"CPIC {table}: malformed source row.")
             shape = set(row)
+            nonempty = {
+                "gene": ("symbol",),
+                "allele_definition": ("name",),
+                "allele": ("name",),
+                "gene_result": ("result",),
+                "gene_result_diplotype": ("diplotype",),
+                "sequence_location": ("chromosomelocation",),
+            }
+            if any(not row[column] for column in nonempty.get(table, ())):
+                raise ProcessError(f"CPIC {table}: required source label is empty.")
             for column in (
                 "version",
                 "id",
@@ -227,15 +286,10 @@ def validate_source(payload: Mapping[str, Any]) -> int:
         rows = sum(len(table) for table in payload["tables"].values())
     else:
         archives = payload.get("archives")
-        if (
-            not isinstance(archives, list)
-            or {a.get("filename") for a in archives if isinstance(a, dict)} != set(MEMBERS)
-            or len(archives) != len(MEMBERS)
-        ):
-            raise ProcessError("ClinPGx reference archive coverage is incomplete.")
+        validate_archive_set(archives, source)
+        assert isinstance(archives, list)
         rows = 0
         for archive in archives:
-            validate_archive_metadata(archive)
             tables, columns = archive.get("tables"), archive.get("columns")
             if (
                 not isinstance(tables, dict)
