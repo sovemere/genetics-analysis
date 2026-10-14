@@ -1,15 +1,18 @@
-# Handoff: M9 PRS engine
+# Handoff: M10 pharmacogenomics
 
-As of 2026-10-14, **M0-M9 are implemented**. Full local reference verification was
+As of 2026-10-14, **M0-M9 and M10.1 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
 validation and retains damaged-run errors in card detail views. Its full native
 suite passes **3,015 tests, five existing Windows skips**, with four strict type
-targets, complete card lint, fixtures and lint/format passing. **M10.1 source
-ingestion is next**; its concrete [entry contract](#next-open-step-m101-pharmacogenomics-ingestion)
-records existing manifest IDs, absent payloads, pending ZIP extraction and source
-coverage/licence checks. Earlier milestone records below remain historical.
+targets, complete card lint, fixtures and lint/format passing. **M10.1 reference
+ingestion is now accepted**: complete CPIC/ClinPGx source processing, offline
+inspection, frozen GRCh37 mapping proofs and explicit gaps. All **3,104 unique
+checks pass**, with five existing Windows skips; four strict type targets,
+full card lint, fixtures and lint/format pass. The [PGx audit and contract](pgx_ingestion.md)
+records source licences, partial normalization and the full-source offline acceptance.
+**M10.2 SNP-tractable diplotype calling is next.** Earlier milestone records below remain historical.
 
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
 2026-10-11:
@@ -49,7 +52,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 are also accepted; M10.1 is the next open step.
+are complete. M9.9–M9.13 and M10.1 are also accepted; M10.2 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -135,7 +138,71 @@ lint/format, whitespace and staged privacy gates pass. The
 [contract and exact acceptance](card_ancestry.md#acceptance-2026-10-14) explains
 the native helper's corrected tools-directory recheck and 67 new synthetic cases.
 
-### Next open step: M10.1 pharmacogenomics ingestion
+<a id="next-open-step-m101-pharmacogenomics-ingestion"></a>
+
+## Accepted M10.1 pharmacogenomics reference ingestion
+
+M10.1 is accepted on 2026-10-14. Domain-specific ZIP ingestion replaces the
+pending PharmGKB extraction step; complete CPIC COPY/INSERT dumps agree
+independently without SQL execution. The source artifacts retain raw tables,
+licence/release metadata and source-bound checksums. Catalog schema 1 joins
+explicit genomic HGVS assembly mappings to verified dbSNP GRCh37 keys and
+retains all definitions/functions/phenotype relationships, including gaps and
+conflicts. Kernel locks, atomic publication, interruption/reuse and frozen
+validation are implemented. CLI `pgx prepare` and `pgx inspect` use the same
+reference library. Sample calling and guideline rendering remain upcoming;
+bundle format 18 and M9.13 confidence arithmetic are unchanged.
+
+Complete-source ingestion retains **312,006 ClinPGx rows**, **125,945 CPIC
+rows**, **1,354 definitions** and **112,820 diplotype rows**. **493/1,210 source
+locations** resolve to verified GRCh37 SNP keys; all residual states remain
+visible. Eight-gene inspection, exact source mapping joins, frozen reloads and
+verified completed-catalog reuse pass with networking blocked in **39.98 seconds**.
+Raw/derived source verification passes with no pending steps. No personal export
+was opened. See the [full audit and per-gene coverage](pgx_ingestion.md).
+
+Final validation: **3,104 unique checks passed**, five existing Windows skips.
+The broad native run passed **3,091** checks in **614.05 seconds**; its one
+additional PGS arithmetic skip passed with `GENETICS_PGS_TEST_TOOLS` configured
+(all 27 reference tests pass). The final **89 PGx tests** include twelve cases
+added after broad-suite collection, all passing in **18.42 seconds**. Four strict
+Windows/Linux × Python 3.11/3.13 type targets pass (211 files); full dbSNP card
+lint passes 69 cards/320 renders/39 keys. Style, fixture reproduction, whitespace
+and privacy gates pass. Fetched payloads, indexes and audit outputs stay ignored.
+
+<a id="next-open-step-m102-snp-tractable-diplotype-calling"></a>
+
+### Next open step: M10.2 SNP-tractable diplotype calling
+
+Use `pgx/catalog.py` as the versioned public reference interface. Plan and record
+a separate versioned sample-call record and saved-bundle extension before
+implementing calling. Do not alter M9.13's frozen confidence method.
+
+- Restrict calling to CYP2C19, CYP2C9, VKORC1, SLCO1B1, TPMT, DPYD, NUDT15 and
+  G6PD. Preserve every compatible source definition, unresolved constraint,
+  function conflict, structural gap and missing phenotype mapping. The reference
+  snapshot deliberately keeps alleles it cannot normalize; no callable subset
+  may silently eliminate those alternatives.
+- GRCh37 normalization remains partial, especially for CYP2C19 and G6PD. Use
+  exact position/allele keys and retained rsID identity; add a verified primary
+  mapping source if necessary rather than guessing coordinates or strand.
+  A missing marker cannot establish a reference allele. CPIC CYP2C19's reference
+  sequence is named `*38`, not an assumed `*1`; retain the source definition.
+- Enumerate unresolved phase and preserve native sample ploidy, original/imputed
+  call source, quality and rarity limits. A dosage or two doubled X calls alone
+  do not establish a phased diploid haplotype. G6PD needs the existing sex/QC
+  contract; CYP2D6 remains not callable regardless of its SNP definitions.
+- Use the source's actual lookup semantics. DPYD declares `ACTIVITY_SCORE` and
+  retains gene-specific notes; do not substitute a generic two-star-allele
+  sum. VKORC1 has no phenotype lookup rows in v1.60.0; expose that gap and audit
+  genotype-linked guideline/recommendation semantics before interpreting it.
+- Maintain one engine with saved CLI/dashboard parity. Add synthetic cases for
+  phase ambiguity, missing positions/functions/phenotypes, I/D exclusions,
+  biological ploidy, partial/conflicting definitions, rare/imputed reliability
+  and corruption/historical compatibility. All low-confidence findings remain
+  visible. M10.3 reuses `cyp2d6_structural_variation`; do not author a duplicate.
+
+### M10.1 entry contract (implemented; retained for review)
 
 M10.1 builds public reference ingestion and offline allele-definition/phenotype
 inspection. Sample diplotype calling is M10.2; guideline-linked cards are M10.4.
@@ -181,7 +248,7 @@ Useful source-preparation commands (audit rolling metadata before fetching):
 ```text
 genetics refs probe --only pharmgkb --only cpic --json
 genetics refs fetch --only pharmgkb --opt-in pharmgkb
-genetics refs fetch --only cpic
+genetics refs fetch --only cpic --opt-in cpic
 genetics refs verify --only pharmgkb --only cpic --json
 ```
 

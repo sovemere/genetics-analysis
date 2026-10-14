@@ -96,6 +96,17 @@ See the [handoff](../../docs/handoff.md) for full-reference acceptance and the n
 
 ## Adding a source
 
+M10.1 executes `parse_pharmgkb_annotations` and `parse_cpic_database` for the
+existing `pharmgkb` and `cpic` sources. ClinPGx ZIPs are validated/read without
+extraction; the two CPIC dump encodings are parsed without executing SQL and
+compared independently. Complete definitions/functions/phenotype relationships
+reside in CPIC. `genetics pgx prepare` produces a frozen public reference with
+verified GRCh37 keys and explicit mapping/structural gaps; `pgx inspect` reads it
+offline. Both sources require explicit opt-in: current ClinPGx archives have
+mixed BY-SA/BY-NC-SA notices, and CPIC's database additionally binds users to
+ClinPGx policy despite its curated-content CC0 grant. See the
+[source audit, contract and acceptance](../../docs/pgx_ingestion.md).
+
 M9.1 executes `parse_pgs_score_licenses` for `pgs_catalog_metadata`, reading the authoritative
 scores CSV without extracting its archive. The derived JSON retains raw per-score metadata,
 classified terms and exact input identity, with the shared checksum/provenance sidecar.

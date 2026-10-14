@@ -98,6 +98,7 @@ def test_every_licence_records_where_its_terms_are_published() -> None:
 #: purpose: adding a licence should force a decision about which of the two it is, rather
 #: than letting a coined id pass as a standard one.
 SPDX_LIST_IDS = {
+    "CC-BY-NC-SA-4.0",
     "CC0-1.0",
     "CC-BY-4.0",
     "CC-BY-SA-4.0",

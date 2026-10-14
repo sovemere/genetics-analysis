@@ -2779,7 +2779,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 
 *Highest actionable value; corpus entirely free. See [AGENTS.md §3.1](AGENTS.md).*
 
-- [ ] **M10.1** PharmGKB + CPIC ingestion → star-allele definitions and phenotype mapping.
+- [x] **M10.1** PharmGKB + CPIC ingestion → star-allele definitions and phenotype mapping.
+      Complete source tables, independent SQL encoding checks, source-bound GRCh37
+      normalization and offline `pgx prepare`/`pgx inspect` are implemented. Missing,
+      conflicting and structural definitions remain explicit. See the
+      [source audit and acceptance](docs/pgx_ingestion.md). **M10.2 is next.**
 - [ ] **M10.2** Diplotype calling for **SNP-tractable genes only**: CYP2C19, CYP2C9,
       VKORC1, SLCO1B1, TPMT, DPYD, NUDT15, G6PD.
 - [ ] **M10.3** **CYP2D6 explicit "not callable" card.** PharmCAT declines to call it from
