@@ -26,6 +26,7 @@ import json
 import os
 import re
 import shutil
+import tempfile
 from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
@@ -452,7 +453,7 @@ def declared_artifact_provenance(
                         and pgx_remote.size_bytes != item.size_bytes
                     )
                 ):
-                    raise ProcessError("PGx pgx_locked file identity differs from the manifest.")
+                    raise ProcessError("PGx locked file identity differs from the manifest.")
                 records.append(
                     {
                         "filename": pgx_remote.filename,
@@ -671,10 +672,21 @@ def _validate_parquet(path: Path, schema: Mapping[str, PolarsType]) -> int:
 
 
 def _write_json_atomic(path: Path, payload: Mapping[str, Any]) -> None:
-    part = _part_path(path)
+    # A predictable scratch path may already be a symlink or hardlink. Opening
+    # it with write_text truncates its other target before os.replace can help.
+    # mkstemp creates an exclusive file beside the destination; replacement also
+    # detaches any existing hardlinked destination without modifying its peers.
     path.parent.mkdir(parents=True, exist_ok=True)
-    part.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    os.replace(part, path)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    part = Path(name)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(part, path)
+    finally:
+        part.unlink(missing_ok=True)
 
 
 @dataclass(frozen=True)

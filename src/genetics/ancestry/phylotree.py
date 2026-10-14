@@ -10,8 +10,9 @@ trick, and it is why this module exists rather than a two-line call to an HTML p
 **The archive is read in place rather than extracted.** The manifest declares an
 ``extract_zip`` post-process step for this source which has never been implemented, and
 implementing it would put a second 14 MB copy of the file on disk to no benefit --
-:mod:`zipfile` reads the member directly. The declaration is left standing because
-``pharmgkb`` declares the same step and will genuinely need it.
+:mod:`zipfile` reads the member directly. The legacy declaration remains processing
+metadata for this source. PharmGKB's M10.1 ingestion also reads ZIP members directly,
+using its own executable validation step rather than generic extraction.
 
 **Encoding is cp1252 and stated rather than sniffed.** The file is an Excel HTML export
 and carries no charset that survives round-tripping; decoding as UTF-8 raises on the

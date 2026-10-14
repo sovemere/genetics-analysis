@@ -119,7 +119,7 @@ fixtures pass. The
 [next-step handoff](docs/handoff.md#next-open-step-m101-pharmacogenomics-ingestion)
 records M10.1's original source-ingestion entry contract.
 
-**M10.1 pharmacogenomics ingestion is complete:** complete CPIC allele definitions,
+**M10.1 pharmacogenomics ingestion is complete:** all supplied CPIC allele definitions,
 functions and phenotype relationships, plus all ClinPGx annotation tables, are ingested
 and checksum-bound. SQL is read without execution; COPY and INSERT dumps agree.
 `genetics pgx prepare` joins source HGVS assembly mappings to verified dbSNP GRCh37
@@ -130,6 +130,11 @@ The archive-specific licence audit corrects ClinPGx's non-commercial terms and r
 the CPIC database-policy scope for review. See [PGx ingestion](docs/pgx_ingestion.md)
 and the [M10.2 handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
 Sample calling remains M10.2; bundle format and confidence arithmetic are unchanged.
+The [M10.1 diff review](docs/review_m101_session.md) fixes null guideline citation
+joins, safe atomic publication and parsing/frozen-reference validation, and updates
+the next-step contract. Complete source tables and verified mapping counts are unchanged.
+Final review validation passes **3,137 native tests**, with five existing Windows
+skips; four strict type targets, full card lint, fixtures, style and privacy gates pass.
 The [M9.12 diff review](docs/review_m912_session.md) adds guards against
 reversed variant claims and wrong effect units, with all 102 focused card tests
 passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)

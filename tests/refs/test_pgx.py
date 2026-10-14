@@ -5,6 +5,7 @@ from __future__ import annotations
 import gzip
 import io
 import json
+import os
 import stat
 import zipfile
 from dataclasses import replace
@@ -834,3 +835,217 @@ def test_prepare_missing_prerequisites_reports_json(
     result = CliRunner().invoke(app, ["pgx", "prepare", "--json"])
     assert result.exit_code == 1
     assert json.loads(result.output)["ok"] is False
+
+
+def test_null_guideline_links_do_not_attribute_unrelated_publications(
+    frozen: dict[str, Any],
+) -> None:
+    tables = frozen["cpic"]["tables"]
+    tables["pair"] = [
+        {
+            **dict.fromkeys(REQUIRED["pair"]),
+            "pairid": "10",
+            "genesymbol": "CYP2C19",
+            "drugid": "drug",
+            "guidelineid": None,
+        },
+        {
+            **dict.fromkeys(REQUIRED["pair"]),
+            "pairid": "11",
+            "genesymbol": "CYP2C19",
+            "drugid": "drug",
+            "guidelineid": "20",
+        },
+    ]
+    tables["guideline"] = [
+        {
+            **dict.fromkeys(REQUIRED["guideline"]),
+            "id": identity,
+            "version": "1",
+            "name": "Synthetic guideline",
+        }
+        for identity in ("20", "21")
+    ]
+    tables["publication"] = [
+        {
+            **dict.fromkeys(REQUIRED["publication"]),
+            "id": identity,
+            "version": "1",
+            "pmid": pmid,
+            "guidelineid": guideline,
+            "title": "Synthetic publication",
+        }
+        for identity, pmid, guideline in (
+            ("30", "10000001", None),  # Direct allele citation; include it.
+            ("31", "10000002", None),  # No actual link; exclude it.
+            ("32", "10000003", "20"),  # Actual gene guideline; include it.
+            ("33", "10000004", "21"),  # Another guideline; exclude it.
+        )
+    ]
+    frozen["cpic"]["rows"] = sum(map(len, tables.values()))
+    catalog.validate_record(frozen)
+    report = catalog.Catalog(frozen).inspect(gene="CYP2C19", allele="*2")
+    assert {p["pmid"] for p in report["publications"]} == {"10000001", "10000003"}
+    assert [g["id"] for g in report["guidelines"]] == ["20"]
+
+
+@pytest.mark.parametrize("destination", ["payload", "sidecar"])
+def test_atomic_publication_never_truncates_a_preexisting_scratch_hardlink(
+    tmp_path: Path, destination: str
+) -> None:
+    source_dir = tmp_path / "source"
+    source_dir.mkdir()
+    output = source_dir / "reference.json"
+    unrelated = tmp_path / "unrelated.txt"
+    unrelated.write_text("Synthetic unrelated file must stay intact.", encoding="utf-8")
+    target = output if destination == "payload" else postprocess.provenance_path(output)
+    os.link(unrelated, postprocess._part_path(target))
+    if destination == "payload":
+        postprocess._write_json_atomic(output, {"reference": "synthetic"})
+        assert json.loads(output.read_text(encoding="utf-8")) == {"reference": "synthetic"}
+    else:
+        output.write_text("synthetic reference", encoding="utf-8")
+        postprocess._write_provenance(output, {"step": "synthetic"}, 1)
+        assert json.loads(target.read_text(encoding="utf-8"))[
+            "output_sha256"
+        ] == postprocess._sha256(output)
+    assert unrelated.read_text(encoding="utf-8") == "Synthetic unrelated file must stay intact."
+    assert not list(source_dir.glob("*.tmp"))
+
+
+def test_atomic_publication_preserves_previous_output_when_interrupted(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = tmp_path / "reference.json"
+    output.write_text('{"old":true}', encoding="utf-8")
+
+    def interrupt(*args: Any) -> None:
+        raise KeyboardInterrupt
+
+    with monkeypatch.context() as patch:
+        patch.setattr(os, "replace", interrupt)
+        with pytest.raises(KeyboardInterrupt):
+            postprocess._write_json_atomic(output, {"new": True})
+    assert json.loads(output.read_text(encoding="utf-8")) == {"old": True}
+    assert not list(tmp_path.glob("*.tmp"))
+    postprocess._write_json_atomic(output, {"new": True})
+    assert json.loads(output.read_text(encoding="utf-8")) == {"new": True}
+
+
+def test_ingestion_supports_declared_nested_outputs(
+    reference_sources: tuple[Path, dict[str, Any], dict[str, Any]],
+) -> None:
+    root, _, _ = reference_sources
+    source = manifest.load().get("cpic")
+    nested = replace(
+        source,
+        post_process=(replace(source.post_process[0], params={"output": "nested/reference.json"}),),
+    )
+    result = postprocess.run(nested, root=root)[0]
+    assert result.status is ProcessStatus.CREATED, result
+    assert sources.load_source(root / "cpic" / "nested" / "reference.json")["kind"] == "pgx_cpic"
+    assert postprocess.run(nested, root=root, verify_only=True)[0].status is ProcessStatus.VERIFIED
+
+
+@pytest.mark.parametrize(
+    "escaped,expected",
+    [
+        (r"\303\251", "\u00e9"),
+        (r"\xe2\x82\xac", "\u20ac"),
+        ("\u00e9 " + r"\303\261", "\u00e9 \u00f1"),
+    ],
+)
+def test_copy_byte_escapes_decode_multibyte_utf8(escaped: str, expected: str) -> None:
+    assert copy_value(escaped) == expected
+
+
+@pytest.mark.parametrize("escaped", [r"\400", r"\xff", r"\303", r"\xc0\xaf"])
+def test_invalid_copy_byte_sequences_are_refused(escaped: str) -> None:
+    with pytest.raises(ProcessError):
+        copy_value(escaped)
+
+
+def test_cpic_copy_utf8_byte_escapes_agree_with_literal_insert_text(tmp_path: Path) -> None:
+    tables = tables_fixture()
+    tables["allele"][0]["functioncomments"] = "Synthetic caf\u00e9 description."
+    copy_path = write_sql(tmp_path / "copy.sql.gz", tables)
+    with gzip.open(copy_path, "rt", encoding="utf-8") as handle:
+        text = handle.read().replace("caf\u00e9", r"caf\303\251")
+    with gzip.open(copy_path, "wt", encoding="utf-8") as handle:
+        handle.write(text)
+    inserts = write_sql(tmp_path / "inserts.sql.gz", tables, inserts=True)
+    assert read_dump(copy_path, mode="copy") == read_dump(inserts, mode="inserts") == tables
+
+
+@pytest.mark.parametrize("tail", ['"unfinished', '"closed"junk'])
+def test_malformed_tsv_quoting_is_refused(tmp_path: Path, tail: str) -> None:
+    path = archive_fixture(tmp_path / "variants.zip")
+    with zipfile.ZipFile(path) as archive:
+        entries = {name: archive.read(name) for name in archive.namelist()}
+    entries["variants.tsv"] = (
+        "\t".join(HEADERS["variants.tsv"])
+        + "\n"
+        + "\t".join(["PA1000001", "rs1000001", "CYP2C19", "NC_000010.11:201", tail])
+        + "\n"
+    ).encode()
+    with zipfile.ZipFile(path, "w") as archive:
+        for name, data in entries.items():
+            archive.writestr(name, data)
+    with pytest.raises(ProcessError):
+        read_archive(path)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '{"CYP2C19":{"*1":1,"*1":2}}',
+        '{"CYP2C19":{"*1":2},"CYP2C19":{"*2":2}}',
+        '{"Normal function":1,"Normal function":2}',
+    ],
+)
+def test_duplicate_lookup_json_keys_cannot_silently_change_allele_counts(text: str) -> None:
+    with pytest.raises(ProcessError, match="duplicate key"):
+        sources.object_field(text)
+
+
+@pytest.mark.parametrize(
+    "table,column",
+    [
+        ("allele_definition", "name"),
+        ("allele", "name"),
+        ("gene_result", "result"),
+        ("gene_result_diplotype", "diplotype"),
+        ("sequence_location", "chromosomelocation"),
+    ],
+)
+@pytest.mark.parametrize("missing", [None, ""])
+def test_source_labels_required_for_interpretation_are_nonempty(
+    table: str, column: str, missing: str | None
+) -> None:
+    tables = tables_fixture()
+    tables[table][0][column] = missing
+    with pytest.raises(ProcessError, match="source label"):
+        sources.validate_tables(tables)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["file-set", "cpic-encodings", "aggregate-license", "conflicting-notice", "invalid-date"],
+)
+def test_frozen_reference_requires_complete_and_consistent_source_metadata(
+    tmp_path: Path, frozen: dict[str, Any], mutation: str
+) -> None:
+    if mutation == "file-set":
+        frozen["annotations"]["source"]["files"] = frozen["annotations"]["source"]["files"][:1]
+    elif mutation == "cpic-encodings":
+        frozen["cpic"]["source"]["files"][0]["filename"] = "wrong-release.sql.gz"
+    elif mutation == "aggregate-license":
+        frozen["annotations"]["source"]["license_id"] = "CC-BY-SA-4.0"
+    elif mutation == "conflicting-notice":
+        frozen["annotations"]["archives"][0]["license_notice"] += (
+            " https://creativecommons.org/licenses/by-sa/4.0/"
+        )
+    else:
+        frozen["annotations"]["archives"][0]["created"] = "2026-02-30"
+    with pytest.raises(ProcessError):
+        catalog.Catalog.load(save_catalog(tmp_path / "reference.json", frozen))

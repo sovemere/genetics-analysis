@@ -101,7 +101,7 @@ def read_archive(path: Path) -> dict[str, Any]:
             columns: dict[str, list[str]] = {}
             for name in MEMBERS[path.name]:
                 text = archive.read(name).decode("utf-8-sig")
-                reader = csv.reader(io.StringIO(text, newline=""), delimiter="\t")
+                reader = csv.reader(io.StringIO(text, newline=""), delimiter="\t", strict=True)
                 header = next(reader, [])
                 if (
                     not set(HEADERS[name]) <= set(header)
