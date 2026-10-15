@@ -44,7 +44,8 @@ DPYD's `ACTIVITY_SCORE`, notes and expression-valued activity fields survive
 unchanged. G6PD's one-copy mappings are queried with one allele. Unknown QC sex
 retains both one- and two-copy possibilities. VKORC1's absent phenotype mapping
 is explicit; genotype-linked recommendation keys are retained for inspection,
-with dosing interpretation reserved for M10.4. CYP2D6 is outside this caller.
+with guideline interpretation supplied by the separate
+[M10.4 engine](pgx_guidelines.md). CYP2D6 is outside this caller.
 
 Reliability is independent of the frozen card confidence arithmetic. Every
 gene face reports coverage and uncertainty. Allele-specific gnomAD rarity
@@ -172,3 +173,8 @@ evaluates eight declarative knowledge selectors from those immutable inputs.
 New bundles use format 20; formats 1–19 remain readable without adding current
 interpretations. The existing CYP2D6 placement and all M10.2 reliability rules
 remain unchanged. M10.5's once-per-section framing is the next open item.
+
+The [M10.4 diff review](review_m104_session.md) adds guideline display schema 2
+for complete source-evidence checks while retaining schema-1 card reproduction.
+Exact numeric validation rejects boolean/integer and float/integer substitutions.
+Sample calling and its schema remain unchanged.
