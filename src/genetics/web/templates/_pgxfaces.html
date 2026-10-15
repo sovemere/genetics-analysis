@@ -2,16 +2,17 @@
   {% if shell.pgx.reason %}<p>{{ shell.pgx.reason }}</p>{% endif %}
   <ul class="cards">
   {% for gene, result in shell.pgx.genes.items() %}
-    <li class="cardface">
+    {% set tier = result.get("reliability", {}).get("tier", "unavailable") %}
+    <li><article class="card tier-{{ tier }}">
       <h3><a href="{{ shell.run_url }}/pgx?gene={{ gene }}">{{ gene }}</a></h3>
-      <p><strong>{{ result.get("reliability", {}).get("tier", "unavailable") }}</strong> · {{ result.status }}</p>
+      <p><strong class="tier tier-{{ tier }}">{{ tier }}</strong> · {{ result.status }}</p>
       <p>{{ result.candidates | length }} compatible candidate(s)</p>
       {% for model in result.get("models", []) %}
       <p>{{ model.ploidy }} copy model: {{ model.coverage.observed_loci }}/{{ model.coverage.resolved_loci }} resolved loci observed;
          {{ model.coverage.unresolved_locations }}/{{ model.coverage.source_locations }} source locations unresolved.</p>
       {% endfor %}
       {% for reason in result.get("reliability", {}).get("reasons", []) %}<p>{{ reason }}</p>{% endfor %}
-    </li>
+    </article></li>
   {% endfor %}
   </ul>
 {% else %}

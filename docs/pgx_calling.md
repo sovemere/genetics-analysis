@@ -7,6 +7,14 @@ catalog, its digest, QC sex, exact-locus observations (including original probe
 identities and native imputation records), public frequency records, and the
 derived eight-gene candidate results. Reads validate the catalog and reproduce
 the results from the saved inputs without current references or network access.
+The [M10.2 diff review](review_m102_session.md) additionally binds every requested
+locus's full dosage record list to the independent saved native payload on both
+write and read. Internally consistent substitutions, omissions and duplicate
+counts cannot become healthy saved calls. This adds a sequential verification
+pass over native dosages when a completed PGx stage is recorded.
+Original probe presence, eligible direct genotypes and no-call provenance are
+also compared, restoring recorded complementation and doubled single-copy array
+storage for the comparison without inferring new strand or phase information.
 The existing `*.run.json` privacy rule covers this output, including copies
 under `knowledge/`. No consumer export is required for development acceptance.
 
@@ -85,3 +93,10 @@ consistency, pipeline integration and saved CLI/dashboard/historical parity.
 Four strict Windows/Linux × Python 3.11/3.13 targets pass (212 files); complete
 card lint passes 69 cards/320 renders/39 keys. Fixtures, style and staged privacy
 checks pass. M9.13 confidence arithmetic and source pins remain unchanged.
+
+The subsequent [diff review](review_m102_session.md#validation) covers 3,208
+unique passing tests and five existing Windows skips, including a final 399-test
+affected integration run. Full-source offline comparison also preserves the
+original healthy calling results and schema-1 reload; four strict type targets,
+full card lint, fixtures and style pass. See the review for the run boundaries
+and saved-evidence corrections.

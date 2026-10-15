@@ -933,9 +933,14 @@ def write_bundle(
         )
         try:
             validate_execution(
-                pgx_payload, sex=qc.sex.inferred.value, imputation_mode=execution["mode"]
+                pgx_payload,
+                sex=qc.sex.inferred.value,
+                imputation_mode=execution["mode"],
+                native_dosages=None
+                if imputation_record["status"] != "recorded"
+                else imputation_snapshot.iter_saved(staging, imputation_record),
             )
-        except CallingError as exc:
+        except (CallingError, ImputationError) as exc:
             raise BundleError(str(exc)) from exc
         _write_text(staging / PGX_NAME, _render(pgx_payload))
 
@@ -1614,8 +1619,11 @@ def read_bundle(path: Path) -> RunBundle:
                 pgx,
                 sex=_load_json(directory / QC_NAME)["sex"]["inferred"],
                 imputation_mode=(imputation or {}).get("mode", "not_recorded"),
+                native_dosages=None
+                if (imputation_provenance or {}).get("status") != "recorded"
+                else imputation_snapshot.iter_saved(directory, imputation_provenance),
             )
-        except (CallingError, KeyError, TypeError) as exc:
+        except (CallingError, ImputationError, KeyError, TypeError) as exc:
             raise BundleError("Saved PGx record is inconsistent with its run.") from exc
 
     return RunBundle(
