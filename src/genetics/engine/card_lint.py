@@ -509,6 +509,8 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
 
     issues: list[LintIssue] = []
     rendered = 0
+    if card.kind is CardKind.GUIDELINE:
+        return [], 0
     if card.kind is not CardKind.INTERPRETATION:
         context: dict[str, object] = {"gene": card.gene or "GENE"}
         for field_name, template in (("summary", card.summary), ("detail", card.detail)):

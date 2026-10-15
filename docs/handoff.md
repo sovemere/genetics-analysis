@@ -1,6 +1,6 @@
 # Handoff: M10 pharmacogenomics
 
-As of 2026-10-15, **M0-M9 and M10.1-M10.3 are implemented**. Full local reference verification was
+As of 2026-10-15, **M0-M9 and M10.1-M10.4 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
@@ -17,12 +17,15 @@ parser and frozen-metadata fixes with all source pins and mapping counts unchang
 **M10.2 calling is implemented**, with a separate schema-1 sample contract and
 additive bundle format 19. The [calling contract](pgx_calling.md) records
 uncertainty, complete frozen evidence and full-source synthetic acceptance.
-**M10.3 CYP2D6 placement is implemented; M10.4 guideline-linked interpretation is next.**
+**M10.4 guideline-linked interpretation is implemented; M10.5 section framing is next.**
+See [the guideline contract and audit](pgx_guidelines.md). Validation covers
+3,267 unique passing checks, five existing Windows skips, four strict type
+targets, full card lint, fixtures, style and privacy checks.
 The [M10.3 diff review](review_m103_session.md) fixes incomplete saved text and
 ignored tier-filter acceptance. Validation covers **3,219 unique passing tests**,
 five existing Windows skips (3,218 broad-run passes plus the native-tool setup
 recheck), four strict type targets, full card lint, fixtures, style and privacy.
-Its entry contract below is the current M10.4 handoff. Earlier milestone records
+Its entry contract below is retained for M10.4 review. Earlier milestone records
 below remain historical.
 M10.2 acceptance passes **3,188 native tests**, five existing Windows skips,
 all four strict type targets, complete card lint, fixtures, style and staged
@@ -76,7 +79,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 and M10.1–M10.3 are also accepted; M10.4 is the next open step.
+are complete. M9.9–M9.13 and M10.1–M10.4 are also implemented; M10.5 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -295,9 +298,33 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m105-section-framing"></a>
+
+### Next open step: M10.5 section framing
+
+M10.4 adds eight declarative guideline selectors in knowledge schema 5 and
+reproducible card computations in bundle format 20. Source/catalog schema 1,
+sample-call schema 1 and M9.13 confidence remain unchanged. All conditional
+source branches, exact definition/mapping/result joins, multi-gene conditions,
+native copy models, clinical context and distinct evidence labels survive
+saved CLI/dashboard inspection. Missing recommendation/citation/source rows
+remain explicit. VKORC1 has no recommendation lookup keys in v1.60.0; no
+warfarin dose or reverse-strand genotype bridge is manufactured. See
+[the audit and acceptance](pgx_guidelines.md).
+
+M10.5 owns the once-per-section statement that this is not a prescribing tool.
+Place it where readers encounter PGx calls and guideline cards, with precise
+scope and shared wording across the section, overview/gene views and CLI.
+Keep candidate-specific measurement/phase/context uncertainty beside the
+conditional evidence. Do not repeat a generic disclaimer as card filler or
+replace quantitative reliability, source conditions or the adjacent CYP2D6
+limitation. Preserve old runs as recorded: section framing may be current UI
+context, but do not write current findings into historical bundles. Validate
+saved/unavailable/historical views, filters and CLI/dashboard parity offline.
+
 <a id="next-open-step-m104-guideline-linked-cards"></a>
 
-### Next open step: M10.4 guideline-linked cards
+### M10.4 entry contract (implemented; retained for review)
 
 The [M10.3 diff review](review_m103_session.md) fixes incomplete saved-text
 reporting and strengthens real-filter acceptance. Complete saved evidence is

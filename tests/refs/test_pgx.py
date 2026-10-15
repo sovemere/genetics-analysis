@@ -2140,3 +2140,623 @@ def test_incomplete_saved_cyp2d6_text_is_not_reported_as_recorded(
         assert response.status_code == 200 and limitation["reason"] in response.text
         assert "Read the saved CYP2D6 limitation" not in response.text
     assert {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()} == before
+
+
+# M10.4: synthetic source joins, separately from public-source identity acceptance.
+def guideline_source(record: dict[str, Any], gene: str = "CYP2C19") -> None:
+    gene_reference(record, gene, chrom="X" if gene == "G6PD" else "10")
+    tables = record["cpic"]["tables"]
+    tables["pair"] = [
+        {
+            **dict.fromkeys(REQUIRED["pair"]),
+            "pairid": "20",
+            "genesymbol": gene,
+            "drugid": "Synthetic:drug",
+            "guidelineid": "21",
+            "cpiclevel": "A",
+        }
+    ]
+    tables["guideline"] = [
+        {
+            **dict.fromkeys(REQUIRED["guideline"]),
+            "id": "21",
+            "name": "Synthetic guideline",
+            "url": "https://example.test/guideline",
+            "genes": "{" + gene + "}",
+            "version": "1",
+        }
+    ]
+    tables["drug"] = [{"drugid": "Synthetic:drug", "name": "Synthetic drug", "version": "1"}]
+    tables["publication"] = [
+        {
+            **dict.fromkeys(REQUIRED["publication"]),
+            "id": "22",
+            "guidelineid": "21",
+            "pmid": "10000001",
+            "version": "1",
+            "title": "Synthetic guideline publication",
+        }
+    ]
+    tables["recommendation"] = [
+        {
+            **dict.fromkeys(REQUIRED["recommendation"]),
+            "id": "23",
+            "guidelineid": "21",
+            "drugid": "Synthetic:drug",
+            "classification": "Moderate",
+            "version": "1",
+            "lookupkey": json.dumps({gene: "Intermediate Metabolizer"}),
+            "phenotypes": json.dumps({gene: "Intermediate Metabolizer"}),
+            "drugrecommendation": "Synthetic conditional implication",
+            "population": "synthetic context only",
+            "comments": "Extra clinical condition",
+        }
+    ]
+
+
+def guideline_card(gene: str = "CYP2C19") -> Any:
+    from genetics.engine.cards import Card
+
+    return Card.parse(
+        {
+            "id": gene.lower() + "_guidelines",
+            "section": "pharmacogenomics",
+            "kind": "guideline",
+            "title": "Synthetic guideline card",
+            "gene": gene,
+            "citations": [
+                {"type": "pmid", "id": "10000001", "title": "Synthetic guideline publication"}
+            ],
+        },
+        "synthetic",
+    )
+
+
+def test_guideline_exact_candidate_mapping_and_evidence_fields(frozen: dict[str, Any]) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    calls = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(calls, "CYP2C19")
+    branch = result["branches"][0]
+    assert branch["candidate"]["definition_ids"] == ["1", "2"]
+    assert branch["allele_counts"] == {"*1": 1, "*2": 1}
+    assert branch["joins"][0]["mapping"]["id"] == "8"
+    assert branch["joins"][0]["lookup"]["id"] == "7"
+    assert branch["joins"][0]["result"]["id"] == "6"
+    row = result["recommendations"][0]
+    assert row["pairs"][0]["cpiclevel"] == "A"
+    assert row["source_row"]["classification"] == "Moderate"
+    assert branch["functions"]["1"][0]["strength"] == "strong"
+    assert row["source_row"]["population"] == "synthetic context only"
+    assert row["source_row"]["comments"] == "Extra clinical condition"
+    assert row["conditions"][0]["support"] == [{"candidate_index": 0, "mapping_ids": ["8"]}]
+    assert row["publications"][0]["pmid"] == "10000001"
+    assert row["status"] == "conditional"
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "mapping",
+        "lookup",
+        "phenotype",
+        "recommendation",
+        "publication",
+        "guideline",
+        "drug",
+        "url",
+        "null-guideline",
+    ],
+)
+def test_guideline_gaps_never_establish_an_implication(
+    frozen: dict[str, Any], missing: str
+) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    if missing in {"mapping", "lookup", "phenotype"}:
+        tables["gene_result_diplotype"] = []
+        if missing in {"lookup", "phenotype"}:
+            tables["gene_result_lookup"] = []
+        if missing == "phenotype":
+            tables["gene_result"] = []
+    elif missing in {"recommendation", "publication", "guideline", "drug"}:
+        tables[missing] = []
+    elif missing == "url":
+        tables["guideline"][0]["url"] = None
+    else:
+        tables["pair"][0]["guidelineid"] = None
+        tables["publication"][0]["guidelineid"] = None
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "CYP2C19")
+    if missing in {"mapping", "lookup", "phenotype"}:
+        assert result["unmapped_candidates"] == [0]
+        assert result["recommendations"][0]["conditions"][0]["state"] == "unassessed"
+    elif missing in {"publication", "guideline", "url"}:
+        assert result["recommendations"][0]["status"] == "evidence-missing"
+    elif missing == "drug":
+        assert result["recommendations"][0]["drug"] is None
+        assert result["recommendations"][0]["gaps"]
+    else:
+        assert not result["recommendations"] and result["gaps"]
+        assert not result["publications"] if missing == "null-guideline" else True
+
+
+@pytest.mark.parametrize("gene", ["DPYD", "CYP2C9"])
+@pytest.mark.parametrize("activity", ["1", "1.0", "0.5+0.5"])
+def test_guideline_activity_uses_exact_source_total(
+    frozen: dict[str, Any], gene: str, activity: str
+) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen, gene)
+    tables = frozen["cpic"]["tables"]
+    tables["gene"][0]["lookupmethod"] = "ACTIVITY_SCORE"
+    tables["gene_result_lookup"][0]["totalactivityscore"] = activity
+    tables["recommendation"][0]["lookupkey"] = json.dumps({gene: "1.0"})
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, gene)
+    assert result["recommendations"]
+    assert result["recommendations"][0]["conditions"][0]["state"] == (
+        "unassessed" if activity == "0.5+0.5" else "candidate-compatible"
+    )
+    assert result["branches"][0]["joins"][0]["lookup"]["totalactivityscore"] == activity
+
+
+@pytest.mark.parametrize("required", ["CYP2D6", "NUDT15"])
+def test_guideline_multigene_condition_is_never_inferred(
+    frozen: dict[str, Any], required: str
+) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    tables["recommendation"][0]["lookupkey"] = json.dumps(
+        {"CYP2C19": "Intermediate Metabolizer", required: "Normal Metabolizer"}
+    )
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    row = derive(raw, "CYP2C19")["recommendations"][0]
+    assert row["status"] == "conditional"
+    condition = next(c for c in row["conditions"] if c["gene"] == required)
+    assert condition["state"] == "unassessed" and not condition["support"]
+    assert row["gaps"]
+
+
+@pytest.mark.parametrize("sex", list(InferredSex))
+def test_guideline_g6pd_retains_copy_models(frozen: dict[str, Any], sex: InferredSex) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen, "G6PD")
+    tables = frozen["cpic"]["tables"]
+    tables["gene_result"][0]["result"] = "Variable"
+    tables["recommendation"][0]["lookupkey"] = '{"G6PD":"Variable"}'
+    raw = calling.call(refresh_call_reference(frozen), sample_table([], chrom="X"), sex=sex).record
+    result = derive(raw, "G6PD")
+    assert {b["candidate"]["ploidy"] for b in result["branches"]} == (
+        {2} if sex == InferredSex.FEMALE else {1} if sex == InferredSex.MALE else {1, 2}
+    )
+    assert all(b["candidate"]["support"] == "conditional" for b in result["branches"])
+    assert all(r["status"] == "conditional" for r in result["recommendations"])
+
+
+def test_guideline_phase_and_unmapped_alternatives_retained(frozen: dict[str, Any]) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    add_second_locus(frozen)
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called"), (102, "C", "T", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "CYP2C19")
+    assert len(result["branches"]) == len(raw["genes"]["CYP2C19"]["candidates"])
+    assert len(result["branches"]) > 1
+    assert result["unmapped_candidates"]
+    assert result["recommendations"]
+
+
+@pytest.mark.parametrize("mutation", ["drug", "guideline", "phenotype"])
+def test_guideline_exact_recommendation_binding(frozen: dict[str, Any], mutation: str) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    row = frozen["cpic"]["tables"]["recommendation"][0]
+    if mutation == "phenotype":
+        row["lookupkey"] = '{"CYP2C19":"Poor Metabolizer"}'
+    else:
+        row[mutation + "id"] = "unrelated"
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    assert not derive(raw, "CYP2C19")["recommendations"]
+
+
+@pytest.mark.parametrize("imputed", [False, True])
+def test_guideline_rarity_and_quality_survive(frozen: dict[str, Any], imputed: bool) -> None:
+    from genetics.pgx.guidelines import assemble_guideline_card
+
+    guideline_source(frozen)
+    from genetics.health.frequencies import parse_record
+
+    public = parse_record(
+        "\t".join(["10", "101", ".", "A", "G", ".", "PASS", "AF=0.000001;AC=1;AN=1000000"])
+    )
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([]) if imputed else sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+        dosages=[imputed_marker()] if imputed else [],
+        frequencies={("10", 101): [public]},
+    ).to_dict()
+    card = assemble_guideline_card(guideline_card(), raw)
+    assert (
+        card.computation is not None
+        and card.computation["reliability"]["tier"] == "likely-artifact"
+    )
+    assert (
+        "~16%" in card.summary
+        and "not a personal posterior or an imputation validation" in card.summary
+    )
+    if imputed:
+        assert "DR2" in card.summary
+
+
+@pytest.mark.parametrize("stage", ["completed", "unavailable"])
+def test_guideline_saved_cli_dashboard_and_corruption(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    monkeypatch: pytest.MonkeyPatch,
+    stage: str,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.run.bundle import BundleError, _card_payload, read_bundle, write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    guideline_source(frozen)
+    calls = (
+        calling.call(
+            refresh_call_reference(frozen),
+            sample_table([(101, "A", "G", "called")]),
+            sex=sample_qc.sex.inferred,
+        )
+        if stage == "completed"
+        else calling.unavailable("Synthetic absent reference", sex=sample_qc.sex.inferred.value)
+    )
+    card = assemble_guideline_card(guideline_card(), calls.record)
+    pack = replace(sample_pack, cards=(*sample_pack.cards, card.card))
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(*sample_cards, card),
+        pack=pack,
+        ancestry=AncestryContext.not_run("Synthetic guideline acceptance"),
+        pgx=calls.to_dict(),
+        runs_root=tmp_path / "runs",
+        run_id="guidelines",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        catalog.Catalog,
+        "default",
+        classmethod(lambda cls: pytest.fail("Current reference must not be read")),
+    )
+    loaded = read_bundle(path)
+    saved = loaded.cards[-1]
+    assert saved.summary == card.summary and saved.computation == card.computation
+    cli = CliRunner().invoke(app, ["pgx", "calls", path.name, "--gene", "CYP2C19", "--json"])
+    assert cli.exit_code == 0, cli.output
+    assert json.loads(cli.output)["guideline_cards"][0]["computation"] == card.computation
+    detail = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
+    assert detail.exit_code == 0, detail.output
+    assert json.loads(detail.output)["cards"][-1]["computation"] == card.computation
+    client = TestClient(
+        create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"
+    )
+    for suffix in ("", "/pgx", "/pgx?gene=CYP2C19", "/cards/" + card.card_id):
+        page = client.get(f"/runs/{path.name}" + suffix)
+        assert page.status_code == 200
+        assert card.summary in page.text
+        if suffix.startswith("/cards/") and stage == "completed":
+            assert "Synthetic conditional implication" in page.text
+            assert "recommendation classification Moderate" in page.text
+            assert "CPIC gene-drug level A" in page.text
+            assert "10000001" in page.text
+            assert "synthetic context only" in page.text
+    before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    read_bundle(path)
+    assert before == {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    from genetics.pgx.guidelines import validate_stored
+
+    for field in ("summary", "detail", "computation", "citations"):
+        entry = deepcopy(_card_payload(card))
+        if field == "computation":
+            entry[field]["result"]["gene"] = "CYP2D6"
+        elif field == "citations":
+            entry[field][0]["id"] = "10000002"
+        else:
+            entry[field] = "Changed evidence"
+        if stage == "unavailable" and field == "citations":
+            continue  # No source exists to bind authored citations for unavailable runs.
+        with pytest.raises(ValueError):
+            validate_stored(entry, calls.record)
+    from genetics.run.bundle import CARDS_NAME
+
+    cards_path = path / CARDS_NAME
+    payload = json.loads(cards_path.read_text())
+    entries = payload if isinstance(payload, list) else payload["cards"]
+    entries[-1]["summary"] = "Tampered implication"
+    cards_path.write_text(json.dumps(payload), encoding="utf-8")
+    header_path = path / "manifest.json"
+    header = json.loads(header_path.read_text())
+    import hashlib
+
+    header["files"][CARDS_NAME] = hashlib.sha256(cards_path.read_bytes()).hexdigest()
+    header_path.write_text(json.dumps(header), encoding="utf-8")
+    with pytest.raises(BundleError):
+        read_bundle(path)
+
+
+def test_guideline_pipeline_and_schema(frozen: dict[str, Any], tmp_path: Path) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.engine.cards import CardError
+    from genetics.run.pipeline import analyse
+
+    guideline_source(frozen)
+    knowledge = tmp_path / "knowledge"
+    knowledge.mkdir()
+    declaration = {
+        "id": "cyp2c19_guidelines",
+        "section": "pharmacogenomics",
+        "kind": "guideline",
+        "title": "Synthetic guideline card",
+        "gene": "CYP2C19",
+        "citations": [{"type": "pmid", "id": "10000001", "title": "Synthetic"}],
+    }
+    (knowledge / "cards.yaml").write_text(json.dumps({"schema_version": 5, "cards": [declaration]}))
+    result = analyse(
+        Path(__file__).parents[1] / "fixtures/synthetic/ancestry_v2_female.txt",
+        knowledge_dir=knowledge,
+        no_impute=True,
+        ancestry=lambda _table, _qc: AncestryContext.not_run("Synthetic"),
+        pgx=calling.CallingStage(refresh_call_reference(frozen)),
+    )
+    assert result.cards[0].computation is not None
+    assert result.cards[0].computation["source"] == "pgx_guideline"
+    assert result.matches[0] == result.cards[0].match
+    assert result.cards[0].imputation_mode == "disabled"
+    data: dict[str, Any] = {
+        "id": "bad",
+        "section": "pharmacogenomics",
+        "kind": "guideline",
+        "title": "Bad",
+        "gene": "CYP2D6",
+        "citations": [{"type": "pmid", "id": "10000001", "title": "Synthetic"}],
+    }
+    from genetics.engine.cards import Card
+
+    with pytest.raises(CardError):
+        Card.parse(data, "synthetic")
+    data["gene"] = "DPYD"
+    data["evidence"] = {}
+    with pytest.raises(CardError):
+        Card.parse(data, "synthetic")
+
+
+def test_guideline_conflicting_lookup_rows_keep_every_implication(frozen: dict[str, Any]) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    tables["gene_result"].append(
+        {**tables["gene_result"][0], "id": "30", "result": "Poor Metabolizer"}
+    )
+    tables["gene_result_lookup"].append(
+        {**tables["gene_result_lookup"][0], "id": "31", "phenotypeid": "30"}
+    )
+    tables["gene_result_diplotype"].append(
+        {**tables["gene_result_diplotype"][0], "id": "32", "functionphenotypeid": "31"}
+    )
+    tables["recommendation"].append(
+        {
+            **tables["recommendation"][0],
+            "id": "33",
+            "classification": "Strong",
+            "lookupkey": '{"CYP2C19":"Poor Metabolizer"}',
+            "drugrecommendation": "Conflicting synthetic alternative",
+        }
+    )
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "CYP2C19")
+    assert result["branches"][0]["candidate"]["mapping_status"] == "conflicting-mappings"
+    assert {r["source_row"]["id"] for r in result["recommendations"]} == {"23", "33"}
+    assert {j["lookup"]["id"] for j in result["branches"][0]["joins"]} == {"7", "31"}
+
+
+@pytest.mark.parametrize("match", [False, True])
+def test_guideline_multigene_binds_both_called_genes(frozen: dict[str, Any], match: bool) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen, "TPMT")
+    tables = frozen["cpic"]["tables"]
+    for name in (
+        "gene",
+        "allele_definition",
+        "sequence_location",
+        "allele_location_value",
+        "allele",
+        "gene_result",
+        "gene_result_lookup",
+        "gene_result_diplotype",
+    ):
+        for original in list(tables[name]):
+            row = deepcopy(original)
+            for field in (
+                "id",
+                "definitionid",
+                "alleledefinitionid",
+                "locationid",
+                "phenotypeid",
+                "functionphenotypeid",
+            ):
+                if row.get(field) is not None:
+                    row[field] = str(int(row[field]) + 100)
+            if name == "gene":
+                row["symbol"] = "NUDT15"
+            if "genesymbol" in row:
+                row["genesymbol"] = "NUDT15"
+            if name == "gene_result_diplotype":
+                row["diplotypekey"] = '{"NUDT15":{"*1":1,"*2":1}}'
+            tables[name].append(row)
+    tables["recommendation"][0]["lookupkey"] = json.dumps(
+        {
+            "TPMT": "Intermediate Metabolizer",
+            "NUDT15": "Intermediate Metabolizer" if match else "Poor Metabolizer",
+        }
+    )
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "TPMT")
+    assert bool(result["recommendations"]) == match
+    if match:
+        conditions = result["recommendations"][0]["conditions"]
+        assert {c["gene"] for c in conditions} == {"TPMT", "NUDT15"}
+        assert all(c["state"] == "candidate-compatible" and c["support"] for c in conditions)
+        assert result["required_gene_branches"]["NUDT15"][0]["candidate"]["definition_ids"] == [
+            "101",
+            "102",
+        ]
+
+
+def test_guideline_drug_specific_functions_remain_source_annotations(
+    frozen: dict[str, Any],
+) -> None:
+    from genetics.pgx.guidelines import derive
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    tables["allele"][0].update(
+        clinicalfunctionalstatus="Drug-specific synthetic function",
+        clinicalfunctionalsubstrate="Synthetic:other-drug",
+    )
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "CYP2C19")
+    functions = result["branches"][0]["functions"]["1"]
+    assert functions[0]["functionalstatus"] == "Normal function"
+    assert functions[0]["clinicalfunctionalstatus"] == "Drug-specific synthetic function"
+    assert functions[0]["clinicalfunctionalsubstrate"] == "Synthetic:other-drug"
+    assert (
+        result["recommendations"][0]["conditions"][0]["required_value"]
+        == "Intermediate Metabolizer"
+    )
+
+
+def test_guideline_vkorc1_source_gap_and_historical_cards(frozen: dict[str, Any]) -> None:
+    from genetics.engine.cards import CardError, parse_file
+    from genetics.pgx.guidelines import assemble_guideline_card, derive
+    from genetics.run.bundle import BundleError, _card_payload, _check_guidelines
+
+    guideline_source(frozen, "VKORC1")
+    tables = frozen["cpic"]["tables"]
+    for name in ("gene_result_diplotype", "gene_result_lookup", "gene_result", "recommendation"):
+        tables[name] = []
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    result = derive(raw, "VKORC1")
+    assert result["pairs"][0]["cpiclevel"] == "A"
+    assert not result["recommendations"] and result["unmapped_candidates"]
+    assert any("phenotype lookup table not provided" in gap for gap in result["gaps"])
+    assembled = assemble_guideline_card(guideline_card("VKORC1"), raw)
+    with pytest.raises(BundleError, match="format 20"):
+        _check_guidelines([_card_payload(assembled)], raw, 19)
+    _check_guidelines([], raw, 19)
+    entry = {
+        "id": "test",
+        "kind": "guideline",
+        "title": "test",
+        "section": "pharmacogenomics",
+        "gene": "DPYD",
+        "citations": [{"type": "pmid", "id": "10000001", "title": "Synthetic"}],
+    }
+    with pytest.raises(CardError, match="schema_version 5"):
+        parse_file(json.dumps({"schema_version": 4, "cards": [entry]}), "synthetic")
+
+
+def test_guideline_authored_selectors_and_public_citations() -> None:
+    from genetics.engine.cards import CardKind, KnowledgePack
+
+    cards = [c for c in KnowledgePack.load().cards if c.kind is CardKind.GUIDELINE]
+    expected = {
+        "CYP2C19": "35034351",
+        "CYP2C9": "32189324",
+        "VKORC1": "28198005",
+        "SLCO1B1": "35152405",
+        "TPMT": "30447069",
+        "DPYD": "29152729",
+        "NUDT15": "30447069",
+        "G6PD": "36049896",
+    }
+    assert {c.gene for c in cards} == set(expected)
+    assert all(c.evidence is None and c.match is None for c in cards)
+    for card in cards:
+        assert card.citations[0].id == expected[card.gene or ""]
+        assert card.id == (card.gene or "").lower() + "_guidelines"
+
+
+@pytest.mark.parametrize("version", [1, 2, 3, 4])
+@pytest.mark.parametrize("kind", ["guideline", "GUIDELINE", " guideline "])
+def test_guideline_version_gate_cannot_be_bypassed(version: int, kind: str) -> None:
+    from genetics.engine.cards import CardError, parse_file
+
+    entry = {
+        "id": "test",
+        "kind": kind,
+        "title": "test",
+        "section": "pharmacogenomics",
+        "gene": "DPYD",
+        "citations": [{"type": "pmid", "id": "10000001", "title": "Synthetic"}],
+    }
+    with pytest.raises(CardError, match="schema_version 5"):
+        parse_file(json.dumps({"schema_version": version, "cards": [entry]}), "synthetic")

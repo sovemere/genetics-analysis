@@ -46,6 +46,13 @@ def calls(
             else:
                 typer.echo(f"CYP2D6 assay limitation (saved card): {limitation['card']['summary']}")
                 typer.echo(limitation["card"]["impossibility_reason"])
+            typer.echo(f"Guideline cards: {result['guideline_status']}")
+            for card in result["guideline_cards"]:
+                typer.echo(card["summary"])
+                typer.echo(
+                    f"  Full conditional evidence: genetics runs show {run_id} --json "
+                    f"(card {card['card_id']})"
+                )
             for symbol, record in result["genes"].items():
                 tier = record.get("reliability", {}).get("tier", "unavailable")
                 typer.echo(

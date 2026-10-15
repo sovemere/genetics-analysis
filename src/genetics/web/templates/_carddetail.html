@@ -207,7 +207,9 @@
   {% endif %}
 
   {% if card.is_computed %}
-    {% if card.computation.source == "long_roh" %}
+    {% if card.computation.source == "pgx_guideline" %}
+      {% include "_pgxguidelinedetail.html" %}
+    {% elif card.computation.source == "long_roh" %}
       {% include "_rohdetail.html" %}
     {% elif card.computation.source == "sex_chromosome_profile" %}
       {% include "_sexchromdetail.html" %}

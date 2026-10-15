@@ -83,8 +83,11 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 19
+BUNDLE_FORMAT_VERSION: Final[int] = 20
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 20 (M10.4) adds conditional guideline cards reproduced from the saved PGx
+sample evidence; source/catalog and sample schema 1 remain unchanged.
 
 Version 19 (M10.2) adds reproducible PGx sample-call schema 1 in ``pgx.run.json``.
 Formats 1-18 expose PGx as not recorded; card confidence remains unchanged.
@@ -942,6 +945,7 @@ def write_bundle(
             )
         except (CallingError, ImputationError) as exc:
             raise BundleError(str(exc)) from exc
+        _check_guidelines(card_payloads, pgx_payload, BUNDLE_FORMAT_VERSION)
         _write_text(staging / PGX_NAME, _render(pgx_payload))
 
         manifest = {
@@ -1096,6 +1100,19 @@ def _polygenic_shape(data: Mapping[str, Any], computation: Mapping[str, Any], wh
         raise BundleError(f"{where}: invalid polygenic card status")
 
 
+def _check_guidelines(entries: Sequence[Any], pgx: Mapping[str, Any] | None, version: int) -> None:
+    from genetics.pgx.guidelines import validate_stored
+
+    for entry in entries:
+        if isinstance(entry, Mapping) and entry.get("kind") == "guideline":
+            if version < 20:
+                raise BundleError("Guideline cards require bundle format 20")
+            try:
+                validate_stored(entry, pgx)
+            except (ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
+                raise BundleError("Saved guideline card disagrees with its PGx evidence.") from exc
+
+
 def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
     """Each polygenic card must be reproduced by its own stored score record, and no
     record may sit in the bundle without the card that displays it."""
@@ -1169,7 +1186,10 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             frozenset({"source", "status", "reason", "result", "reliability", "method_evidence"}),
             where,
         )
-        if data.get("kind") == "polygenic" or computation_map.get("source") == "polygenic_score":
+        if data.get("kind") == "guideline":
+            if computation_map.get("source") != "pgx_guideline":
+                raise BundleError(f"{where}: invalid guideline computation source")
+        elif data.get("kind") == "polygenic" or computation_map.get("source") == "polygenic_score":
             _polygenic_shape(data, computation_map, where)
         elif (
             data.get("kind") != "computed"
@@ -1186,7 +1206,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
             raise BundleError(f"{where}: computation and card statuses disagree")
-    if computation_map is not None and data.get("kind") == "polygenic":
+    if computation_map is not None and data.get("kind") in {"polygenic", "guideline"}:
         tier = _mapping(computation_map["reliability"], where).get("tier")
     elif computation_map is not None:
         if (
@@ -1364,7 +1384,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 validate_roh_result(measured_map)
             except RohError as exc:
                 raise BundleError(f"{where}: {exc}") from exc
-    elif data.get("kind") in {"computed", "polygenic"}:
+    elif data.get("kind") in {"computed", "polygenic", "guideline"}:
         raise BundleError(f"{where}: {data.get('kind')} card has no computation record")
     frequency_source = data.get("confidence_frequency")
     return StoredCard(
@@ -1626,6 +1646,7 @@ def read_bundle(path: Path) -> RunBundle:
         except (CallingError, ImputationError, KeyError, TypeError) as exc:
             raise BundleError("Saved PGx record is inconsistent with its run.") from exc
 
+    _check_guidelines(entries, pgx, declared)
     return RunBundle(
         path=directory,
         run_id=str(_require(manifest, "run_id", MANIFEST_NAME)),

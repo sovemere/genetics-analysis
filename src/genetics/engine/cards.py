@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 4
+SCHEMA_VERSION: Final[int] = 5
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -902,6 +902,7 @@ class Match:
 
 
 class CardKind(StrEnum):
+    GUIDELINE = "guideline"
     INTERPRETATION = "interpretation"
     COMPUTED = "computed"
     POLYGENIC = "polygenic"
@@ -1195,6 +1196,23 @@ class Card:
         caveats = _string_list(data.get("caveats") or [], f"{where}.caveats")
         gene = str(data["gene"]).strip() if data.get("gene") else None
 
+        if kind is CardKind.GUIDELINE:
+            from genetics.pgx.catalog import TRACTABLE
+
+            _reject_unknown(
+                data, {"id", "section", "kind", "title", "gene", "citations", "caveats"}, where
+            )
+            if section is not Section.PHARMACOGENOMICS or gene not in TRACTABLE:
+                raise CardError(f"{where}: guideline cards require a SNP-tractable PGx gene")
+            return cls(
+                id=card_id,
+                section=section,
+                kind=kind,
+                title=title,
+                gene=gene,
+                citations=citations,
+                caveats=caveats,
+            )
         if kind is CardKind.COMPUTED:
             for forbidden in ("match", "outcomes", "evidence", "impossibility_reason", "gene"):
                 if forbidden in data:
@@ -1481,7 +1499,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, 3, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, 4, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1501,6 +1519,11 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 5 and any(
+        isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "guideline"
+        for entry in entries
+    ):
+        raise CardError(f"{where}: guideline cards require schema_version 5")
     if version < 4 and any(
         isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "polygenic"
         for entry in entries

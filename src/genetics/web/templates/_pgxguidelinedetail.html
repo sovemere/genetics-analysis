@@ -1,0 +1,65 @@
+{% set result = card.computation.result %}
+<section class="detailblock">
+  <h3>Conditional guideline evidence</h3>
+  <p>{{ result.reason }}</p>
+  {% for gap in result.gaps %}<p>{{ gap }}</p>{% endfor %}
+  {% if result.get("source") %}
+  <p>CPIC release {{ result.source.version }}; licence {{ result.source.license_id }}.
+     Source population and clinical context remain conditions, not measured ancestry agreement.</p>
+  {% endif %}
+  <p>{{ result.branches | length }} compatible candidate branches;
+     {{ result.recommendations | length }} conditional recommendation rows. All rows remain below.</p>
+  <details><summary>All {{ result.branches | length }} source candidate branches</summary>
+  {% for branch in result.branches %}
+  <details><summary>Candidate {{ branch.candidate_index + 1 }}:
+    {{ branch.candidate.alleles | join(" / ") }}; {{ branch.candidate.ploidy }} copies;
+    {{ branch.candidate.support }}; {{ branch.candidate.mapping_status }}</summary>
+    <p>Source definition IDs: {{ branch.candidate.definition_ids | join(", ") }}.</p>
+    {% for join in branch.joins %}
+      <p>Mapping {{ join.mapping.id }} → lookup {{ join.lookup.id }} → result {{ join.result.id }}:
+        {{ join.result.result }}; source activity score {{ join.lookup.totalactivityscore }}.</p>
+    {% endfor %}
+    <pre>{{ branch | tojson(indent=2) }}</pre>
+  </details>
+  {% endfor %}
+  </details>
+  {% for drug_id, items in result.recommendations | groupby("source_row.drugid") %}
+  <details><summary>{{ items[0].drug.name if items[0].drug else drug_id }}:
+    {{ items | length }} conditional source rows</summary>
+  {% for item in items %}
+  <details><summary>{{ item.drug.name if item.drug else item.source_row.drugid }} —
+    {{ item.status }}; recommendation classification {{ item.source_row.classification or "not provided" }};
+    row {{ item.source_row.id }}</summary>
+    {% if item.status == "conditional" %}
+      <p><strong>CPIC source recommendation, conditional:</strong> {{ item.source_row.drugrecommendation }}</p>
+    {% else %}<p>Dosing implication unavailable: guideline evidence is incomplete.</p>{% endif %}
+    <p>Source population: {{ item.source_row.get("population") or "not supplied" }}.</p>
+    <p>{{ item.source_row.get("comments") or "No additional comments supplied; clinical context remains unassessed." }}</p>
+    {% for condition in item.conditions %}
+      <p>{{ condition.gene }} requires {{ condition.required_value }} ({{ condition.lookup_method or "unavailable" }}):
+        {{ condition.state }}; {{ condition.support | length }} supporting candidates;
+        {{ condition.unmapped_candidates | length }} unmapped alternatives.</p>
+    {% endfor %}
+    {% for pair in item.pairs %}<p>CPIC gene-drug level {{ pair.cpiclevel or "not provided" }}
+      (pair {{ pair.pairid }}); distinct from recommendation classification and allele-function strength.</p>{% endfor %}
+    {% if item.guideline and item.guideline.url and item.guideline.url.startswith("https://") %}
+    <p><a href="{{ item.guideline.url }}" target="_blank" rel="noopener noreferrer">{{ item.guideline.name }}</a></p>
+    {% endif %}
+    {% for publication in item.publications %}
+      <p>{{ publication.title }}
+      {% if publication.pmid %}PMID {{ publication.pmid }}{% endif %}
+      {% for citation in card.citations if citation.identifier == publication.pmid and citation.url %}
+        <a href="{{ citation.url }}" target="_blank" rel="noopener noreferrer">Read publication</a>
+      {% endfor %}
+      {% if publication.doi %}DOI {{ publication.doi }}{% endif %}</p>
+    {% endfor %}
+    {% for gap in item.gaps %}<p>{{ gap }}</p>{% endfor %}
+    <details><summary>Complete frozen row, joins and conditions</summary><pre>{{ item | tojson(indent=2) }}</pre></details>
+  </details>
+  {% endfor %}
+  </details>
+  {% endfor %}
+  <details><summary>Complete saved evidence, notes, licences and required-gene alternatives</summary>
+    <pre>{{ result | tojson(indent=2) }}</pre>
+  </details>
+</section>
