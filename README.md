@@ -168,7 +168,12 @@ saved findings, historical runs and guideline display schemas 1–2 are preserve
 See [the framing contract](docs/pgx_framing.md). The
 [M10.5 diff review](docs/review_m105_session.md) closes a reproduced CLI
 saved-summary test gap; production code and saved formats are unchanged.
-[M11.1 R/HIBAG detection and bridge](docs/handoff.md#next-open-step-m111-r-and-hibag) is next.
+**M11.1 optional R/HIBAG readiness and subprocess execution are implemented.**
+Doctor shares the bridge's readiness states and R/HIBAG identities; failures remain
+separate from missing dependencies. Private isolated jobs support timeout and cancellation.
+See [the runtime contract](docs/hla_runtime.md). Native R/HIBAG success is unverified
+locally because Rscript is absent. No HLA calls or saved-schema changes are introduced.
+[M11.2 HLA imputation](docs/handoff.md#next-open-step-m112-hla-imputation) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

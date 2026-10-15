@@ -202,6 +202,8 @@ analysis_*.json
 # M8.1 private Beagle attempts, completion checkpoints, and kernel lock files.
 *.beagle-work/
 *.beagle.lock
+# M11.1 private R/HIBAG attempts (including arbitrary caller script outputs).
+*.hibag-work/
 *.bref3-work/
 *.bref3.json
 *.bref3.json.provenance.json
@@ -285,6 +287,7 @@ gnomad_frequencies.sqlite*
 /knowledge/**/*.run.json
 # M8.1: the directory allowlist above must not reopen private Beagle attempts.
 /knowledge/**/*.beagle-work/
+/knowledge/**/*.hibag-work/
 /knowledge/**/*.bref3-work/
 *.imputation-work/
 *.imputation.lock

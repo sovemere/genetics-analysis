@@ -16,15 +16,14 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.1 R/HIBAG detection and subprocess bridge is next.** M0–M10 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m111-r-and-hibag)
-starts with the existing optional doctor probe. M10.5 adds shared current
-section framing across PGx views and CLI without changing saved findings;
-see [the framing contract](docs/pgx_framing.md). Knowledge schema 5, bundle format
-20 and guideline display schemas 1–2 are unchanged. The
-[M10.5 diff review](docs/review_m105_session.md) verifies placement and frozen
-evidence and strengthens CLI summary/notice assertions. The handoff records
-the existing R/HIBAG probe error-classification and version-reporting gaps.
+**M11.2 HLA imputation with HIBAG pre-fit classifiers is next.** M0–M10 and
+M11.1 are implemented. The [current handoff](docs/handoff.md#next-open-step-m112-hla-imputation)
+starts with the shared [R/HIBAG readiness and bridge](docs/hla_runtime.md).
+Doctor distinguishes optional absence from execution, timeout, namespace and protocol
+failures and reports R/HIBAG versions. Runtime probes do not infer HLA calls.
+Knowledge schema 5 and bundle format 20 are unchanged. Native R/HIBAG execution
+remains unverified locally because Rscript is unavailable; synthetic subprocess
+acceptance and explicit optional absence are covered.
 
 ### Completed milestones (historical checkpoints)
 
@@ -107,7 +106,7 @@ calling is implemented**, with all compatible alternatives, native ploidy and
 source-specific phenotype joins retained in format 19. See the
 [calling contract](docs/pgx_calling.md). **M10.3 placement and M10.4 guideline
 cards are complete.** M10.5 adds shared section framing; **M10 is complete**.
-Start with the [current handoff](docs/handoff.md#next-open-step-m111-r-and-hibag).
+Start with the [current handoff](docs/handoff.md#next-open-step-m112-hla-imputation).
 The [M10.2 diff review](docs/review_m102_session.md) records saved-evidence,
 validation and presentation corrections with healthy calling results unchanged.
 See [PGS scoring](docs/pgs_scoring.md).
@@ -121,7 +120,7 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 19**, with formats 1–18 preserved. The pack has 69 cards;
+**Current bundle format: 20**, with formats 1–19 preserved. The pack has 77 cards;
 full local dbSNP lint resolves all 39 authored marker references (320 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
@@ -2849,10 +2848,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 
 ## M11 — HLA, immunogenetics & carrier status
 
-- [ ] **M11.1** R + HIBAG detection and subprocess bridge. Optional module that degrades
+- [x] **M11.1** R + HIBAG detection and subprocess bridge. Optional module that degrades
       gracefully with a clear "R not installed" state. Share readiness with doctor,
       preserve probe failures separately from missing dependencies and report R/HIBAG
-      identities. See the [reviewed handoff](docs/handoff.md#next-open-step-m111-r-and-hibag).
+      identities. Shared isolated execution, strict protocol, timeout/cancellation
+      and private diagnostics are implemented. See the [runtime contract](docs/hla_runtime.md).
 - [ ] **M11.2** HLA imputation using **HIBAG pre-fit classifiers** (European/Asian/
       Hispanic/African). **Do not use SNP2HLA** — its T1DGC panel was withdrawn over
       individual-level genotype concerns and now needs a NIDDK request.
@@ -2994,6 +2994,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-16 | M11.1 | Shared optional R/HIBAG readiness and private subprocess bridge, with separate absence/execution/timeout/protocol/namespace states, numeric versions and isolated startup. Strict version-1 protocol, runtime-change rejection, safe argument vectors, cancellation and Windows process-tree cleanup are covered by synthetic subprocess checks; Beagle shares the unchanged termination helper. Combined final coverage passes 3,335 unique tests with six skips: 3,331 broad native passes, all 114 final bridge/doctor/Beagle checks (including four later cases), then all 61 final bridge/doctor checks. Four strict type targets (217 files), full card lint (77/320/39), fixtures, style and whitespace pass. Rscript is unavailable locally, so native R/HIBAG success remains unverified and its acceptance test skips; five other skips are existing Windows limitations. No personal export, classifier fetch or saved-schema change. M11.2 is next. [Contract and acceptance](docs/hla_runtime.md). |
 | 2026-10-16 | M10.5 diff review | No production defect found in `3b58d18..955487e`. A reversible mutation exposed a CLI saved-summary/notice-count test gap; strengthened schema-1/2 completed/unavailable checks bind complete and gene-specific report summaries, computations and citations to saved evidence. All four mutation scenarios are rejected. All 516 affected PGx/web/doctor tests, four final CLI cases, four strict type targets, full card lint (77/320/39), fixtures and style pass. Production code, pins and saved formats are unchanged. The M11.1 handoff now records existing probe timeout/absence conflation, absent HIBAG version reporting and bridge requirements. [Review](docs/review_m105_session.md). |
 | 2026-10-16 | M10.5 | Shared current section framing appears once across PGx dashboard/overview/gene views and CLI; JSON separates it from frozen findings. Filter, pagination, missing-source, historical and display-schema-1/2 compatibility checks retain immutable bundles. Combined validation covers 3,294 unique passing tests, five existing Windows skips: 3,274 broad-run passes, then all 101 checks in three sandbox-affected files pass with normal Windows process access and a private cache. All ten final interface cases, four strict type targets, full card lint (77/320/39), fixtures, style and staged privacy checks pass. No personal export opened. M10 complete; M11.1 next. [Contract and acceptance](docs/pgx_framing.md). |
 | 2026-10-15 | M10.4 diff review | Two reproduced defect groups corrected: frozen numeric equality admitted boolean/integer and float/integer substitutions; incomplete guideline/citation/text evidence could appear usable or abort assembly. Display schema 2 adds explicit completeness checks, valid partial-citation handling and separate face counts; schema-1 cards reproduce the original implementation exactly. Twenty-five new synthetic cases; complete native suite passes 3,292 tests, five existing Windows skips, in 543.30 seconds. All 103 focused checks, four strict type targets, full card lint (77/320/39), fixtures, style and privacy gates pass. Complete-source offline comparison/reload passes in 109.05 seconds. Roadmap overview and M10.5 handoff are current. [Review](docs/review_m104_session.md). |
