@@ -33,6 +33,13 @@ PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
 **M11.1 R/HIBAG readiness and bridge are implemented; M11.2 is next.**
 See the [runtime contract and validation](hla_runtime.md).
+The [M11.1 diff review](review_m111_session.md) hardens path redaction, terminal-wait
+interruption, regular-file protocol validation and R bootstrap scope. Native R readiness
+and bridge-script acceptance are now separate checks; native success remains unverified.
+Final reviewed coverage passes **3,344 unique tests**, seven skips, with all four
+strict type targets, complete card lint, fixtures and style passing. The
+[review validation record](review_m111_session.md#validation) distinguishes the
+broad run from the final affected checks.
 See [the guideline contract and audit](pgx_guidelines.md) and the
 [M10.4 diff review](review_m104_session.md). The reviewed complete native suite
 passes **3,292 tests**, five existing Windows skips; 103 focused checks, four
@@ -325,14 +332,18 @@ style and privacy gates pass; the guide records exact run boundaries.
 M11.1 supplies one shared optional readiness function and a private R/HIBAG
 subprocess bridge. Doctor exposes runtime state, failure category, R/HIBAG
 versions and platform; missing dependencies remain nonfatal and probe failures
-remain errors. Combined validation passes **3,335 unique tests**, with six skips:
-3,331 broad native passes plus all 114 final bridge/doctor/Beagle checks, including
-four later cases; all 61 final bridge/doctor checks also pass. Four strict type
-targets (217 files), complete card lint, fixtures and style pass.
-See [the runtime contract and exact validation](hla_runtime.md). Native Rscript is
+remain errors. The [session diff review](review_m111_session.md) records the runtime
+boundary fixes and final validation; the original implementation acceptance remains
+in [the runtime contract](hla_runtime.md#implementation-validation-2026-10-16).
+Native Rscript is
 unavailable on this development machine, so no native HIBAG success is claimed.
-The optional native acceptance test can use `GENETICS_HIBAG_TEST_RSCRIPT`;
-it loads no classifiers or personal inputs.
+Configure `GENETICS_RSCRIPT` for the user-installed runtime, or use
+`GENETICS_HIBAG_TEST_RSCRIPT` for test-only selection. Start with
+`test_native_r_readiness_protocol` and `test_native_hibag_script` in
+`tests/external/test_hibag.py`. They are separate: an absent HIBAG package must
+skip script execution rather than count as a successful bridge test. The script
+checks argument handling and base-function lookup after bootstrap isolation.
+Neither test loads a classifier or personal input.
 
 M11.2 must audit the actual HIBAG pre-fit classifier releases, model build,
 marker alleles/strand, HLA resolution, licences and checksums before adding
@@ -347,6 +358,8 @@ complete scientific outputs, sample/marker identity, alleles, per-call posterior
 probabilities, missing/unsupported states and exact runtime/model identities
 before constructing a result. A failed probe or missing model is not an HLA
 negative. Preserve the shared offline CLI/dashboard engine and historical runs.
+Add ignore patterns for any new sample output or classifier file types in the same
+commit that introduces them; do not rely only on a private working directory.
 Scripts receive a character vector named `bridge_args` and write into their
 private working directory. Set an appropriate explicit job timeout, pass the
 cancellation event and retain diagnostics privately. Audit and run native R/HIBAG
