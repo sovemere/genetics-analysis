@@ -1,6 +1,6 @@
 # Handoff: M10 pharmacogenomics
 
-As of 2026-10-14, **M0-M9 and M10.1-M10.2 are implemented**. Full local reference verification was
+As of 2026-10-15, **M0-M9 and M10.1-M10.2 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
@@ -22,6 +22,15 @@ M10.2 acceptance passes **3,188 native tests**, five existing Windows skips,
 all four strict type targets, complete card lint, fixtures, style and staged
 privacy checks. Full-source offline synthetic calling/reload passes; no
 personal export was opened. See [the acceptance record](pgx_calling.md#acceptance).
+The [M10.2 diff review](review_m102_session.md) binds PGx observations to saved
+native dosages, tightens malformed-input handling and corrects error categories,
+allele labels and reliability styling. Sample schema 1 and format 19 remain
+unchanged; the next-step contract below includes the review's findings.
+Review validation covers **3,208 unique passing tests**, five existing Windows
+skips: a 3,202-pass broad run, then all 399 affected integration tests after the
+final six cases. Four strict type targets, full card lint, fixtures and style
+pass. Full-source synthetic comparison reproduces the original healthy results
+and schema-1 JSON reload in 274.26 seconds; see the review for exact scope.
 
 M9.1–M9.6 are implemented and reviewed. M9.7 is implemented and accepted as of
 2026-10-11:
@@ -240,6 +249,12 @@ ploidy alternatives. Unknown/poor imputation quality and rare-call bands lower
 reliability without suppressing candidates. `pgx.run.json` saves the complete
 catalog and private observations; readers reproduce the results and bind sex
 and imputation mode to the run. Formats 1–18 expose PGx as not recorded.
+The review additionally compares the complete PGx dosage records with the
+independent native payload on both save and reload. A locally consistent PGx
+record cannot substitute a different genotype, quality or duplicate count.
+Original probe presence, eligible direct calls and no-call provenance must also
+agree with that native evidence, accounting for recorded complementation and
+the array's doubled representation of single-copy calls.
 `genetics pgx calls RUN --gene GENE --json` includes source and observation
 provenance. The dashboard shows all gene faces, including when grouping by
 confidence, and paginates all candidates with their total stated.
@@ -247,8 +262,15 @@ confidence, and paginates all candidates with their total stated.
 M10.3 should verify and finish the placement of the already-authored
 `cyp2d6_structural_variation` card beside these calls. It is already assigned to
 pharmacogenomics; do not author a second card, reinterpret its SNP definitions,
-or duplicate the source snapshot contract. Inspect unavailable-reference and
-historical runs too, and check the presentation when grouping by tier. M10.4
+or duplicate the source snapshot contract. Verify the dashboard section, the
+`/runs/<id>/pgx` overview and gene-detail routes, plus saved CLI inspection.
+Check tier grouping and filters: sample calls remain displayed independently
+of knowledge-card filters, so the assay limitation must remain visible beside
+them. Inspect unavailable-reference and historical/nonstandard packs too;
+report missing saved card evidence explicitly instead of claiming it was
+recorded or mutating the run. Keep all eight genes and every candidate visible.
+Use definition IDs to attach uncertainty to its actual source allele, and
+retain the existing reliability badge styles and scoped numerical PPV. M10.4
 then owns guideline-linked interpretation; M10.2 returns source mappings only,
 with no dosing claims. VKORC1's genotype-linked recommendation keys are exposed
 for that audit, while its absent phenotype table remains explicit.

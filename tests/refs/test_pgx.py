@@ -520,6 +520,353 @@ def test_pipeline_executes_the_shared_pgx_stage(frozen: dict[str, Any]) -> None:
     assert set(analysis.pgx["genes"]) == set(catalog.TRACTABLE)
 
 
+@pytest.fixture
+def pgx_imputed_inputs(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+) -> tuple[catalog.Catalog, GenotypeTable, Any]:
+    from genetics.testing.imputation_snapshots import anchors, synthetic_stage
+
+    table = sample_table([])
+    result = synthetic_stage(
+        table, tmp_path / "private-stage", records=(*anchors("10"), imputed_marker())
+    )
+    return refresh_call_reference(frozen), table, result
+
+
+@pytest.mark.parametrize("mutation", ["genotype", "quality", "missing", "extra"])
+def test_review_writer_binds_pgx_to_native_dosages(
+    pgx_imputed_inputs: tuple[catalog.Catalog, GenotypeTable, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    tmp_path: Path,
+    mutation: str,
+) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.imputation.context import ImputationContext
+    from genetics.run.bundle import BundleError, write_bundle
+
+    reference, table, stage = pgx_imputed_inputs
+    records = list(stage.iter_dosages())
+    if mutation == "genotype":
+        records[-1] = replace(
+            records[-1],
+            genotype=(1, 1),
+            storage_genotype=(1, 1),
+            dosage=(1.8,),
+            storage_dosage=(1.8,),
+        )
+    elif mutation == "quality":
+        records[-1] = replace(records[-1], dr2=(0.9,))
+    elif mutation == "missing":
+        records.pop()
+    else:
+        records.append(records[-1])
+    calls = calling.call(reference, table, sex=sample_qc.sex.inferred, dosages=records)
+    with pytest.raises(BundleError, match="PGx"):
+        write_bundle(
+            qc=sample_qc,
+            cards=(),
+            pack=sample_pack,
+            ancestry=AncestryContext.not_run("Synthetic review"),
+            pgx=calls.to_dict(),
+            imputation=ImputationContext.enabled(stage.summary(), quality_aware=True),
+            imputation_result=stage,
+            runs_root=tmp_path / "runs",
+            lock_path=tmp_path / "missing.lock",
+            tools_root=tmp_path / "tools",
+        )
+
+
+def test_review_reader_binds_pgx_to_native_dosages_without_caches(
+    pgx_imputed_inputs: tuple[catalog.Catalog, GenotypeTable, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    tmp_path: Path,
+) -> None:
+    import hashlib
+    import shutil
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.imputation.context import ImputationContext
+    from genetics.run.bundle import PGX_NAME, BundleError, read_bundle, write_bundle
+
+    reference, table, stage = pgx_imputed_inputs
+    calls = calling.call(reference, table, sex=sample_qc.sex.inferred, dosages=stage.iter_dosages())
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(),
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic review"),
+        pgx=calls.to_dict(),
+        imputation=ImputationContext.enabled(stage.summary(), quality_aware=True),
+        imputation_result=stage,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    shutil.rmtree(stage.directory)
+    assert read_bundle(path).pgx is not None
+    raw = json.loads((path / PGX_NAME).read_text())
+    raw["observations"][0]["dosages"][0]["dr2"] = [0.9]
+    raw["genes"] = calling.derive(
+        catalog.Catalog(raw["reference"]), raw["observations"], raw["sex"]
+    )
+    calling.validate(raw)
+    text = json.dumps(raw)
+    (path / PGX_NAME).write_text(text, encoding="utf-8")
+    header = json.loads((path / "manifest.json").read_text())
+    header["files"][PGX_NAME] = hashlib.sha256(text.encode()).hexdigest()
+    (path / "manifest.json").write_text(json.dumps(header), encoding="utf-8")
+    with pytest.raises(BundleError, match="PGx"):
+        read_bundle(path)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ["homozygote-count", "alternate-count-sum", "empty-population", "bad-vector", "missing-filter"],
+)
+def test_review_bad_frequency_inputs_fail_categorically(
+    frozen: dict[str, Any], mutation: str
+) -> None:
+    from genetics.health.frequencies import parse_record
+
+    record = parse_record(
+        "\t".join(["10", "101", ".", "A", "G", ".", "PASS", "AF=0.2;AC=20;AN=100;nhomalt=0"])
+    )
+    if mutation == "homozygote-count":
+        record["populations"]["global"]["nhomalt"] = [30]
+    elif mutation == "alternate-count-sum":
+        record["alts"].append("C")
+        record["populations"]["global"].update(af=[0.8, 0.8], ac=[80, 80], nhomalt=[0, 0])
+        record["af_popmax"] = [None, None]
+        record["popmax"] = [None, None]
+    elif mutation == "empty-population":
+        record["populations"] = {"": record["populations"]["global"]}
+    elif mutation == "bad-vector":
+        record["populations"]["global"]["af"] = None
+    else:
+        record.pop("filter")
+    with pytest.raises(calling.CallingError, match=r"malformed|invalid|inconsistent"):
+        calling.call(
+            refresh_call_reference(frozen),
+            sample_table([(101, "A", "G", "called")]),
+            sex=InferredSex.FEMALE,
+            frequencies={("10", 101): [record]},
+        )
+
+
+def test_review_equal_alleles_cannot_claim_heterozygous_haploid(frozen: dict[str, Any]) -> None:
+    with pytest.raises(calling.CallingError):
+        calling.call(
+            refresh_call_reference(frozen),
+            sample_table([(101, "A", "A", "het_haploid")]),
+            sex=InferredSex.FEMALE,
+        )
+
+
+def test_review_invalid_prepared_reference_reports_pgx_not_imputation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from genetics.cli.run_cmd import _error_kind
+
+    (tmp_path / "cpic").mkdir()
+    (tmp_path / "cpic" / "pgx_reference.json").write_text("{}")
+    monkeypatch.setattr(calling, "references_dir", lambda: tmp_path)
+    monkeypatch.setattr("genetics.paths.references_dir", lambda: tmp_path)
+    with pytest.raises(calling.CallingError) as error:
+        calling.CallingStage().prepare()
+    assert _error_kind(error.value) == "pgx"
+
+
+@pytest.mark.parametrize("case", ["constraint-label", "artifact-style"])
+def test_review_candidate_view_names_the_correct_allele_and_styles_reliability(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    case: str,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.health.frequencies import parse_record
+    from genetics.run.bundle import write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    frequencies = {}
+    if case == "constraint-label":
+        tables = frozen["cpic"]["tables"]
+        tables["allele_definition"][0]["matchesreferencesequence"] = "f"
+        tables["sequence_location"].append(
+            {
+                **tables["sequence_location"][0],
+                "id": "9",
+                "position": "202",
+                "chromosomelocation": "g.202C>T",
+                "dbsnpid": None,
+            }
+        )
+        tables["allele_location_value"].append(
+            {"alleledefinitionid": "2", "locationid": "9", "variantallele": "T", "version": "1"}
+        )
+    else:
+        public = parse_record(
+            "\t".join(["10", "101", ".", "A", "G", ".", "PASS", "AF=0.000001;AC=1;AN=1000000"])
+        )
+        frequencies[("10", 101)] = [public]
+    result = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+        frequencies=frequencies,
+    )
+    root = tmp_path / "runs"
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(),
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic review"),
+        pgx=result.to_dict(),
+        runs_root=root,
+        run_id="review",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
+    if case == "constraint-label":
+        page = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19")
+        assert page.status_code == 200 and "1 for *2" in page.text
+    else:
+        page = client.get(f"/runs/{path.name}")
+        assert page.status_code == 200 and 'class="card tier-likely-artifact"' in page.text
+        assert 'class="tier tier-likely-artifact"' in page.text
+        assert "~16%" in page.text
+
+
+@pytest.mark.parametrize("source", ["direct", "imputed_no_call"])
+def test_review_native_evidence_also_binds_original_probe_calls(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    source: str,
+) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.imputation.context import ImputationContext
+    from genetics.run.bundle import BundleError, write_bundle
+    from genetics.testing.imputation_snapshots import anchors, synthetic_stage
+
+    original = sample_table(
+        [(101, None, None, "no_call")]
+        if source == "imputed_no_call"
+        else [(101, "A", "G", "called")]
+    )
+    native = replace(
+        imputed_marker(source="imputed_no_call"),
+        source=source,
+        array_outcome="no_call" if source == "imputed_no_call" else "as_written",
+        dosage_method="phased_hardcall_only"
+        if source == "imputed_no_call"
+        else "observed_allele_count",
+    )
+    stage = synthetic_stage(original, tmp_path / "stage", records=(*anchors("10"), native))
+    changed = sample_table([(101, "G", "G", "called")])
+    calls = calling.call(
+        refresh_call_reference(frozen),
+        changed,
+        sex=sample_qc.sex.inferred,
+        dosages=stage.iter_dosages(),
+    )
+    with pytest.raises(BundleError, match="PGx"):
+        write_bundle(
+            qc=sample_qc,
+            cards=(),
+            pack=sample_pack,
+            ancestry=AncestryContext.not_run("Synthetic review"),
+            pgx=calls.to_dict(),
+            imputation=ImputationContext.enabled(stage.summary(), quality_aware=True),
+            imputation_result=stage,
+            runs_root=tmp_path / "runs",
+            lock_path=tmp_path / "missing.lock",
+            tools_root=tmp_path / "tools",
+        )
+
+
+@pytest.mark.parametrize(
+    "ploidy,outcome",
+    [(1, "as_written"), (2, "as_written"), (1, "complemented"), (2, "complemented")],
+)
+def test_review_native_original_probe_controls_preserve_ploidy_and_orientation(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    ploidy: int,
+    outcome: str,
+) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.imputation.context import ImputationContext
+    from genetics.run.bundle import read_bundle, write_bundle
+    from genetics.testing.imputation_snapshots import anchors, synthetic_stage
+
+    chrom, pos = ("X", 10000000) if ploidy == 1 else ("10", 101)
+    if ploidy == 1:
+        gene_reference(frozen, "G6PD", chrom=chrom)
+        frozen["cpic"]["tables"]["sequence_location"][0].update(
+            position=str(pos), chromosomelocation=f"g.{pos}A>G"
+        )
+        frozen["dbsnp"]["variants"][0]["pos_grch37"] = pos
+    base = "C" if outcome == "complemented" else "G"
+    original = sample_table(
+        [(pos, base, base, "hemizygous" if ploidy == 1 else "called")], chrom=chrom
+    )
+    native = DosageRecord(
+        chrom,
+        pos,
+        "A",
+        ("G",),
+        (1,) * ploidy,
+        (1,) * ploidy,
+        (float(ploidy),),
+        (float(ploidy),),
+        None,
+        ploidy,
+        "direct",
+        "resolved",
+        outcome,
+        "observed_allele_count",
+        "not_estimated",
+    )
+    stage = synthetic_stage(
+        original,
+        tmp_path / "stage",
+        records=(*anchors(chrom, start=pos - 20, ploidy=ploidy), native),
+    )
+    calls = calling.call(
+        refresh_call_reference(frozen),
+        original,
+        sex=sample_qc.sex.inferred,
+        dosages=stage.iter_dosages(),
+    )
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(),
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic control"),
+        pgx=calls.to_dict(),
+        imputation=ImputationContext.enabled(stage.summary(), quality_aware=True),
+        imputation_result=stage,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    saved = read_bundle(path)
+    assert saved.pgx is not None and sources.digest(saved.pgx) == sources.digest(calls.to_dict())
+
+
 def tables_fixture() -> Tables:
     tables: Tables = {name: [] for name in REQUIRED}
 

@@ -95,6 +95,8 @@ calling is implemented**, with all compatible alternatives, native ploidy and
 source-specific phenotype joins retained in format 19. See the
 [calling contract](docs/pgx_calling.md). **M10.3 is next.** Start with the
 [current handoff](docs/handoff.md#next-open-step-m103-cyp2d6-placement).
+The [M10.2 diff review](docs/review_m102_session.md) records saved-evidence,
+validation and presentation corrections with healthy calling results unchanged.
 See [PGS scoring](docs/pgs_scoring.md).
 The [M9 diff review](docs/review_m9_session.md) fixes parser/evidence/error-boundary and
 native-report validation defects; [the handoff](docs/handoff.md) defines M9.3's coverage
@@ -2799,6 +2801,8 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       Missing/partial/structural alternatives and measurement uncertainty remain
       explicit; no reference allele is supplied from missing data. Bundle format
       19 is additive; M9.13 confidence remains frozen. See [the contract](docs/pgx_calling.md).
+      The [diff review](docs/review_m102_session.md) binds saved native dosages and
+      corrects input validation, error categories and candidate presentation.
 - [ ] **M10.3** **CYP2D6 explicit "not callable" card.** PharmCAT declines to call it from
       a VCF because structural/CNV variation dominates, and a `*5` whole-gene deletion
       makes the other allele read as homozygous (`*5/*29` → `*29/*29`). Render the
@@ -2960,6 +2964,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-15 | M10.2 diff review | Six reproduced defect groups fixed: native evidence binding (including original probes), frequency/status validation, PGx reference-error category, source allele labels and reliability styles. Sixteen rejecting regressions plus four ploidy/orientation controls; 3,208 unique checks pass, five existing Windows skips (3,202-pass broad run, then 399 affected tests after the final follow-up). Four strict type targets, full card lint, fixtures and style pass. Full-source offline synthetic comparison preserves original healthy results and schema-1 reload in 274.26 seconds; source pins, format 19 and M9.13 confidence unchanged. M10.3 remains next: place the existing CYP2D6 limitation beside calls, including filtered and historical views. [Review and handoff](docs/review_m102_session.md). |
 | 2026-10-14 | M10.2 | Conservative eight-gene sample calling, source phenotype joins and phase/ploidy/missing-definition alternatives; rare and imputed reliability remain explicit. Separate sample schema 1 and additive bundle format 19 freeze complete evidence for offline CLI/dashboard parity, preserving older runs and M9.13 confidence. 3,188 native tests pass, five existing Windows skips; four strict type targets (212 files), complete card lint, fixtures, style and privacy pass. Full public-source synthetic calling and reload pass offline in 223.65 seconds including frequency-source verification; no personal export opened. M10.3 is next. [Contract and acceptance](docs/pgx_calling.md). |
 | 2026-10-14 | M10.1 | Complete CPIC/ClinPGx reference ingestion and offline inspection; source-bound GRCh37 normalization retains all gaps. Diff review fixes null guideline citations, safe atomic JSON publication, lossless COPY byte decoding, strict TSV/lookup/frozen-source validation and nested output locking. 3,137 native tests pass with five Windows skips; four strict type targets, full card lint, fixtures, style and privacy pass. Full-source offline reparse/reuse/inspection passes; no personal export used. M10.2 is next. [Review and handoff](docs/review_m101_session.md). |
 | 2026-10-14 | M9.13 diff review | Reviewed `3c13ac9..38afe9c`; seven mutation probes reproduced missing retained-fit and scalar allele/type validation. Bind placement to the first admissible fit, verify orientation/frequency membership and numeric types, and preserve damaged-run errors in card detail/modal views. 20 new synthetic cases; complete native suite passes 3,015 tests, five Windows skips, with four strict type targets, full card lint (69/320/39), fixtures and lint/format passing. Format 18 and valid findings unchanged. M10.1 handoff now records absent existing PGx sources, pending ZIP extraction, definition coverage, licences and reuse of the existing CYP2D6 card. [Review](docs/review_m913_session.md). |

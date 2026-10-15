@@ -138,6 +138,10 @@ joins; G6PD keeps native copy counts; VKORC1's missing phenotype table is explic
 An absent prepared reference saves an unavailable stage; a damaged one fails.
 Formats 1–18 remain readable and M9.13 confidence arithmetic is unchanged.
 See [the calling contract](docs/pgx_calling.md). M10.3 is next.
+The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
+to native dosage evidence, tightens malformed-input validation and fixes error
+categories, allele uncertainty labels and reliability styling. See the
+[M10.3 handoff](docs/handoff.md#next-open-step-m103-cyp2d6-placement).
 The [M10.1 diff review](docs/review_m101_session.md) fixes null guideline citation
 joins, safe atomic publication and parsing/frozen-reference validation, and updates
 the next-step contract. Complete source tables and verified mapping counts are unchanged.

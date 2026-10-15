@@ -38,7 +38,7 @@
     <thead><tr><th>Source alleles</th><th>Copies</th><th>Support</th><th>Missing loci</th><th>Unresolved constraints</th><th>Unassigned loci</th><th>Function gaps</th><th>Source phenotype</th><th>Activity score</th></tr></thead>
     <tbody>{% for c in pgx_candidates %}<tr>
       <td>{{ c.alleles | join(" / ") }}</td><td>{{ c.ploidy }}</td><td>{{ c.support }}</td>
-      <td>{{ c.missing_loci | length }}</td><td>{% for identity, constraints in c.unresolved_constraints.items() %}{{ constraints | length }} for allele {{ loop.index }}; {% else %}0{% endfor %}</td><td>{{ c.unassigned_loci | length }}</td><td>{{ c.function_issues | length }}</td>
+      <td>{{ c.missing_loci | length }}</td><td>{% for identity, constraints in c.unresolved_constraints.items() %}{{ constraints | length }} for {{ c.alleles[c.definition_ids.index(identity)] }}; {% else %}0{% endfor %}</td><td>{{ c.unassigned_loci | length }}</td><td>{{ c.function_issues | length }}</td>
       <td>{{ c.phenotypes | join(", ") if c.phenotypes else c.mapping_status }}</td><td>{{ c.activity_scores | join(", ") }}</td>
     </tr>{% endfor %}</tbody>
   </table>

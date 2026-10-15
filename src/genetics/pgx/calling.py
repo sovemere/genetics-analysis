@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from itertools import combinations_with_replacement
 from typing import Any
 
+from genetics.engine.matcher import complement
 from genetics.health.frequencies import select_frequencies
 from genetics.imputation.dosages import DosageRecord, parse_record
 from genetics.ingest.schema import CallStatus, GenotypeTable
@@ -101,17 +102,60 @@ def collect(
 
 def _frequency_check(records: list[Any], key: Locus) -> None:
     for r in records:
+        if (
+            not isinstance(r, dict)
+            or set(r)
+            != {
+                "chrom",
+                "pos_grch37",
+                "ref",
+                "alts",
+                "filter",
+                "populations",
+                "af_popmax",
+                "popmax",
+            }
+            or not isinstance(r["filter"], str)
+            or not r["filter"]
+            or not isinstance(r["populations"], dict)
+        ):
+            raise CallingError("PGx frequency record is malformed.")
         if (r["chrom"], r["pos_grch37"]) != key or type(r["pos_grch37"]) is not int:
             raise CallingError("PGx frequency coordinates disagree.")
-        if not isinstance(r["ref"], str) or not isinstance(r["alts"], list) or not r["alts"]:
+        if (
+            not isinstance(r["ref"], str)
+            or not r["ref"]
+            or not isinstance(r["alts"], list)
+            or not r["alts"]
+            or any(not isinstance(a, str) or not a for a in r["alts"])
+            or len(set((r["ref"], *r["alts"]))) != len(r["alts"]) + 1
+        ):
             raise CallingError("PGx frequency alleles are malformed.")
-        for counts in r["populations"].values():
+        if any(
+            not isinstance(r[name], list) or len(r[name]) != len(r["alts"])
+            for name in ("af_popmax", "popmax")
+        ):
+            raise CallingError("PGx frequency summary cardinality is invalid.")
+        if any(
+            v is not None
+            and (type(v) not in (int, float) or not math.isfinite(v) or not 0 <= v <= 1)
+            for v in r["af_popmax"]
+        ) or any(v is not None and (not isinstance(v, str) or not v.strip()) for v in r["popmax"]):
+            raise CallingError("PGx frequency summaries are invalid.")
+        for population, counts in r["populations"].items():
+            if (
+                not isinstance(population, str)
+                or not population.strip()
+                or not isinstance(counts, dict)
+                or set(counts) != {"an", "af", "ac", "nhomalt"}
+            ):
+                raise CallingError("PGx frequency population is invalid.")
             an = counts["an"]
             if an is not None and (type(an) is not int or an < 0):
                 raise CallingError("PGx frequency denominator is invalid.")
             for name in ("af", "ac", "nhomalt"):
                 vector = counts[name]
-                if len(vector) != len(r["alts"]):
+                if not isinstance(vector, list) or len(vector) != len(r["alts"]):
                     raise CallingError("PGx frequency cardinality is invalid.")
                 for value in vector:
                     if value is None:
@@ -125,6 +169,17 @@ def _frequency_check(records: list[Any], key: Locus) -> None:
                         or (name == "ac" and an is not None and value > an)
                     ):
                         raise CallingError("PGx frequency counts are invalid.")
+            if (
+                an is not None
+                and all(c is not None for c in counts["ac"])
+                and sum(counts["ac"]) > an
+            ):
+                raise CallingError("PGx frequency alternate counts exceed the denominator.")
+            if any(
+                c is not None and h is not None and 2 * h > c
+                for c, h in zip(counts["ac"], counts["nhomalt"], strict=True)
+            ):
+                raise CallingError("PGx frequency homozygote counts are invalid.")
             for af, ac in zip(counts["af"], counts["ac"], strict=True):
                 if (
                     an
@@ -191,9 +246,7 @@ def _observed(raw: Mapping[str, Any], alleles: set[str], ploidy: int) -> dict[st
         raw["frequencies"], alleles=alleles, called=set(result["bases"] or [])
     )
     result["frequencies"] = [
-        v.to_dict()
-        if hasattr(v, "to_dict")
-        else {
+        {
             "allele": v.allele,
             "frequency": v.frequency,
             "population": v.population,
@@ -461,19 +514,33 @@ def call(
     dosages: Iterable[DosageRecord] = (),
     frequencies: Mapping[Locus, list[dict[str, Any]]] | None = None,
 ) -> SampleCalls:
-    observations = collect(catalog, table, dosages=dosages, frequencies=frequencies)
-    record = {
-        "schema_version": VERSION,
-        "status": "completed",
-        "reason": None,
-        "sex": sex.value,
-        "reference": dict(catalog.record),
-        "reference_sha256": digest(catalog.record),
-        "observations": observations,
-        "genes": derive(catalog, observations, sex.value),
-    }
-    validate(record)
-    return SampleCalls(record)
+    try:
+        validate_record(catalog.record)
+        observations = collect(catalog, table, dosages=dosages, frequencies=frequencies)
+        for r in observations:
+            _frequency_check(r["frequencies"], (r["chrom"], r["pos_grch37"]))
+        record = {
+            "schema_version": VERSION,
+            "status": "completed",
+            "reason": None,
+            "sex": sex.value,
+            "reference": dict(catalog.record),
+            "reference_sha256": digest(catalog.record),
+            "observations": observations,
+            "genes": derive(catalog, observations, sex.value),
+        }
+        validate(record)
+        return SampleCalls(record)
+    except (
+        ValueError,
+        TypeError,
+        KeyError,
+        AttributeError,
+        IndexError,
+        OverflowError,
+        ProcessError,
+    ):
+        raise CallingError("PGx calling inputs are malformed or inconsistent.") from None
 
 
 def validate(raw: Mapping[str, Any]) -> None:
@@ -544,6 +611,7 @@ def validate(raw: Mapping[str, Any]) -> None:
                     any(a not in set("ACGTID") for a in (p["a1"], p["a2"]))
                     or p["a1"] > p["a2"]
                     or (status == CallStatus.HEMIZYGOUS and p["a1"] != p["a2"])
+                    or (status == CallStatus.HET_HAPLOID and p["a1"] == p["a2"])
                 ):
                     raise ValueError
             for d in r["dosages"]:
@@ -599,7 +667,13 @@ def report(raw: Mapping[str, Any] | None, gene: str | None = None) -> dict[str, 
     }
 
 
-def validate_execution(raw: Mapping[str, Any], *, sex: str, imputation_mode: str) -> None:
+def validate_execution(
+    raw: Mapping[str, Any],
+    *,
+    sex: str,
+    imputation_mode: str,
+    native_dosages: Iterable[DosageRecord] | None = None,
+) -> None:
     validate(raw)
     if raw["sex"] != sex:
         raise CallingError("PGx ploidy disagrees with run QC.")
@@ -607,6 +681,42 @@ def validate_execution(raw: Mapping[str, Any], *, sex: str, imputation_mode: str
         d["source"] != "direct" for r in raw["observations"] for d in r["dosages"]
     ):
         raise CallingError("PGx has imputed observations without enabled run imputation.")
+    expected = {(r["chrom"], r["pos_grch37"]): r["dosages"] for r in raw["observations"]}
+    if native_dosages is None:
+        if any(expected.values()):
+            raise CallingError("PGx dosage observations have no saved native evidence.")
+    elif expected:
+        observed: dict[Locus, list[dict[str, Any]]] = defaultdict(list)
+        probes = {(r["chrom"], r["pos_grch37"]): r["probes"] for r in raw["observations"]}
+        for record in native_dosages:
+            key = (record.chrom, record.pos_grch37)
+            if key in expected:
+                record = parse_record(record.to_dict())
+                observed[key].append(record.to_dict())
+                original = probes[key]
+                called = [p for p in original if p["call_status"] != CallStatus.NO_CALL.value]
+                if bool(original) != (record.array_outcome is not None):
+                    raise CallingError(
+                        "PGx original probe presence disagrees with saved native evidence."
+                    )
+                if record.source == "direct":
+                    assert record.genotype is not None
+                    bases = (record.ref, *record.alt)
+                    pair = "".join(bases[i] for i in record.genotype)
+                    if record.array_outcome == "complemented":
+                        pair = complement(pair)
+                    if record.ploidy == 1:
+                        # Normalized arrays double single-copy calls; native dosages do not.
+                        pair *= 2
+                    pair = "".join(sorted(pair))
+                    if not called or any(p["a1"] + p["a2"] != pair for p in called):
+                        raise CallingError(
+                            "PGx original probes disagree with saved native evidence."
+                        )
+                elif record.source == "imputed_no_call" and (not original or called):
+                    raise CallingError("PGx no-call probes disagree with saved native evidence.")
+        if any(digest(values) != digest(observed[key]) for key, values in expected.items()):
+            raise CallingError("PGx dosage observations disagree with saved native evidence.")
 
 
 class CallingStage:
@@ -616,10 +726,13 @@ class CallingStage:
         self.catalog = catalog
 
     def prepare(self) -> None:
-        if self.catalog is None and (references_dir() / "cpic" / "pgx_reference.json").exists():
-            self.catalog = Catalog.default()
-        elif self.catalog is not None:
-            validate_record(self.catalog.record)
+        try:
+            if self.catalog is None and (references_dir() / "cpic" / "pgx_reference.json").exists():
+                self.catalog = Catalog.default()
+            elif self.catalog is not None:
+                validate_record(self.catalog.record)
+        except (ProcessError, OSError, ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise CallingError(f"PGx reference validation failed: {exc}") from None
 
     def run(
         self,
