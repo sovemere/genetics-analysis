@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M9 and M10.1–M10.2 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M9 and M10.1–M10.3 are complete. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **18**; formats 1–17 remain readable without reinterpreting saved findings.
+New runs use bundle format **19**; formats 1–18 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -137,7 +137,16 @@ and rare/imputed reliability remain visible. DPYD uses source activity-score
 joins; G6PD keeps native copy counts; VKORC1's missing phenotype table is explicit.
 An absent prepared reference saves an unavailable stage; a damaged one fails.
 Formats 1–18 remain readable and M9.13 confidence arithmetic is unchanged.
-See [the calling contract](docs/pgx_calling.md). M10.3 is next.
+See [the calling contract](docs/pgx_calling.md).
+**M10.3 CYP2D6 placement is complete:** the existing saved assay-limit card
+stays beside calls on the dashboard, PGx overview and every gene detail,
+including filtered views and unavailable references. CLI inspection carries
+the same saved evidence; historical/nonstandard packs report absent card
+evidence explicitly. See [the placement contract](docs/pgx_calling.md#m103-cyp2d6-placement).
+Validation covers 3,214 unique passing tests with five existing Windows skips,
+including targeted reruns of sandbox-restricted checks; four strict type targets,
+full card lint, fixtures, style and privacy checks pass.
+M10.4 guideline-linked interpretation is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

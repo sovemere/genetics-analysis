@@ -1,6 +1,6 @@
 # Handoff: M10 pharmacogenomics
 
-As of 2026-10-15, **M0-M9 and M10.1-M10.2 are implemented**. Full local reference verification was
+As of 2026-10-15, **M0-M9 and M10.1-M10.3 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
@@ -17,7 +17,7 @@ parser and frozen-metadata fixes with all source pins and mapping counts unchang
 **M10.2 calling is implemented**, with a separate schema-1 sample contract and
 additive bundle format 19. The [calling contract](pgx_calling.md) records
 uncertainty, complete frozen evidence and full-source synthetic acceptance.
-**M10.3 CYP2D6 placement is next.** Earlier milestone records below remain historical.
+**M10.3 CYP2D6 placement is implemented; M10.4 guideline-linked interpretation is next.** Earlier milestone records below remain historical.
 M10.2 acceptance passes **3,188 native tests**, five existing Windows skips,
 all four strict type targets, complete card lint, fixtures, style and staged
 privacy checks. Full-source offline synthetic calling/reload passes; no
@@ -70,7 +70,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 and M10.1–M10.2 are also accepted; M10.3 is the next open step.
+are complete. M9.9–M9.13 and M10.1–M10.3 are also accepted; M10.4 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -240,7 +240,7 @@ implementing calling. Do not alter M9.13's frozen confidence method.
 
 <a id="next-open-step-m103-cyp2d6-placement"></a>
 
-### Next open step: M10.3 CYP2D6 placement
+### M10.3 entry contract (implemented; retained for review)
 
 M10.2 computes phase-unresolved definition-ID candidates for the eight tractable
 genes. Each result retains coverage, unresolved/missing/unassigned constraints,
@@ -259,7 +259,7 @@ the array's doubled representation of single-copy calls.
 provenance. The dashboard shows all gene faces, including when grouping by
 confidence, and paginates all candidates with their total stated.
 
-M10.3 should verify and finish the placement of the already-authored
+M10.3 verifies and finishes the placement of the already-authored
 `cyp2d6_structural_variation` card beside these calls. It is already assigned to
 pharmacogenomics; do not author a second card, reinterpret its SNP definitions,
 or duplicate the source snapshot contract. Verify the dashboard section, the
@@ -274,6 +274,37 @@ retain the existing reliability badge styles and scoped numerical PPV. M10.4
 then owns guideline-linked interpretation; M10.2 returns source mappings only,
 with no dosing claims. VKORC1's genotype-linked recommendation keys are exposed
 for that audit, while its absent phenotype table remains explicit.
+
+M10.3 now uses one saved-evidence adapter for CLI and dashboard inspection.
+The adjacent limitation survives section/tier filters and appears on the PGx
+overview and every gene detail, including missing-reference and historical
+stages. Missing saved cards are explicit; no current card is substituted.
+Six synthetic cases cover both card states and all three stage states, all
+eight genes, 136 candidates over two pages and unchanged bundle bytes.
+See [the placement contract](pgx_calling.md#m103-cyp2d6-placement).
+Validation covers **3,214 unique passing tests**, five existing Windows skips:
+3,194 passed in the broad sandbox run, and all 20 environment-restricted
+failures pass in targeted checks with writable cache/process/architecture
+access. All 449 affected interface checks and the final six strengthened
+placement cases pass. Four strict type targets, full card lint, fixtures,
+style and privacy gates pass; the guide records exact run boundaries.
+
+<a id="next-open-step-m104-guideline-linked-cards"></a>
+
+### Next open step: M10.4 guideline-linked cards
+
+Audit the frozen CPIC/ClinPGx guideline, recommendation, publication and
+lookup joins before authoring phenotype-to-dosing interpretation. Keep
+source annotations distinct from clinically established sample phenotypes.
+Carry guideline evidence levels and actual cited publications; null guideline
+IDs must never attribute unrelated publications. DPYD uses its source
+activity-score lookup semantics, G6PD retains native copy count and phenotype
+limits, and VKORC1 requires the genotype-linked recommendation audit because
+v1.60.0 has no phenotype lookup table. Preserve every conditional candidate
+and attach uncertainty by source definition ID. Reuse M10.3's saved CYP2D6
+limitation and M10.2's immutable schema-1 evidence rather than inferring
+CYP2D6 or manufacturing absent mappings. Record any needed card/bundle schema
+extension before implementation; M9.13 confidence remains frozen.
 
 ### M10.1 entry contract (implemented; retained for review)
 

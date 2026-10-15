@@ -69,6 +69,58 @@ also distinguishes one-copy calls from heterozygous two-copy genotypes, whose
 enzyme phenotype cannot be determined from genotype alone. Source phenotype
 labels remain candidate annotations here.
 
+## M10.3 CYP2D6 placement
+
+The existing `cyp2d6_structural_variation` knowledge card now stays beside
+sample calls on the dashboard, the PGx overview and all eight gene-detail
+pages. A shared saved-evidence adapter reads the frozen card from the run;
+knowledge-card filters and tier grouping do not remove this adjacent notice.
+Its link opens the original saved detail, including the whole-gene deletion
+example. The ordinary knowledge-card grid still follows the selected filters.
+
+`genetics pgx calls RUN [--gene GENE] --json` adds `cyp2d6_limitation` with
+`status: recorded` and the saved title, summary, detail, impossibility reason
+and caveats. Text inspection states the saved summary and reason. Calling
+remains restricted to the eight SNP-tractable genes; CYP2D6 has no fabricated
+candidates, phenotype or dosing implication. Sample schema 1, bundle format 19
+and confidence arithmetic are unchanged.
+
+Unavailable-reference stages still show all eight genes beside the limitation.
+Formats 1–18 keep their explicit sample-calls-not-recorded state. If a historical
+or nonstandard pack lacks a saved impossibility card, the adapter reports
+`status: not-recorded`, `card: null` and a precise notice; it does not load the
+current knowledge pack or modify the bundle. A same-ID record of another kind
+or status is not treated as saved assay-limit evidence.
+
+Six synthetic acceptance cases cross saved/missing cards with completed,
+unavailable and historical stages. They check CLI text/JSON, five dashboard
+filter/group choices, the overview, every gene detail and immutable bundle
+bytes. The completed cases retain all 136 compatible CYP2C19 candidates across
+two pages, with the limitation on both pages. Existing definition-ID labels,
+reliability styles and numerical rare-call benchmark checks remain in force.
+This is server-rendered HTTP verification; no interactive browser review is claimed.
+No personal export is opened, and no new reference or output type is introduced.
+
+M10.3 validation covers **3,214 unique passing tests**, with five existing
+Windows skips. The broad native run passed **3,194**, with 20 sandbox-related
+failures, in **598.57 seconds**. All 27 PGS reference tests pass with an isolated
+writable cache (17.68 seconds); both Beagle cancellation tests pass outside the
+sandbox (2.31 seconds), as do all 21 CLI reference tests (8.38 seconds). These
+resolve every broad-run failure: 17 cache-write denials, two child-process
+cleanup restrictions and one missing machine-architecture probe. This is
+combined coverage, not a second full-suite run. All 449 affected PGx, web, saved
+CLI and impossibility tests pass (75.71 seconds); the final six placement cases
+also pass after adding saved-wording and invalid-kind/status checks (6.30 seconds).
+
+Four strict Windows/Linux × Python 3.11/3.13 targets check 213 files. Full dbSNP
+card lint passes 69 cards/320 renders/39 resolved keys; fixture reproduction,
+lint/format, whitespace and staged privacy checks pass. Local sandbox Python
+reports an empty machine architecture, so its commands use the process-local
+`POLARS_SKIP_CPU_CHECK=1` workaround; no installed package or production code
+is changed for this environment issue. Native PLINK/Beagle/bref3 checks use the
+pinned tools and portable Java 17. No personal export is opened.
+
+
 ## Acceptance
 
 The complete public catalog passed offline calling with seeded synthetic

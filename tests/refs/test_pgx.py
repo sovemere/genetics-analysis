@@ -448,7 +448,9 @@ def test_saved_pgx_cli_dashboard_and_historical_parity(
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
     result = CliRunner().invoke(app, ["pgx", "calls", path.name, "--gene", "CYP2C19", "--json"])
     assert result.exit_code == 0, result.output
-    assert json.loads(result.output) == expected
+    from genetics.pgx.presentation import saved_report
+
+    assert json.loads(result.output) == saved_report(read_bundle(path), "CYP2C19")
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
     face = client.get(f"/runs/{path.name}")
     assert face.status_code == 200 and "compatible candidate(s)" in face.text
@@ -1891,3 +1893,164 @@ def test_frozen_reference_requires_complete_and_consistent_source_metadata(
         frozen["annotations"]["archives"][0]["created"] = "2026-02-30"
     with pytest.raises(ProcessError):
         catalog.Catalog.load(save_catalog(tmp_path / "reference.json", frozen))
+
+
+@pytest.mark.parametrize("has_card", [True, False], ids=["saved-card", "nonstandard-pack"])
+@pytest.mark.parametrize("stage", ["completed", "unavailable", "historical"])
+def test_cyp2d6_limitation_stays_beside_saved_calls(
+    frozen: dict[str, Any],
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    monkeypatch: pytest.MonkeyPatch,
+    has_card: bool,
+    stage: str,
+) -> None:
+    """Filters, missing references and older formats cannot silently omit the gap."""
+    from html import unescape
+
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.engine.cards import KnowledgePack, default_knowledge_dir
+    from genetics.engine.evidence import assemble_card
+    from genetics.engine.matcher import MatchResult, MatchStatus
+    from genetics.pgx.presentation import CYP2D6_CARD_ID, saved_report
+    from genetics.run.bundle import PGX_NAME, read_bundle, write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    cards: tuple[AssembledCard, ...] = ()
+    if has_card:
+        authored = KnowledgePack.load(default_knowledge_dir()).by_id(CYP2D6_CARD_ID)
+        assert authored is not None
+        authored = replace(
+            authored,
+            title="Saved CYP2D6 assay limitation",
+            summary="Not callable: saved CYP2D6 copy-number limit.",
+        )
+        cards = (
+            assemble_card(
+                authored,
+                MatchResult(
+                    card_id=authored.id,
+                    status=MatchStatus.NOT_DETERMINABLE,
+                    reason="Synthetic assay-limit acceptance.",
+                ),
+            ),
+        )
+    if stage == "completed":
+        # More than one page: every source allele remains a conditional alternative.
+        tables = frozen["cpic"]["tables"]
+        for number in range(3, 17):
+            tables["allele_definition"].append(
+                {**tables["allele_definition"][1], "id": str(number + 100), "name": f"*{number}"}
+            )
+            tables["allele_location_value"].append(
+                {**tables["allele_location_value"][1], "alleledefinitionid": str(number + 100)}
+            )
+    reference = refresh_call_reference(frozen)
+    # Prepared catalogs are read from canonical JSON, as in the production stage.
+    reference = catalog.Catalog(json.loads(json.dumps(reference.record, sort_keys=True)))
+    calls = (
+        calling.call(reference, sample_table([]), sex=sample_qc.sex.inferred)
+        if stage == "completed"
+        else calling.unavailable("Synthetic absent reference.", sex=sample_qc.sex.inferred.value)
+    )
+    root = tmp_path / "runs"
+    path = write_bundle(
+        qc=sample_qc,
+        cards=cards,
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic CYP2D6 placement acceptance"),
+        pgx=calls.to_dict(),
+        runs_root=root,
+        run_id="cyp2d6-placement",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    if stage == "historical":
+        header_path = path / "manifest.json"
+        header = json.loads(header_path.read_text())
+        header["format_version"] = 18
+        header["files"].pop(PGX_NAME)
+        (path / PGX_NAME).unlink()
+        header_path.write_text(json.dumps(header), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    bundle = read_bundle(path)
+    expected = saved_report(bundle)
+    limitation = expected["cyp2d6_limitation"]
+    assert limitation["status"] == ("recorded" if has_card else "not-recorded")
+    if has_card:
+        assert limitation["card"]["summary"] == cards[0].summary
+        assert limitation["card"]["detail"] == cards[0].detail
+        assert "star-5 with star-29" in limitation["card"]["detail"]
+        from genetics.pgx.presentation import cyp2d6_limitation
+
+        for changed in (
+            replace(bundle.cards[0], kind="interpretation"),
+            replace(bundle.cards[0], status="marker_absent"),
+        ):
+            assert cyp2d6_limitation([changed])["status"] == "not-recorded"
+    else:
+        assert limitation["card"] is None
+        assert "not recorded by this run" in limitation["reason"]
+    assert "CYP2D6" not in expected["genes"]
+    assert set(expected["genes"]) == (set() if stage == "historical" else set(catalog.TRACTABLE))
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    for gene in (None, "CYP2C19"):
+        args = ["pgx", "calls", path.name] + ([] if gene is None else ["--gene", gene])
+        result = CliRunner().invoke(app, [*args, "--json"])
+        assert result.exit_code == 0, result.output
+        assert json.loads(result.output) == saved_report(bundle, gene)
+        text = CliRunner().invoke(app, args)
+        assert text.exit_code == 0
+        assert (cards[0].summary if has_card else limitation["reason"]) in text.output
+    client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
+    urls = [
+        "",
+        "?group=tier",
+        "?tier=high",
+        "?section=traits",
+        "?group=tier&tier=high&section=traits",
+        "/pgx",
+        *[f"/pgx?gene={gene}&page=999" for gene in catalog.TRACTABLE],
+    ]
+    for suffix in urls:
+        response = client.get(f"/runs/{path.name}{suffix}")
+        assert response.status_code == 200
+        html = unescape(response.text)
+        block = html.split('<aside class="notice" aria-label="CYP2D6 assay limitation">')[1]
+        block = block.split("</aside>")[0]
+        assert (cards[0].summary if has_card else limitation["reason"]) in block
+        assert "regardless of knowledge-card filters" in block
+        if has_card:
+            assert f"/runs/{path.name}/cards/{CYP2D6_CARD_ID}" in block
+            reason = cards[0].card.impossibility_reason
+            assert reason is not None and reason in block
+        if "/pgx?" not in suffix and stage != "historical":
+            for gene in catalog.TRACTABLE:
+                assert f"/pgx?gene={gene}" in html
+        if suffix.startswith("/pgx?gene=") and stage == "completed":
+            gene = suffix.split("gene=")[1].split("&")[0]
+            total = len(expected["genes"][gene]["candidates"])
+            assert f"All {total} candidates remain available" in html
+    if stage == "completed":
+        import re
+
+        total = len(expected["genes"]["CYP2C19"]["candidates"])
+        assert total > 100
+        rows = []
+        for page in (1, 2):
+            html = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19&page={page}").text
+            table = html.split("<th>Source alleles</th>")[1]
+            rows.extend(re.findall(r"<tr>\s*<td>([^<]+)</td>", table))
+            assert "CYP2D6 assay limitation" in html
+        assert len(rows) == total
+        assert set(rows) == {
+            " / ".join(c["alleles"]) for c in expected["genes"]["CYP2C19"]["candidates"]
+        }
+    if has_card:
+        detail = client.get(f"/runs/{path.name}/cards/{CYP2D6_CARD_ID}")
+        assert detail.status_code == 200 and "star-5 with star-29" in detail.text
+    assert {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()} == before
