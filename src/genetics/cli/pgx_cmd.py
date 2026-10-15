@@ -37,6 +37,8 @@ def calls(
         if as_json:
             typer.echo(json.dumps(result, indent=2))
         else:
+            framing = result["current_context"]["section_framing"]
+            typer.echo(f"{framing['title']}: {framing['text']}")
             typer.echo(f"PGx: {result['status']}")
             if result["reason"]:
                 typer.echo(result["reason"])

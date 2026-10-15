@@ -16,12 +16,12 @@ the source of truth for build state.
 
 ## Next up
 
-**M10.5 section framing is next.** M0–M9 and M10.1–M10.4 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m105-section-framing)
-specifies shared, once-per-section prescribing-tool framing for the dashboard
-and CLI without changing saved findings. Knowledge schema 5 and bundle format
-20 remain current; guideline display schema 2 is used for new cards and schema
-1 retains its frozen rules. See the [M10.4 diff review](docs/review_m104_session.md).
+**M11.1 R/HIBAG detection and subprocess bridge is next.** M0–M10 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m111-r-and-hibag)
+starts with the existing optional doctor probe. M10.5 adds shared current
+section framing across PGx views and CLI without changing saved findings;
+see [the framing contract](docs/pgx_framing.md). Knowledge schema 5, bundle format
+20 and guideline display schemas 1–2 are unchanged.
 
 ### Completed milestones (historical checkpoints)
 
@@ -103,8 +103,8 @@ atomic publication and parsing/validation defects. **M10.2 SNP-tractable diploty
 calling is implemented**, with all compatible alternatives, native ploidy and
 source-specific phenotype joins retained in format 19. See the
 [calling contract](docs/pgx_calling.md). **M10.3 placement and M10.4 guideline
-cards are complete.** Start with the
-[current handoff](docs/handoff.md#next-open-step-m105-section-framing).
+cards are complete.** M10.5 adds shared section framing; **M10 is complete**.
+Start with the [current handoff](docs/handoff.md#next-open-step-m111-r-and-hibag).
 The [M10.2 diff review](docs/review_m102_session.md) records saved-evidence,
 validation and presentation corrections with healthy calling results unchanged.
 See [PGS scoring](docs/pgs_scoring.md).
@@ -2836,11 +2836,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       reproduces saved cards offline from sample schema 1; VKORC1's absent keys
       remain explicit. See [the contract, audit and acceptance](docs/pgx_guidelines.md)
       and the [M10.5 handoff](docs/handoff.md#next-open-step-m105-section-framing).
-- [ ] **M10.5** Prominent framing that this is not a prescribing tool, stated once and
-      precisely — not repeated as filler on every card. Follow the
-      [current handoff](docs/handoff.md#next-open-step-m105-section-framing): shared
-      current context across section/overview/gene views and CLI, preserving
-      frozen display schemas 1–2 and saved/unavailable/historical parity.
+- [x] **M10.5** Prominent framing that this is not a prescribing tool, stated once and
+      precisely — not repeated as filler on every card. Shared current context
+      now appears once across section/overview/gene views and CLI; JSON separates
+      it from frozen findings. Display schemas 1–2 and saved/unavailable/historical
+      evidence are preserved. See [the contract and validation](docs/pgx_framing.md).
 
 ---
 
@@ -2989,6 +2989,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-16 | M10.5 | Shared current section framing appears once across PGx dashboard/overview/gene views and CLI; JSON separates it from frozen findings. Filter, pagination, missing-source, historical and display-schema-1/2 compatibility checks retain immutable bundles. Combined validation covers 3,294 unique passing tests, five existing Windows skips: 3,274 broad-run passes, then all 101 checks in three sandbox-affected files pass with normal Windows process access and a private cache. All ten final interface cases, four strict type targets, full card lint (77/320/39), fixtures, style and staged privacy checks pass. No personal export opened. M10 complete; M11.1 next. [Contract and acceptance](docs/pgx_framing.md). |
 | 2026-10-15 | M10.4 diff review | Two reproduced defect groups corrected: frozen numeric equality admitted boolean/integer and float/integer substitutions; incomplete guideline/citation/text evidence could appear usable or abort assembly. Display schema 2 adds explicit completeness checks, valid partial-citation handling and separate face counts; schema-1 cards reproduce the original implementation exactly. Twenty-five new synthetic cases; complete native suite passes 3,292 tests, five existing Windows skips, in 543.30 seconds. All 103 focused checks, four strict type targets, full card lint (77/320/39), fixtures, style and privacy gates pass. Complete-source offline comparison/reload passes in 109.05 seconds. Roadmap overview and M10.5 handoff are current. [Review](docs/review_m104_session.md). |
 | 2026-10-15 | M10.4 | Eight declarative guideline selectors, knowledge schema 5 and bundle format 20. Exact candidate-definition/diplotype/lookup/result and drug/guideline joins preserve conditional alternatives, native copy models, source evidence labels, clinical context and missing mappings. VKORC1 has no recommendation lookup keys in v1.60.0; the gap remains explicit. Complete-source seeded-synthetic offline save/reload passes in 68.84 seconds. Combined validation covers 3,267 unique passing tests, five existing Windows skips; 499 affected checks and 78 final guideline/static checks pass. Four strict type targets, full card lint (77/320/39), fixtures, style and privacy checks pass. Source/sample schema 1 and M9.13 confidence are unchanged. [Contract and acceptance](docs/pgx_guidelines.md). M10.5 is next. |
 | 2026-10-15 | M10.3 diff review | Incomplete saved text no longer claims recorded CYP2D6 evidence; five disk-read regressions pass. Six placement cases now use supported tier filters, interpreted-only and combined controls, asserting actual hidden-card counts beside the retained notice. 3,219 unique checks pass, five existing Windows skips: 3,218 broad-run passes plus the native helper setup recheck; all eleven focused cases, four strict type targets, full card lint, fixtures, style and privacy pass. Ingestion status and M10.4 source-join/evidence/schema/acceptance handoff are updated. Format 19 and healthy saved evidence are unchanged. [Review](docs/review_m103_session.md). |

@@ -7,6 +7,7 @@
 <section class="panel">
   <h1>Pharmacogenomics{% if pgx_gene %}: {{ pgx_gene }}{% endif %}</h1>
   <p><a href="{{ shell.run_url }}#section-pharmacogenomics">Back to the run</a></p>
+  {% include "_pgxframing.html" %}
   {% include "_pgxlimitation.html" %}
   <p><a href="{{ shell.run_url }}/pgx">All eight SNP-tractable genes</a></p>
   <p>{{ pgx_report.status }}{% if pgx_report.reason %}: {{ pgx_report.reason }}{% endif %}</p>

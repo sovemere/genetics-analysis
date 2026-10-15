@@ -41,7 +41,8 @@ phenotype lookup rows. Its warfarin gene–drug link is retained as an explicit
 interpretation gap; do not invent a genotype-to-recommendation mapping or infer
 a warfarin dose. G6PD candidates retain one/two-copy models and the Variable
 phenotype. CYP2D6 remains the existing adjacent assay-limit card. M10.5's
-once-per-section prescribing framing remains a separate milestone.
+once-per-section prescribing framing is now implemented as separate current context;
+see [the section framing contract](pgx_framing.md).
 
 ## Source audit and display
 
@@ -140,4 +141,5 @@ lint, fixtures, style and whitespace checks pass. Full-source seeded-synthetic
 acceptance and written reload pass in **109.05 seconds**, including exact
 canonical-payload comparison of all eight legacy cards with the original
 `0a6f95a` implementation. New cards use display schema 2; historical schema-1
-interpretations remain unchanged. M10.5 section framing is the next open item.
+interpretations remain unchanged. M10.5 section framing is now implemented;
+M11.1 R/HIBAG detection and bridge is the next open item.

@@ -1915,7 +1915,7 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     from genetics.engine.cards import KnowledgePack, default_knowledge_dir
     from genetics.engine.evidence import assemble_card
     from genetics.engine.matcher import MatchResult, MatchStatus
-    from genetics.pgx.presentation import CYP2D6_CARD_ID, saved_report
+    from genetics.pgx.presentation import CYP2D6_CARD_ID, saved_report, section_framing
     from genetics.run.bundle import PGX_NAME, read_bundle, write_bundle
     from genetics.web.app import create_app
     from genetics.web.config import WebConfig
@@ -1979,6 +1979,16 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
     bundle = read_bundle(path)
     expected = saved_report(bundle)
+    framing = section_framing()
+    assert framing["context"] == "current"
+    assert framing["section"] == "pharmacogenomics"
+    assert "not a prescribing tool" in framing["text"]
+    assert "clinical phenotype" in framing["text"]
+    assert "medicine or dose" in framing["text"]
+    assert "Prescribing based on these findings" in framing["text"]
+    assert "clinical confirmation" in framing["text"]
+    assert "full clinical context" in framing["text"]
+    assert expected["current_context"] == {"section_framing": framing}
     limitation = expected["cyp2d6_limitation"]
     assert limitation["status"] == ("recorded" if has_card else "not-recorded")
     if has_card:
@@ -2005,6 +2015,9 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
         assert json.loads(result.output) == saved_report(bundle, gene)
         text = CliRunner().invoke(app, args)
         assert text.exit_code == 0
+        assert text.output.count(framing["text"]) == 1
+        assert text.output.index(framing["text"]) < text.output.index("PGx:")
+        assert json.loads(result.output)["current_context"] == {"section_framing": framing}
         assert (cards[0].summary if has_card else limitation["reason"]) in text.output
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
     urls = [
@@ -2022,6 +2035,9 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
         response = client.get(f"/runs/{path.name}{suffix}")
         assert response.status_code == 200
         html = unescape(response.text)
+        assert html.count(framing["text"]) == 1
+        assert html.index(framing["text"]) < html.index('aria-label="CYP2D6 assay limitation"')
+        assert f'aria-label="{framing["title"]}"' in html
         assert 'class="notice notice-ignored"' not in html
         if has_card and any(p in suffix for p in ("tier=", "section=", "interpreted=")):
             assert "1 of 1 card(s) are hidden" in html
@@ -2052,6 +2068,7 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
             table = html.split("<th>Source alleles</th>")[1]
             rows.extend(re.findall(r"<tr>\s*<td>([^<]+)</td>", table))
             assert "CYP2D6 assay limitation" in html
+            assert unescape(html).count(framing["text"]) == 1
         assert len(rows) == total
         assert set(rows) == {
             " / ".join(c["alleles"]) for c in expected["genes"]["CYP2C19"]["candidates"]
@@ -2059,6 +2076,8 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     if has_card:
         detail = client.get(f"/runs/{path.name}/cards/{CYP2D6_CARD_ID}")
         assert detail.status_code == 200 and "star-5 with star-29" in detail.text
+        assert framing["text"] not in unescape(detail.text)
+    assert all(framing["text"].encode() not in content for content in before.values())
     assert {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()} == before
 
 
@@ -2422,6 +2441,7 @@ def test_guideline_rarity_and_quality_survive(frozen: dict[str, Any], imputed: b
         assert "DR2" in card.summary
 
 
+@pytest.mark.parametrize("display_schema", [1, 2])
 @pytest.mark.parametrize("stage", ["completed", "unavailable"])
 def test_guideline_saved_cli_dashboard_and_corruption(
     frozen: dict[str, Any],
@@ -2431,15 +2451,20 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     sample_cards: tuple[AssembledCard, ...],
     monkeypatch: pytest.MonkeyPatch,
     stage: str,
+    display_schema: int,
 ) -> None:
+    from html import unescape
+
     from fastapi.testclient import TestClient
 
     from genetics.ancestry.context import AncestryContext
     from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.pgx.presentation import section_framing
     from genetics.run.bundle import BundleError, _card_payload, read_bundle, write_bundle
     from genetics.web.app import create_app
     from genetics.web.config import WebConfig
 
+    framing = section_framing()
     guideline_source(frozen)
     calls = (
         calling.call(
@@ -2450,7 +2475,9 @@ def test_guideline_saved_cli_dashboard_and_corruption(
         if stage == "completed"
         else calling.unavailable("Synthetic absent reference", sex=sample_qc.sex.inferred.value)
     )
-    card = assemble_guideline_card(guideline_card(), calls.record)
+    card = assemble_guideline_card(
+        guideline_card(), calls.record, display_schema_version=display_schema
+    )
     pack = replace(sample_pack, cards=(*sample_pack.cards, card.card))
     path = write_bundle(
         qc=sample_qc,
@@ -2471,9 +2498,12 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     )
     loaded = read_bundle(path)
     saved = loaded.cards[-1]
+    assert saved.computation is not None
+    assert saved.computation["result"]["schema_version"] == display_schema
     assert saved.summary == card.summary and saved.computation == card.computation
     cli = CliRunner().invoke(app, ["pgx", "calls", path.name, "--gene", "CYP2C19", "--json"])
     assert cli.exit_code == 0, cli.output
+    assert json.loads(cli.output)["current_context"] == {"section_framing": framing}
     assert json.loads(cli.output)["guideline_cards"][0]["computation"] == card.computation
     detail = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert detail.exit_code == 0, detail.output
@@ -2485,6 +2515,9 @@ def test_guideline_saved_cli_dashboard_and_corruption(
         page = client.get(f"/runs/{path.name}" + suffix)
         assert page.status_code == 200
         assert card.summary in page.text
+        assert unescape(page.text).count(framing["text"]) == (
+            0 if suffix.startswith("/cards/") else 1
+        )
         if suffix.startswith("/cards/") and stage == "completed":
             assert "Synthetic conditional implication" in page.text
             assert "recommendation classification Moderate" in page.text

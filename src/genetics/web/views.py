@@ -1774,6 +1774,8 @@ class Shell(NoGenotypeRepr):
     what is in it would answer "nothing here" two different ways."""
 
     pgx: Mapping[str, Any] | None = None
+    pgx_framing: Mapping[str, str] | None = None
+    """Current section context, separate from frozen sample and card evidence."""
     pgx_limitation: Mapping[str, Any] | None = None
     """Frozen CYP2D6 limitation, shown independently of knowledge-card filters."""
 
@@ -1797,7 +1799,7 @@ def shell_for(
     # Resolved once and used for the shell URL, for every card URL, and for the selector's
     # notion of which run is current, because those three disagreeing is exactly what a
     # renamed bundle directory used to cause.
-    from genetics.pgx.presentation import cyp2d6_limitation
+    from genetics.pgx.presentation import cyp2d6_limitation, section_framing
 
     selected = selected_id if bundle is None else bundle.path.name
     cards = card_views(bundle, run_id=selected)
@@ -1828,6 +1830,7 @@ def shell_for(
         # populated one render through different branches, which is how the two drift.
         clinvar=None if bundle is None else bundle.clinvar,
         pgx=None if bundle is None else bundle.pgx,
+        pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         grid=grid_for(cards, query or GridQuery()),
         problem=problem,

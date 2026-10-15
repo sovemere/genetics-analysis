@@ -13,6 +13,21 @@ if TYPE_CHECKING:
 CYP2D6_CARD_ID = "cyp2d6_structural_variation"
 
 
+def section_framing() -> dict[str, str]:
+    """Current report context, never part of a run's frozen findings."""
+    return {
+        "context": "current",
+        "section": "pharmacogenomics",
+        "title": "Pharmacogenomics scope",
+        "text": (
+            "This is not a prescribing tool. Array-derived calls and conditional CPIC "
+            "guidance are educational evidence; they do not establish a clinical phenotype "
+            "or select a medicine or dose. Prescribing based on these findings requires "
+            "clinical confirmation and the person's full clinical context."
+        ),
+    }
+
+
 def cyp2d6_limitation(cards: Sequence[StoredCard]) -> dict[str, Any]:
     """Use the run's frozen card only; never manufacture historical evidence."""
     card = next((c for c in cards if c.card_id == CYP2D6_CARD_ID), None)
@@ -48,11 +63,12 @@ def cyp2d6_limitation(cards: Sequence[StoredCard]) -> dict[str, Any]:
 
 
 def saved_report(bundle: RunBundle, gene: str | None = None) -> dict[str, Any]:
-    """Sample-call inspection plus saved assay-limit evidence; no new computation."""
+    """Saved evidence plus explicitly separate current section context."""
     guidelines = [
         c for c in bundle.cards if c.kind == "guideline" and (gene is None or c.gene == gene)
     ]
     return report(bundle.pgx, gene) | {
+        "current_context": {"section_framing": section_framing()},
         "cyp2d6_limitation": cyp2d6_limitation(bundle.cards),
         "guideline_cards": [
             {
