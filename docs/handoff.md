@@ -1,6 +1,6 @@
 # Handoff: M10 pharmacogenomics
 
-As of 2026-10-15, **M0-M9 and M10.1-M10.4 are implemented**. Full local reference verification was
+As of 2026-10-16, **M0-M10 are implemented**. Full local reference verification was
 completed in the preceding milestones; the current synthetic/offline native suite
 passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
@@ -17,7 +17,15 @@ parser and frozen-metadata fixes with all source pins and mapping counts unchang
 **M10.2 calling is implemented**, with a separate schema-1 sample contract and
 additive bundle format 19. The [calling contract](pgx_calling.md) records
 uncertainty, complete frozen evidence and full-source synthetic acceptance.
-**M10.4 guideline-linked interpretation is implemented; M10.5 section framing is next.**
+**M10.4 guideline-linked interpretation and M10.5 section framing are implemented.**
+One shared current notice appears across PGx views and CLI, independently of
+filters and stage availability, without modifying frozen findings. See
+[the framing contract](pgx_framing.md). Final combined validation covers
+**3,294 unique passing tests**, five existing Windows skips: 3,274 broad-run
+passes plus all 101 checks in the three files affected by sandbox restrictions.
+All ten final interface cases, four strict type targets, full card lint,
+fixtures, style and staged privacy checks pass.
+**M11.1 R/HIBAG detection and bridge is next.**
 See [the guideline contract and audit](pgx_guidelines.md) and the
 [M10.4 diff review](review_m104_session.md). The reviewed complete native suite
 passes **3,292 tests**, five existing Windows skips; 103 focused checks, four
@@ -84,7 +92,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 and M10.1–M10.4 are also implemented; M10.5 is the next open step.
+are complete. M9.9–M9.13 and M10 are also implemented; M11.1 is the next open step.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -303,9 +311,34 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m111-r-and-hibag"></a>
+
+### Next open step: M11.1 R and HIBAG
+
+M10 is complete. M10.5's [section framing](pgx_framing.md) is current report
+context; it does not change saved evidence or source/sample/display versions.
+
+M11.1 owns optional R/HIBAG readiness and the subprocess bridge. Start with
+`doctor.py::_check_r`, the existing `Rscript`/`requireNamespace("HIBAG")` probe,
+its synthetic tests, and the external-tool wrappers' timeout, cancellation,
+private diagnostics and offline contracts. Share readiness with doctor rather
+than creating a second definition of installed/usable. Distinguish missing R,
+missing HIBAG, probe failures and a usable runtime explicitly. Native Windows
+support and graceful absence are required; R is user-installed, not silently
+added by the pinned binary installer.
+
+Keep this item separate from M11.2 classifier ingestion/imputation and M11.3
+ancestry-matched selection. HLA models remain fetched references with recorded
+licences; use HIBAG pre-fit classifiers, never SNP2HLA's withdrawn panel. No HLA
+call may be inferred from a successful dependency probe. Record a versioned
+sample/bundle contract before adding new saved HLA evidence, and keep one
+shared CLI/dashboard engine. Exercise malformed subprocess output, nonzero
+exit, timeout/cancellation and optional absence with synthetic inputs; keep
+personal data and diagnostics outside Git.
+
 <a id="next-open-step-m105-section-framing"></a>
 
-### Next open step: M10.5 section framing
+### M10.5 entry contract (implemented; retained for review)
 
 M10.4 adds eight declarative guideline selectors in knowledge schema 5 and
 reproducible card computations in bundle format 20. Its

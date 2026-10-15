@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M9 and M10.1–M10.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M10 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -162,7 +162,11 @@ validation and incomplete-source evidence handling. New guideline cards use
 display schema 2; schema-1 cards retain their original rules and text. Review
 validation passes the complete native suite: 3,292 tests, five existing Windows
 skips, with four strict type targets, full card lint, fixtures and style passing.
-[M10.5 section framing](docs/handoff.md#next-open-step-m105-section-framing) is next.
+**M10.5 section framing is complete:** one shared prescribing-tool notice appears
+once on each PGx section/view and CLI report. JSON labels it as current context;
+saved findings, historical runs and guideline display schemas 1–2 are preserved.
+See [the framing contract](docs/pgx_framing.md).
+[M11.1 R/HIBAG detection and bridge](docs/handoff.md#next-open-step-m111-r-and-hibag) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
