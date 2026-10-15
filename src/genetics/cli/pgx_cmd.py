@@ -24,12 +24,13 @@ def calls(
         bool, typer.Option("--json", help="Emit private saved call evidence.")
     ] = False,
 ) -> None:
-    from genetics.pgx.calling import CallingError, report
+    from genetics.pgx.calling import CallingError
+    from genetics.pgx.presentation import saved_report
     from genetics.run import store
     from genetics.run.bundle import BundleError
 
     try:
-        result = report(store.load_run(run_id).pgx, gene)
+        result = saved_report(store.load_run(run_id), gene)
     except (CallingError, BundleError, OSError, ValueError) as exc:
         _error(exc, as_json)
     else:
@@ -39,6 +40,12 @@ def calls(
             typer.echo(f"PGx: {result['status']}")
             if result["reason"]:
                 typer.echo(result["reason"])
+            limitation = result["cyp2d6_limitation"]
+            if limitation["card"] is None:
+                typer.echo(limitation["reason"])
+            else:
+                typer.echo(f"CYP2D6 assay limitation (saved card): {limitation['card']['summary']}")
+                typer.echo(limitation["card"]["impossibility_reason"])
             for symbol, record in result["genes"].items():
                 tier = record.get("reliability", {}).get("tier", "unavailable")
                 typer.echo(

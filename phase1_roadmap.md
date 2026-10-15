@@ -93,8 +93,8 @@ The [diff review](docs/review_m101_session.md) corrects publication attribution,
 atomic publication and parsing/validation defects. **M10.2 SNP-tractable diplotype
 calling is implemented**, with all compatible alternatives, native ploidy and
 source-specific phenotype joins retained in format 19. See the
-[calling contract](docs/pgx_calling.md). **M10.3 is next.** Start with the
-[current handoff](docs/handoff.md#next-open-step-m103-cyp2d6-placement).
+[calling contract](docs/pgx_calling.md). **M10.3 placement is complete.** Start with the
+[current handoff](docs/handoff.md#next-open-step-m104-guideline-linked-cards).
 The [M10.2 diff review](docs/review_m102_session.md) records saved-evidence,
 validation and presentation corrections with healthy calling results unchanged.
 See [PGS scoring](docs/pgs_scoring.md).
@@ -108,7 +108,7 @@ Download resumability debt is resolved and gnomAD's 63 GB exome file is verified
 The study-to-sample ancestry mapping M5.8 surfaced
 belongs to [M9.5](#m9--prs-engine--score-driven-sections), and does not block M7.1 or M7.2.
 
-**Current bundle format: 18**, with formats 1–17 preserved. The pack has 69 cards;
+**Current bundle format: 19**, with formats 1–18 preserved. The pack has 69 cards;
 full local dbSNP lint resolves all 39 authored marker references (320 template renders).
 M7.6: **2,188 tests passed, five existing Windows skips**, pinned native ROH enabled.
 Strict mypy matrix, ruff/format and fixture reproduction pass. Thirty synthetic
@@ -2803,7 +2803,7 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       19 is additive; M9.13 confidence remains frozen. See [the contract](docs/pgx_calling.md).
       The [diff review](docs/review_m102_session.md) binds saved native dosages and
       corrects input validation, error categories and candidate presentation.
-- [ ] **M10.3** **CYP2D6 explicit "not callable" card.** PharmCAT declines to call it from
+- [x] **M10.3** **CYP2D6 explicit "not callable" card.** PharmCAT declines to call it from
       a VCF because structural/CNV variation dominates, and a `*5` whole-gene deletion
       makes the other allele read as homozygous (`*5/*29` → `*29/*29`). Render the
       limitation; do not omit the gene silently.
@@ -2812,6 +2812,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         hybrids and the register has to be complete. What is left here is placement: it must
         render beside the diplotypes M10.2 calls, so the gap is visible where a reader is
         looking at the genes that *were* called. Do not author a second card.
+      - Implemented beside saved calls on the dashboard, overview and every gene
+        detail, independently of knowledge-card filters. CLI text/JSON carries
+        frozen limitation evidence; missing saved cards and historical sample
+        stages remain explicit. Six synthetic cases cover saved/missing cards,
+        three stage states, filters, all eight genes, multi-page retention and
+        bundle immutability. See [the contract](docs/pgx_calling.md#m103-cyp2d6-placement).
 - [ ] **M10.4** CPIC guideline-linked cards: phenotype → dosing implication, with the
       guideline cited and its evidence level shown.
 - [ ] **M10.5** Prominent framing that this is not a prescribing tool, stated once and
@@ -2964,6 +2970,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-15 | M10.3 | Existing CYP2D6 assay-limit evidence stays beside saved calls on dashboard, overview and all gene details, independently of filters. Shared CLI text/JSON adapter preserves frozen wording and explicitly reports missing card evidence. Six synthetic cases cover saved/missing cards, completed/unavailable/historical stages, all eight genes, 136 candidates over two pages and bundle immutability. 3,214 unique checks pass, five existing Windows skips: 3,194 broad-run passes plus all 20 environment-restricted failures resolved in targeted reruns. All 449 affected checks and final six strengthened cases pass; four strict type targets, full card lint, fixtures, style and privacy pass. Format 19, sample schema 1, confidence and source pins are unchanged. [Contract and validation](docs/pgx_calling.md#m103-cyp2d6-placement). M10.4 is next. |
 | 2026-10-15 | M10.2 diff review | Six reproduced defect groups fixed: native evidence binding (including original probes), frequency/status validation, PGx reference-error category, source allele labels and reliability styles. Sixteen rejecting regressions plus four ploidy/orientation controls; 3,208 unique checks pass, five existing Windows skips (3,202-pass broad run, then 399 affected tests after the final follow-up). Four strict type targets, full card lint, fixtures and style pass. Full-source offline synthetic comparison preserves original healthy results and schema-1 reload in 274.26 seconds; source pins, format 19 and M9.13 confidence unchanged. M10.3 remains next: place the existing CYP2D6 limitation beside calls, including filtered and historical views. [Review and handoff](docs/review_m102_session.md). |
 | 2026-10-14 | M10.2 | Conservative eight-gene sample calling, source phenotype joins and phase/ploidy/missing-definition alternatives; rare and imputed reliability remain explicit. Separate sample schema 1 and additive bundle format 19 freeze complete evidence for offline CLI/dashboard parity, preserving older runs and M9.13 confidence. 3,188 native tests pass, five existing Windows skips; four strict type targets (212 files), complete card lint, fixtures, style and privacy pass. Full public-source synthetic calling and reload pass offline in 223.65 seconds including frequency-source verification; no personal export opened. M10.3 is next. [Contract and acceptance](docs/pgx_calling.md). |
 | 2026-10-14 | M10.1 | Complete CPIC/ClinPGx reference ingestion and offline inspection; source-bound GRCh37 normalization retains all gaps. Diff review fixes null guideline citations, safe atomic JSON publication, lossless COPY byte decoding, strict TSV/lookup/frozen-source validation and nested output locking. 3,137 native tests pass with five Windows skips; four strict type targets, full card lint, fixtures, style and privacy pass. Full-source offline reparse/reuse/inspection passes; no personal export used. M10.2 is next. [Review and handoff](docs/review_m101_session.md). |

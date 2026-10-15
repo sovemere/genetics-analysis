@@ -1,0 +1,13 @@
+{% if shell.pgx_limitation %}
+<aside class="notice" aria-label="CYP2D6 assay limitation">
+  <h2>CYP2D6 assay limitation</h2>
+  {% if shell.pgx_limitation.card %}
+    <p>{{ shell.pgx_limitation.card.summary }}</p>
+    <p>{{ shell.pgx_limitation.card.impossibility_reason }}</p>
+    <p><a href="{{ shell.run_url }}/cards/{{ shell.pgx_limitation.card_id }}">Read the saved CYP2D6 limitation</a>.</p>
+  {% else %}
+    <p>{{ shell.pgx_limitation.reason }}</p>
+  {% endif %}
+  <p class="muted">Assay limits stay beside sample calls regardless of knowledge-card filters.</p>
+</aside>
+{% endif %}

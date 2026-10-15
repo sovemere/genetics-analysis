@@ -1767,10 +1767,13 @@ class Shell(NoGenotypeRepr):
 
     clinvar: Mapping[str, Any] | None
     grid: Grid
-    pgx: Mapping[str, Any] | None = None
     """The cards, arranged (M4.6/M4.7). Empty rather than ``None`` when no run is open, so
     the page has one shape: a template that had to ask whether a grid exists before asking
     what is in it would answer "nothing here" two different ways."""
+
+    pgx: Mapping[str, Any] | None = None
+    pgx_limitation: Mapping[str, Any] | None = None
+    """Frozen CYP2D6 limitation, shown independently of knowledge-card filters."""
 
 
 def shell_for(
@@ -1792,6 +1795,8 @@ def shell_for(
     # Resolved once and used for the shell URL, for every card URL, and for the selector's
     # notion of which run is current, because those three disagreeing is exactly what a
     # renamed bundle directory used to cause.
+    from genetics.pgx.presentation import cyp2d6_limitation
+
     selected = selected_id if bundle is None else bundle.path.name
     cards = card_views(bundle, run_id=selected)
     return Shell(
@@ -1821,6 +1826,7 @@ def shell_for(
         # populated one render through different branches, which is how the two drift.
         clinvar=None if bundle is None else bundle.clinvar,
         pgx=None if bundle is None else bundle.pgx,
+        pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         grid=grid_for(cards, query or GridQuery()),
         problem=problem,
     )
