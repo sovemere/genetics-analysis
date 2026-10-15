@@ -1,6 +1,6 @@
-# Handoff: M11 HLA runtime bridge
+# Handoff: M11 HLA classifier imputation
 
-As of 2026-10-16, **M0-M10 are implemented; M11.1 is next**. Full-reference
+As of 2026-10-16, **M0-M10 and M11.1 are implemented; M11.2 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,7 +31,8 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.1 R/HIBAG detection and bridge is next.**
+**M11.1 R/HIBAG readiness and bridge are implemented; M11.2 is next.**
+See the [runtime contract and validation](hla_runtime.md).
 See [the guideline contract and audit](pgx_guidelines.md) and the
 [M10.4 diff review](review_m104_session.md). The reviewed complete native suite
 passes **3,292 tests**, five existing Windows skips; 103 focused checks, four
@@ -98,7 +99,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13 and M10 are also implemented; M11.1 is the next open step.
+are complete. M9.9–M9.13, M10 and M11.1 are also implemented; M11.2 is next.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -317,9 +318,44 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m112-hla-imputation"></a>
+
+## Next open step: M11.2 HLA imputation
+
+M11.1 supplies one shared optional readiness function and a private R/HIBAG
+subprocess bridge. Doctor exposes runtime state, failure category, R/HIBAG
+versions and platform; missing dependencies remain nonfatal and probe failures
+remain errors. Combined validation passes **3,335 unique tests**, with six skips:
+3,331 broad native passes plus all 114 final bridge/doctor/Beagle checks, including
+four later cases; all 61 final bridge/doctor checks also pass. Four strict type
+targets (217 files), complete card lint, fixtures and style pass.
+See [the runtime contract and exact validation](hla_runtime.md). Native Rscript is
+unavailable on this development machine, so no native HIBAG success is claimed.
+The optional native acceptance test can use `GENETICS_HIBAG_TEST_RSCRIPT`;
+it loads no classifiers or personal inputs.
+
+M11.2 must audit the actual HIBAG pre-fit classifier releases, model build,
+marker alleles/strand, HLA resolution, licences and checksums before adding
+fetched references. No HIBAG classifier entry currently exists in the manifest.
+Keep payloads outside Git and preserve model-specific provenance; do not use
+SNP2HLA. R and HIBAG remain user-installed; this bridge does not acquire them.
+Ancestry-matched selection and confidence integration belong to M11.3.
+
+Record a versioned sample-call contract and additive saved-bundle plan before
+writing HLA evidence. A completed bridge script is process success only. Validate
+complete scientific outputs, sample/marker identity, alleles, per-call posterior
+probabilities, missing/unsupported states and exact runtime/model identities
+before constructing a result. A failed probe or missing model is not an HLA
+negative. Preserve the shared offline CLI/dashboard engine and historical runs.
+Scripts receive a character vector named `bridge_args` and write into their
+private working directory. Set an appropriate explicit job timeout, pass the
+cancellation event and retain diagnostics privately. Audit and run native R/HIBAG
+acceptance when that user-installed dependency becomes available, including
+ordinary package absence and an actual synthetic script on a ready installation.
+
 <a id="next-open-step-m111-r-and-hibag"></a>
 
-### Next open step: M11.1 R and HIBAG
+### M11.1 entry contract (implemented; retained for review)
 
 M10 is complete. M10.5's [section framing](pgx_framing.md) is current report
 context; it does not change saved evidence or source/sample/display versions.

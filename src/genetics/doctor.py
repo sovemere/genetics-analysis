@@ -62,6 +62,11 @@ class ToolReport:
     path: str | None = None
     version: str | None = None
     detail: str | None = None
+    runtime_status: str | None = None
+    r_version: str | None = None
+    hibag_version: str | None = None
+    r_platform: str | None = None
+    runtime_failure: str | None = None
 
 
 @dataclass(frozen=True)
@@ -219,40 +224,32 @@ def _check_beagle() -> ToolReport:
 
 
 def _check_r() -> ToolReport:
-    path = _which("Rscript")
-    if path is None:
-        return ToolReport(
-            name="R (HIBAG)",
-            required_from="M11 (optional)",
-            status="missing",
-            detail="HLA imputation is skipped without R; every other section is unaffected",
-        )
-    status, version, detail = _run_version([path, "--version"])
-    if status != "ok":
-        return ToolReport("R (HIBAG)", "M11 (optional)", status, path, version, detail)
+    from genetics.external.hibag import probe
 
-    # The probe must *print* on success. `_run_version` treats empty output as an error,
-    # and the obvious silent form -- `if (!requireNamespace(...)) quit(status=1)` -- prints
-    # nothing when the package is present, so it reported "R is installed but HIBAG is
-    # not" on every machine including ones where HIBAG was installed. The success path was
-    # unreachable.
-    hibag_status, _, _ = _run_version(
-        [
-            path,
-            "-e",
-            'if (!requireNamespace("HIBAG", quietly=TRUE)) quit(status=1); cat("HIBAG ok\\n")',
-        ]
+    result = probe()
+    status: Status = (
+        "ok"
+        if result.status == "ready"
+        else "error"
+        if result.status == "probe-error"
+        else "missing"
     )
-    if hibag_status != "ok":
-        return ToolReport(
-            name="R (HIBAG)",
-            required_from="M11 (optional)",
-            status="missing",
-            path=path,
-            version=version,
-            detail="R is installed but the HIBAG package is not",
-        )
-    return ToolReport("R (HIBAG)", "M11 (optional)", "ok", path, f"{version} + HIBAG", None)
+    version = f"R {result.r_version}" if result.r_version else None
+    if result.hibag_version:
+        version = f"{version} + HIBAG {result.hibag_version}"
+    return ToolReport(
+        "R (HIBAG)",
+        "M11 (optional)",
+        status,
+        str(result.path) if result.path else None,
+        version,
+        result.detail,
+        result.status,
+        result.r_version,
+        result.hibag_version,
+        result.r_platform,
+        result.failure,
+    )
 
 
 def _free_disk_gb(path: Path) -> float | None:

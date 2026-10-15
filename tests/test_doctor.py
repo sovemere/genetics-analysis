@@ -138,40 +138,29 @@ def test_version_probe_survives_an_unexecutable_file(monkeypatch: pytest.MonkeyP
     assert detail is not None and "OSError" in detail
 
 
-def test_hibag_present_is_reportable(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The success path must be reachable at all -- it was not.
+def test_hibag_doctor_shares_runtime_readiness(monkeypatch: pytest.MonkeyPatch) -> None:
+    from genetics.external.hibag import Readiness
 
-    ``_run_version`` treats empty output as an error, and the obvious silent probe
-    (``if (!requireNamespace(...)) quit(status=1)``) prints nothing when the package *is*
-    installed. So every machine reported "R is installed but HIBAG is not", including
-    machines with HIBAG. The probe now prints on success.
-    """
-
-    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if "--version" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, "R version 4.4.1\n", "")
-        return subprocess.CompletedProcess(cmd, 0, "HIBAG ok\n", "")
-
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setattr(doctor, "_which", lambda name: "Rscript")
-
+    monkeypatch.setattr(
+        "genetics.external.hibag.probe",
+        lambda: Readiness("ready", "Ready.", Path("Rscript"), "4.4.1", "test-platform", "1.40.0"),
+    )
     report = doctor._check_r()
     assert report.status == "ok"
-    assert report.version is not None and "HIBAG" in report.version
+    assert report.version == "R 4.4.1 + HIBAG 1.40.0"
+    assert report.runtime_status == "ready"
 
 
-def test_hibag_absent_is_still_detected(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_run(cmd: list[str], **kwargs: object) -> subprocess.CompletedProcess[str]:
-        if "--version" in cmd:
-            return subprocess.CompletedProcess(cmd, 0, "R version 4.4.1\n", "")
-        return subprocess.CompletedProcess(cmd, 1, "", "Error: package not found\n")
+def test_hibag_probe_timeout_is_not_reported_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    from genetics.external.hibag import Readiness
 
-    monkeypatch.setattr(subprocess, "run", fake_run)
-    monkeypatch.setattr(doctor, "_which", lambda name: "Rscript")
-
+    monkeypatch.setattr(
+        "genetics.external.hibag.probe",
+        lambda: Readiness("probe-error", "R/HIBAG readiness probe timed out."),
+    )
     report = doctor._check_r()
-    assert report.status == "missing"
-    assert report.detail is not None and "HIBAG package is not" in report.detail
+    assert report.status == "error"
+    assert report.detail is not None and "timed out" in report.detail
 
 
 def test_beagle_doctor_uses_the_same_pin_as_the_wrapper(

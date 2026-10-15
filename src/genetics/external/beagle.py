@@ -20,14 +20,18 @@ import time
 import uuid
 import zlib
 from collections.abc import Callable, Iterator, Mapping
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, ClassVar, TypeVar
+from typing import Any, ClassVar
 
+from genetics.external.process import stop
 from genetics.paths import cache_dir, is_inside_repo, tools_dir
 from genetics.privacy import NoGenotypeRepr
 from genetics.refs import tools
+
+# Retain the existing wrapper seam for reference preparation and interruption tests.
+_stop = stop
 
 if sys.platform == "win32":
     _CREATION_FLAGS = subprocess.CREATE_NO_WINDOW
@@ -343,38 +347,6 @@ def _progress_line(line: str) -> str | None:
     # Never relay paths, intervals, marker IDs, sample IDs, arguments or error lines.
     match = re.fullmatch(r"Window\s+(\d+)\s+\[.*\]:?", line.strip())
     return f"Beagle window {match[1]}" if match else None
-
-
-_ProcessText = TypeVar("_ProcessText", str, bytes)
-
-
-def _stop(process: subprocess.Popen[_ProcessText]) -> None:
-    if process.poll() is None:
-        if sys.platform == "win32":
-            # A Windows launcher can own a child JVM. Kill this process tree only.
-            with suppress(OSError, subprocess.TimeoutExpired):
-                subprocess.run(
-                    [
-                        str(Path(os.environ["SYSTEMROOT"]) / "System32" / "taskkill.exe"),
-                        "/PID",
-                        str(process.pid),
-                        "/T",
-                        "/F",
-                    ],
-                    stdout=subprocess.DEVNULL,
-                    stderr=subprocess.DEVNULL,
-                    timeout=10,
-                    check=False,
-                    creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-            if process.poll() is not None:
-                return
-        process.terminate()
-        try:
-            process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            process.wait()
 
 
 @dataclass(frozen=True)
