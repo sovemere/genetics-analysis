@@ -17,7 +17,13 @@ parser and frozen-metadata fixes with all source pins and mapping counts unchang
 **M10.2 calling is implemented**, with a separate schema-1 sample contract and
 additive bundle format 19. The [calling contract](pgx_calling.md) records
 uncertainty, complete frozen evidence and full-source synthetic acceptance.
-**M10.3 CYP2D6 placement is implemented; M10.4 guideline-linked interpretation is next.** Earlier milestone records below remain historical.
+**M10.3 CYP2D6 placement is implemented; M10.4 guideline-linked interpretation is next.**
+The [M10.3 diff review](review_m103_session.md) fixes incomplete saved text and
+ignored tier-filter acceptance. Validation covers **3,219 unique passing tests**,
+five existing Windows skips (3,218 broad-run passes plus the native-tool setup
+recheck), four strict type targets, full card lint, fixtures, style and privacy.
+Its entry contract below is the current M10.4 handoff. Earlier milestone records
+below remain historical.
 M10.2 acceptance passes **3,188 native tests**, five existing Windows skips,
 all four strict type targets, complete card lint, fixtures, style and staged
 privacy checks. Full-source offline synthetic calling/reload passes; no
@@ -293,6 +299,11 @@ style and privacy gates pass; the guide records exact run boundaries.
 
 ### Next open step: M10.4 guideline-linked cards
 
+The [M10.3 diff review](review_m103_session.md) fixes incomplete saved-text
+reporting and strengthens real-filter acceptance. Complete saved evidence is
+required for the adjacent recorded notice; partial text stays explicit without
+mutating the run. The eight-gene caller and saved schema contracts are unchanged.
+
 Audit the frozen CPIC/ClinPGx guideline, recommendation, publication and
 lookup joins before authoring phenotype-to-dosing interpretation. Keep
 source annotations distinct from clinically established sample phenotypes.
@@ -305,6 +316,37 @@ and attach uncertainty by source definition ID. Reuse M10.3's saved CYP2D6
 limitation and M10.2's immutable schema-1 evidence rather than inferring
 CYP2D6 or manufacturing absent mappings. Record any needed card/bundle schema
 extension before implementation; M9.13 confidence remains frozen.
+
+Use the complete frozen `reference.cpic.tables`, not just the small per-gene
+`recommendation_keys` projection. Resolve candidate definition IDs to saved
+source allele labels and native copy counts; follow their exact `mapping_ids`
+and `lookup_ids` through `gene_result_diplotype` → `gene_result_lookup` →
+`gene_result`, rather than comparing definition IDs with allele names. Bind
+recommendations to the actual `lookupkey`, guideline and drug IDs. A source
+recommendation may require multiple genes or extra context: retain all required
+conditions, and do not apply it just because one gene overlaps. Keep gene–drug
+`pair.cpiclevel`, `recommendation.classification`, and allele-function `strength`
+distinct; audit which source field supplies each displayed evidence label.
+
+Every guideline card must retain its source release, row identities, source
+population/context limits where supplied, explicit gaps, guideline URL and
+actual DOI/PMID evidence. Preserve all compatible phenotype/recommendation
+branches; neither a first candidate nor
+a first lookup row establishes a person's dosing implication. Use declarative
+knowledge entries evaluated by the shared engine, with frozen evidence for both
+CLI and dashboard. Existing kinds stop at interpretation, impossibility, computed
+and polygenic: record the proposed representation and additive validation contract
+before extending them. Do not force a guideline recommendation into an invented
+effect size to satisfy an unrelated evidence shape. Keep source licence/opt-in
+provenance attached; fetched recommendation payloads must remain outside Git.
+
+Acceptance should bind real public source identities/joins before synthetic
+substitution, then cover phase/candidate conflicts, multi-gene requirements,
+missing phenotype/recommendation/publication rows, drug-specific functions,
+DPYD activity expressions, G6PD copy models and VKORC1 genotype keys. Preserve
+rarity/imputation uncertainty and numeric PPV scope. Verify cache-independent
+save/reload, unavailable/historical states and CLI/dashboard parity offline.
+M10.5 remains the separate once-per-section prescribing-tool framing item.
 
 ### M10.1 entry contract (implemented; retained for review)
 

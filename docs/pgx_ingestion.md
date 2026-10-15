@@ -1,9 +1,12 @@
 # Pharmacogenomics reference ingestion (M10.1)
 
 M10.1 ingests public references and exposes offline inspection through one shared
-library. It reads no consumer export and calls no sample diplotype. M10.2 owns
-calling; M10.4 owns guideline cards. Run bundles remain format 18 and the M9.13
-confidence policy is unchanged.
+library. Reference inspection reads no consumer export and calls no sample
+diplotype. M10.2 implements [saved sample calling](pgx_calling.md), and M10.3
+places the saved CYP2D6 limitation beside those calls. M10.4 guideline-linked
+cards are next; see the [current handoff](handoff.md#next-open-step-m104-guideline-linked-cards).
+Current run bundles use format 19; source/catalog schema 1 and the M9.13
+confidence policy are unchanged.
 
 ## Setup and inspection
 
@@ -157,7 +160,8 @@ Calling is restricted to the eight listed genes and retains phase, coverage,
 rare-call and structural uncertainty. The reference artifact's
 `sample_calling_implemented: false` continues to describe reference-only
 inspection; sample results live in the separate private contract. Reuse the
-existing `cyp2d6_structural_variation` card in M10.3 rather than creating a duplicate.
+existing `cyp2d6_structural_variation` card; M10.3 now shows its frozen evidence
+beside sample calls, including filtered and historical views.
 
 Synthetic validation covers independent SQL encodings, unsafe archives,
 malformed rows/joins, ambiguous builds/alleles, licence gates, checksum/source

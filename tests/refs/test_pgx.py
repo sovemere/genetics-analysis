@@ -2010,9 +2010,11 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     urls = [
         "",
         "?group=tier",
-        "?tier=high",
+        "?tier=strong",
+        "?interpreted=1",
         "?section=traits",
-        "?group=tier&tier=high&section=traits",
+        "?group=tier&tier=strong&section=traits",
+        "?group=tier&tier=strong&section=traits&interpreted=1",
         "/pgx",
         *[f"/pgx?gene={gene}&page=999" for gene in catalog.TRACTABLE],
     ]
@@ -2020,6 +2022,10 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
         response = client.get(f"/runs/{path.name}{suffix}")
         assert response.status_code == 200
         html = unescape(response.text)
+        assert 'class="notice notice-ignored"' not in html
+        if has_card and any(p in suffix for p in ("tier=", "section=", "interpreted=")):
+            assert "1 of 1 card(s) are hidden" in html
+            assert 'class="cardlink"' not in html
         block = html.split('<aside class="notice" aria-label="CYP2D6 assay limitation">')[1]
         block = block.split("</aside>")[0]
         assert (cards[0].summary if has_card else limitation["reason"]) in block
@@ -2053,4 +2059,84 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     if has_card:
         detail = client.get(f"/runs/{path.name}/cards/{CYP2D6_CARD_ID}")
         assert detail.status_code == 200 and "star-5 with star-29" in detail.text
+    assert {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()} == before
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("impossibility_reason", None),
+        ("impossibility_reason", " "),
+        ("summary", " "),
+        ("detail", " "),
+        ("title", " "),
+    ],
+)
+def test_incomplete_saved_cyp2d6_text_is_not_reported_as_recorded(
+    tmp_path: Path,
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    monkeypatch: pytest.MonkeyPatch,
+    field: str,
+    value: str | None,
+) -> None:
+    """Older/nonstandard snapshots may lack text; do not claim complete evidence."""
+    import hashlib
+
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.engine.cards import KnowledgePack, default_knowledge_dir
+    from genetics.engine.evidence import assemble_card
+    from genetics.engine.matcher import MatchResult, MatchStatus
+    from genetics.pgx.presentation import CYP2D6_CARD_ID, saved_report
+    from genetics.run.bundle import CARDS_NAME, read_bundle, write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    authored = KnowledgePack.load(default_knowledge_dir()).by_id(CYP2D6_CARD_ID)
+    assert authored is not None
+    card = assemble_card(
+        authored,
+        MatchResult(
+            card_id=authored.id, status=MatchStatus.NOT_DETERMINABLE, reason="Assay limit."
+        ),
+    )
+    root = tmp_path / "runs"
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(card,),
+        pack=sample_pack,
+        ancestry=AncestryContext.not_run("Synthetic incomplete-text review"),
+        pgx=calling.unavailable(
+            "Synthetic absent reference.", sex=sample_qc.sex.inferred.value
+        ).to_dict(),
+        runs_root=root,
+        run_id="incomplete-cyp2d6",
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+    )
+    cards_path = path / CARDS_NAME
+    raw = json.loads(cards_path.read_text())
+    raw["cards"][0][field] = value
+    cards_path.write_text(json.dumps(raw), encoding="utf-8")
+    header_path = path / "manifest.json"
+    header = json.loads(header_path.read_text())
+    header["files"][CARDS_NAME] = hashlib.sha256(cards_path.read_bytes()).hexdigest()
+    header_path.write_text(json.dumps(header), encoding="utf-8")
+    before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    bundle = read_bundle(path)
+    limitation = saved_report(bundle)["cyp2d6_limitation"]
+    assert limitation["status"] == "not-recorded"
+    assert limitation["card"] is None
+    assert "Complete CYP2D6 assay-limitation evidence was not recorded" in limitation["reason"]
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    result = CliRunner().invoke(app, ["pgx", "calls", path.name, "--json"])
+    assert result.exit_code == 0
+    assert json.loads(result.output)["cyp2d6_limitation"] == limitation
+    client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
+    for suffix in ("", "?group=tier&tier=strong", "/pgx", "/pgx?gene=CYP2C19"):
+        response = client.get(f"/runs/{path.name}{suffix}")
+        assert response.status_code == 200 and limitation["reason"] in response.text
+        assert "Read the saved CYP2D6 limitation" not in response.text
     assert {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()} == before

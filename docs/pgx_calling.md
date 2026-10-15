@@ -90,10 +90,13 @@ Formats 1–18 keep their explicit sample-calls-not-recorded state. If a histori
 or nonstandard pack lacks a saved impossibility card, the adapter reports
 `status: not-recorded`, `card: null` and a precise notice; it does not load the
 current knowledge pack or modify the bundle. A same-ID record of another kind
-or status is not treated as saved assay-limit evidence.
+or status is not treated as saved assay-limit evidence. The recorded state
+also requires nonblank saved title, summary, detail and impossibility reason.
+Incomplete text produces an explicit complete-evidence-not-recorded notice
+without filling gaps from today's pack or changing the saved files.
 
 Six synthetic acceptance cases cross saved/missing cards with completed,
-unavailable and historical stages. They check CLI text/JSON, five dashboard
+unavailable and historical stages. They check CLI text/JSON, seven dashboard
 filter/group choices, the overview, every gene detail and immutable bundle
 bytes. The completed cases retain all 136 compatible CYP2C19 candidates across
 two pages, with the limitation on both pages. Existing definition-ID labels,
@@ -101,7 +104,7 @@ reliability styles and numerical rare-call benchmark checks remain in force.
 This is server-rendered HTTP verification; no interactive browser review is claimed.
 No personal export is opened, and no new reference or output type is introduced.
 
-M10.3 validation covers **3,214 unique passing tests**, with five existing
+Original M10.3 validation covers **3,214 unique passing tests**, with five existing
 Windows skips. The broad native run passed **3,194**, with 20 sandbox-related
 failures, in **598.57 seconds**. All 27 PGS reference tests pass with an isolated
 writable cache (17.68 seconds); both Beagle cancellation tests pass outside the
@@ -120,6 +123,13 @@ reports an empty machine architecture, so its commands use the process-local
 is changed for this environment issue. Native PLINK/Beagle/bref3 checks use the
 pinned tools and portable Java 17. No personal export is opened.
 
+
+The [M10.3 diff review](review_m103_session.md) adds five incomplete-text
+regressions and strengthens all six placement cases with real tier and
+interpreted-only filters. Validation covers **3,219 unique passing tests**,
+five existing Windows skips: 3,218 broad-run passes plus the native helper
+setup recheck. Four strict type targets, full card lint, fixtures, style and
+privacy checks pass. See the review for exact run boundaries.
 
 ## Acceptance
 

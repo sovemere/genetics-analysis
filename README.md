@@ -143,10 +143,14 @@ stays beside calls on the dashboard, PGx overview and every gene detail,
 including filtered views and unavailable references. CLI inspection carries
 the same saved evidence; historical/nonstandard packs report absent card
 evidence explicitly. See [the placement contract](docs/pgx_calling.md#m103-cyp2d6-placement).
-Validation covers 3,214 unique passing tests with five existing Windows skips,
-including targeted reruns of sandbox-restricted checks; four strict type targets,
+Review validation covers 3,219 unique passing tests with five existing Windows skips,
+including the native-tool setup recheck; four strict type targets,
 full card lint, fixtures, style and privacy checks pass.
-M10.4 guideline-linked interpretation is next.
+The [M10.3 diff review](docs/review_m103_session.md) fixes incomplete saved-text
+reporting and replaces ignored filter inputs with actual hide-and-retain checks.
+M10.4 guideline-linked interpretation is next; its
+[entry contract](docs/handoff.md#next-open-step-m104-guideline-linked-cards)
+records the source joins, evidence fields and acceptance requirements.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
