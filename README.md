@@ -165,7 +165,9 @@ skips, with four strict type targets, full card lint, fixtures and style passing
 **M10.5 section framing is complete:** one shared prescribing-tool notice appears
 once on each PGx section/view and CLI report. JSON labels it as current context;
 saved findings, historical runs and guideline display schemas 1–2 are preserved.
-See [the framing contract](docs/pgx_framing.md).
+See [the framing contract](docs/pgx_framing.md). The
+[M10.5 diff review](docs/review_m105_session.md) closes a reproduced CLI
+saved-summary test gap; production code and saved formats are unchanged.
 [M11.1 R/HIBAG detection and bridge](docs/handoff.md#next-open-step-m111-r-and-hibag) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
