@@ -16,11 +16,19 @@ CYP2D6_CARD_ID = "cyp2d6_structural_variation"
 def cyp2d6_limitation(cards: Sequence[StoredCard]) -> dict[str, Any]:
     """Use the run's frozen card only; never manufacture historical evidence."""
     card = next((c for c in cards if c.card_id == CYP2D6_CARD_ID), None)
-    if card is None or card.kind != "impossibility" or card.status != "not_determinable":
+    if (
+        card is None
+        or card.kind != "impossibility"
+        or card.status != "not_determinable"
+        or not all(
+            text and text.strip()
+            for text in (card.title, card.summary, card.detail, card.impossibility_reason)
+        )
+    ):
         return {
             "card_id": CYP2D6_CARD_ID,
             "status": "not-recorded",
-            "reason": "The CYP2D6 assay-limitation card was not recorded by this run. "
+            "reason": "Complete CYP2D6 assay-limitation evidence was not recorded by this run. "
             "CYP2D6 is outside the eight-gene SNP caller; no CYP2D6 call is available.",
             "card": None,
         }
