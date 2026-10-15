@@ -1,8 +1,9 @@
-# Handoff: M10 pharmacogenomics
+# Handoff: M11 HLA runtime bridge
 
-As of 2026-10-16, **M0-M10 are implemented**. Full local reference verification was
-completed in the preceding milestones; the current synthetic/offline native suite
-passes. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
+As of 2026-10-16, **M0-M10 are implemented; M11.1 is next**. Full-reference
+and broad native acceptance remain recorded with their original milestones.
+The M10.5 review reruns affected tests and does not claim another full native
+suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
 The [M9.13 diff review](review_m913_session.md) fixes frozen fit/allele/type
 validation and retains damaged-run errors in card detail views. Its full native
 suite passes **3,015 tests, five existing Windows skips**, with four strict type
@@ -25,6 +26,11 @@ filters and stage availability, without modifying frozen findings. See
 passes plus all 101 checks in the three files affected by sandbox restrictions.
 All ten final interface cases, four strict type targets, full card lint,
 fixtures, style and staged privacy checks pass.
+The [M10.5 diff review](review_m105_session.md) finds no production defect;
+it closes a reproduced CLI saved-summary/notice-count test gap. Production
+code, source pins and saved schemas remain unchanged. All 516 affected
+PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
+strict type targets, full card lint, fixtures and style passing.
 **M11.1 R/HIBAG detection and bridge is next.**
 See [the guideline contract and audit](pgx_guidelines.md) and the
 [M10.4 diff review](review_m104_session.md). The reviewed complete native suite
@@ -326,6 +332,17 @@ than creating a second definition of installed/usable. Distinguish missing R,
 missing HIBAG, probe failures and a usable runtime explicitly. Native Windows
 support and graceful absence are required; R is user-installed, not silently
 added by the pinned binary installer.
+
+The current doctor probe is only a starting point. It returns `missing` for
+every failed HIBAG probe, including a timeout, losing the actual error. This
+was reproduced with a synthetic timeout during the M10.5 review. Preserve
+failed-execution/timeout/malformed-output states as errors rather than
+claiming the package is absent. The success output is a fixed sentinel, not
+a HIBAG package version. Record both R and HIBAG identities and design an
+explicit, validated bridge result. Isolate R startup configuration (for
+example, `Rscript --vanilla`), validate subprocess outputs, bound execution
+and cancellation, and keep diagnostics private. A readiness check must not
+load personal input, fetch classifiers or infer an HLA call.
 
 Keep this item separate from M11.2 classifier ingestion/imputation and M11.3
 ancestry-matched selection. HLA models remain fetched references with recorded

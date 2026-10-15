@@ -2501,12 +2501,26 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     assert saved.computation is not None
     assert saved.computation["result"]["schema_version"] == display_schema
     assert saved.summary == card.summary and saved.computation == card.computation
-    cli = CliRunner().invoke(app, ["pgx", "calls", path.name, "--gene", "CYP2C19", "--json"])
-    assert cli.exit_code == 0, cli.output
-    assert json.loads(cli.output)["current_context"] == {"section_framing": framing}
-    assert json.loads(cli.output)["guideline_cards"][0]["computation"] == card.computation
+    for gene_args in ([], ["--gene", "CYP2C19"]):
+        args = ["pgx", "calls", path.name, *gene_args]
+        cli = CliRunner().invoke(app, [*args, "--json"])
+        assert cli.exit_code == 0, cli.output
+        assert json.loads(cli.output)["current_context"] == {"section_framing": framing}
+        assert json.loads(cli.output)["guideline_cards"] == [
+            {
+                "card_id": saved.card_id,
+                "summary": saved.summary,
+                "computation": saved.computation,
+                "citations": list(saved.citations),
+            }
+        ]
+        text = CliRunner().invoke(app, args)
+        assert text.exit_code == 0, text.output
+        assert text.output.count(framing["text"]) == 1
+        assert saved.summary in text.output
     detail = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert detail.exit_code == 0, detail.output
+    assert "current_context" not in json.loads(detail.output)
     assert json.loads(detail.output)["cards"][-1]["computation"] == card.computation
     client = TestClient(
         create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"

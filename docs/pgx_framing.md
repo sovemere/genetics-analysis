@@ -60,3 +60,18 @@ Python 3.11/3.13 type targets check 214 files. Full dbSNP card lint passes
 77 cards / 320 template renders / 39 resolved keys. Fixtures, lint/format,
 local documentation links, whitespace and staged privacy scanning pass.
 No personal export was opened or genotype-derived artifact staged.
+
+## Diff review, 2026-10-16
+
+The [session diff review](review_m105_session.md) finds no production defect
+and strengthens the saved-guideline CLI checks after reproducing a test gap.
+The complete CLI card projection must equal the loaded saved evidence, the
+text report must contain one section notice even with guideline cards, and
+raw bundle JSON must remain free of current-context metadata. All four
+reversible mutation scenarios are rejected. Runtime code, saved schemas,
+source pins and the original combined native acceptance remain unchanged.
+M11.1's handoff now records the existing HIBAG probe's timeout/absence
+conflation and missing package-version reporting.
+Review validation passes **516 affected tests**, the four final CLI cases,
+four strict type targets, full dbSNP card lint, fixtures and style checks.
+See the review for exact scope; the broad native run was not repeated.
