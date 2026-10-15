@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 import threading
@@ -351,17 +352,156 @@ def test_missing_script_is_public_safe(r_stub: Path, tmp_path: Path) -> None:
     assert "PRIVATE" not in str(error.value)
 
 
-def test_native_r_protocol_and_optional_script(tmp_path: Path) -> None:
-    """Exercise actual R syntax when user-installed R is available; never install it."""
-    found = os.environ.get("GENETICS_HIBAG_TEST_RSCRIPT") or shutil.which("Rscript")
+@pytest.mark.privacy
+@pytest.mark.parametrize("role", ["source", "cache"])
+def test_path_resolution_runtime_error_is_public_safe(
+    r_stub: Path,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    role: str,
+) -> None:
+    """Python 3.11/3.12 report a symlink loop as RuntimeError, including its path."""
+    runtime = hibag.HIBAGRuntime.discover()
+    source = tmp_path / "PRIVATE-LOOP.R"
+    source.write_text("# synthetic", encoding="utf-8")
+    private_path = source if role == "source" else Path(os.environ["GENETICS_DATA_DIR"])
+    original = Path.resolve
+
+    def resolve(path: Path, strict: bool = False) -> Path:
+        if path == private_path:
+            raise RuntimeError("Symlink loop from PRIVATE-LOOP.R")
+        return original(path, strict=strict)
+
+    monkeypatch.setattr(Path, "resolve", resolve)
+    with pytest.raises(hibag.HIBAGError, match="unavailable") as error:
+        runtime.run_script(source)
+    assert "PRIVATE" not in str(error.value)
+
+
+@pytest.mark.parametrize("reason", ["cancel", "timeout"])
+def test_final_wait_observes_cancellation_and_deadline(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    reason: str,
+) -> None:
+    """A successful exit cannot override interruption signalled during the last wait."""
+    cancel = threading.Event()
+    now = 0.0
+
+    class CompletingProcess:
+        def wait(self, timeout: float) -> int:
+            nonlocal now
+            if reason == "cancel":
+                cancel.set()
+            else:
+                now = 21.0
+            return 0
+
+        def poll(self) -> int:
+            return 0
+
+    monkeypatch.setattr(subprocess, "Popen", lambda *args, **kwargs: CompletingProcess())
+    monkeypatch.setattr(time, "monotonic", lambda: now)
+    expected = hibag.HIBAGCancelledError if reason == "cancel" else hibag.HIBAGTimeoutError
+    with pytest.raises(expected):
+        hibag._execute(["synthetic"], tmp_path, 20, cancel)
+
+
+@pytest.mark.parametrize("operation", ["probe", "script"])
+def test_preexisting_cancellation_precedes_optional_absence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    operation: str,
+) -> None:
+    monkeypatch.delenv("GENETICS_RSCRIPT", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    cancel = threading.Event()
+    cancel.set()
+    with pytest.raises(hibag.HIBAGCancelledError):
+        if operation == "probe":
+            hibag.probe(cancel=cancel)
+        else:
+            runtime = hibag.HIBAGRuntime(Path(sys.executable), "4.4.1", "test-platform", "1.40.0")
+            runtime.run_script(tmp_path / "absent.R", cancel=cancel)
+
+
+def test_nonregular_protocol_is_rejected_without_opening(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A FIFO can have size zero but block forever when opened after the child exits."""
+    path = tmp_path / "protocol"
+    path.write_text(PROTOCOL, encoding="utf-8")
+    original = Path.stat
+    fields = list(path.stat())
+    fields[0] = stat.S_IFIFO | 0o600
+    fifo = os.stat_result(fields)
+
+    def status(p: Path, *, follow_symlinks: bool = True) -> os.stat_result:
+        return fifo if p == path else original(p, follow_symlinks=follow_symlinks)
+
+    def forbidden_open(*args: object, **kwargs: object) -> Any:
+        raise AssertionError("Non-regular protocol must not be opened")
+
+    monkeypatch.setattr(Path, "stat", status)
+    monkeypatch.setattr(Path, "open", forbidden_open)
+    with pytest.raises(hibag.HIBAGProtocolError, match="malformed"):
+        hibag._protocol(path, Path(sys.executable))
+
+
+def test_native_script_reports_missing_hibag_as_a_skip(
+    r_stub: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GENETICS_HIBAG_TEST_RSCRIPT", str(r_stub))
+    monkeypatch.setenv("SYNTHETIC_R_MODE", "missing")
+    with pytest.raises(pytest.skip.Exception, match="HIBAG"):
+        _native_runtime()
+
+
+def _native_readiness() -> hibag.Readiness:
+    found = (
+        os.environ.get("GENETICS_HIBAG_TEST_RSCRIPT")
+        or os.environ.get("GENETICS_RSCRIPT")
+        or shutil.which("Rscript")
+    )
     if found is None:
         pytest.skip("User-installed Rscript unavailable for native HIBAG bridge acceptance")
     state = hibag.probe(Path(found))
     assert state.status in ("ready", "hibag-missing"), state.detail
     assert state.r_version is not None and state.r_platform is not None
+    return state
+
+
+def _native_runtime() -> hibag.HIBAGRuntime:
+    state = _native_readiness()
     if state.status == "hibag-missing":
-        return
+        pytest.skip("HIBAG package unavailable for native bridge script acceptance")
+    return hibag.HIBAGRuntime.from_readiness(state)
+
+
+def test_native_r_readiness_protocol() -> None:
+    """Exercise actual R syntax when user-installed R is available; never install it."""
+    _native_readiness()
+
+
+def test_native_hibag_script(tmp_path: Path) -> None:
+    runtime = _native_runtime()
     source = tmp_path / "native bridge.R"
-    source.write_text('stopifnot(identical(bridge_args, c("space value", "")))\n', encoding="utf-8")
-    result = hibag.HIBAGRuntime.from_readiness(state).run_script(source, ["space value", ""])
-    assert result.runtime.hibag_version == state.hibag_version
+    source.write_text(
+        'stopifnot(identical(bridge_args, c("space value", "")), '
+        "identical(identity, base::identity), "
+        '!exists("a", envir=globalenv(), inherits=FALSE))\n',
+        encoding="utf-8",
+    )
+    result = runtime.run_script(source, ["space value", ""])
+    assert result.runtime == runtime
+
+
+def test_native_acceptance_honors_configured_rscript(
+    r_stub: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("GENETICS_HIBAG_TEST_RSCRIPT", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    assert _native_readiness().path == r_stub

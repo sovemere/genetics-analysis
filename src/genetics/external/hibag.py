@@ -10,6 +10,7 @@ import math
 import os
 import re
 import shutil
+import stat
 import subprocess
 import sys
 import threading
@@ -61,9 +62,11 @@ identity <- function(destination="") {
     state
 }
 """
-_R_PROBE = _R_IDENTITY + "\ninvisible(identity())\n"
+_R_PROBE = "local({\n" + _R_IDENTITY + "\ninvisible(identity())\n})\n"
 _R_BRIDGE = (
-    _R_IDENTITY
+    # Bootstrap bindings must not shadow base::identity or leak into sourced code.
+    "local({\n"
+    + _R_IDENTITY
     + r"""
 a <- commandArgs(trailingOnly=TRUE)
 stopifnot(length(a) >= 5L)
@@ -76,6 +79,7 @@ scope <- new.env(parent=globalenv())
 scope$bridge_args <- a[-seq_len(5L)]
 sys.source(a[[2L]], envir=scope)
 if (identity(a[[1L]]) != "ready") quit(status=2L)
+})
 """
 )
 
@@ -142,6 +146,11 @@ def _seconds(value: float) -> None:
         raise HIBAGError("R execution timeout must be positive finite seconds.")
 
 
+def _check_cancel(cancel: threading.Event | None) -> None:
+    if cancel is not None and cancel.is_set():
+        raise HIBAGCancelledError("R execution was cancelled.")
+
+
 def _workspace() -> Path:
     path = cache_dir() / "hibag" / f"{uuid.uuid4().hex}.hibag-work"
     if is_inside_repo(path):
@@ -155,8 +164,7 @@ def _execute(
 ) -> None:
     """Bound execution, redirect streams to disk, and reap on every interruption."""
     _seconds(timeout)
-    if cancel is not None and cancel.is_set():
-        raise HIBAGCancelledError("R execution was cancelled.")
+    _check_cancel(cancel)
     process: subprocess.Popen[bytes] | None = None
     started = time.monotonic()
     try:
@@ -174,8 +182,7 @@ def _execute(
                 creationflags=_FLAGS,
             )
             while True:
-                if cancel is not None and cancel.is_set():
-                    raise HIBAGCancelledError("R execution was cancelled.")
+                _check_cancel(cancel)
                 if time.monotonic() - started >= timeout:
                     raise HIBAGTimeoutError("R execution timed out.")
                 try:
@@ -183,6 +190,10 @@ def _execute(
                     break
                 except subprocess.TimeoutExpired:
                     continue
+            # A signal/deadline reached during the terminal wait still applies.
+            _check_cancel(cancel)
+            if time.monotonic() - started >= timeout:
+                raise HIBAGTimeoutError("R execution timed out.")
             if code != 0:
                 raise HIBAGError("R execution exited unsuccessfully; inspect private diagnostics.")
     except (OSError, ValueError):
@@ -194,7 +205,8 @@ def _execute(
 
 def _protocol(path: Path, executable: Path) -> Readiness:
     try:
-        if path.is_symlink() or path.stat().st_size > 4096:
+        metadata = path.lstat()
+        if not stat.S_ISREG(metadata.st_mode) or metadata.st_size > 4096:
             raise ValueError
         with path.open(encoding="utf-8") as handle:
             text = handle.read(4097)
@@ -250,6 +262,7 @@ def probe(
     discovery/execution/protocol failures are reportable states for doctor and HLA.
     """
     _seconds(timeout)
+    _check_cancel(cancel)
     override = os.environ.get("GENETICS_RSCRIPT")
     try:
         found = str(path) if path is not None else override or shutil.which("Rscript")
@@ -343,6 +356,7 @@ class HIBAGRuntime:
         published as a biological call. The caller must validate scientific payloads.
         """
         _seconds(timeout)
+        _check_cancel(cancel)
         if isinstance(args, (str, bytes)) or any(
             not isinstance(arg, str) or "\0" in arg for arg in args
         ):
@@ -352,7 +366,9 @@ class HIBAGRuntime:
             if not source.is_file():
                 raise OSError
             directory = _workspace()
-        except (OSError, ValueError):
+        except HIBAGError:
+            raise
+        except (OSError, ValueError, RuntimeError):
             raise HIBAGError("R script or private working directory is unavailable.") from None
         protocol = directory / "runtime.hibag.tsv"
         _execute(

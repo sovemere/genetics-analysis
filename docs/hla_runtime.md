@@ -11,12 +11,16 @@ missing HIBAG, a failed probe and a ready runtime, retaining numeric R/HIBAG
 versions and the R platform. An installed package whose namespace cannot load is
 a probe failure, retaining its installed version. Structured protocol version 1 is strict
 and bounded; unrecognized or inconsistent output cannot establish readiness.
+Protocol inputs must be regular files; special files and symlinks are rejected
+before reading, so a FIFO cannot bypass the subprocess timeout.
 
 R is user-installed. Discovery uses `GENETICS_RSCRIPT`, then `Rscript` on PATH;
 an invalid explicit override is an error. Nothing installs R, packages or models.
 Every invocation uses `--vanilla`, controlled default packages and a private
 working directory. Startup profiles/workspaces are not loaded; configured
 `R_LIBS*` paths remain available so a user's installed HIBAG can be found.
+Bootstrap bindings stay in a local R environment and cannot shadow base functions
+or leak into a sourced script's parent environment.
 
 Run `genetics doctor --json` to inspect readiness. Its R entry includes
 `runtime_status`, `runtime_failure`, `r_version`, `hibag_version` and `r_platform`.
@@ -42,9 +46,13 @@ character vector. Both before sourcing and at completion, the R/HIBAG versions
 and platform must equal the discovered identity. Script outputs and console
 logs remain in the returned private directory; no completed attempt is reused.
 Timeouts and cancellation stop the child process (including its Windows tree).
+Both are checked again after the terminal wait before accepting process success.
+An already-cancelled request raises cancellation at public entry, even when R
+or the requested script is absent.
 Raw stdout/stderr, job paths, script arguments and subprocess errors never enter
-public exceptions or doctor output. Attempts live under the existing external private cache, with
-an ignored `.hibag-work` suffix as a second defense against accidental copies.
+public exceptions or doctor output. This includes Python 3.11/3.12 path-resolution
+`RuntimeError` failures. Attempts live under the existing external private cache,
+with an ignored `.hibag-work` suffix as a second defense against accidental copies.
 
 Primary API references: [Rscript](https://stat.ethz.ch/R-manual/R-devel/library/utils/html/Rscript.html),
 [namespace loading](https://stat.ethz.ch/R-manual/R-devel/library/base/html/ns-load.html),
@@ -56,7 +64,7 @@ returns a vector, including an empty vector for absence; the probe checks its
 length before testing namespace loading. Namespace startup output is redirected
 to private stderr, separate from the strict runtime protocol.
 
-## Validation (2026-10-16)
+## Implementation validation (2026-10-16)
 
 Combined final coverage passes **3,335 unique tests**, with **six skips**. The
 broad native run passes 3,331 tests in 530.06 seconds; all 114 final bridge,
@@ -84,3 +92,27 @@ discovery reports `r-missing`; standalone probing no longer imports the Beagle
 reference-processing stack. No native R/HIBAG positive-path success is claimed.
 No R/package/classifier installation, personal export or new HLA sample evidence
 is involved.
+
+## Diff review (2026-10-16)
+
+The [session diff review](review_m111_session.md) fixes private path error handling,
+terminal-wait interruption, special-file protocol handling and R bootstrap scope.
+It also separates native R readiness from native HIBAG script execution and honors
+the documented runtime override. Seven cases were reproduced failing before fixes;
+native R scope validation remains unexecuted locally.
+
+Final reviewed coverage passes **3,344 unique tests**, with **seven skips**:
+3,342 broad native-tool passes in 542.74 seconds, then all 123 final affected
+checks in 23.87 seconds, including two later entry-cancellation cases. Four
+strict type targets (217 source files), full card lint, fixtures and style pass.
+The [review record](review_m111_session.md#validation) states the exact combined
+scope and preserves the original implementation acceptance above.
+
+Native acceptance now has two explicit checks:
+`test_native_r_readiness_protocol` and `test_native_hibag_script`. Both skip if
+Rscript is unavailable; with R installed but HIBAG absent, readiness can pass
+while script execution explicitly skips. Set `GENETICS_RSCRIPT` to the user-installed
+executable (or use `GENETICS_HIBAG_TEST_RSCRIPT` for test-only selection). The script
+checks argument preservation and normal base-function lookup without any classifier
+or personal input. M11.2 must run both checks on a ready native installation before
+claiming native HLA imputation acceptance.

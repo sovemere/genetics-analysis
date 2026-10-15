@@ -173,6 +173,8 @@ Doctor shares the bridge's readiness states and R/HIBAG identities; failures rem
 separate from missing dependencies. Private isolated jobs support timeout and cancellation.
 See [the runtime contract](docs/hla_runtime.md). Native R/HIBAG success is unverified
 locally because Rscript is absent. No HLA calls or saved-schema changes are introduced.
+The [M11.1 diff review](docs/review_m111_session.md) hardens execution boundaries,
+private errors and R scope, with separate native readiness and script checks.
 [M11.2 HLA imputation](docs/handoff.md#next-open-step-m112-hla-imputation) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
