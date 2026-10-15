@@ -157,6 +157,11 @@ VKORC1's absent recommendation keys remain explicit. Validation covers 3,267
 unique passing checks, five existing Windows skips, four strict type targets,
 full card lint, fixtures, style and privacy checks. See the
 [contract and source audit](docs/pgx_guidelines.md).
+The [M10.4 diff review](docs/review_m104_session.md) hardens frozen numeric
+validation and incomplete-source evidence handling. New guideline cards use
+display schema 2; schema-1 cards retain their original rules and text. Review
+validation passes the complete native suite: 3,292 tests, five existing Windows
+skips, with four strict type targets, full card lint, fixtures and style passing.
 [M10.5 section framing](docs/handoff.md#next-open-step-m105-section-framing) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

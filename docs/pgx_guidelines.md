@@ -5,7 +5,9 @@ Recorded before implementation, 2026-10-15. Knowledge schema 5 adds kind
 declarative selector is the existing `gene` field. Cards carry real citations,
 not fabricated effect sizes or population sample sizes for a recommendation.
 
-Bundle format 20 adds guideline computations to ordinary saved cards. Public
+New guideline cards use display schema **2** after the
+[session diff review](review_m104_session.md); schema 1 remains readable with
+its original frozen rules. Bundle format 20 adds guideline computations to ordinary saved cards. Public
 catalog schema 1 and sample-call schema 1 stay unchanged. The computation
 freezes selector, all compatible recommendation branches, source row identities,
 publication evidence, conditions, gaps and inherited reliability. Save and reload
@@ -28,8 +30,11 @@ condition. A missing/noncallable gene or extra clinical context cannot establish
 applicability. All retained implications are conditional source annotations, not
 clinically established sample phenotypes. Pair CPIC level, recommendation
 classification and allele-function strength retain their separate source names.
-Only non-null guideline publication joins supply guideline citations. Missing
-rows/URLs/citations and population/context limits stay explicit.
+Only non-null guideline publication joins supply guideline citations. New cards
+require a usable HTTPS URL, a titled and format-valid DOI/PMID and nonblank
+recommendation text before displaying an implication. Missing or malformed
+rows/URLs/citations/text and population/context limits stay explicit. A partial
+bad identifier does not erase another valid citation or abort the whole stage.
 
 The frozen v1.60.0 audit finds no VKORC1 recommendation lookup keys and no
 phenotype lookup rows. Its warfarin gene–drug link is retained as an explicit
@@ -67,7 +72,8 @@ Missing guideline URLs or DOI/PMID evidence disable the displayed implication
 while retaining the source row and its gap. Clinical population/context limits
 are not converted into a measured ancestry match.
 
-The card face states the number of conditional rows, CPIC gene-drug levels,
+The card face states separate counts for conditional and evidence-incomplete
+rows, CPIC gene-drug levels,
 recommendation classifications and inherited reliability. Rarity keeps the
 likely-artifact tier, the approximate 16% benchmark and its heterozygous-chip,
 non-personal, non-imputation-validation scope. Low/unknown imputation quality
@@ -105,3 +111,33 @@ passes **248 tests**, with four existing Windows isolation skips; the fifth
 broad-suite skip concerns POSIX permission bits. Four strict Windows/Linux ×
 Python 3.11/3.13 targets check 214 files. Style, fixture reproduction, full card
 lint and whitespace checks pass. Staged privacy scanning passes; no fetched or genotype-derived payload is included.
+
+
+## Review extension contract (recorded before implementation)
+
+The M10.4 diff review reproduced numeric type substitutions accepted by Python
+dictionary equality and incomplete source evidence labelled as conditional.
+Guideline display schema **2** requires a usable guideline URL, a titled,
+format-valid DOI/PMID citation and nonblank recommendation text before displaying
+an implication. Missing or malformed fields remain explicit gaps, with the
+complete source rows retained. One invalid publication identifier must not abort
+all card assembly when another valid identifier or an explicit gap is available.
+
+New cards use display schema 2; existing display-schema-1 cards reproduce
+their frozen original rules. Knowledge schema 5, bundle format 20, public/sample
+schema 1 and M9.13 confidence remain unchanged. Numeric validation compares
+canonical JSON identities so booleans and floats cannot impersonate integer
+fields in either display schema. This is validation tightening for damaged
+records, not reinterpretation of healthy saved evidence.
+
+
+## Reviewed acceptance, 2026-10-15
+
+The [M10.4 diff review](review_m104_session.md) passes the complete native suite:
+**3,292 tests**, five existing Windows skips, in **543.30 seconds**. All 103
+focused guideline/interface/static checks, four strict type targets, full card
+lint, fixtures, style and whitespace checks pass. Full-source seeded-synthetic
+acceptance and written reload pass in **109.05 seconds**, including exact
+canonical-payload comparison of all eight legacy cards with the original
+`0a6f95a` implementation. New cards use display schema 2; historical schema-1
+interpretations remain unchanged. M10.5 section framing is the next open item.

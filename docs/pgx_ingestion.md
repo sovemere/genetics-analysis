@@ -148,8 +148,9 @@ properties of the public references, not measured consumer-chip coverage.
 | G6PD | 187 | 15 | 17,765 |
 
 VKORC1 has no phenotype/function-lookup rows in this release. Do not invent a
-metabolizer phenotype for it; inspect its source guideline/recommendation
-contract at M10.2/M10.4. DPYD uses `ACTIVITY_SCORE`; G6PD source diplotype counts
+metabolizer phenotype for it. The [M10.4 audit](pgx_guidelines.md) also finds no
+VKORC1 recommendation lookup keys and retains that explicit interpretation gap.
+DPYD uses `ACTIVITY_SCORE`; G6PD source diplotype counts
 do not establish sample sex/ploidy. CYP2C19/G6PD and other partial definitions
 must remain candidates with explicit unresolved constraints. A reference allele
 must never become a default merely because a chip omits its defining markers.

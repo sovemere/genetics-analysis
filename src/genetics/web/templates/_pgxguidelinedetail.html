@@ -8,7 +8,7 @@
      Source population and clinical context remain conditions, not measured ancestry agreement.</p>
   {% endif %}
   <p>{{ result.branches | length }} compatible candidate branches;
-     {{ result.recommendations | length }} conditional recommendation rows. All rows remain below.</p>
+     {{ result.recommendations | length }} retained recommendation rows. All rows remain below.</p>
   <details><summary>All {{ result.branches | length }} source candidate branches</summary>
   {% for branch in result.branches %}
   <details><summary>Candidate {{ branch.candidate_index + 1 }}:
@@ -25,7 +25,7 @@
   </details>
   {% for drug_id, items in result.recommendations | groupby("source_row.drugid") %}
   <details><summary>{{ items[0].drug.name if items[0].drug else drug_id }}:
-    {{ items | length }} conditional source rows</summary>
+    {{ items | length }} retained source rows</summary>
   {% for item in items %}
   <details><summary>{{ item.drug.name if item.drug else item.source_row.drugid }} —
     {{ item.status }}; recommendation classification {{ item.source_row.classification or "not provided" }};

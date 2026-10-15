@@ -18,7 +18,12 @@ parser and frozen-metadata fixes with all source pins and mapping counts unchang
 additive bundle format 19. The [calling contract](pgx_calling.md) records
 uncertainty, complete frozen evidence and full-source synthetic acceptance.
 **M10.4 guideline-linked interpretation is implemented; M10.5 section framing is next.**
-See [the guideline contract and audit](pgx_guidelines.md). Validation covers
+See [the guideline contract and audit](pgx_guidelines.md) and the
+[M10.4 diff review](review_m104_session.md). The reviewed complete native suite
+passes **3,292 tests**, five existing Windows skips; 103 focused checks, four
+strict type targets, full card lint, fixtures, style and whitespace checks pass.
+Full-source legacy comparison and schema-2 reload pass in 109.05 seconds.
+Original M10.4 validation covers
 3,267 unique passing checks, five existing Windows skips, four strict type
 targets, full card lint, fixtures, style and privacy checks.
 The [M10.3 diff review](review_m103_session.md) fixes incomplete saved text and
@@ -303,7 +308,10 @@ style and privacy gates pass; the guide records exact run boundaries.
 ### Next open step: M10.5 section framing
 
 M10.4 adds eight declarative guideline selectors in knowledge schema 5 and
-reproducible card computations in bundle format 20. Source/catalog schema 1,
+reproducible card computations in bundle format 20. Its
+[diff review](review_m104_session.md) hardens exact numeric validation and
+incomplete-source evidence handling. New cards use guideline display schema 2;
+schema-1 cards retain their original frozen rules and text. Source/catalog schema 1,
 sample-call schema 1 and M9.13 confidence remain unchanged. All conditional
 source branches, exact definition/mapping/result joins, multi-gene conditions,
 native copy models, clinical context and distinct evidence labels survive
@@ -315,6 +323,12 @@ warfarin dose or reverse-strand genotype bridge is manufactured. See
 M10.5 owns the once-per-section statement that this is not a prescribing tool.
 Place it where readers encounter PGx calls and guideline cards, with precise
 scope and shared wording across the section, overview/gene views and CLI.
+Use one shared current-context representation, with the CLI and dashboard
+adapting that same wording. JSON should identify section framing as current
+context, separate from frozen card results. Place it once in the PGx section,
+once on a PGx overview/gene view, and once in the relevant CLI report; do not
+emit it per candidate, gene row or guideline card. Preserve explicit missing
+source evidence and display-schema-1/2 compatibility.
 Keep candidate-specific measurement/phase/context uncertainty beside the
 conditional evidence. Do not repeat a generic disclaimer as card filler or
 replace quantitative reliability, source conditions or the adjacent CYP2D6

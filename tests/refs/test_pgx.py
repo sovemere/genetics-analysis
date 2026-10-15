@@ -2760,3 +2760,263 @@ def test_guideline_version_gate_cannot_be_bypassed(version: int, kind: str) -> N
     }
     with pytest.raises(CardError, match="schema_version 5"):
         parse_file(json.dumps({"schema_version": version, "cards": [entry]}), "synthetic")
+
+
+@pytest.mark.parametrize(
+    "mutation", ["schema_boolean", "index_boolean", "copy_boolean", "ploidy_float"]
+)
+@pytest.mark.parametrize("version", [1, 2])
+def test_m104_review_saved_numeric_types_are_exact(
+    frozen: dict[str, Any], mutation: str, version: int
+) -> None:
+    from genetics.pgx.guidelines import assemble_guideline_card, validate_stored
+    from genetics.run.bundle import _card_payload
+
+    guideline_source(frozen)
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    entry = deepcopy(
+        _card_payload(
+            assemble_guideline_card(guideline_card(), raw, display_schema_version=version)
+        )
+    )
+    result = entry["computation"]["result"]
+    if mutation == "schema_boolean":
+        result["schema_version"] = True
+    elif mutation == "index_boolean":
+        result["branches"][0]["candidate_index"] = False
+    elif mutation == "copy_boolean":
+        result["branches"][0]["allele_counts"]["*1"] = True
+    else:
+        result["branches"][0]["candidate"]["ploidy"] = 2.0
+    with pytest.raises(ValueError):
+        validate_stored(entry, raw)
+
+
+@pytest.mark.parametrize(
+    "missing",
+    [
+        "publication_title",
+        "publication_identifier",
+        "blank_url",
+        "invalid_url",
+        "recommendation_text",
+    ],
+)
+def test_m104_review_incomplete_evidence_is_explicit(frozen: dict[str, Any], missing: str) -> None:
+    from genetics.pgx.guidelines import assemble_guideline_card
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    if missing == "publication_title":
+        tables["publication"][0]["title"] = None
+    elif missing == "publication_identifier":
+        tables["publication"][0]["pmid"] = "not-a-pmid"
+    elif missing == "blank_url":
+        tables["guideline"][0]["url"] = " "
+    elif missing == "invalid_url":
+        tables["guideline"][0]["url"] = "not-a-guideline-url"
+    else:
+        tables["recommendation"][0]["drugrecommendation"] = None
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    card = assemble_guideline_card(guideline_card(), raw)
+    assert card.computation is not None
+    row = card.computation["result"]["recommendations"][0]
+    assert row["status"] == "evidence-missing"
+    assert row["gaps"]
+    assert "0 conditional CPIC" in card.summary
+    assert "Source rows lacking usable evidence: 1" in card.summary
+
+
+@pytest.mark.parametrize("version", [1, 2])
+@pytest.mark.parametrize("stage", ["completed", "unavailable"])
+def test_m104_review_both_display_schemas_roundtrip(
+    frozen: dict[str, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    tmp_path: Path,
+    version: int,
+    stage: str,
+) -> None:
+    from genetics.ancestry.context import AncestryContext
+    from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.run.bundle import read_bundle, write_bundle
+
+    guideline_source(frozen)
+    raw = (
+        calling.call(
+            refresh_call_reference(frozen),
+            sample_table([(101, "A", "G", "called")]),
+            sex=sample_qc.sex.inferred,
+        ).record
+        if stage == "completed"
+        else calling.unavailable(
+            "Synthetic missing reference", sex=sample_qc.sex.inferred.value
+        ).record
+    )
+    card = assemble_guideline_card(guideline_card(), raw, display_schema_version=version)
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(*sample_cards, card),
+        pack=replace(sample_pack, cards=(*sample_pack.cards, card.card)),
+        ancestry=AncestryContext.not_run("Synthetic compatibility"),
+        pgx=raw,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    saved = read_bundle(path).cards[-1]
+    assert saved.computation == card.computation and saved.summary == card.summary
+    assert saved.computation is not None
+    assert type(saved.computation["result"]["schema_version"]) is int
+    assert saved.computation["result"]["schema_version"] == version
+    assert before == {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+
+
+@pytest.mark.parametrize("invalid", ["pmid", "doi"])
+def test_m104_review_one_bad_identifier_keeps_valid_citation(
+    frozen: dict[str, Any], invalid: str
+) -> None:
+    from genetics.pgx.guidelines import assemble_guideline_card
+
+    guideline_source(frozen)
+    row = frozen["cpic"]["tables"]["publication"][0]
+    row.update(doi="10.1000/synthetic", pmid="10000001")
+    row[invalid] = "invalid-identifier"
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+    ).record
+    card = assemble_guideline_card(guideline_card(), raw)
+    assert card.computation is not None
+    recommendation = card.computation["result"]["recommendations"][0]
+    assert recommendation["status"] == "conditional"
+    assert recommendation["gaps"]
+    assert len(card.citations) == 1 and card.citations[0].type.value != invalid
+    assert recommendation["publications"][0][invalid] == "invalid-identifier"
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_m104_review_reader_rejects_numeric_substitution(
+    frozen: dict[str, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    tmp_path: Path,
+    version: int,
+) -> None:
+    import hashlib
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.run.bundle import CARDS_NAME, BundleError, read_bundle, write_bundle
+
+    guideline_source(frozen)
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+    ).record
+    card = assemble_guideline_card(guideline_card(), raw, display_schema_version=version)
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(*sample_cards, card),
+        pack=replace(sample_pack, cards=(*sample_pack.cards, card.card)),
+        ancestry=AncestryContext.not_run("Synthetic numeric substitution"),
+        pgx=raw,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    card_path = path / CARDS_NAME
+    payload = json.loads(card_path.read_text(encoding="utf8"))
+    payload["cards"][-1]["computation"]["result"]["branches"][0]["candidate_index"] = False
+    card_path.write_text(json.dumps(payload), encoding="utf8")
+    header = json.loads((path / "manifest.json").read_text(encoding="utf8"))
+    header["files"][CARDS_NAME] = hashlib.sha256(card_path.read_bytes()).hexdigest()
+    (path / "manifest.json").write_text(json.dumps(header), encoding="utf8")
+    with pytest.raises(BundleError, match="guideline card disagrees"):
+        read_bundle(path)
+
+
+@pytest.mark.parametrize("missing", ["title", "identifier", "url", "text"])
+def test_m104_review_incomplete_evidence_saved_interfaces(
+    frozen: dict[str, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    missing: str,
+) -> None:
+    from fastapi.testclient import TestClient
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.run.bundle import read_bundle, write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    guideline_source(frozen)
+    tables = frozen["cpic"]["tables"]
+    if missing == "title":
+        tables["publication"][0]["title"] = None
+    elif missing == "identifier":
+        tables["publication"][0]["pmid"] = "invalid-identifier"
+    elif missing == "url":
+        tables["guideline"][0]["url"] = " "
+    else:
+        tables["recommendation"][0]["drugrecommendation"] = " "
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+    ).record
+    card = assemble_guideline_card(guideline_card(), raw)
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(*sample_cards, card),
+        pack=replace(sample_pack, cards=(*sample_pack.cards, card.card)),
+        ancestry=AncestryContext.not_run("Synthetic incomplete evidence"),
+        pgx=raw,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(
+        catalog.Catalog,
+        "default",
+        classmethod(lambda cls: pytest.fail("Current reference is unavailable")),
+    )
+    before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
+    saved = read_bundle(path).cards[-1]
+    assert saved.computation == card.computation
+    cli = CliRunner().invoke(app, ["pgx", "calls", path.name, "--json"])
+    assert cli.exit_code == 0, cli.output
+    cli_card = json.loads(cli.output)["guideline_cards"][0]
+    assert cli_card["computation"] == card.computation
+    client = TestClient(
+        create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"
+    )
+    for suffix in ("", "/pgx", "/pgx?gene=CYP2C19", "/cards/" + card.card_id):
+        page = client.get(f"/runs/{path.name}" + suffix)
+        assert page.status_code == 200
+        assert (
+            "0 conditional CPIC" in page.text
+            and "Source rows lacking usable evidence: 1" in page.text
+        )
+        assert "<strong>CPIC source recommendation, conditional:</strong>" not in page.text
+        if suffix.startswith("/cards/"):
+            assert "Dosing implication unavailable" in page.text
+    assert before == {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
