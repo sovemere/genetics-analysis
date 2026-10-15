@@ -340,6 +340,18 @@ def analyse(
         dosages=None if imputation_result is None else imputation_result.iter_dosages,
         frequencies=frequency_records,
     )
+    from genetics.pgx.guidelines import assemble_guideline_card
+
+    cards = tuple(
+        replace(
+            assemble_guideline_card(card.card, pgx_calls.to_dict()),
+            imputation_mode=imputation_context.mode,
+        )
+        if card.kind is CardKind.GUIDELINE
+        else card
+        for card in cards
+    )
+    matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,
         qc=result.qc,

@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M9 and M10.1–M10.3 are complete. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M9 and M10.1–M10.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **19**; formats 1–18 remain readable without reinterpreting saved findings.
+New runs use bundle format **20**; formats 1–19 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -148,9 +148,16 @@ including the native-tool setup recheck; four strict type targets,
 full card lint, fixtures, style and privacy checks pass.
 The [M10.3 diff review](docs/review_m103_session.md) fixes incomplete saved-text
 reporting and replaces ignored filter inputs with actual hide-and-retain checks.
-M10.4 guideline-linked interpretation is next; its
-[entry contract](docs/handoff.md#next-open-step-m104-guideline-linked-cards)
-records the source joins, evidence fields and acceptance requirements.
+**M10.4 guideline-linked cards are implemented:** eight declarative selectors
+preserve every conditional CPIC recommendation branch, exact source joins,
+multi-gene requirements, population/clinical context and separate evidence labels.
+Bundle format 20 reproduces the cards from frozen sample schema 1 offline.
+Complete-source synthetic save/reload and all authored citation bindings pass;
+VKORC1's absent recommendation keys remain explicit. Validation covers 3,267
+unique passing checks, five existing Windows skips, four strict type targets,
+full card lint, fixtures, style and privacy checks. See the
+[contract and source audit](docs/pgx_guidelines.md).
+[M10.5 section framing](docs/handoff.md#next-open-step-m105-section-framing) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

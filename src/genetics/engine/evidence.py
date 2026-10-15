@@ -379,6 +379,12 @@ def assemble_card(
 
             return assemble_archaic_card(card, None, reason=match.reason)
         return assemble_roh_card(card, None, reason=match.reason)
+    if card.kind is CardKind.GUIDELINE:
+        if observation is not None or match.status is not MatchStatus.NOT_RUN:
+            raise EvidenceAssemblyError("guideline cards require the guideline assembler")
+        from genetics.pgx.guidelines import assemble_guideline_card
+
+        return assemble_guideline_card(card, None)
     if card.kind is CardKind.POLYGENIC:
         if observation is not None or match.status is not MatchStatus.NOT_RUN:
             raise EvidenceAssemblyError("polygenic cards require the polygenic assembler")

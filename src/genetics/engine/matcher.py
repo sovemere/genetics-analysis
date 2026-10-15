@@ -356,6 +356,12 @@ class Matcher:
         return cls(index=index, merges=merges, reference_forward_loci=reference_forward_loci)
 
     def match(self, card: Card) -> MatchResult:
+        if card.kind is CardKind.GUIDELINE:
+            return MatchResult(
+                card_id=card.id,
+                status=MatchStatus.NOT_RUN,
+                reason="Guideline interpretation has not run.",
+            )
         if card.kind is CardKind.COMPUTED:
             return MatchResult(
                 card_id=card.id,

@@ -162,3 +162,13 @@ affected integration run. Full-source offline comparison also preserves the
 original healthy calling results and schema-1 reload; four strict type targets,
 full card lint, fixtures and style pass. See the review for the run boundaries
 and saved-evidence corrections.
+
+
+## M10.4 guideline interpretation
+
+The sample caller remains schema 1 and records source mappings rather than
+clinical phenotypes. The additional [guideline card engine](pgx_guidelines.md)
+evaluates eight declarative knowledge selectors from those immutable inputs.
+New bundles use format 20; formats 1–19 remain readable without adding current
+interpretations. The existing CYP2D6 placement and all M10.2 reliability rules
+remain unchanged. M10.5's once-per-section framing is the next open item.

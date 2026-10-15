@@ -4,8 +4,8 @@ M10.1 ingests public references and exposes offline inspection through one share
 library. Reference inspection reads no consumer export and calls no sample
 diplotype. M10.2 implements [saved sample calling](pgx_calling.md), and M10.3
 places the saved CYP2D6 limitation beside those calls. M10.4 guideline-linked
-cards are next; see the [current handoff](handoff.md#next-open-step-m104-guideline-linked-cards).
-Current run bundles use format 19; source/catalog schema 1 and the M9.13
+cards are implemented; see [the guideline contract](pgx_guidelines.md).
+Current run bundles use format 20; source/catalog schema 1 and the M9.13
 confidence policy are unchanged.
 
 ## Setup and inspection

@@ -1,0 +1,106 @@
+schema_version: 5
+cards:
+- id: cyp2c19_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: CYP2C19 guideline-linked implications
+  gene: CYP2C19
+  citations:
+  - type: pmid
+    id: '35034351'
+    title: 'Clinical Pharmacogenetics Implementation Consortium Guideline for CYP2C19 Genotype and
+      Clopidogrel Therapy: 2022 Update.'
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: cyp2c9_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: CYP2C9 guideline-linked implications
+  gene: CYP2C9
+  citations:
+  - type: pmid
+    id: '32189324'
+    title: Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for CYP2C9 and Nonsteroidal
+      Anti-inflammatory Drugs.
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: vkorc1_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: VKORC1 guideline-linked implications
+  gene: VKORC1
+  citations:
+  - type: pmid
+    id: '28198005'
+    title: 'Clinical pharmacogenetics implementation consortium (cpic) guideline for pharmacogenetics-guided
+      warfarin dosing: 2017 update'
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: slco1b1_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: SLCO1B1 guideline-linked implications
+  gene: SLCO1B1
+  citations:
+  - type: pmid
+    id: '35152405'
+    title: The Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for SLCO1B1,
+      ABCG2, and CYP2C9 and statin-associated musculoskeletal symptoms.
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: tpmt_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: TPMT guideline-linked implications
+  gene: TPMT
+  citations:
+  - type: pmid
+    id: '30447069'
+    title: 'Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for thiopurine dosing
+      based on TPMT and NUDT15 genotypes: 2018 update.'
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: dpyd_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: DPYD guideline-linked implications
+  gene: DPYD
+  citations:
+  - type: pmid
+    id: '29152729'
+    title: 'Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Dihydropyrimidine
+      Dehydrogenase Genotype and Fluoropyrimidine Dosing: 2017 Update'
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: nudt15_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: NUDT15 guideline-linked implications
+  gene: NUDT15
+  citations:
+  - type: pmid
+    id: '30447069'
+    title: 'Clinical Pharmacogenetics Implementation Consortium (CPIC) guideline for thiopurine dosing
+      based on TPMT and NUDT15 genotypes: 2018 update.'
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.
+- id: g6pd_guidelines
+  section: pharmacogenomics
+  kind: guideline
+  title: G6PD guideline-linked implications
+  gene: G6PD
+  citations:
+  - type: pmid
+    id: '36049896'
+    title: Expanded Clinical Pharmacogenetics Implementation Consortium (CPIC) Guideline for Medication
+      Use in the Context of G6PD Genotype.
+  caveats:
+  - Guideline source release and all population, clinical and candidate conditions are retained in
+    the saved evidence.

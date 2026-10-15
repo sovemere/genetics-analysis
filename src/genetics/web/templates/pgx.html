@@ -10,6 +10,13 @@
   {% include "_pgxlimitation.html" %}
   <p><a href="{{ shell.run_url }}/pgx">All eight SNP-tractable genes</a></p>
   <p>{{ pgx_report.status }}{% if pgx_report.reason %}: {{ pgx_report.reason }}{% endif %}</p>
+  <h2>Guideline-linked cards</h2>
+  {% set ns = namespace(recorded=false) %}
+  {% for card in shell.cards if card.kind == "guideline" and (not pgx_gene or card.gene == pgx_gene) %}
+    {% set ns.recorded = true %}
+    <p><a href="{{ shell.run_url }}/cards/{{ card.card_id }}">{{ card.title }}</a>: {{ card.summary }}</p>
+  {% endfor %}
+  {% if not ns.recorded %}<p>Guideline cards not recorded by this run.</p>{% endif %}
   {% for gene, result in pgx_report.genes.items() %}
   <h2>{{ gene }} · {{ result.get("reliability", {}).get("tier", "unavailable") }}</h2>
   <p>{{ result.status }} · {{ result.candidates | length }} compatible candidate(s).</p>

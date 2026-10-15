@@ -26,9 +26,10 @@ the other sections through the same schema and lint path.
 M6 adds four computed genome-structure cards under `structure/`: long ROH,
 Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns.
 M7.5 adds cited common health associations under `health/`, with outcome-specific
-`risk_context` on the card face and in CLI output. The current pack has 64 cards:
-33 single-variant interpretations, one two-marker interpretation, 12 assay-limit
-cards, five computed cards and 13 polygenic cards.
+`risk_context` on the card face and in CLI output. M10.4 adds eight declarative
+guideline selectors under `pharmacogenomics/`. The current pack has 77 cards:
+37 single-variant interpretations, one two-marker interpretation, 12 assay-limit
+cards, five computed cards, 14 polygenic cards and eight guideline cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -299,3 +300,14 @@ states; it never renders a bare guessed population. Every pipeline interpretatio
 card displays that sentence on its face and detail even without the placeholder.
 Outcome-specific evidence (including null) controls its study population.
 See [card ancestry](../docs/card_ancestry.md) for the versioned confidence policy.
+
+
+### Guideline selectors (schema 5)
+
+`kind: guideline` is restricted to the pharmacogenomics section and one of the
+eight SNP-tractable genes. Entries author an ID, title, gene selector, real
+citations and optional caveats. They cannot author effect sizes, confidence,
+matching rules or recommendation text. The shared PGx engine derives all
+conditional recommendation branches from the saved complete CPIC source and
+candidate/mapping IDs. See [the versioned contract](../docs/pgx_guidelines.md).
+Schemas 1–4 remain readable with their original kinds.

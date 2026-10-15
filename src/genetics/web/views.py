@@ -989,7 +989,7 @@ class CardView(NoGenotypeRepr):
 
     @property
     def is_computed(self) -> bool:
-        return self.kind == "computed"
+        return self.kind in {"computed", "guideline"}
 
     @property
     def is_polygenic(self) -> bool:
@@ -1159,6 +1159,8 @@ class CardView(NoGenotypeRepr):
     def evidence_absence(self) -> str | None:
         """Why there is no evidence block, when there is not."""
         if self.evidence is not None:
+            return None
+        if self.kind == "guideline":
             return None
         if self.kind == "impossibility":
             # By construction, and the schema enforces it: an impossibility card's claim is

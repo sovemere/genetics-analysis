@@ -49,4 +49,19 @@ def cyp2d6_limitation(cards: Sequence[StoredCard]) -> dict[str, Any]:
 
 def saved_report(bundle: RunBundle, gene: str | None = None) -> dict[str, Any]:
     """Sample-call inspection plus saved assay-limit evidence; no new computation."""
-    return report(bundle.pgx, gene) | {"cyp2d6_limitation": cyp2d6_limitation(bundle.cards)}
+    guidelines = [
+        c for c in bundle.cards if c.kind == "guideline" and (gene is None or c.gene == gene)
+    ]
+    return report(bundle.pgx, gene) | {
+        "cyp2d6_limitation": cyp2d6_limitation(bundle.cards),
+        "guideline_cards": [
+            {
+                "card_id": c.card_id,
+                "summary": c.summary,
+                "computation": c.computation,
+                "citations": list(c.citations),
+            }
+            for c in guidelines
+        ],
+        "guideline_status": "recorded" if guidelines else "not-recorded",
+    }
