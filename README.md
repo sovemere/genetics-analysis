@@ -275,6 +275,13 @@ uv run --no-sync genetics install-hooks
 uv run --no-sync genetics --help
 ```
 
+Before pushing, `genetics ci-local` runs the GitHub CI checks in `.github/workflows/ci.yml`
+on this machine. It reads the steps from the workflow and runs them in a fresh clone of
+what the push would publish, with an empty data directory and cached per-version venvs.
+CI uses Java 17; pass `--java-home` if `JAVA_HOME` does not point at it.
+`--python 3.13` runs one matrix version instead of all of them. Jobs for other operating
+systems (the Linux runners, on Windows) are named but not reproduced.
+
 Fetch the sources and pinned tools needed for an analysis using `genetics refs` and
 `genetics tools`. Downloads can be large; the reference manifest declares sizes and
 licenses. Once installed, computation is local. Prefix the following commands with

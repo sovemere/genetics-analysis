@@ -17,6 +17,13 @@ privacy rules in §1 and the pre-commit checklist in §7 apply in full to every 
 and pushing straight to `main` on a public repo makes them matter more, not less. Verify
 before you push, because there is no review step to catch it.
 
+**CI is the only check that runs without this machine's state, so read its result.** From
+2026-10-11 to 2026-10-16 it failed on every push while every local run passed: a test
+found tools in the local user-data directory, which a runner does not have. Before pushing,
+run `genetics ci-local`. It runs the workflow's steps in a fresh clone with an empty data
+directory. After pushing, check the run with `gh run list --workflow ci.yml`, and treat a
+red run as a defect to fix now.
+
 ---
 
 ## 0. What this project is
