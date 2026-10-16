@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 
-from genetics.external.beagle import BeagleRunError
+from genetics.external.beagle import Beagle, BeagleRunError
 from genetics.imputation import ImputationError, impute, pipeline, snapshot
 from genetics.imputation.reference_compatibility import METHOD, validate_proof
 from genetics.imputation.reference_stream import ReferenceStream, duplicate_rows
@@ -168,15 +168,24 @@ def test_native_duplicate_failure_lossless_execution_and_frozen_proof(
     if not tools_root:
         pytest.skip("Set GENETICS_BEAGLE_TEST_TOOLS for the pinned native regression")
     tools = BrefTools.discover(Path(tools_root))
+    # Every discovery must use the pinned test tools, never the user-data default: a CI
+    # runner has none there, so an unpatched lookup passes locally and fails only in CI.
+    monkeypatch.setattr(BrefTools, "discover", lambda: tools)
     prepared, _, target = native_reference(tmp_path / "reference", tools, duplicate_markers=True)
     target = GenotypeTable(target.filter_chrom(Chrom("1")), vendor="synthetic")
+    run: dict[str, Any] = {
+        "sex": InferredSex.FEMALE,
+        "reference": prepared,
+        "beagle": Beagle.discover(tools_root=Path(tools_root)),
+        "bref": tools,
+    }
     with monkeypatch.context() as stock:
         stock.setattr(
             pipeline, "prepare_native_reference", lambda tools, panel, *args: (panel, None)
         )
         with pytest.raises(BeagleRunError):
-            impute(target, sex=InferredSex.FEMALE, reference=prepared, out=tmp_path / "stock")
-    result = impute(target, sex=InferredSex.FEMALE, reference=prepared, out=tmp_path / "fixed")
+            impute(target, **run, out=tmp_path / "stock")
+    result = impute(target, **run, out=tmp_path / "fixed")
     evidence = result.metadata["jobs"][0]["reference_evidence"]
     assert evidence["source"]["summary"]["records"] == 201
     assert evidence["native"]["summary"]["records"] == 200
@@ -196,7 +205,7 @@ def test_native_duplicate_failure_lossless_execution_and_frozen_proof(
     altered["jobs"][0]["reference_evidence"]["folded"][0]["gt_sha256"] = "e" * 64
     with pytest.raises(ValueError):
         snapshot._catalogs(frozen, altered)
-    resumed = impute(target, sex=InferredSex.FEMALE, reference=prepared, out=tmp_path / "fixed")
+    resumed = impute(target, **run, out=tmp_path / "fixed")
     assert resumed.resumed and resumed.metadata == result.metadata
     native_path = Path(result.metadata["jobs"][0]["phase"]["contract"]["inputs"]["ref"]["path"])
     lines = gzip.decompress(native_path.read_bytes()).splitlines(keepends=True)
@@ -206,4 +215,4 @@ def test_native_duplicate_failure_lossless_execution_and_frozen_proof(
     lines[index] = b"\t".join(fields) + b"\n"
     native_path.write_bytes(gzip.compress(b"".join(lines), mtime=0))
     with pytest.raises(ImputationError, match="cache is damaged"):
-        impute(target, sex=InferredSex.FEMALE, reference=prepared, out=tmp_path / "fixed")
+        impute(target, **run, out=tmp_path / "fixed")
