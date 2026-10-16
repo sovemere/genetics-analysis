@@ -395,6 +395,44 @@ def install_hooks() -> None:
     typer.echo("Pre-commit will now run ruff and the privacy suite.")
 
 
+@app.command("ci-local")
+def ci_local(
+    python: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--python",
+            help="Python version to run; repeatable. Default: every version in the CI matrix.",
+        ),
+    ] = None,
+    java_home: Annotated[
+        Path | None,
+        typer.Option("--java-home", help="Java for the native tests; defaults to JAVA_HOME/PATH."),
+    ] = None,
+) -> None:
+    """Run the GitHub CI checks (.github/workflows/ci.yml) on this machine.
+
+    Runs from a fresh clone of what a push would publish, with an empty data directory,
+    as a runner does. Jobs for another operating system are named, not reproduced.
+    """
+    from genetics.testing.ci import CIError, run
+
+    try:
+        outcomes = run(pythons=python, java_home=java_home, emit=typer.echo)
+    except CIError as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=2) from exc
+
+    colours = {"passed": typer.colors.GREEN, "failed": typer.colors.RED}
+    typer.echo("")
+    for outcome in outcomes:
+        typer.secho(
+            f"{outcome.status:<8} {outcome.seconds:7.1f}s  {outcome.label}",
+            fg=colours.get(outcome.status, typer.colors.YELLOW),
+        )
+    if any(outcome.status != "passed" for outcome in outcomes):
+        raise typer.Exit(code=1)
+
+
 @app.command()
 def paths(
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,

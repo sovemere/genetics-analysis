@@ -83,6 +83,11 @@ def tools_dir() -> Path:
     return user_data_dir() / "tools"
 
 
+def ci_dir() -> Path:
+    """Cached venvs and pinned tools for ``genetics ci-local``. Holds no personal data."""
+    return user_data_dir() / "ci"
+
+
 def references_dir() -> Path:
     """Downloaded reference databases.
 
@@ -139,6 +144,7 @@ def app_write_paths() -> tuple[tuple[str, Path, bool], ...]:
         ("runs_dir", runs_dir(), True),
         ("cache_dir", cache_dir(), True),
         ("tools_dir", tools_dir(), True),
+        ("ci_dir", ci_dir(), True),
         ("references_dir", references_dir(), True),
         ("reference_manifest", reference_manifest(), False),
         ("reference_lock", reference_lock(), False),
