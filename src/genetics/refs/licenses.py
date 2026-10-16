@@ -123,6 +123,20 @@ class LicenseTerms:
 
 _ENTRIES: tuple[LicenseTerms, ...] = (
     LicenseTerms(
+        id="LicenseRef-HIBAG-HLARES-Unspecified",
+        name="HIBAG HLARES published parameters; separate model terms unspecified",
+        terms_url="https://hibag.s3.amazonaws.com/hlares_index.html",
+        commercial_ok=False,
+        derivative_ok=False,
+        redistribution_ok=False,
+        share_alike=False,
+        attribution_required=True,
+        review_status="needs-review",
+        notes="Published explicitly for HLA imputation, but no separate model licence is "
+        "displayed. These flags mean permission is unestablished, not an asserted prohibition. "
+        "Do not inherit the software GPL or article CC-BY. Explicit source opt-in required.",
+    ),
+    LicenseTerms(
         id="LicenseRef-HapMap-Public-Domain",
         name="HapMap numerical data, public domain",
         terms_url="https://www.genome.gov/11511175/about-the-international-hapmap-project-fact-sheet",

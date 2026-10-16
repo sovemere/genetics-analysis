@@ -48,9 +48,12 @@ from genetics.ancestry.eigenstrat import EigenstratError
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
 from genetics.external.beagle import BeagleError
+from genetics.external.hibag import HIBAGError
 from genetics.external.plink2 import Plink2Error
 from genetics.health.clinvar import ClinVarError
 from genetics.health.frequencies import FrequencyError
+from genetics.hla.calling import HLAStage
+from genetics.hla.models import HLAError
 from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestError
 from genetics.pgx.calling import CallingError
@@ -78,6 +81,8 @@ def _error_kind(exc: Exception) -> str:
     three different things for an agent to do next, and prose is not something it can
     branch on.
     """
+    if isinstance(exc, HLAError | HIBAGError):
+        return "hla"
     if isinstance(exc, CallingError):
         return "pgx"
     if isinstance(exc, ImputationError | BeagleError | ProcessError):
@@ -173,6 +178,20 @@ def run(
         ),
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+    hla_classifier: Annotated[
+        str | None,
+        typer.Option(
+            "--hla-classifier",
+            help="Explicit european/asian/hispanic/african model; no automatic ancestry selection.",
+        ),
+    ] = None,
+    hla_model_opt_in: Annotated[
+        bool,
+        typer.Option(
+            "--hla-model-opt-in",
+            help="Acknowledge unspecified separate HLARES model terms for local imputation.",
+        ),
+    ] = False,
     no_impute: Annotated[
         bool,
         typer.Option(
@@ -192,9 +211,18 @@ def run(
         # progress line in it would make the document unparseable.
         _echo(f"  {message}", err=True, dim=True)
 
+    hla_options: dict[str, Any] = (
+        {"hla": HLAStage(hla_classifier, hla_model_opt_in)} if hla_classifier is not None else {}
+    )
+    if hla_model_opt_in and hla_classifier is None:
+        _fail(HLAError("Select an explicit HLA classifier with the model opt-in."), as_json=as_json)
     try:
         analysis = analyse(
-            input_path, knowledge_dir=knowledge, progress=progress, no_impute=no_impute
+            input_path,
+            knowledge_dir=knowledge,
+            progress=progress,
+            no_impute=no_impute,
+            **hla_options,
         )
         path = save(analysis, progress=progress)
     except (
@@ -215,6 +243,8 @@ def run(
         BeagleError,
         ProcessError,
         CallingError,
+        HLAError,
+        HIBAGError,
     ) as exc:
         _fail(exc, as_json=as_json)
 

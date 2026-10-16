@@ -470,6 +470,15 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             acmg_policy_url=citation_url("doi", DOI),
         )
 
+    @app.get("/runs/{run_id}/hla", response_class=HTMLResponse)
+    def hla(run_id: str, request: Request) -> Response:
+        from genetics.hla.calling import report
+
+        shell = _shell(run_id, _query(request))
+        if not shell.has_selection:
+            return _render(shell)
+        return _render(shell, "hla.html", hla_report=report(shell.hla))
+
     @app.get("/runs/{run_id}/pgx", response_class=HTMLResponse)
     def pgx(run_id: str, request: Request, gene: str | None = None, page: int = 1) -> Response:
         from genetics.pgx.calling import CallingError, report

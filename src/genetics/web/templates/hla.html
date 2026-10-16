@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}HLA classifier imputation{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block content %}
+<section class="panel">
+  <h1>HLA classifier imputation</h1>
+  <p><a href="{{ shell.run_url }}">Back to the run</a></p>
+  <p>{{ hla_report.status }}{% if hla_report.reason %}: {{ hla_report.reason }}{% endif %}</p>
+  {% if hla_report.get("reference") %}
+  <p>Explicit {{ hla_report.reference.source.population }} classifier · {{ hla_report.reference.source.version }} · two-field resolution.</p>
+  <p>Unphased model predictions. Joint posterior probability describes the model's selected allele pair; it is not validated individual accuracy or clinical HLA typing. Ancestry matching and confidence integration are not recorded by this schema.</p>
+  <p>Original array markers only. Missing, duplicate, unresolved-strand and incompatible markers remain missing inputs; no posterior threshold hides predictions.</p>
+  <p>R {{ hla_report.runtime.r_version }} · HIBAG {{ hla_report.runtime.hibag_version }} · {{ hla_report.runtime.r_platform }}</p>
+  <p>Model SHA-256: <code>{{ hla_report.reference.source.sha256 }}</code>.</p>
+  <p>Separate model terms: {{ hla_report.reference.source.terms_status }}; explicit opt-in recorded.</p>
+  <p>Method citation: Zheng et al., DOI 10.1038/tpj.2013.18.</p>
+  {% for gene, row in hla_report.genes.items() %}
+  <h2>HLA-{{ gene }} · {{ row.status }}</h2>
+  <p>{{ row.alleles | join(" / ") if row.alleles else "No prediction" }} · joint posterior {{ row.posterior if row.posterior is not none else "unavailable" }}</p>
+  <p>{{ row.observed_markers }}/{{ row.model_markers }} model markers observed. Training samples: {{ hla_report.reference.loci[gene].training_samples }}; classifiers: {{ hla_report.reference.loci[gene].classifiers }}.</p>
+  <ul>{% for state, count in row.coverage.items() %}<li>{{ state }}: {{ count }}</li>{% endfor %}</ul>
+  <details><summary>Frozen marker evidence</summary>
+    <table><thead><tr><th>GRCh37 chr6 position</th><th>State</th><th>First model allele on + strand</th><th>Strand proven by</th><th>Copies</th></tr></thead>
+    <tbody>{% for marker in row.markers %}<tr><td>{{ marker.position }}</td><td>{{ marker.state }}</td><td>{{ marker.forward_first_allele or "unresolved" }}</td><td>{{ marker.strand_evidence | join(", ") if marker.strand_evidence else "none" }}</td><td>{{ marker.dose if marker.dose is not none else "missing" }}</td></tr>{% endfor %}</tbody></table>
+  </details>
+  {% endfor %}
+  {% endif %}
+</section>
+{% endblock %}

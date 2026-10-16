@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -40,6 +40,9 @@ def _add_refs_commands() -> None:
     from genetics.cli.pgx_cmd import pgx_app
 
     app.add_typer(pgx_app, name="pgx")
+    from genetics.cli.hla_cmd import hla_app
+
+    app.add_typer(hla_app, name="hla")
 
 
 def _add_cards_commands() -> None:
@@ -188,6 +191,18 @@ def run(
         ),
     ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+    hla_classifier: Annotated[
+        str | None,
+        typer.Option(
+            "--hla-classifier", help="Explicit european/asian/hispanic/african HIBAG model."
+        ),
+    ] = None,
+    hla_model_opt_in: Annotated[
+        bool,
+        typer.Option(
+            "--hla-model-opt-in", help="Acknowledge unspecified separate HLARES model terms."
+        ),
+    ] = False,
     no_impute: Annotated[
         bool,
         typer.Option(
@@ -207,7 +222,18 @@ def run(
     # for any of them.
     from genetics.cli.run_cmd import run as run_pipeline
 
-    run_pipeline(input_path=input_path, knowledge=knowledge, as_json=as_json, no_impute=no_impute)
+    hla_options: dict[str, Any] = (
+        {"hla_classifier": hla_classifier, "hla_model_opt_in": hla_model_opt_in}
+        if hla_classifier is not None or hla_model_opt_in
+        else {}
+    )
+    run_pipeline(
+        input_path=input_path,
+        knowledge=knowledge,
+        as_json=as_json,
+        no_impute=no_impute,
+        **hla_options,
+    )
 
 
 @app.command()

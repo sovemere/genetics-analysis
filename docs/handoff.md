@@ -1,6 +1,6 @@
-# Handoff: M11 HLA classifier imputation
+# Handoff: M11.3 HLA ancestry selection and confidence
 
-As of 2026-10-16, **M0-M10 and M11.1 are implemented; M11.2 is next**. Full-reference
+As of 2026-10-16, **M0-M10 and M11.1–M11.2 are implemented; M11.3 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,8 +31,11 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.1 R/HIBAG readiness and bridge are implemented; M11.2 is next.**
-See the [runtime contract and validation](hla_runtime.md).
+**M11.2 HLA classifier imputation is implemented; M11.3 is next.** It uses an
+explicit, opt-in HIBAG HLARES hg19 model, validates model metadata, proves marker
+strand from dbSNP and 1000 Genomes allele sets, and persists frozen per-locus HLA calls
+in bundle format 21. See the
+[classifier-imputation contract and validation](hla_imputation.md).
 The [M11.1 diff review](review_m111_session.md) hardens path redaction, terminal-wait
 interruption, regular-file protocol validation and R bootstrap scope. Native R readiness
 and bridge-script acceptance are now separate checks; native success remains unverified.
@@ -106,7 +109,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13, M10 and M11.1 are also implemented; M11.2 is next.
+are complete. M9.9–M9.13, M10 and M11.1–M11.2 are also implemented; M11.3 is next.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -325,46 +328,43 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
-<a id="next-open-step-m112-hla-imputation"></a>
+<a id="next-open-step-m113-hla-ancestry-selection-and-confidence"></a>
 
-## Next open step: M11.2 HLA imputation
+## Next open step: M11.3 HLA ancestry selection and confidence
 
-M11.1 supplies one shared optional readiness function and a private R/HIBAG
-subprocess bridge. Doctor exposes runtime state, failure category, R/HIBAG
-versions and platform; missing dependencies remain nonfatal and probe failures
-remain errors. The [session diff review](review_m111_session.md) records the runtime
-boundary fixes and final validation; the original implementation acceptance remains
-in [the runtime contract](hla_runtime.md#implementation-validation-2026-10-16).
-Native Rscript is
-unavailable on this development machine, so no native HIBAG success is claimed.
-Configure `GENETICS_RSCRIPT` for the user-installed runtime, or use
-`GENETICS_HIBAG_TEST_RSCRIPT` for test-only selection. Start with
-`test_native_r_readiness_protocol` and `test_native_hibag_script` in
-`tests/external/test_hibag.py`. They are separate: an absent HIBAG package must
-skip script execution rather than count as a successful bridge test. The script
-checks argument handling and base-function lookup after bootstrap isolation.
-Neither test loads a classifier or personal input.
+M11.2 supplies validated, immutable HLA evidence but deliberately requires an
+explicit `--hla-classifier`; it must not infer a classifier from raw genotypes.
+M11.3 should use the persisted M5 ancestry placement and its uncertainty to select an
+eligible HLARES population model, record both the mapping and rationale in saved HLA
+evidence, and decline where placement is ambiguous or outside supported coverage. Do
+not silently force a marginal placement into a model.
 
-M11.2 must audit the actual HIBAG pre-fit classifier releases, model build,
-marker alleles/strand, HLA resolution, licences and checksums before adding
-fetched references. No HIBAG classifier entry currently exists in the manifest.
-Keep payloads outside Git and preserve model-specific provenance; do not use
-SNP2HLA. R and HIBAG remain user-installed; this bridge does not acquire them.
-Ancestry-matched selection and confidence integration belong to M11.3.
+Preserve every locus in the result. Fold posterior probability and marker coverage
+into its confidence while keeping low-confidence calls visible. `no-markers`,
+`no-prediction`, unavailable stages and failed jobs are not negative allele claims.
+M11.4, rather than this step, turns the frozen evidence into HLA-linked cards.
 
-Record a versioned sample-call contract and additive saved-bundle plan before
-writing HLA evidence. A completed bridge script is process success only. Validate
-complete scientific outputs, sample/marker identity, alleles, per-call posterior
-probabilities, missing/unsupported states and exact runtime/model identities
-before constructing a result. A failed probe or missing model is not an HLA
-negative. Preserve the shared offline CLI/dashboard engine and historical runs.
-Add ignore patterns for any new sample output or classifier file types in the same
-commit that introduces them; do not rely only on a private working directory.
-Scripts receive a character vector named `bridge_args` and write into their
-private working directory. Set an appropriate explicit job timeout, pass the
-cancellation event and retain diagnostics privately. Audit and run native R/HIBAG
-acceptance when that user-installed dependency becomes available, including
-ordinary package absence and an actual synthetic script on a ready installation.
+R and HIBAG remain user-installed. Native Rscript is unavailable on this development
+machine, so native HIBAG success remains unverified. Configure `GENETICS_RSCRIPT` for
+the user-installed runtime, or use `GENETICS_HIBAG_TEST_RSCRIPT` only for tests, then
+run the synthetic and published-model native acceptance coverage. The published-model
+test also needs `GENETICS_HIBAG_TEST_REFERENCES` pointing at a reference root holding
+the fetched classifiers, the dbSNP index and the 1000 Genomes chr6 VCF.
+
+The real pinned models, dbSNP and 1000 Genomes now pass reference preparation outside R.
+That check found two defects the synthetic fixtures hid: a dbSNP provenance version the
+producer never writes, and dbSNP-only strand proof losing 43% of markers to
+tetra-allelic sites. See the [real-reference acceptance](hla_imputation.md#real-reference-acceptance-2026-10-16).
+When M11.3 folds marker coverage into confidence, use the frozen per-marker
+`state` and `strand_evidence`, not a re-derivation.
+
+## M11.2 entry contract (implemented; retained for review)
+
+M11.2 audits the four HLARES hg19 model releases, pins their bytes, validates model
+metadata and dbSNP/1000 Genomes strand proofs, and records complete HLA sample schema
+1 evidence in additive bundle format 21. Model payloads and all per-run temporary data
+remain outside Git. The shared engine serves CLI and dashboard readers; formats 1–20
+remain explicitly HLA-not-recorded. See [the implementation contract](hla_imputation.md).
 
 <a id="next-open-step-m111-r-and-hibag"></a>
 

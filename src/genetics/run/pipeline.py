@@ -43,6 +43,7 @@ from genetics.health.clinvar import ClinVarLookup, lookup_default
 from genetics.health.coverage import assemble_coverage_card
 from genetics.health.frequencies import calibrate, default_index, select_frequencies
 from genetics.health.secondary import default_reference, surface
+from genetics.hla.calling import HLAStage
 from genetics.imputation import ImputationResult, impute
 from genetics.imputation.context import ImputationContext
 from genetics.imputation.observations import card_input, mark_imputed
@@ -89,6 +90,7 @@ class Analysis(NoGenotypeRepr):
     imputation_result: ImputationResult | None = None
     polygenic: Mapping[str, Mapping[str, Any]] = field(default_factory=dict)
     """Private M9 score records by polygenic card id, saved as ``pgs.run.json``."""
+    hla: Mapping[str, Any] | None = None
     pgx: Mapping[str, Any] | None = None
 
     @property
@@ -215,6 +217,7 @@ def analyse(
     no_impute: bool = False,
     polygenic: PolygenicStage | None = None,
     pgx: CallingStage | None = None,
+    hla: HLAStage | None = None,
 ) -> Analysis:
     """Parse, QC, infer ancestry, impute by default, then evaluate quality-aware cards.
 
@@ -244,6 +247,8 @@ def analyse(
     polygenic_stage.prepare(pack, progress)
     pgx_stage = pgx if pgx is not None else CallingStage()
     pgx_stage.prepare()
+    hla_stage = hla if hla is not None else HLAStage()
+    hla_stage.prepare(progress)
     result: IngestResult = ingest(input_path)
     if ancestry is None:
         context = infer_ancestry(result.table, result.qc, progress=progress)
@@ -364,6 +369,7 @@ def analyse(
         imputation_result=imputation_result,
         polygenic=polygenic_records,
         pgx=pgx_calls.to_dict(),
+        hla=hla_stage.run(result.table),
     )
 
 
@@ -399,6 +405,7 @@ def save(
         imputation_result=analysis.imputation_result,
         polygenic=analysis.polygenic,
         pgx=analysis.pgx,
+        hla=analysis.hla,
         progress=progress,
         runs_root=runs_root,
         run_id=run_id,

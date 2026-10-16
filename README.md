@@ -168,14 +168,15 @@ saved findings, historical runs and guideline display schemas 1–2 are preserve
 See [the framing contract](docs/pgx_framing.md). The
 [M10.5 diff review](docs/review_m105_session.md) closes a reproduced CLI
 saved-summary test gap; production code and saved formats are unchanged.
-**M11.1 optional R/HIBAG readiness and subprocess execution are implemented.**
-Doctor shares the bridge's readiness states and R/HIBAG identities; failures remain
-separate from missing dependencies. Private isolated jobs support timeout and cancellation.
-See [the runtime contract](docs/hla_runtime.md). Native R/HIBAG success is unverified
-locally because Rscript is absent. No HLA calls or saved-schema changes are introduced.
-The [M11.1 diff review](docs/review_m111_session.md) hardens execution boundaries,
-private errors and R scope, with separate native readiness and script checks.
-[M11.2 HLA imputation](docs/handoff.md#next-open-step-m112-hla-imputation) is next.
+**M11.2 HLA imputation is implemented.** It validates an explicitly selected, opt-in
+HIBAG HLARES hg19 classifier, proves marker strand from dbSNP and 1000 Genomes allele
+sets (99.8% of model markers on the real references), and stores frozen
+per-locus calls, posterior probability, marker coverage and provenance in bundle format
+21. Unavailable and no-prediction states never imply absence of an allele. See [the
+classifier-imputation contract](docs/hla_imputation.md). Native positive-path R/HIBAG
+execution remains unverified locally because Rscript is absent. [M11.3 HLA ancestry
+selection and confidence](docs/handoff.md#next-open-step-m113-hla-ancestry-selection-and-confidence)
+is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

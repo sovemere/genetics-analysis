@@ -1773,6 +1773,7 @@ class Shell(NoGenotypeRepr):
     the page has one shape: a template that had to ask whether a grid exists before asking
     what is in it would answer "nothing here" two different ways."""
 
+    hla: Mapping[str, Any] | None = None
     pgx: Mapping[str, Any] | None = None
     pgx_framing: Mapping[str, str] | None = None
     """Current section context, separate from frozen sample and card evidence."""
@@ -1830,6 +1831,7 @@ def shell_for(
         # populated one render through different branches, which is how the two drift.
         clinvar=None if bundle is None else bundle.clinvar,
         pgx=None if bundle is None else bundle.pgx,
+        hla=None if bundle is None else bundle.hla,
         pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         grid=grid_for(cards, query or GridQuery()),

@@ -227,6 +227,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         "ancestry": None if bundle.ancestry is None else dict(bundle.ancestry),
         "clinvar": None if bundle.clinvar is None else dict(bundle.clinvar),
         "pgx": None if bundle.pgx is None else dict(bundle.pgx),
+        "hla": None if bundle.hla is None else dict(bundle.hla),
         "imputation": None if bundle.imputation is None else dict(bundle.imputation),
         "imputation_provenance": None
         if bundle.imputation_provenance is None

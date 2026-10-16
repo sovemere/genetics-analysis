@@ -16,14 +16,16 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.2 HLA imputation with HIBAG pre-fit classifiers is next.** M0–M10 and
-M11.1 are implemented. The [current handoff](docs/handoff.md#next-open-step-m112-hla-imputation)
-starts with the shared [R/HIBAG readiness and bridge](docs/hla_runtime.md).
-Doctor distinguishes optional absence from execution, timeout, namespace and protocol
-failures and reports R/HIBAG versions. Runtime probes do not infer HLA calls.
-Knowledge schema 5 and bundle format 20 are unchanged. Native R/HIBAG execution
-remains unverified locally because Rscript is unavailable; synthetic subprocess
-acceptance and explicit optional absence are covered.
+**M11.3 HLA ancestry selection and confidence is next.** M0–M10 and M11.1–M11.2
+are implemented. The [current handoff](docs/handoff.md#next-open-step-m113-hla-ancestry-selection-and-confidence)
+starts with the frozen [classifier-imputation contract](docs/hla_imputation.md).
+M11.2 validates an explicitly selected, opt-in HIBAG HLARES hg19 classifier, proves
+marker strand from dbSNP and 1000 Genomes allele sets, records per-locus calls,
+posterior probability and coverage in bundle format 21, and preserves unavailable or
+no-prediction states without
+interpreting either as absence of an allele. Native R/HIBAG execution remains unverified
+locally because Rscript is unavailable; synthetic subprocess acceptance and explicit
+optional absence are covered.
 The [M11.1 diff review](docs/review_m111_session.md) hardens interruption,
 path redaction, regular-file protocol validation and R bootstrap scope, and
 separates native readiness from native script acceptance.
@@ -2856,9 +2858,13 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       preserve probe failures separately from missing dependencies and report R/HIBAG
       identities. Shared isolated execution, strict protocol, timeout/cancellation
       and private diagnostics are implemented. See the [runtime contract](docs/hla_runtime.md).
-- [ ] **M11.2** HLA imputation using **HIBAG pre-fit classifiers** (European/Asian/
-      Hispanic/African). **Do not use SNP2HLA** — its T1DGC panel was withdrawn over
-      individual-level genotype concerns and now needs a NIDDK request.
+- [x] **M11.2** HLA imputation using **HIBAG pre-fit classifiers** (European/Asian/
+       Hispanic/African). Explicit, opt-in hg19 model ingestion validates pinned source
+       bytes, metadata and dbSNP/1000 Genomes strand proofs before accepting per-locus
+       calls, posteriors and coverage in frozen bundle-format-21 evidence. `no-markers`
+       and `no-prediction` are not negative calls. **Do not use SNP2HLA** — its T1DGC
+       panel was withdrawn over individual-level genotype concerns and now needs a NIDDK
+       request. See the [implementation contract](docs/hla_imputation.md).
 - [ ] **M11.3** Ancestry-matched classifier selection, driven by M5 output. Report
       posterior probability per call and fold it into confidence.
 - [ ] **M11.4** HLA-linked cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing
@@ -2997,6 +3003,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-16 | M11.2 | Added explicit opt-in HIBAG HLARES hg19 classifier ingestion for European, Asian, Hispanic and African models, with pinned byte identity, isolated R metadata inspection, strand proofs from dbSNP and lock-verified 1000 Genomes chr6 allele sets, and strict complete-output validation. HLA sample schema 1 and bundle format 21 persist all seven loci, model/runtime identities, per-marker strand evidence, marker coverage, posterior and categorical unavailable/no-prediction states; historical bundles remain HLA-not-recorded. The shared engine serves run, inspect/calls CLI and dashboard views. Model terms are unresolved rather than inferred from the HIBAG package licence, so each classifier requires source opt-in. **Validating the real pinned models against the real local references, outside R and with no personal data, found two defects the synthetic fixtures hid.** (1) The frozen dbSNP provenance check demanded sidecar version 1; the producer only writes 2, so every real `prepare` would have refused. Fixtures now take the producer's constant, so a future bump fails the tests rather than saved runs. (2) dbSNP b157 lists every submitted allele, leaving 43% of model markers tetra-allelic and strand-unresolved. 1000 Genomes now votes alongside dbSNP; indel/structural records abstain and disagreement stays missing. 99.8% of marker slots are proven in all four models, all on the forward strand; one genuinely tetra-allelic position stays missing. Indexed strand lookup cuts each saved-record validation from 1.2 s to 5 ms. The full native suite passes 3,417 tests with 12 skips: seven need the absent Rscript and five are existing Windows limitations. Four strict type targets (224 files), full card lint (77/320/39), fixtures and style pass. Native positive-path R/HIBAG remains unverified. No personal export, classifier payload or derived output was added. [Contract and acceptance](docs/hla_imputation.md). |
 | 2026-10-16 | M11.1 diff review | Reviewed `60b38e7..3a7c32d`; fixed private path RuntimeError handling, entry/terminal cancellation and deadline boundaries, non-regular protocol reads and R bootstrap namespace leakage. Seven failing cases were reproduced before their fixes; the R scope correction is source-verified with native execution still unavailable. Native readiness and script acceptance now report separate skips and honor the documented Rscript override. Combined final coverage passes 3,344 unique tests, seven skips: 3,342 broad native passes, then all 123 final affected checks including two later cases. Four strict type targets (217 files), full card lint (77/320/39), fixtures, style and whitespace pass. Shared process helper, doctor adapter, source pins and saved schemas are unchanged. Handoff refreshed for M11.2 classifier audit and validated HLA imputation; M11.3 retains ancestry selection/confidence. [Review](docs/review_m111_session.md). |
 | 2026-10-16 | M11.1 | Shared optional R/HIBAG readiness and private subprocess bridge, with separate absence/execution/timeout/protocol/namespace states, numeric versions and isolated startup. Strict version-1 protocol, runtime-change rejection, safe argument vectors, cancellation and Windows process-tree cleanup are covered by synthetic subprocess checks; Beagle shares the unchanged termination helper. Combined final coverage passes 3,335 unique tests with six skips: 3,331 broad native passes, all 114 final bridge/doctor/Beagle checks (including four later cases), then all 61 final bridge/doctor checks. Four strict type targets (217 files), full card lint (77/320/39), fixtures, style and whitespace pass. Rscript is unavailable locally, so native R/HIBAG success remains unverified and its acceptance test skips; five other skips are existing Windows limitations. No personal export, classifier fetch or saved-schema change. M11.2 is next. [Contract and acceptance](docs/hla_runtime.md). |
 | 2026-10-16 | M10.5 diff review | No production defect found in `3b58d18..955487e`. A reversible mutation exposed a CLI saved-summary/notice-count test gap; strengthened schema-1/2 completed/unavailable checks bind complete and gene-specific report summaries, computations and citations to saved evidence. All four mutation scenarios are rejected. All 516 affected PGx/web/doctor tests, four final CLI cases, four strict type targets, full card lint (77/320/39), fixtures and style pass. Production code, pins and saved formats are unchanged. The M11.1 handoff now records existing probe timeout/absence conflation, absent HIBAG version reporting and bridge requirements. [Review](docs/review_m105_session.md). |

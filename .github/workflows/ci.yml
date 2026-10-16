@@ -121,7 +121,9 @@ jobs:
                -o -name '*.fam' -o -name '*.pgen' -o -name '*.eigenvec' \
                -o -name '*.sscore' -o -name '*.run.json' -o -name '*.hom' \
                -o -name '*.hom.*' -o -name '*.roh.json' -o -name '*.bref3' \
-               -o -name '*.dosages.jsonl.gz' \) -print)
+               -o -name '*.dosages.jsonl.gz' -o -iname '*.RData' -o -name '*.rda' \
+               -o -name '*.rds' -o -name '*.hla-input.tsv' -o -name '*.hla-output.tsv' \
+               -o -name '*.hla.json' \) -print)
           if [ -n "$hits" ]; then
             echo "::error::genotype-derived artifacts present:"
             echo "$hits"
