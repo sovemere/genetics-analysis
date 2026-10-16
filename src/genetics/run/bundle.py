@@ -83,8 +83,11 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 20
+BUNDLE_FORMAT_VERSION: Final[int] = 21
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 21 (M11.2) adds frozen HLA sample schema 1 in ``hla.run.json``.
+Formats 1-20 expose HLA as not recorded; no existing evidence is reinterpreted.
 
 Version 20 (M10.4) adds conditional guideline cards reproduced from the saved PGx
 sample evidence; source/catalog and sample schema 1 remain unchanged.
@@ -224,6 +227,8 @@ PGS_NAME: Final[str] = "pgs.run.json"
 PGS_FORMAT_VERSION: Final[int] = 17
 PGX_NAME: Final[str] = "pgx.run.json"
 PGX_FORMAT_VERSION: Final[int] = 19
+HLA_NAME: Final[str] = "hla.run.json"
+HLA_FORMAT_VERSION: Final[int] = 21
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -249,6 +254,7 @@ PAYLOAD_FILES: Final[tuple[str, ...]] = (
     IMPUTATION_PROVENANCE_NAME,
     PGS_NAME,
     PGX_NAME,
+    HLA_NAME,
 )
 """Every payload file this format version writes, and so every file a bundle may hold.
 
@@ -268,6 +274,7 @@ _PAYLOAD_SINCE: Final[Mapping[str, int]] = {
     IMPUTATION_PROVENANCE_NAME: 16,
     PGS_NAME: PGS_FORMAT_VERSION,
     PGX_NAME: PGX_FORMAT_VERSION,
+    HLA_NAME: HLA_FORMAT_VERSION,
 }
 
 
@@ -703,6 +710,7 @@ class RunBundle(NoGenotypeRepr):
     imputation_provenance: Mapping[str, Any] | None = None
     polygenic: Mapping[str, Mapping[str, Any]] | None = None
     """Private score records by polygenic card id (format 17+); None when not recorded."""
+    hla: Mapping[str, Any] | None = None
     pgx: Mapping[str, Any] | None = None
     """Frozen PGx sample-call schema 1; None for pre-format-19 runs."""
 
@@ -814,6 +822,7 @@ def write_bundle(
     imputation: ImputationContext | None = None,
     imputation_result: ImputationResult | None = None,
     polygenic: Mapping[str, Mapping[str, Any]] | None = None,
+    hla: Mapping[str, Any] | None = None,
     pgx: Mapping[str, Any] | None = None,
     progress: Callable[[str], None] | None = None,
     runs_root: Path | None = None,
@@ -947,6 +956,17 @@ def write_bundle(
             raise BundleError(str(exc)) from exc
         _check_guidelines(card_payloads, pgx_payload, BUNDLE_FORMAT_VERSION)
         _write_text(staging / PGX_NAME, _render(pgx_payload))
+
+        from genetics.hla.calling import unavailable as hla_unavailable
+        from genetics.hla.calling import validate as validate_hla
+        from genetics.hla.models import HLAError
+
+        hla_payload = dict(hla) if hla is not None else hla_unavailable("not-supplied")
+        try:
+            validate_hla(hla_payload)
+        except HLAError as exc:
+            raise BundleError("HLA sample evidence is invalid.") from exc
+        _write_text(staging / HLA_NAME, _render(hla_payload))
 
         manifest = {
             "format_version": BUNDLE_FORMAT_VERSION,
@@ -1646,6 +1666,17 @@ def read_bundle(path: Path) -> RunBundle:
         except (CallingError, ImputationError, KeyError, TypeError) as exc:
             raise BundleError("Saved PGx record is inconsistent with its run.") from exc
 
+    hla = None
+    if declared >= HLA_FORMAT_VERSION:
+        from genetics.hla.calling import validate as validate_hla
+        from genetics.hla.models import HLAError
+
+        hla = _load_json(directory / HLA_NAME)
+        try:
+            validate_hla(hla)
+        except HLAError as exc:
+            raise BundleError("Saved HLA evidence is invalid.") from exc
+
     _check_guidelines(entries, pgx, declared)
     return RunBundle(
         path=directory,
@@ -1665,4 +1696,5 @@ def read_bundle(path: Path) -> RunBundle:
         imputation_provenance=imputation_provenance,
         polygenic=polygenic,
         pgx=pgx,
+        hla=hla,
     )

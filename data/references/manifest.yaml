@@ -306,6 +306,7 @@ sources:
     enables:
       - reference PCA for ancestry projection (M5.3, M5.4)
       - phasing and imputation reference panel (M8.2)
+      - chr6 allele sets proving HIBAG classifier marker strand (M11.2)
     notes: >-
       EBI publishes no checksum file for this release, so the VCFs are unpinned by the
       manifest and pinned by the lock on first fetch. The release itself is immutable --
@@ -1347,3 +1348,87 @@ sources:
     notes: >-
       Listed to make the decision visible. The knowledge pack should be written from
       primary literature instead (M3.6).
+
+  - id: hibag_hlares_european_hg19
+    name: HIBAG HLARES European two-field hg19 classifiers
+    tier: A
+    required: false
+    version: "2012-08-05"
+    homepage: https://hibag.s3.amazonaws.com/download/hlares_param/European-HLA4.html
+    license: LicenseRef-HIBAG-HLARES-Unspecified
+    enables:
+      - Explicit European HLA classifier imputation (M11.2)
+    notes: >-
+      Audited 2026-10-16. Published parameters for imputation, separate model licence
+      unspecified; explicit source opt-in required. Software GPL does not establish
+      model terms. Preserve attribution to Zheng et al., DOI 10.1038/tpj.2013.18.
+      Original hg19 two-field HLARES model; never use experimental hg38 liftovers.
+      Payloads contain fitted haplotype parameters, not individual training genomes.
+    files:
+      - url: https://hibag.s3.amazonaws.com/download/hlares_param/European-HLA4-hg19.RData
+        filename: European-HLA4-hg19.RData
+        size_bytes: 14185776
+        sha256: 7b23a62da4b3cf0056aaeb32184fc1b295d1e35528c0dabd4e21ddfdfc073c50
+
+  - id: hibag_hlares_asian_hg19
+    name: HIBAG HLARES Asian two-field hg19 classifiers
+    tier: A
+    required: false
+    version: "2012-08-05"
+    homepage: https://hibag.s3.amazonaws.com/download/hlares_param/Asian-HLA4.html
+    license: LicenseRef-HIBAG-HLARES-Unspecified
+    enables:
+      - Explicit Asian HLA classifier imputation (M11.2)
+    notes: >-
+      Audited 2026-10-16. Published parameters for imputation, separate model licence
+      unspecified; explicit source opt-in required. Software GPL does not establish
+      model terms. Preserve attribution to Zheng et al., DOI 10.1038/tpj.2013.18.
+      Original hg19 two-field HLARES model; never use experimental hg38 liftovers.
+      Payloads contain fitted haplotype parameters, not individual training genomes.
+    files:
+      - url: https://hibag.s3.amazonaws.com/download/hlares_param/Asian-HLA4-hg19.RData
+        filename: Asian-HLA4-hg19.RData
+        size_bytes: 6733464
+        sha256: e1467580925116fc11c28410a5a34ff6f734c22cdaead8466e47a114e85ce394
+
+  - id: hibag_hlares_hispanic_hg19
+    name: HIBAG HLARES Hispanic two-field hg19 classifiers
+    tier: A
+    required: false
+    version: "2012-08-05"
+    homepage: https://hibag.s3.amazonaws.com/download/hlares_param/Hispanic-HLA4.html
+    license: LicenseRef-HIBAG-HLARES-Unspecified
+    enables:
+      - Explicit Hispanic HLA classifier imputation (M11.2)
+    notes: >-
+      Audited 2026-10-16. Published parameters for imputation, separate model licence
+      unspecified; explicit source opt-in required. Software GPL does not establish
+      model terms. Preserve attribution to Zheng et al., DOI 10.1038/tpj.2013.18.
+      Original hg19 two-field HLARES model; never use experimental hg38 liftovers.
+      Payloads contain fitted haplotype parameters, not individual training genomes.
+    files:
+      - url: https://hibag.s3.amazonaws.com/download/hlares_param/Hispanic-HLA4-hg19.RData
+        filename: Hispanic-HLA4-hg19.RData
+        size_bytes: 4454940
+        sha256: 4d92eed564bcbfd121315d2d069fa4f6550baef1a5f982b351294f440c6ab319
+
+  - id: hibag_hlares_african_hg19
+    name: HIBAG HLARES African two-field hg19 classifiers
+    tier: A
+    required: false
+    version: "2012-08-05"
+    homepage: https://hibag.s3.amazonaws.com/download/hlares_param/African-HLA4.html
+    license: LicenseRef-HIBAG-HLARES-Unspecified
+    enables:
+      - Explicit African HLA classifier imputation (M11.2)
+    notes: >-
+      Audited 2026-10-16. Published parameters for imputation, separate model licence
+      unspecified; explicit source opt-in required. Software GPL does not establish
+      model terms. Preserve attribution to Zheng et al., DOI 10.1038/tpj.2013.18.
+      Original hg19 two-field HLARES model; never use experimental hg38 liftovers.
+      Payloads contain fitted haplotype parameters, not individual training genomes.
+    files:
+      - url: https://hibag.s3.amazonaws.com/download/hlares_param/African-HLA4-hg19.RData
+        filename: African-HLA4-hg19.RData
+        size_bytes: 2599896
+        sha256: e421521339586e55aa7b5d823600ef0f7828cd70e6f2c33645a88303941afcb4

@@ -382,3 +382,11 @@ PGS??????.txt.gz
 *.prune.in
 *.prune.out
 *.roh-markers.txt
+
+# M11.2 HIBAG classifier payloads and private sample/interchange outputs.
+*.RData
+*.rda
+*.rds
+*.hla-input.tsv
+*.hla-output.tsv
+*.hla.json
