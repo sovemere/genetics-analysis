@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 
@@ -33,8 +33,21 @@ def calls(
             typer.echo(f"HLA: {data['status']}")
             if data["reason"]:
                 typer.echo(data["reason"])
+            choice = data.get("selection")
+            if choice is not None:
+                typer.echo(
+                    f"Ancestry selection: {choice['status']}; classifier "
+                    f"{choice['classifier'] or 'none'} ({choice['basis'] or 'not selected'}); "
+                    f"ancestry match {_value(choice['ancestry_match'])}"
+                )
+                typer.echo("  " + choice["reason"])
+            elif data.get("reference"):
+                typer.echo(
+                    "Explicit classifier: "
+                    + data["reference"]["source"]["population"]
+                    + "; ancestry selection and call confidence not recorded (HLA schema 1)."
+                )
             if data.get("reference"):
-                typer.echo("Explicit classifier: " + data["reference"]["source"]["population"])
                 typer.echo(
                     "Two-field, unphased model predictions; posterior is not clinical accuracy."
                 )
@@ -44,7 +57,27 @@ def calls(
                     f"{gene}: {row['status']}; {pair}; joint posterior {row['posterior']}; "
                     f"{row['observed_markers']}/{row['model_markers']} model markers observed"
                 )
+                if "confidence" in row:
+                    typer.echo("  " + _ceiling(row["confidence"]))
                 typer.echo("  Marker states: " + json.dumps(row["coverage"], sort_keys=True))
+
+
+def _value(value: float | None) -> str:
+    return "unknown" if value is None else f"{value:g}"
+
+
+def _ceiling(confidence: dict[str, Any]) -> str:
+    if confidence["status"] != "computed":
+        return "Confidence not computed: no prediction, which is not evidence against any allele."
+    ceiling = confidence["ceiling"] or "none"
+    lowered = ", ".join(confidence["ceilings"]) or "nothing"
+    side = "meets" if confidence["meets_published_call_threshold"] else "is below"
+    return (
+        f"Observation ceiling: {ceiling} (lowered by {lowered}); posterior {side} the "
+        f"published {confidence['published_call_threshold']:g} call threshold; marker "
+        f"coverage {confidence['marker_coverage']:.0%}; ancestry match "
+        f"{_value(confidence['ancestry_match'])}"
+    )
 
 
 def _fail(as_json: bool) -> None:

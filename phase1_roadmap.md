@@ -16,19 +16,22 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.3 HLA ancestry selection and confidence is next.** M0–M10 and M11.1–M11.2
-are implemented. The [current handoff](docs/handoff.md#next-open-step-m113-hla-ancestry-selection-and-confidence)
-starts with the frozen [classifier-imputation contract](docs/hla_imputation.md).
-M11.2 validates an explicitly selected, opt-in HIBAG HLARES hg19 classifier, proves
-marker strand from dbSNP and 1000 Genomes allele sets, records per-locus calls,
-posterior probability and coverage in bundle format 21, and preserves unavailable or
-no-prediction states without
-interpreting either as absence of an allele. Native R/HIBAG prediction runs in CI through
-synthetic classifiers on Windows and Linux. Locally it also passes through all four
-published classifiers (2026-10-18, R 4.6.1 + HIBAG 1.48.2, synthetic genotypes).
-The [M11.1 diff review](docs/review_m111_session.md) hardens interruption,
-path redaction, regular-file protocol validation and R bootstrap scope, and
-separates native readiness from native script acceptance.
+**M11.4 HLA-linked cards are next.** M0–M10 and M11.1–M11.3 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m114-hla-linked-cards) starts with the
+frozen [selection and confidence contract](docs/hla_selection.md).
+M11.3 chooses the HIBAG HLARES classifier from the run's saved M5 placements: the
+1000 Genomes population's cited Morales category must be named by the publisher's
+training description, the AADR placement must have placed the sample, and admissible
+alternatives must agree on the classifier. Otherwise nothing is selected and nothing is
+guessed. An explicit `--hla-classifier` still runs, with its ancestry match recorded
+against that selection. Each predicted locus folds its joint posterior, marker coverage
+and classifier ancestry match into an observation ceiling, using the calculator's own
+bands. HLA sample schema 2 is bound to the saved ancestry in bundle format 22, and format 21
+schema-1 runs are read unchanged. M11.2's
+[classifier-imputation contract](docs/hla_imputation.md) is unchanged beneath it.
+Native R/HIBAG prediction runs in CI through synthetic classifiers on Windows and Linux.
+Locally it also passes through all four published classifiers with schema-2 records
+(2026-10-18, R 4.6.1 + HIBAG 1.48.2, synthetic genotypes).
 
 ### Completed milestones (historical checkpoints)
 
@@ -2865,8 +2868,13 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
        and `no-prediction` are not negative calls. **Do not use SNP2HLA** — its T1DGC
        panel was withdrawn over individual-level genotype concerns and now needs a NIDDK
        request. See the [implementation contract](docs/hla_imputation.md).
-- [ ] **M11.3** Ancestry-matched classifier selection, driven by M5 output. Report
-      posterior probability per call and fold it into confidence.
+- [x] **M11.3** Ancestry-matched classifier selection, driven by M5 output. Report
+      posterior probability per call and fold it into confidence. AADR decline gate plus
+      1000 Genomes → Morales category → publisher training description; declined, not
+      run, ambiguous and unsupported placements select nothing. Explicit classifiers run
+      with their ancestry mismatch recorded. Per-locus ceilings use the calculator's own
+      posterior/coverage/ancestry bands. Schema 2, format 22. See the
+      [selection contract](docs/hla_selection.md).
 - [ ] **M11.4** HLA-linked cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing
       spondylitis, narcolepsy (DQB1\*06:02), drug hypersensitivity (B\*57:01/abacavir,
       B\*15:02/carbamazepine).
@@ -3003,6 +3011,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-18 | M11.3 | The HIBAG classifier is now chosen from the run's saved M5 placements, not named by hand. The 1000 Genomes population maps to its Morales category (the table M9.5 already cites). A category maps to a classifier only where the publisher's training description names it. The AADR placement must have placed the sample, and admissible 1000 Genomes alternatives must agree on the classifier. Declined, not-run, ambiguous and unsupported placements select nothing and record `no-classifier`; the stage never guesses. **Two findings from the source check.** (1) The publisher describes the Asian model's training as "East & South Asia" plus CHB+JPT, with no published split. A South Asian placement therefore selects it with an *unknown* ancestry match, not a perfect one; the first draft had excluded South Asia, while including KHV, which no description names. (2) Zheng et al. 2014 chose a 0.5 call threshold (about 80% accuracy). It is recorded beside each call but sets no tier, because the calculator's own DR2 bands already govern the posterior and M11.4's `calculate_confidence` will apply those same bands. An explicit `--hla-classifier` still runs (AGENTS.md 0.1A), with its ancestry match recorded: 1 when the placement agrees, 0 when it is contradicted, declined or unsupported, unknown otherwise. Each predicted locus folds its posterior (DR2 bands), marker coverage (`ancestry_ceiling` bands, as for polygenic coverage) and that match into an observation ceiling, with no new number. `no-markers`/`no-prediction` loci are `not_computed`. HLA sample schema 2 is bound to the same bundle's `ancestry.run.json` in format 22; format 21 keeps schema 1 and is read unchanged, and a schema/format mismatch is refused both ways. Model preparation for an automatic choice moves after ancestry; an explicit model is still verified before the export is read. CLI and dashboard show the selection, uncertainty and ceiling. Ten guards were each neutered in turn, and every change failed a test. The broad local suite: 3,465 passed, ten failed, 53 skipped (native ROH/Beagle tool roots and published-classifier references not configured). All ten failures were format-21 literals, now 22; their four files then passed 245. Native acceptance with R 4.6.1 + HIBAG 1.48.2 passed all five tests, schema-2 records, synthetic genotypes: the synthetic round trip and all four published classifiers against the real dbSNP/1000 Genomes references. Four strict type targets (228 files) and lint/format pass. No personal export was opened, and no classifier payload or derived output was added. [Contract and acceptance](docs/hla_selection.md). |
 | 2026-10-16 | M11.2 | Added explicit opt-in HIBAG HLARES hg19 classifier ingestion for European, Asian, Hispanic and African models, with pinned byte identity, isolated R metadata inspection, strand proofs from dbSNP and lock-verified 1000 Genomes chr6 allele sets, and strict complete-output validation. HLA sample schema 1 and bundle format 21 persist all seven loci, model/runtime identities, per-marker strand evidence, marker coverage, posterior and categorical unavailable/no-prediction states; historical bundles remain HLA-not-recorded. The shared engine serves run, inspect/calls CLI and dashboard views. Model terms are unresolved rather than inferred from the HIBAG package licence, so each classifier requires source opt-in. **Validating the real pinned models against the real local references, outside R and with no personal data, found two defects the synthetic fixtures hid.** (1) The frozen dbSNP provenance check demanded sidecar version 1; the producer only writes 2, so every real `prepare` would have refused. Fixtures now take the producer's constant, so a future bump fails the tests rather than saved runs. (2) dbSNP b157 lists every submitted allele, leaving 43% of model markers tetra-allelic and strand-unresolved. 1000 Genomes now votes alongside dbSNP; indel/structural records abstain and disagreement stays missing. 99.8% of marker slots are proven in all four models, all on the forward strand; one genuinely tetra-allelic position stays missing. Indexed strand lookup cuts each saved-record validation from 1.2 s to 5 ms. The full native suite passes 3,417 tests with 12 skips: seven need the absent Rscript and five are existing Windows limitations. Four strict type targets (224 files), full card lint (77/320/39), fixtures and style pass. Native positive-path R/HIBAG remains unverified. No personal export, classifier payload or derived output was added. [Contract and acceptance](docs/hla_imputation.md). |
 | 2026-10-16 | M11.1 diff review | Reviewed `60b38e7..3a7c32d`; fixed private path RuntimeError handling, entry/terminal cancellation and deadline boundaries, non-regular protocol reads and R bootstrap namespace leakage. Seven failing cases were reproduced before their fixes; the R scope correction is source-verified with native execution still unavailable. Native readiness and script acceptance now report separate skips and honor the documented Rscript override. Combined final coverage passes 3,344 unique tests, seven skips: 3,342 broad native passes, then all 123 final affected checks including two later cases. Four strict type targets (217 files), full card lint (77/320/39), fixtures, style and whitespace pass. Shared process helper, doctor adapter, source pins and saved schemas are unchanged. Handoff refreshed for M11.2 classifier audit and validated HLA imputation; M11.3 retains ancestry selection/confidence. [Review](docs/review_m111_session.md). |
 | 2026-10-16 | M11.1 | Shared optional R/HIBAG readiness and private subprocess bridge, with separate absence/execution/timeout/protocol/namespace states, numeric versions and isolated startup. Strict version-1 protocol, runtime-change rejection, safe argument vectors, cancellation and Windows process-tree cleanup are covered by synthetic subprocess checks; Beagle shares the unchanged termination helper. Combined final coverage passes 3,335 unique tests with six skips: 3,331 broad native passes, all 114 final bridge/doctor/Beagle checks (including four later cases), then all 61 final bridge/doctor checks. Four strict type targets (217 files), full card lint (77/320/39), fixtures, style and whitespace pass. Rscript is unavailable locally, so native R/HIBAG success remains unverified and its acceptance test skips; five other skips are existing Windows limitations. No personal export, classifier fetch or saved-schema change. M11.2 is next. [Contract and acceptance](docs/hla_runtime.md). |

@@ -148,6 +148,8 @@ genetics run --input <local-input> --hla-classifier european --hla-model-opt-in
 genetics hla calls <run-id> --json
 ```
 
-M11.2 does not select a classifier from a sample. M11.3 will make and record that
-choice from ancestry placement, and will decline rather than guess when the placement
-cannot support a classifier.
+M11.2 did not select a classifier from a sample. Since M11.3 the model-terms opt-in alone
+selects one from the run's ancestry placements and declines rather than guesses; an
+explicit `--hla-classifier` still runs, recorded against that selection. New runs write
+HLA sample schema 2 in bundle format 22. See the
+[selection and confidence contract](hla_selection.md).

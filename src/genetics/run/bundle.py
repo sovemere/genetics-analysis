@@ -83,8 +83,12 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 21
+BUNDLE_FORMAT_VERSION: Final[int] = 22
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 22 (M11.3) writes HLA sample schema 2: the M5-driven classifier selection, bound to
+the saved ancestry placements, and a per-locus observation ceiling. Format 21 bundles keep
+schema 1 -- an explicit classifier with neither recorded -- and are never reinterpreted.
 
 Version 21 (M11.2) adds frozen HLA sample schema 1 in ``hla.run.json``.
 Formats 1-20 expose HLA as not recorded; no existing evidence is reinterpreted.
@@ -229,6 +233,7 @@ PGX_NAME: Final[str] = "pgx.run.json"
 PGX_FORMAT_VERSION: Final[int] = 19
 HLA_NAME: Final[str] = "hla.run.json"
 HLA_FORMAT_VERSION: Final[int] = 21
+HLA_SELECTION_FORMAT_VERSION: Final[int] = 22
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -963,9 +968,10 @@ def write_bundle(
 
         hla_payload = dict(hla) if hla is not None else hla_unavailable("not-supplied")
         try:
-            validate_hla(hla_payload)
+            validate_hla(hla_payload, schema_version=_hla_schema(BUNDLE_FORMAT_VERSION))
         except HLAError as exc:
             raise BundleError("HLA sample evidence is invalid.") from exc
+        _check_hla_ancestry(hla_payload, ancestry.to_dict())
         _write_text(staging / HLA_NAME, _render(hla_payload))
 
         manifest = {
@@ -1167,6 +1173,27 @@ def _check_shared_pgs_placement(
             and block.get("placement") != placement
         ):
             raise BundleError("Saved polygenic ancestry disagrees with the shared run placement")
+
+
+def _hla_schema(version: int) -> int:
+    """The one HLA sample schema a bundle format may hold."""
+    return 2 if version >= HLA_SELECTION_FORMAT_VERSION else 1
+
+
+def _check_hla_ancestry(hla: Mapping[str, Any], ancestry: Mapping[str, Any] | None) -> None:
+    """A saved classifier choice must rederive from the run's own saved placements."""
+    choice = hla.get("selection")
+    if choice is None:
+        return
+    from genetics.hla import selection
+    from genetics.hla.models import HLAError
+
+    try:
+        derived = selection.source(ancestry)
+    except HLAError as exc:
+        raise BundleError("Saved HLA selection disagrees with the run's ancestry.") from exc
+    if derived != choice.get("source"):
+        raise BundleError("Saved HLA selection disagrees with the run's ancestry.")
 
 
 def _stored_card(raw: Any, where: str) -> StoredCard:
@@ -1673,9 +1700,10 @@ def read_bundle(path: Path) -> RunBundle:
 
         hla = _load_json(directory / HLA_NAME)
         try:
-            validate_hla(hla)
+            validate_hla(hla, schema_version=_hla_schema(declared))
         except HLAError as exc:
             raise BundleError("Saved HLA evidence is invalid.") from exc
+        _check_hla_ancestry(hla, ancestry)
 
     _check_guidelines(entries, pgx, declared)
     return RunBundle(

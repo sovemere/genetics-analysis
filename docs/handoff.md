@@ -1,6 +1,6 @@
-# Handoff: M11.3 HLA ancestry selection and confidence
+# Handoff: M11.4 HLA-linked cards
 
-As of 2026-10-16, **M0-M10 and M11.1–M11.2 are implemented; M11.3 is next**. Full-reference
+As of 2026-10-18, **M0-M10 and M11.1–M11.3 are implemented; M11.4 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,10 +31,17 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.2 HLA classifier imputation is implemented; M11.3 is next.** It uses an
-explicit, opt-in HIBAG HLARES hg19 model, validates model metadata, proves marker
+**M11.3 HLA classifier selection and call confidence are implemented; M11.4 is next.**
+The model-terms opt-in now selects the HIBAG classifier from the run's saved M5
+placements and declines rather than guesses; an explicit classifier still runs with its
+ancestry mismatch recorded. Each predicted locus carries an observation ceiling from its
+posterior, marker coverage and classifier ancestry match. HLA sample schema 2 is bound to
+the saved ancestry in bundle format 22. See the
+[selection and confidence contract](hla_selection.md).
+**M11.2 HLA classifier imputation is implemented.** It uses an
+opt-in HIBAG HLARES hg19 model, validates model metadata, proves marker
 strand from dbSNP and 1000 Genomes allele sets, and persists frozen per-locus HLA calls
-in bundle format 21. See the
+(bundle format 21 for schema 1). See the
 [classifier-imputation contract and validation](hla_imputation.md).
 The [M11.1 diff review](review_m111_session.md) hardens path redaction, terminal-wait
 interruption, regular-file protocol validation and R bootstrap scope. Native R readiness
@@ -111,7 +118,7 @@ in 1,416.58 seconds. All four strict type targets check 200 files; full dbSNP
 lint passes 55 cards/276 renders/35 resolved keys. Lint/format, byte-identical
 fixtures, whitespace checks and staged privacy scanning pass. No genotype-derived
 artifact or fetched payload is staged. Both milestones and the requested review
-are complete. M9.9–M9.13, M10 and M11.1–M11.2 are also implemented; M11.3 is next.
+are complete. M9.9–M9.13, M10 and M11.1–M11.3 are also implemented; M11.4 is next.
 See [physical-health PRS cards](physical_health_prs.md) and
 [mental-health model audit and scale acceptance](mental_health_prs.md).
 
@@ -330,9 +337,57 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m114-hla-linked-cards"></a>
+
+## Next open step: M11.4 HLA-linked cards
+
+M11.3 supplies a frozen classifier choice and a per-locus observation ceiling. M11.4
+turns them into cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing spondylitis,
+narcolepsy (DQB1\*06:02) and drug hypersensitivity (B\*57:01/abacavir,
+B\*15:02/carbamazepine). Start with the [selection and confidence contract](hla_selection.md)
+and read schema-2 `hla.run.json` through `genetics.hla.calling.report`. Do not rerun HIBAG
+or reselect a classifier from a card.
+
+What a card has to carry, and what is not yet decided:
+
+- **Confidence.** Call `calculate_confidence` with `call_source=IMPUTED`, the locus joint
+  posterior as `imputation_quality` and the selection's `ancestry_match`. Then apply the
+  locus `confidence.ceiling`, which also holds the marker-coverage cap the calculator
+  lacks. Never filter: a likely-artifact call still renders, tiered.
+- **Absence is not a negative.** `no-markers`, `no-prediction`, `no-classifier`,
+  runtime-unavailable and not-requested states render as not determinable, never as
+  "allele absent". A predicted pair that lacks an allele is a negative *model call* with
+  that call's posterior and ceiling, not a clinical exclusion.
+- **Unphased, per-locus calls.** DQ2.5 and DQ8 are DQA1–DQB1 haplotypes, and HIBAG calls
+  each locus separately and unphased. Where cis/trans phase changes the claim, state the
+  ambiguity. Do not multiply the two loci's posteriors as if they were independent; take
+  the weaker locus unless a cited method says otherwise.
+- **Resolution.** Calls are two-field, so B\*57:01 and B\*15:02 are representable. Check
+  that each card's allele is in the classifier's frozen allele list. An allele the model
+  cannot emit is not determinable from that model, not absent.
+- **Population allele frequency.** gnomAD has no HLA allele frequencies, so
+  `population_allele_frequency=None` caps at moderate under the calculator's existing
+  rule. Any frequency source (for example the Allele Frequency Net Database) needs a
+  licence audit and a manifest entry before use.
+- **PGx overlap.** HLA-B\*57:01 and HLA-B\*15:02 carry CPIC guidelines. Decide whether
+  these cards live in pharmacogenomics, immunogenetics or both, with one shared engine
+  rather than two claims (compare M10.4 guideline cards and the M10.5 framing).
+- **Historical runs.** Format-21 schema-1 runs have neither a selection nor a locus
+  ceiling. Their cards must say so rather than invent an ancestry match.
+- **Matching proportion.** HIBAG's per-sample matching proportion directly measures
+  training-set representation, but has no published threshold and is not in M11.2's
+  frozen output. Adding it changes the R script and the scientific output contract;
+  record it, at most, as a displayed fact.
+
 <a id="next-open-step-m113-hla-ancestry-selection-and-confidence"></a>
 
-## Next open step: M11.3 HLA ancestry selection and confidence
+## M11.3 entry contract (implemented; retained for review)
+
+M11.3 selects the classifier from the saved AADR and 1000 Genomes placements through the
+cited Morales category and the publisher's training descriptions. It records decline,
+not-run, ambiguous and unsupported refusals and explicit overrides with their ancestry
+match, and folds posterior, coverage and ancestry into per-locus ceilings. See
+[the contract and validation](hla_selection.md). The entry text follows.
 
 M11.2 supplies validated, immutable HLA evidence but deliberately requires an
 explicit `--hla-classifier`; it must not infer a classifier from raw genotypes.

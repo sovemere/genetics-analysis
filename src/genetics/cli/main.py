@@ -194,13 +194,17 @@ def run(
     hla_classifier: Annotated[
         str | None,
         typer.Option(
-            "--hla-classifier", help="Explicit european/asian/hispanic/african HIBAG model."
+            "--hla-classifier",
+            help="Explicit european/asian/hispanic/african HIBAG model; overrides "
+            "the recorded ancestry selection.",
         ),
     ] = None,
     hla_model_opt_in: Annotated[
         bool,
         typer.Option(
-            "--hla-model-opt-in", help="Acknowledge unspecified separate HLARES model terms."
+            "--hla-model-opt-in",
+            help="Acknowledge unspecified HLARES model terms; run HLA imputation with "
+            "the ancestry-selected classifier.",
         ),
     ] = False,
     no_impute: Annotated[
