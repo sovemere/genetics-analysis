@@ -133,3 +133,20 @@ def test_the_checkout_holds_exactly_what_a_push_would(tmp_path: Path) -> None:
     assert not (target / "ignored.txt").exists()
     assert _git(target, "status", "--porcelain") == ""
     assert _git(target, "show", "HEAD:new.txt") == "untracked"
+
+
+@requires_git
+def test_line_ending_only_differences_are_not_a_change(tmp_path: Path) -> None:
+    # This machine's working tree is CRLF; the clone checks out LF. Nothing differs once
+    # normalised, so nothing may be committed -- a clean tree used to fail the run.
+    source = tmp_path / "source"
+    source.mkdir()
+    _git(source, "init", "--quiet")
+    (source / ".gitattributes").write_bytes(b"* text=auto eol=lf\n")
+    (source / "kept.txt").write_bytes(b"one\ntwo\n")
+    _git(source, "add", "--all")
+    _git(source, "commit", "--quiet", "--message", "initial")
+    (source / "kept.txt").write_bytes(b"one\r\ntwo\r\n")
+    target = tmp_path / "target"
+    assert ci.materialise(source, target) is False
+    assert _git(target, "rev-list", "--count", "HEAD").strip() == "1"
