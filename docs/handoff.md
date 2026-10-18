@@ -38,7 +38,9 @@ in bundle format 21. See the
 [classifier-imputation contract and validation](hla_imputation.md).
 The [M11.1 diff review](review_m111_session.md) hardens path redaction, terminal-wait
 interruption, regular-file protocol validation and R bootstrap scope. Native R readiness
-and bridge-script acceptance are now separate checks; native success remains unverified.
+and bridge-script acceptance are now separate checks. Native prediction through synthetic
+classifiers has run in CI since 2026-10-18; published-classifier prediction is still
+unverified (see the M11.3 step below).
 Final reviewed coverage passes **3,344 unique tests**, seven skips, with all four
 strict type targets, complete card lint, fixtures and style passing. The
 [review validation record](review_m111_session.md#validation) distinguishes the
@@ -344,12 +346,17 @@ into its confidence while keeping low-confidence calls visible. `no-markers`,
 `no-prediction`, unavailable stages and failed jobs are not negative allele claims.
 M11.4, rather than this step, turns the frozen evidence into HLA-linked cards.
 
-R and HIBAG remain user-installed. Native Rscript is unavailable on this development
-machine, so native HIBAG success remains unverified. Configure `GENETICS_RSCRIPT` for
-the user-installed runtime, or use `GENETICS_HIBAG_TEST_RSCRIPT` only for tests, then
-run the synthetic and published-model native acceptance coverage. The published-model
-test also needs `GENETICS_HIBAG_TEST_REFERENCES` pointing at a reference root holding
-the fetched classifiers, the dbSNP index and the 1000 Genomes chr6 VCF.
+R and HIBAG remain user-installed. Since 2026-10-18, CI installs the current R release
+and HIBAG on Windows and Linux, so the bridge checks and the synthetic native round trip
+run on every push. HIBAG trains synthetic classifiers, and `calling.impute` predicts
+through them. They first passed with R 4.6.1 and HIBAG 1.48.2. That first run found a
+Windows-only bridge defect: R 4.6.1's `Rscript` cuts an `-e` argument at its first
+newline, so every probe failed to parse. The bootstrap now runs from a file in the
+private workspace. **Published-classifier prediction remains unverified**, because
+CI never downloads references and this machine has no R. To run it, configure
+`GENETICS_RSCRIPT` (or `GENETICS_HIBAG_TEST_RSCRIPT` for tests only) and
+`GENETICS_HIBAG_TEST_REFERENCES`, pointing at a reference root that holds the fetched
+classifiers, the dbSNP index and the 1000 Genomes chr6 VCF.
 
 The real pinned models, dbSNP and 1000 Genomes now pass reference preparation outside R.
 That check found two defects the synthetic fixtures hid: a dbSNP provenance version the
