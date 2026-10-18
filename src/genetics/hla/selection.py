@@ -42,7 +42,6 @@ from genetics.pgs.portability import THOUSAND_GENOMES_CATEGORY
 
 VERSION: Final = 1
 METHOD: Final = "m5-aadr-gate-1000g-morales-hlares-training-v1"
-STATUSES: Final = frozenset({"selected", "declined", "not_run", "unsupported", "ambiguous"})
 
 TRAINING: Final[dict[str, str]] = {
     # https://hibag.s3.amazonaws.com/hlares_index.html, verified 2026-10-18.

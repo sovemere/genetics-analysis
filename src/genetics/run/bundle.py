@@ -233,7 +233,6 @@ PGX_NAME: Final[str] = "pgx.run.json"
 PGX_FORMAT_VERSION: Final[int] = 19
 HLA_NAME: Final[str] = "hla.run.json"
 HLA_FORMAT_VERSION: Final[int] = 21
-HLA_SELECTION_FORMAT_VERSION: Final[int] = 22
 """The genotype-derived payload files, named to land on ``.gitignore``'s existing
 ``*.run.json`` rule. The ancestry file holds PCA coordinates and haplogroups, which AGENTS.md
 1.1 names as genotype-derived in so many words.
@@ -244,6 +243,10 @@ case those two miss: a bundle copied into the checkout by hand. ``test_bundle.py
 the suffix and the presence of the rule together, because a rename here would silently
 drop the coverage and nothing else would notice.
 """
+
+HLA_SELECTION_FORMAT_VERSION: Final[int] = 22
+"""The first format whose HLA record is sample schema 2: classifier selection and per-locus
+ceilings. :data:`HLA_FORMAT_VERSION` (21) holds schema 1 only."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by

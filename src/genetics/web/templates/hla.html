@@ -11,7 +11,7 @@
   <p>{{ hla_report.status }}{% if hla_report.reason %}: {{ hla_report.reason }}{% endif %}</p>
   {% if choice %}
   <h2>Classifier selection · {{ choice.status }}</h2>
-  <p>Classifier used: {{ choice.classifier or "none" }}{% if choice.basis == "explicit" %} (explicitly requested; the ancestry placement supported {{ choice.automatic_classifier or "no classifier" }}){% elif choice.basis == "ancestry" %} (selected from the ancestry placement){% endif %}. Ancestry match: {{ "unknown" if choice.ancestry_match is none else choice.ancestry_match }}.</p>
+  <p>Classifier used: {{ choice.classifier or "none" }}{% if choice.basis == "explicit" %} (explicitly requested; automatic selection: {{ choice.status }}{% if choice.automatic_classifier %}, {{ choice.automatic_classifier }}{% endif %}){% elif choice.basis == "ancestry" %} (selected from the ancestry placement){% endif %}. Ancestry match: {{ "unknown" if choice.ancestry_match is none else choice.ancestry_match }}.</p>
   <p>{{ choice.reason }}</p>
   {% if choice.category %}<p>1000 Genomes {{ choice.category.population }} · {{ choice.category.morales_category }} (Morales et al. 2018) · training: {{ choice.category.training or "no published training set describes this category" }}.</p>{% endif %}
   {% set tg = choice.source.thousand_genomes %}

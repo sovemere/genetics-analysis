@@ -602,6 +602,102 @@ def test_bundle_cli_dashboard_offline_and_historical(
     assert "not-recorded" in client.get(f"/runs/{path.name}/hla").text
 
 
+def test_dashboard_and_cli_render_every_selection_outcome(
+    reference: dict[str, Any],
+    fake_prediction: Any,
+    sample_qc: Any,
+    sample_pack: Any,
+    sample_cards: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Placed, declined, ambiguous and refused selections all render in both views."""
+    from test_selection import ancestry
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.run.bundle import write_bundle
+    from genetics.web.app import create_app
+    from genetics.web.config import WebConfig
+
+    context = AncestryContext.not_run("Synthetic acceptance")
+    model, runtime, _ = fake_prediction
+    choice = selection.select(context.to_dict(), requested="european")
+    record = calling.impute(sample(), model, reference, runtime, choice=choice)
+    root = tmp_path / "runs"
+    path = write_bundle(
+        qc=sample_qc,
+        pack=sample_pack,
+        cards=sample_cards,
+        ancestry=context,
+        hla=record,
+        runs_root=root,
+        lock_path=tmp_path / "absent.lock",
+        tools_root=tmp_path / "tools",
+        run_id="hla-outcomes",
+    )
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
+    client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
+
+    def completed(raw: dict[str, Any], requested: str | None) -> dict[str, Any]:
+        # The saved run's own ancestry would refuse these; the views render what they get.
+        chosen = selection.select(raw, requested=requested)
+        shown = copy.deepcopy(record)
+        shown["selection"] = chosen
+        for gene in shown["genes"].values():
+            gene["confidence"] = calling.confidence(gene, chosen["ancestry_match"])
+        calling.validate(shown)
+        return shown
+
+    cases = [
+        (
+            completed(ancestry("GBR"), None),
+            [
+                "Classifier selection · selected",
+                "selected from the ancestry placement",
+                "Placement fit 1.000 against a decline threshold of 2.000",
+                "GBR (1.000), CEU (1.500)",
+                "candidate classifiers: european",
+            ],
+        ),
+        (
+            completed(ancestry("PUR", others=(("IBS", 1.9),)), "european"),
+            [
+                "Classifier selection · ambiguous",
+                "automatic selection: ambiguous",
+                "candidate classifiers: european, hispanic",
+                "Ancestry match: unknown",
+            ],
+        ),
+        (
+            completed(ancestry(aadr="declined"), "european"),
+            [
+                "Classifier selection · declined",
+                "automatic selection: declined",
+                "Synthetic panel does not fit.",
+                "Ancestry match: 0.0",
+            ],
+        ),
+        (
+            calling.unavailable("no-classifier", selection.select(ancestry("KHV", others=()))),
+            [
+                "no-classifier",
+                "Classifier selection · unsupported",
+                "South East Asian",
+                "no published training set describes this category",
+            ],
+        ),
+    ]
+    for shown, expected in cases:
+        monkeypatch.setattr(calling, "report", lambda _record, shown=shown: shown)
+        page = client.get(f"/runs/{path.name}/hla")
+        assert page.status_code == 200
+        for text in expected:
+            assert text in page.text, text
+        cli = CliRunner().invoke(app, ["hla", "calls", path.name])
+        assert cli.exit_code == 0
+        assert f"Ancestry selection: {shown['selection']['status']}" in cli.output
+
+
 def test_ancestry_selected_stage_prepares_only_the_chosen_model(
     reference: dict[str, Any], fake_prediction: Any, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -673,6 +769,13 @@ def test_runtime_absence_keeps_the_selection_and_never_a_negative_call(
         unselected = calling.HLAStage(opt_in=True)
         unselected.prepare()
         unselected.run(table([]))
+    event = threading.Event()
+    cancelled = calling.HLAStage(opt_in=True, cancel=event)
+    cancelled.prepare()
+    event.set()
+    with pytest.raises(hibag.HIBAGCancelledError):
+        # Even a placement that needs no model must not proceed once cancelled.
+        cancelled.select(ancestry(aadr="declined"))
 
 
 def test_frozen_confidence_and_selection_cannot_be_rewritten(record: dict[str, Any]) -> None:

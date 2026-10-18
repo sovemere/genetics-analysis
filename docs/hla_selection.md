@@ -154,6 +154,10 @@ run. All ten failures were tests pinning bundle format 21 as the current version
 the bump to 22, their four files pass 245 tests. Four strict type targets (228 files),
 lint and format pass.
 
+The [session diff review](review_m113_session.md) added a test that renders every
+selection outcome through the dashboard and CLI. It also corrected the explicit-override
+wording, and made `select()` honour cancellation.
+
 ## Local use
 
 ```text

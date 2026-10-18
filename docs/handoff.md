@@ -38,6 +38,12 @@ ancestry mismatch recorded. Each predicted locus carries an observation ceiling 
 posterior, marker coverage and classifier ancestry match. HLA sample schema 2 is bound to
 the saved ancestry in bundle format 22. See the
 [selection and confidence contract](hla_selection.md).
+The [M11.3 diff review](review_m113_session.md) found no defect in selection, saved
+evidence or the bundle binding. It closes a dashboard coverage gap: the placed,
+declined, ambiguous and unsupported views had never rendered under test, and a broken
+uncertainty line passed every test. It also corrects the explicit-override wording
+and makes `HLAStage.select()` honour a pre-set cancellation. Schema 2 and format 22
+are unchanged.
 **M11.2 HLA classifier imputation is implemented.** It uses an
 opt-in HIBAG HLARES hg19 model, validates model metadata, proves marker
 strand from dbSNP and 1000 Genomes allele sets, and persists frozen per-locus HLA calls
@@ -341,8 +347,8 @@ style and privacy gates pass; the guide records exact run boundaries.
 
 ## Next open step: M11.4 HLA-linked cards
 
-M11.3 supplies a frozen classifier choice and a per-locus observation ceiling. M11.4
-turns them into cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing spondylitis,
+M11.3 supplies a frozen classifier choice and a per-locus observation ceiling, reviewed
+in [the M11.3 diff review](review_m113_session.md). M11.4 turns them into cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing spondylitis,
 narcolepsy (DQB1\*06:02) and drug hypersensitivity (B\*57:01/abacavir,
 B\*15:02/carbamazepine). Start with the [selection and confidence contract](hla_selection.md)
 and read schema-2 `hla.run.json` through `genetics.hla.calling.report`. Do not rerun HIBAG
