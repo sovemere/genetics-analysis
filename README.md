@@ -177,9 +177,14 @@ classifier-imputation contract](docs/hla_imputation.md). CI now installs R and H
 and native prediction through synthetic classifiers passes on Windows and Linux.
 Prediction through all four published classifiers passes locally on Windows. That test
 runs only where the classifiers are fetched, because CI never downloads references.
-[M11.3 HLA ancestry
-selection and confidence](docs/handoff.md#next-open-step-m113-hla-ancestry-selection-and-confidence)
-is next.
+**M11.3 classifier selection and call confidence are implemented.** The model-terms
+opt-in selects the classifier from the run's saved M5 placements, through the cited
+Morales category and the publisher's training descriptions. It declines on declined,
+missing, ambiguous or unsupported placements rather than guessing. An explicit classifier
+still runs with its ancestry mismatch recorded. Each predicted locus carries an
+observation ceiling from posterior, marker coverage and ancestry match, in bundle format
+22. See [the selection contract](docs/hla_selection.md).
+[M11.4 HLA-linked cards](docs/handoff.md#next-open-step-m114-hla-linked-cards) are next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

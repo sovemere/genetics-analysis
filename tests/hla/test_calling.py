@@ -7,6 +7,7 @@ import hashlib
 import json
 import random
 import threading
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ from typer.testing import CliRunner
 
 from genetics.cli.main import app
 from genetics.external import hibag
-from genetics.hla import calling, models
+from genetics.hla import calling, models, selection
 from genetics.hla.models import HLAError
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.refs import postprocess
@@ -176,10 +177,15 @@ def fake_prediction(
     return path, runtime, execute
 
 
+def explicit(classifier: str = "european") -> dict[str, Any]:
+    """An explicit classifier with no ancestry recorded: the match is unknown, not perfect."""
+    return selection.select(None, requested=classifier)
+
+
 @pytest.fixture
 def record(reference: dict[str, Any], fake_prediction: Any) -> dict[str, Any]:
     path, runtime, _ = fake_prediction
-    return calling.impute(sample(), path, reference, runtime)
+    return calling.impute(sample(), path, reference, runtime, choice=explicit())
 
 
 def test_dosage_order_forward_reverse_and_missing_states(reference: dict[str, Any]) -> None:
@@ -222,6 +228,14 @@ def test_all_output_is_validated_and_low_posterior_is_retained(record: dict[str,
     calling.validate(record)
     assert len(record["genes"]) == 7
     assert all(g["posterior"] == 0.01 for g in record["genes"].values())
+    # An explicit classifier with no recorded ancestry: unknown match, low posterior shown.
+    assert record["selection"]["basis"] == "explicit"
+    assert all(
+        g["confidence"]["ceiling"] == "likely-artifact"
+        and g["confidence"]["meets_published_call_threshold"] is False
+        and g["confidence"]["ancestry_match"] is None
+        for g in record["genes"].values()
+    )
     assert record["parameters"]["observation_source"] == "original-array"
     assert calling.report(record) == record
 
@@ -230,7 +244,7 @@ def test_zero_markers_never_generates_an_hla_negative(
     reference: dict[str, Any], fake_prediction: Any
 ) -> None:
     path, runtime, _ = fake_prediction
-    result = calling.impute(table([]), path, reference, runtime)
+    result = calling.impute(table([]), path, reference, runtime, choice=explicit())
     assert all(
         g["status"] == "no-markers" and g["alleles"] is None for g in result["genes"].values()
     )
@@ -397,7 +411,7 @@ def test_r_process_success_does_not_establish_scientific_success(
 
     monkeypatch.setattr(models, "run_r", corrupt)
     with pytest.raises(HLAError):
-        calling.impute(sample(), path, reference, runtime)
+        calling.impute(sample(), path, reference, runtime, choice=explicit())
 
 
 def test_runtime_absence_probe_error_and_opt_in(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -408,8 +422,9 @@ def test_runtime_absence_probe_error_and_opt_in(monkeypatch: pytest.MonkeyPatch)
         )
         stage = calling.HLAStage("european", True)
         stage.prepare()
+        stage.select(None)
         result = stage.run(table([]))
-        assert result == calling.unavailable(state)
+        assert result == calling.unavailable(state, explicit())
     monkeypatch.setattr(hibag, "probe", lambda **_: hibag.Readiness("probe-error", "private"))
     with pytest.raises(HLAError, match="readiness"):
         calling.HLAStage("european", True).prepare()
@@ -454,23 +469,56 @@ def test_shared_pipeline_executes_hla_stage(monkeypatch: pytest.MonkeyPatch) -> 
         def prepare(self, progress: Any = None) -> None:
             stages.append("prepared")
 
+        def select(self, ancestry: Any, progress: Any = None) -> None:
+            stages.append("selected")
+            assert ancestry["population"]["status"] == "not_run"
+            super().select(ancestry, progress)
+
         def run(self, target: GenotypeTable) -> dict[str, Any]:
             assert target.vendor
             stages.append("called")
-            return calling.unavailable("model-missing")
+            return super().run(target)
 
     path = Path(__file__).parents[1] / "fixtures/synthetic/ancestry_v2_male.txt"
     result = analyse(
         path,
         no_impute=True,
-        hla=Stage(),
+        hla=Stage(opt_in=True),
         ancestry=lambda *_: AncestryContext.not_run("Synthetic acceptance"),
     )
-    assert stages == ["prepared", "called"] and result.hla == calling.unavailable("model-missing")
+    assert stages == ["prepared", "selected", "called"]
+    # The real M5 context reaches selection: nothing placed, so no model is guessed.
+    saved = result.hla
+    assert saved is not None
+    assert saved["reason"] == "no-classifier" and saved["genes"] == {}
+    assert saved["selection"]["status"] == "not_run"
+    assert saved["selection"]["classifier"] is None
+
+
+def _rewrite(path: Path, name: str, payload: Any, *, version: int | None = None) -> None:
+    header_path = path / "manifest.json"
+    header = json.loads(header_path.read_text())
+    raw = json.dumps(payload).encode()
+    (path / name).write_bytes(raw)
+    header["files"][name] = hashlib.sha256(raw).hexdigest()
+    if version is not None:
+        header["format_version"] = version
+    header_path.write_text(json.dumps(header))
+
+
+def legacy(record: dict[str, Any]) -> dict[str, Any]:
+    """The schema-1 record M11.2 wrote for the same prediction."""
+    old = copy.deepcopy(record)
+    old["schema_version"] = calling.LEGACY_VERSION
+    del old["selection"]
+    for gene in old["genes"].values():
+        del gene["confidence"]
+    return old
 
 
 def test_bundle_cli_dashboard_offline_and_historical(
-    record: dict[str, Any],
+    reference: dict[str, Any],
+    fake_prediction: Any,
     sample_qc: Any,
     sample_pack: Any,
     sample_cards: Any,
@@ -482,18 +530,28 @@ def test_bundle_cli_dashboard_offline_and_historical(
     from genetics.web.app import create_app
     from genetics.web.config import WebConfig
 
+    context = AncestryContext.not_run("Synthetic acceptance")
+    model, runtime, _ = fake_prediction
+    choice = selection.select(context.to_dict(), requested="european")
+    record = calling.impute(sample(), model, reference, runtime, choice=choice)
     root = tmp_path / "runs"
-    path = write_bundle(
-        qc=sample_qc,
-        pack=sample_pack,
-        cards=sample_cards,
-        hla=record,
-        ancestry=AncestryContext.not_run("Synthetic acceptance"),
-        runs_root=root,
-        lock_path=tmp_path / "absent.lock",
-        tools_root=tmp_path / "tools",
-        run_id="hla-synthetic",
-    )
+    common: dict[str, Any] = {
+        "qc": sample_qc,
+        "pack": sample_pack,
+        "cards": sample_cards,
+        "ancestry": context,
+        "runs_root": root,
+        "lock_path": tmp_path / "absent.lock",
+        "tools_root": tmp_path / "tools",
+    }
+    with pytest.raises(BundleError, match="ancestry"):
+        # Internally valid, but chosen from placements this run did not record.
+        write_bundle(
+            **common,
+            hla=calling.impute(sample(), model, reference, runtime, choice=explicit()),
+            run_id="hla-foreign-selection",
+        )
+    path = write_bundle(**common, hla=record, run_id="hla-synthetic")
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
     monkeypatch.setattr(hibag, "probe", lambda **_: pytest.fail("Saved reading must not probe R"))
     assert read_bundle(path).hla == record
@@ -504,27 +562,138 @@ def test_bundle_cli_dashboard_offline_and_historical(
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
     page = client.get(f"/runs/{path.name}/hla")
     assert page.status_code == 200 and "0.01" in page.text and "2/5" in page.text
-    assert "unresolved-strand" in page.text and "Explicit european classifier" in page.text
-    assert "dbsnp, panel" in page.text
+    assert "unresolved-strand" in page.text and "dbsnp, panel" in page.text
+    assert "Classifier selection · not_run" in page.text and "explicitly requested" in page.text
+    assert "ceiling likely-artifact" in page.text and "is below the method" in page.text
     text = CliRunner().invoke(app, ["hla", "calls", path.name])
     assert text.exit_code == 0 and "joint posterior 0.01" in text.output
-    header_path = path / "manifest.json"
-    header = json.loads(header_path.read_text())
+    assert "Ancestry selection: not_run; classifier european (explicit)" in text.output
+    assert "Observation ceiling: likely-artifact (lowered by posterior)" in text.output
     broken = copy.deepcopy(record)
     broken["genes"]["A"]["posterior"] = 2
-    payload = json.dumps(broken).encode()
-    (path / HLA_NAME).write_bytes(payload)
-    header["files"][HLA_NAME] = hashlib.sha256(payload).hexdigest()
-    header_path.write_text(json.dumps(header))
+    _rewrite(path, HLA_NAME, broken)
     with pytest.raises(BundleError, match="HLA"):
         read_bundle(path)
     assert "Saved HLA evidence" in client.get(f"/runs/{path.name}/hla").text
+    foreign = calling.impute(sample(), model, reference, runtime, choice=explicit())
+    _rewrite(path, HLA_NAME, foreign)
+    with pytest.raises(BundleError, match="ancestry"):
+        read_bundle(path)
+    # Format 21 holds schema 1 only, and format 22 never accepts it.
+    _rewrite(path, HLA_NAME, legacy(record))
+    with pytest.raises(BundleError, match="HLA"):
+        read_bundle(path)
+    _rewrite(path, HLA_NAME, record, version=21)
+    with pytest.raises(BundleError, match="HLA"):
+        read_bundle(path)
+    _rewrite(path, HLA_NAME, legacy(record), version=21)
+    assert read_bundle(path).hla == legacy(record)
+    old_page = client.get(f"/runs/{path.name}/hla").text
+    assert "Explicit european classifier" in old_page and "not recorded by this schema" in old_page
+    text = CliRunner().invoke(app, ["hla", "calls", path.name])
+    assert text.exit_code == 0 and "not recorded (HLA schema 1)" in text.output
+    header_path = path / "manifest.json"
+    header = json.loads(header_path.read_text())
     header["format_version"] = 20
     header["files"].pop(HLA_NAME)
     (path / HLA_NAME).unlink()
     header_path.write_text(json.dumps(header))
     assert read_bundle(path).hla is None
     assert "not-recorded" in client.get(f"/runs/{path.name}/hla").text
+
+
+def test_ancestry_selected_stage_prepares_only_the_chosen_model(
+    reference: dict[str, Any], fake_prediction: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from test_selection import ancestry
+
+    model, runtime, _ = fake_prediction
+    prepared: list[str] = []
+    monkeypatch.setattr(
+        hibag,
+        "probe",
+        lambda **_: hibag.Readiness(
+            "ready",
+            "synthetic",
+            path=runtime.path,
+            r_version=runtime.r_version,
+            r_platform=runtime.r_platform,
+            hibag_version=runtime.hibag_version,
+        ),
+    )
+    monkeypatch.setattr(models, "source_identity", lambda population: (model, reference["source"]))
+
+    def prepare(population: str, *args: Any, **kwargs: Any) -> tuple[Path, dict[str, Any]]:
+        prepared.append(population)
+        return model, reference
+
+    monkeypatch.setattr(models, "prepare", prepare)
+    stage = calling.HLAStage(opt_in=True)
+    stage.prepare()
+    assert prepared == []  # nothing to verify until ancestry has chosen a model
+    stage.select(ancestry("GBR"))
+    assert prepared == ["european"]
+    saved = stage.run(sample())
+    calling.validate(saved)
+    assert saved["selection"]["basis"] == "ancestry"
+    assert saved["selection"]["ancestry_match"] == 1.0
+    confidence = saved["genes"]["A"]["confidence"]
+    assert confidence["status"] == "computed" and confidence["ancestry_match"] == 1.0
+    assert confidence["marker_coverage"] == 2 / 5
+    assert confidence["ceiling"] == "likely-artifact" and confidence["ceilings"] == ["posterior"]
+    assert saved["genes"]["A"]["posterior"] == 0.01  # retained, never filtered
+
+    declined = calling.HLAStage(opt_in=True)
+    declined.prepare()
+    declined.select(ancestry(aadr="declined"))
+    assert prepared == ["european"]
+    refused = declined.run(sample())
+    assert refused == calling.unavailable("no-classifier", declined.selection)
+    assert refused["selection"]["status"] == "declined" and refused["genes"] == {}
+
+
+def test_runtime_absence_keeps_the_selection_and_never_a_negative_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from test_selection import ancestry
+
+    monkeypatch.setattr(hibag, "probe", lambda **_: hibag.Readiness("r-missing", "Synthetic"))
+    stage = calling.HLAStage(opt_in=True)
+    stage.prepare()
+    stage.select(ancestry("JPT", others=()))
+    saved = stage.run(table([]))
+    assert saved["reason"] == "r-missing" and saved["genes"] == {}
+    assert saved["selection"]["classifier"] == "asian"
+    calling.validate(saved)
+    with pytest.raises(HLAError, match="disagree"):
+        calling.unavailable("r-missing")
+    with pytest.raises(HLAError, match="disagree"):
+        calling.unavailable("no-classifier", saved["selection"])
+    with pytest.raises(HLAError, match="ancestry placement"):
+        unselected = calling.HLAStage(opt_in=True)
+        unselected.prepare()
+        unselected.run(table([]))
+
+
+def test_frozen_confidence_and_selection_cannot_be_rewritten(record: dict[str, Any]) -> None:
+    mutations: tuple[Callable[[dict[str, Any]], Any], ...] = (
+        lambda r: r["genes"]["A"]["confidence"].update(ceiling=None, ceilings=[]),
+        lambda r: r["genes"]["A"]["confidence"].update(ancestry_match=1.0),
+        lambda r: r["genes"]["A"].pop("confidence"),
+        lambda r: r["selection"].update(ancestry_match=1.0),
+        lambda r: r["selection"].update(classifier="asian", requested_classifier="asian"),
+        lambda r: r.update(selection=None),
+    )
+    for mutate in mutations:
+        broken = copy.deepcopy(record)
+        mutate(broken)
+        with pytest.raises(HLAError):
+            calling.validate(broken)
+    with pytest.raises(HLAError):
+        calling.validate(record, schema_version=1)
+    calling.validate(legacy(record), schema_version=1)
+    with pytest.raises(HLAError):
+        calling.validate(legacy(record), schema_version=2)
 
 
 @pytest.mark.privacy
@@ -572,12 +741,23 @@ def test_cli_invalid_selection_is_categorical() -> None:
     assert result.exit_code == 1 and json.loads(result.output)["error"]["kind"] == "hla"
     help_result = CliRunner().invoke(app, ["run", "--help"])
     assert "--hla-classifier" in help_result.output and "--hla-model-opt-in" in help_result.output
+    path = Path(__file__).parents[1] / "fixtures/synthetic/ancestry_v2_male.txt"
+    # A classifier still needs the model-terms opt-in; the opt-in alone now selects one.
+    refused = CliRunner().invoke(
+        app, ["run", "--input", str(path), "--hla-classifier", "european", "--json"]
+    )
+    assert refused.exit_code != 0 and json.loads(refused.output)["error"]["kind"] == "hla"
 
 
 def test_unsupported_prediction_is_retained(record: dict[str, Any]) -> None:
-    record["genes"]["A"].update(status="no-prediction", alleles=None, posterior=None)
+    gene = record["genes"]["A"]
+    gene.update(status="no-prediction", alleles=None, posterior=None)
+    with pytest.raises(HLAError, match="confidence"):
+        calling.validate(record)
+    gene["confidence"] = calling.confidence(gene, record["selection"]["ancestry_match"])
     calling.validate(record)
     assert calling.report(record)["genes"]["A"]["status"] == "no-prediction"
+    assert gene["confidence"]["status"] == "not_computed" and gene["confidence"]["ceiling"] is None
 
 
 @pytest.mark.parametrize("extension", [".RData", ".hla-input.tsv"])

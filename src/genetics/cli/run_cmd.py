@@ -182,14 +182,16 @@ def run(
         str | None,
         typer.Option(
             "--hla-classifier",
-            help="Explicit european/asian/hispanic/african model; no automatic ancestry selection.",
+            help="Explicit european/asian/hispanic/african model. Overrides the ancestry "
+            "selection, which is still recorded beside it with the mismatch.",
         ),
     ] = None,
     hla_model_opt_in: Annotated[
         bool,
         typer.Option(
             "--hla-model-opt-in",
-            help="Acknowledge unspecified separate HLARES model terms for local imputation.",
+            help="Acknowledge unspecified separate HLARES model terms and run HLA imputation "
+            "with the classifier the ancestry placement selects.",
         ),
     ] = False,
     no_impute: Annotated[
@@ -212,10 +214,12 @@ def run(
         _echo(f"  {message}", err=True, dim=True)
 
     hla_options: dict[str, Any] = (
-        {"hla": HLAStage(hla_classifier, hla_model_opt_in)} if hla_classifier is not None else {}
+        {"hla": HLAStage(hla_classifier, hla_model_opt_in)}
+        if hla_classifier is not None or hla_model_opt_in
+        else {}
     )
-    if hla_model_opt_in and hla_classifier is None:
-        _fail(HLAError("Select an explicit HLA classifier with the model opt-in."), as_json=as_json)
+    if hla_classifier is not None and not hla_model_opt_in:
+        _fail(HLAError("An HLA classifier requires the model-terms opt-in."), as_json=as_json)
     try:
         analysis = analyse(
             input_path,

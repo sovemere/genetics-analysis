@@ -526,3 +526,75 @@ def calculate_polygenic_confidence(
         ),
         ceilings=tuple(ceilings),
     )
+
+
+# ---------------------------------------------------------------------------
+# HLA classifier calls (M11.3)
+# ---------------------------------------------------------------------------
+
+HLA_PUBLISHED_CALL_THRESHOLD: Final[float] = 0.5
+"""The HIBAG call threshold Zheng et al. 2014 chose (DOI 10.1038/tpj.2013.18), which they
+report corresponds to about 80% prediction accuracy. Recorded beside each call so a reader
+can see which side of it the call falls on; it filters nothing and sets no tier."""
+
+
+@dataclass(frozen=True)
+class HLACallReliability:
+    """The observation ceiling one HLA classifier call carries into any card built on it."""
+
+    ceiling: ConfidenceTier | None
+    """``None`` when no measurement lowers it; never a claim the finding is established."""
+
+    ceilings: tuple[str, ...]
+    """Which inputs lowered the ceiling, in application order."""
+
+    posterior: float
+    marker_coverage: float
+    ancestry_match: float | None
+    meets_published_call_threshold: bool
+
+
+def calculate_hla_call_reliability(
+    *, posterior: float, marker_coverage: float, ancestry_match: float | None
+) -> HLACallReliability:
+    """Fold a call's joint posterior, marker coverage and classifier ancestry into a ceiling.
+
+    Nothing here is a new number. The joint posterior sits in the imputation-quality slot
+    with the single-variant DR2 ceilings -- where :func:`calculate_confidence` places it once
+    an M11.4 card supplies literature evidence. Marker coverage reuses
+    :func:`ancestry_ceiling`'s 0.25/0.5 bands, as polygenic weight coverage does, and the
+    classifier's ancestry match uses :func:`ancestry_ceiling` itself, so an unknown match
+    caps at strong. There is no score: without a claim there is nothing to weight. The
+    function labels; it never filters a call.
+    """
+
+    quality = _finite_fraction(posterior, "posterior")
+    coverage = _finite_fraction(marker_coverage, "marker_coverage")
+    ancestry = _finite_fraction(ancestry_match, "ancestry_match")
+    if quality is None or coverage is None:
+        raise ConfidenceError("HLA call reliability needs a posterior and marker coverage")
+    ceiling: ConfidenceTier | None = None
+    ceilings: list[str] = []
+
+    def cap(limit: ConfidenceTier | None, why: str) -> None:
+        nonlocal ceiling
+        if limit is not None and (ceiling is None or limit.rank > ceiling.rank):
+            ceiling = limit
+            ceilings.append(why)
+
+    if quality < 0.30:
+        cap(ConfidenceTier.LIKELY_ARTIFACT, "posterior")
+    elif quality < 0.60:
+        cap(ConfidenceTier.LIMITED, "posterior")
+    elif quality < 0.80:
+        cap(ConfidenceTier.MODERATE, "posterior")
+    cap(ancestry_ceiling(coverage), "marker_coverage")
+    cap(ancestry_ceiling(ancestry), "ancestry")
+    return HLACallReliability(
+        ceiling=ceiling,
+        ceilings=tuple(ceilings),
+        posterior=quality,
+        marker_coverage=coverage,
+        ancestry_match=ancestry,
+        meets_published_call_threshold=quality >= HLA_PUBLISHED_CALL_THRESHOLD,
+    )

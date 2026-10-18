@@ -12,6 +12,7 @@ an enabled run does not make an original observed call an imputed observation.
 Missing allele frequencies remain unknown. Study-to-sample ancestry portability is computed
 for PGS results (M9.5) and polygenic cards are scored here (M9.6). M9.13 shares the
 run's 1000 Genomes placement with selected-outcome variant evidence before imputation.
+M11.3 selects the HLA classifier from the same two placements once both exist.
 """
 
 from __future__ import annotations
@@ -258,6 +259,8 @@ def analyse(
 
     placement = polygenic_stage.place(result.table, progress)
     context = replace(context, reference_population=placement)
+    # M11.3: the HLA classifier is chosen from both persisted placements, never guessed.
+    hla_stage.select(context.to_dict(), progress)
     card_ancestry = sample_context(placement.to_dict(), context.population.to_dict())
     imputation_result = None
     if no_impute:

@@ -4,21 +4,42 @@
 {% block banner %}{{ qcbanner_html }}{% endblock %}
 {% block nav %}{% include "_sectionnav.html" %}{% endblock %}
 {% block content %}
+{% set choice = hla_report.get("selection") %}
 <section class="panel">
   <h1>HLA classifier imputation</h1>
   <p><a href="{{ shell.run_url }}">Back to the run</a></p>
   <p>{{ hla_report.status }}{% if hla_report.reason %}: {{ hla_report.reason }}{% endif %}</p>
+  {% if choice %}
+  <h2>Classifier selection · {{ choice.status }}</h2>
+  <p>Classifier used: {{ choice.classifier or "none" }}{% if choice.basis == "explicit" %} (explicitly requested; the ancestry placement supported {{ choice.automatic_classifier or "no classifier" }}){% elif choice.basis == "ancestry" %} (selected from the ancestry placement){% endif %}. Ancestry match: {{ "unknown" if choice.ancestry_match is none else choice.ancestry_match }}.</p>
+  <p>{{ choice.reason }}</p>
+  {% if choice.category %}<p>1000 Genomes {{ choice.category.population }} · {{ choice.category.morales_category }} (Morales et al. 2018) · training: {{ choice.category.training or "no published training set describes this category" }}.</p>{% endif %}
+  {% set tg = choice.source.thousand_genomes %}
+  {% if tg.uncertainty %}
+  <p>Placement fit {{ "%.3f"|format(tg.uncertainty.fit) }} against a decline threshold of {{ "%.3f"|format(tg.uncertainty.decline_threshold) }} (margin {{ "%.3f"|format(tg.uncertainty.margin) }}); projection marker coverage {{ "%.1f"|format(tg.uncertainty.coverage * 100) }}%. Admissible populations: {% for row in tg.uncertainty.admissible %}{{ row.population }} ({{ "%.3f"|format(row.fit) }}){% if not loop.last %}, {% endif %}{% endfor %}; candidate classifiers: {{ choice.candidates | join(", ") }}.</p>
+  {% endif %}
+  <p>Human Origins (AADR) gate: {{ choice.source.aadr.status }}{% if choice.source.aadr.reason %} — {{ choice.source.aadr.reason }}{% endif %}. 1000 Genomes placement: {{ tg.status }}{% if tg.reason %} — {{ tg.reason }}{% endif %}.</p>
+  {% endif %}
   {% if hla_report.get("reference") %}
-  <p>Explicit {{ hla_report.reference.source.population }} classifier · {{ hla_report.reference.source.version }} · two-field resolution.</p>
-  <p>Unphased model predictions. Joint posterior probability describes the model's selected allele pair; it is not validated individual accuracy or clinical HLA typing. Ancestry matching and confidence integration are not recorded by this schema.</p>
+  {% if not choice %}<p>Explicit {{ hla_report.reference.source.population }} classifier · {{ hla_report.reference.source.version }} · two-field resolution. Ancestry selection and call confidence are not recorded by this schema.</p>
+  {% else %}<p>{{ hla_report.reference.source.population | capitalize }} classifier · {{ hla_report.reference.source.version }} · two-field resolution.</p>{% endif %}
+  <p>Unphased model predictions. Joint posterior probability describes the model's selected allele pair; it is not validated individual accuracy or clinical HLA typing.</p>
   <p>Original array markers only. Missing, duplicate, unresolved-strand and incompatible markers remain missing inputs; no posterior threshold hides predictions.</p>
   <p>R {{ hla_report.runtime.r_version }} · HIBAG {{ hla_report.runtime.hibag_version }} · {{ hla_report.runtime.r_platform }}</p>
   <p>Model SHA-256: <code>{{ hla_report.reference.source.sha256 }}</code>.</p>
   <p>Separate model terms: {{ hla_report.reference.source.terms_status }}; explicit opt-in recorded.</p>
   <p>Method citation: Zheng et al., DOI 10.1038/tpj.2013.18.</p>
   {% for gene, row in hla_report.genes.items() %}
-  <h2>HLA-{{ gene }} · {{ row.status }}</h2>
+  {% set confidence = row.get("confidence") %}
+  <h2>HLA-{{ gene }} · {{ row.status }}{% if confidence and confidence.status == "computed" %} · ceiling {{ confidence.ceiling or "none" }}{% endif %}</h2>
   <p>{{ row.alleles | join(" / ") if row.alleles else "No prediction" }} · joint posterior {{ row.posterior if row.posterior is not none else "unavailable" }}</p>
+  {% if confidence %}
+  {% if confidence.status == "computed" %}
+  <p>Observation ceiling {{ confidence.ceiling or "none" }}{% if confidence.ceilings %}, lowered by {{ confidence.ceilings | join(", ") }}{% endif %}. The posterior {{ "meets" if confidence.meets_published_call_threshold else "is below" }} the method's published {{ confidence.published_call_threshold }} call threshold, which its authors report corresponds to about 80% prediction accuracy. Marker coverage {{ "%.1f"|format(confidence.marker_coverage * 100) }}%; classifier ancestry match {{ "unknown" if confidence.ancestry_match is none else confidence.ancestry_match }}.</p>
+  {% else %}
+  <p>Confidence not computed: no prediction was made, which is not evidence against any allele.</p>
+  {% endif %}
+  {% endif %}
   <p>{{ row.observed_markers }}/{{ row.model_markers }} model markers observed. Training samples: {{ hla_report.reference.loci[gene].training_samples }}; classifiers: {{ hla_report.reference.loci[gene].classifiers }}.</p>
   <ul>{% for state, count in row.coverage.items() %}<li>{{ state }}: {{ count }}</li>{% endfor %}</ul>
   <details><summary>Frozen marker evidence</summary>

@@ -11,7 +11,7 @@ import polars as pl
 import pytest
 
 from genetics.external import hibag
-from genetics.hla import calling, models
+from genetics.hla import calling, models, selection
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.refs import postprocess
 
@@ -128,12 +128,15 @@ save(models, file="synthetic.RData")
             "variants": [],
         },
     }
-    record = calling.impute(synthetic_table(reference), path, reference, runtime, timeout=1200)
+    choice = selection.select(None, requested="european")
+    record = calling.impute(
+        synthetic_table(reference), path, reference, runtime, choice=choice, timeout=1200
+    )
     calling.validate(record)
     assert set(record["genes"]) == set(models.LOCI)
     assert all(g["status"] == "predicted" for g in record["genes"].values())
     empty = GenotypeTable(pl.DataFrame(schema=NORMALIZED_SCHEMA), vendor="synthetic")
-    missing = calling.impute(empty, path, reference, runtime, timeout=1200)
+    missing = calling.impute(empty, path, reference, runtime, choice=choice, timeout=1200)
     assert all(g["status"] == "no-markers" for g in missing["genes"].values())
 
 
@@ -148,7 +151,8 @@ def test_native_published_classifier(
     monkeypatch.setattr(models, "references_dir", lambda: Path(root))
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path / "private"))
     path, reference = models.prepare(population, runtime, opt_in=True, timeout=3600)
-    result = calling.impute(synthetic_table(reference), path, reference, runtime)
+    choice = selection.select(None, requested=population)
+    result = calling.impute(synthetic_table(reference), path, reference, runtime, choice=choice)
     calling.validate(result)
     assert result["status"] == "completed"
     assert any(g["status"] == "predicted" for g in result["genes"].values())
