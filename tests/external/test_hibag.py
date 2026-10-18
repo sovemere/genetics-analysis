@@ -25,7 +25,10 @@ PROTOCOL = "genetics-hibag\t1\tready\t4.4.1\tx86_64-w64-mingw32\t1.40.0\n"
 STUB = r"""
 import json, os, pathlib, sys, time
 a = sys.argv[1:]
-assert a[:3] == ["--vanilla", "--default-packages=NULL", "-e"]
+assert a[:2] == ["--vanilla", "--default-packages=NULL"]
+# The bootstrap is a workspace file, never -e code: Windows Rscript cuts -e at a newline.
+assert pathlib.Path(a[2]).name == "genetics-bootstrap.R"
+assert pathlib.Path(a[2]).read_text(encoding="utf8").startswith("local({")
 assert "RHOME" not in os.environ
 assert "R_PROFILE_USER" not in os.environ
 assert "R_SCRIPT_DEFAULT_PACKAGES" not in os.environ
@@ -43,14 +46,14 @@ if mode == "missing":
 if mode == "broken":
     identity = identity.replace("ready", "load-error")
 if mode == "malformed": identity = "PRIVATE-MALFORMED-OUTPUT"
-if len(a) == 4:
+if len(a) == 3:
     print(identity, end="")
 else:
     print("PRIVATE-SUBPROCESS-DIAGNOSTIC")
     if mode == "no-protocol": sys.exit(0)
     if mode == "changed": identity = identity.replace("1.40.0", "1.42.0")
-    pathlib.Path(a[4]).write_text(identity, encoding="utf8")
-    pathlib.Path("arguments.json").write_text(json.dumps(a[9:]), encoding="utf8")
+    pathlib.Path(a[3]).write_text(identity, encoding="utf8")
+    pathlib.Path("arguments.json").write_text(json.dumps(a[8:]), encoding="utf8")
 """
 
 
