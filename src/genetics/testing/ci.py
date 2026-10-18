@@ -146,6 +146,12 @@ def plan(flow: Mapping[str, Any]) -> list[Step]:
     """Every command the test job runs, in order, with mypy expanded per platform."""
     steps: list[Step] = []
     for raw in _job(flow, TEST_JOB)["steps"]:
+        condition = str(raw.get("if", "")).strip()
+        if condition == "failure()":
+            # Diagnostics for a failed runner; a local run stops at the failure itself.
+            continue
+        if condition:
+            raise CIError(f"unrecognised condition in the test job: {condition}")
         uses = raw.get("uses")
         if uses is not None:
             if str(uses).split("@")[0] not in SETUP_ACTIONS:

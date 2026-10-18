@@ -112,6 +112,21 @@ jobs:
       - name: Fixtures reproduce byte-identically
         run: uv run genetics fixtures --check
 
+      # The R bridge keeps R's own output out of every message and leaves it in private
+      # diagnostics, so a native HIBAG failure here is otherwise opaque. CI runs only
+      # synthetic data, so its diagnostics are safe to print.
+      - name: R diagnostics after a failure
+        if: failure()
+        shell: bash
+        run: |
+          uv run python - <<'EOF'
+          from genetics.paths import cache_dir
+          for log in sorted((cache_dir() / "hibag").glob("*/std*.log")):
+              if log.stat().st_size:
+                  print(f"== {log}")
+                  print(log.read_text(encoding="utf-8", errors="replace")[-4000:])
+          EOF
+
   no-data-in-ci:
     name: no real data present
     runs-on: ubuntu-latest

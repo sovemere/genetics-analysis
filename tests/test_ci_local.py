@@ -48,6 +48,7 @@ def _flow(*steps: dict[str, Any]) -> dict[str, Any]:
         ({"name": "Deploy", "run": "make deploy"}, "make deploy"),
         ({"uses": "some/action@v1"}, "some/action"),
         ({"name": "New", "run": "uv run pytest", "env": {"GENETICS_NEW": "1"}}, "GENETICS_NEW"),
+        ({"name": "Gated", "if": "runner.os == 'Linux'", "run": "uv run pytest"}, "runner.os"),
     ],
 )
 def test_an_unrecognised_step_fails_instead_of_being_skipped(
@@ -64,6 +65,7 @@ def test_setup_lines_and_comments_are_not_commands() -> None:
         {"uses": "r-lib/actions/setup-r@v2"},
         {"name": "HIBAG", "run": "Rscript -e \"BiocManager::install('HIBAG')\""},
         {"name": "Lint", "run": "# comment\nuv run ruff check .\n"},
+        {"name": "Diagnostics", "if": "failure()", "run": "cat stderr.log"},
     )
     assert ci.plan(flow) == [ci.Step("Lint", ("ruff", "check", "."))]
 

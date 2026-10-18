@@ -288,7 +288,22 @@ def test_a_malformed_installed_state_reports_missing_rather_than_raising(
     )
 
     assert doctor._which("plink2", tool_id="plink2") is None
+    _without_r(monkeypatch)
     assert doctor.collect().has_problem is False
+
+
+def _without_r(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Pin the R check, which ``has_problem`` also reads, to an absent runtime.
+
+    These tests are about tool lookup. Left unpinned, they pass or fail with whatever R
+    the machine has: a CI runner whose R probe failed turned them red.
+    """
+    from genetics.external.hibag import Readiness
+
+    monkeypatch.setattr(
+        "genetics.external.hibag.probe",
+        lambda: Readiness("r-missing", "R not installed; HLA imputation is unavailable."),
+    )
 
 
 def test_a_lookup_that_raises_is_reported_as_missing(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -308,4 +323,5 @@ def test_a_lookup_that_raises_is_reported_as_missing(monkeypatch: pytest.MonkeyP
     monkeypatch.setattr(tools, "find_executable", boom)
 
     assert doctor._which("plink2", tool_id="plink2") is None
+    _without_r(monkeypatch)
     assert doctor.collect().has_problem is False
