@@ -23,9 +23,9 @@ M11.2 validates an explicitly selected, opt-in HIBAG HLARES hg19 classifier, pro
 marker strand from dbSNP and 1000 Genomes allele sets, records per-locus calls,
 posterior probability and coverage in bundle format 21, and preserves unavailable or
 no-prediction states without
-interpreting either as absence of an allele. Native R/HIBAG execution remains unverified
-locally because Rscript is unavailable; synthetic subprocess acceptance and explicit
-optional absence are covered.
+interpreting either as absence of an allele. Native R/HIBAG prediction runs in CI through
+synthetic classifiers on Windows and Linux. Locally it also passes through all four
+published classifiers (2026-10-18, R 4.6.1 + HIBAG 1.48.2, synthetic genotypes).
 The [M11.1 diff review](docs/review_m111_session.md) hardens interruption,
 path redaction, regular-file protocol validation and R bootstrap scope, and
 separates native readiness from native script acceptance.
