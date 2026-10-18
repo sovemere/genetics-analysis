@@ -280,7 +280,9 @@ on this machine. It reads the steps from the workflow and runs them in a fresh c
 what the push would publish, with an empty data directory and cached per-version venvs.
 CI uses Java 17; pass `--java-home` if `JAVA_HOME` does not point at it.
 `--python 3.13` runs one matrix version instead of all of them. Jobs for other operating
-systems (the Linux runners, on Windows) are named but not reproduced.
+systems (the Linux runners, on Windows) are named but not reproduced. CI also installs R
+and HIBAG for the native HLA tests; a local run uses `Rscript` from `PATH` instead, and
+says so when it finds no ready HIBAG, since those tests then skip.
 
 Fetch the sources and pinned tools needed for an analysis using `genetics refs` and
 `genetics tools`. Downloads can be large; the reference manifest declares sizes and
