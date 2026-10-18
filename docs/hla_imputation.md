@@ -118,9 +118,18 @@ checks: one synthetic, four published-model). Five are existing Windows
 OS-isolation and POSIX-mode limitations. Four strict Windows/Linux × Python
 3.11/3.13 type targets check 224 files. Full dbSNP card lint passes 77 cards,
 320 renders and 39 resolved keys. Fixtures reproduce byte for byte, and lint and
-format pass. **Native positive-path R/HIBAG prediction remains unverified**: the
-R scripts are checked against HIBAG's source (`hlaPredict` accepts a raw
+format pass. At that time native R/HIBAG prediction had not run anywhere: the R
+scripts had been checked against HIBAG's source (`hlaPredict` accepts a raw
 SNP-by-sample matrix aligned to the model), but not executed.
+
+**Update 2026-10-18.** CI now installs R and HIBAG on its Windows and Linux runners.
+The bridge checks and the synthetic native round trip pass there with R 4.6.1 and
+HIBAG 1.48.2 (CI run 39089215382). In that round trip, R trains synthetic classifiers
+and `calling.impute` predicts every locus through them. The first CI run found a
+Windows-only defect: R 4.6.1's `Rscript` cut the bridge's multi-line `-e` bootstrap at
+its first newline. The bootstrap now runs from a file in the private workspace.
+Prediction with the published classifiers is still unverified, because it needs the
+fetched references and CI never downloads them.
 
 ## Local use
 

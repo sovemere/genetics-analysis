@@ -173,8 +173,10 @@ HIBAG HLARES hg19 classifier, proves marker strand from dbSNP and 1000 Genomes a
 sets (99.8% of model markers on the real references), and stores frozen
 per-locus calls, posterior probability, marker coverage and provenance in bundle format
 21. Unavailable and no-prediction states never imply absence of an allele. See [the
-classifier-imputation contract](docs/hla_imputation.md). Native positive-path R/HIBAG
-execution remains unverified locally because Rscript is absent. [M11.3 HLA ancestry
+classifier-imputation contract](docs/hla_imputation.md). CI now installs R and HIBAG,
+and native prediction through synthetic classifiers passes on Windows and Linux.
+Prediction with the published classifiers is still unverified, because it needs the
+fetched references and CI never downloads them. [M11.3 HLA ancestry
 selection and confidence](docs/handoff.md#next-open-step-m113-hla-ancestry-selection-and-confidence)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
