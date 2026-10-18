@@ -159,6 +159,18 @@ def _workspace() -> Path:
     return path
 
 
+def _bootstrap(directory: Path, code: str) -> str:
+    """Write trusted bootstrap R into the private workspace; Rscript runs it as a file.
+
+    Not ``-e``: on Windows, R 4.6.1's Rscript cuts an ``-e`` argument at its first
+    newline, so multi-line code fails to parse ("unexpected end of input") and every
+    probe there read as an execution failure. The same R on Linux keeps them.
+    """
+    path = directory / "genetics-bootstrap.R"
+    path.write_text(code, encoding="utf-8", newline="\n")
+    return str(path)
+
+
 def _execute(
     command: list[str], directory: Path, timeout: float, cancel: threading.Event | None
 ) -> None:
@@ -278,7 +290,12 @@ def probe(
             )
         directory = _workspace()
         _execute(
-            [str(executable), "--vanilla", "--default-packages=NULL", "-e", _R_PROBE],
+            [
+                str(executable),
+                "--vanilla",
+                "--default-packages=NULL",
+                _bootstrap(directory, _R_PROBE),
+            ],
             directory,
             timeout,
             cancel,
@@ -366,6 +383,7 @@ class HIBAGRuntime:
             if not source.is_file():
                 raise OSError
             directory = _workspace()
+            bootstrap = _bootstrap(directory, _R_BRIDGE)
         except HIBAGError:
             raise
         except (OSError, ValueError, RuntimeError):
@@ -376,8 +394,7 @@ class HIBAGRuntime:
                 str(self.path),
                 "--vanilla",
                 "--default-packages=NULL",
-                "-e",
-                _R_BRIDGE,
+                bootstrap,
                 str(protocol),
                 str(source),
                 self.r_version,
