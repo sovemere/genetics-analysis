@@ -34,6 +34,7 @@ def test_the_real_workflow_is_fully_understood() -> None:
     assert runners and pythons
     assert all(r.split("-")[0] in ci.RUNNER_PLATFORMS for r in runners)
     assert ci.java_major(flow) >= 11
+    assert ci.installs_r(flow)
     assert "genotype-derived" in ci.no_data_script(flow)
 
 
@@ -60,6 +61,8 @@ def test_setup_lines_and_comments_are_not_commands() -> None:
     flow = _flow(
         {"uses": "actions/checkout@v4"},
         {"name": "Install", "run": "uv venv --python 3.11\nuv pip install -e '.[dev]'"},
+        {"uses": "r-lib/actions/setup-r@v2"},
+        {"name": "HIBAG", "run": "Rscript -e \"BiocManager::install('HIBAG')\""},
         {"name": "Lint", "run": "# comment\nuv run ruff check .\n"},
     )
     assert ci.plan(flow) == [ci.Step("Lint", ("ruff", "check", "."))]
@@ -85,6 +88,10 @@ def test_the_developer_environment_does_not_leak_into_the_run() -> None:
     env = ci.base_env({"PATH": "bin"}, java)
     assert env["JAVA_HOME"] == str(java)
     assert env["PATH"].split(os.pathsep) == [str(java / "bin"), "bin"]
+
+
+def test_a_machine_without_r_is_named_as_a_gap(tmp_path: Path) -> None:
+    assert ci.hibag_gap({"PATH": str(tmp_path)}) == "no Rscript is on PATH."
 
 
 def _git(cwd: Path, *args: str) -> str:

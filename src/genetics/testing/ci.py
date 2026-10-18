@@ -21,7 +21,9 @@ different from a development checkout, so this one does:
 
 What it cannot reproduce is a runner on another operating system. mypy checks every
 platform's types from one machine, but executing on Linux -- including the OS-level
-network isolation the privacy suite requires there -- needs Linux.
+network isolation the privacy suite requires there -- needs Linux. Nor does it install
+R: the workflow installs R and HIBAG, while a local run uses the developer's Rscript
+from PATH and says so when there is none, since the native HIBAG tests then skip.
 """
 
 from __future__ import annotations
@@ -43,6 +45,7 @@ from typing import Any
 
 import yaml
 
+from genetics.external import hibag
 from genetics.external.beagle import BeagleError, JavaRuntime
 from genetics.paths import ci_dir, repo_root
 
@@ -50,10 +53,14 @@ WORKFLOW = Path(".github") / "workflows" / "ci.yml"
 TEST_JOB = "test"
 NO_DATA_JOB = "no-data-in-ci"
 
+#: The workflow installs R for the native HIBAG tests; a local run uses the developer's.
+R_ACTION = "r-lib/actions/setup-r"
 #: Actions the test job uses to build its environment; the local run builds its own.
-SETUP_ACTIONS = frozenset({"actions/checkout", "astral-sh/setup-uv", "actions/setup-java"})
+SETUP_ACTIONS = frozenset(
+    {"actions/checkout", "astral-sh/setup-uv", "actions/setup-java", R_ACTION}
+)
 #: Shell lines that do the same. Everything else must be a ``uv run`` command.
-SETUP_COMMANDS = ("uv python install ", "uv venv ", "uv pip install ")
+SETUP_COMMANDS = ("uv python install ", "uv venv ", "uv pip install ", "Rscript ")
 #: The workflow runs mypy once per runner OS; one machine checks every platform instead.
 TYPE_PLATFORMS = ("win32", "linux")
 #: Matrix ``os`` prefixes, mapped to the ``sys.platform`` that runs them.
@@ -118,6 +125,21 @@ def java_major(flow: Mapping[str, Any]) -> int:
         if str(step.get("uses", "")).split("@")[0] == "actions/setup-java":
             return int(step["with"]["java-version"])
     raise CIError("the test job sets up no Java")
+
+
+def installs_r(flow: Mapping[str, Any]) -> bool:
+    return any(
+        str(s.get("uses", "")).split("@")[0] == R_ACTION for s in _job(flow, TEST_JOB)["steps"]
+    )
+
+
+def hibag_gap(env: Mapping[str, str]) -> str | None:
+    """Why the native HIBAG tests CI runs would skip here, or None when they run."""
+    found = shutil.which("Rscript", path=env.get("PATH"))
+    if found is None:
+        return "no Rscript is on PATH."
+    state = hibag.probe(Path(found))
+    return None if state.status == "ready" else f"{found}: {state.detail}"
 
 
 def plan(flow: Mapping[str, Any]) -> list[Step]:
@@ -227,6 +249,9 @@ def run(
     skipped = [r for r in runners if RUNNER_PLATFORMS.get(r.split("-")[0]) != sys.platform]
     if skipped:
         emit(f"Not reproduced on this machine: the {', '.join(skipped)} jobs.")
+    gap = hibag_gap(env) if installs_r(flow) else None
+    if gap is not None:
+        emit(f"Not reproduced on this machine: the native HIBAG tests, because {gap}")
 
     outcomes: list[Outcome] = []
     with _scratch() as scratch:
