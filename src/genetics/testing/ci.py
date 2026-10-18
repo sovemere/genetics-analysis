@@ -217,6 +217,10 @@ def materialise(source: Path, target: Path) -> bool:
     if not _git(target, "status", "--porcelain"):
         return False
     _git(target, "add", "--all")
+    # A CRLF working tree under `* text=auto eol=lf` reads as modified in the LF clone,
+    # yet stages nothing, and `git commit` then exits 1 with an empty stderr.
+    if not _git(target, "diff", "--cached", "--name-only"):
+        return False
     _git(
         target,
         "-c",
