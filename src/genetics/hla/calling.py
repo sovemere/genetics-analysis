@@ -538,6 +538,8 @@ class HLAStage(NoGenotypeRepr):
         """Record the M5-driven classifier choice and verify the model it needs."""
         if self.opt_in is not True:
             return
+        if self.cancel is not None and self.cancel.is_set():
+            raise hibag.HIBAGCancelledError("HLA imputation was cancelled.")
         self.selection = selection.select(ancestry, requested=self.population)
         classifier = self.selection["classifier"]
         if classifier is None:

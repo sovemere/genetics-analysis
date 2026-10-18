@@ -183,7 +183,9 @@ Morales category and the publisher's training descriptions. It declines on decli
 missing, ambiguous or unsupported placements rather than guessing. An explicit classifier
 still runs with its ancestry mismatch recorded. Each predicted locus carries an
 observation ceiling from posterior, marker coverage and ancestry match, in bundle format
-22. See [the selection contract](docs/hla_selection.md).
+22. See [the selection contract](docs/hla_selection.md). The
+[M11.3 diff review](docs/review_m113_session.md) adds rendering coverage for every
+selection outcome and fixes override wording and late cancellation.
 [M11.4 HLA-linked cards](docs/handoff.md#next-open-step-m114-hla-linked-cards) are next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
