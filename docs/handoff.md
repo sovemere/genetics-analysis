@@ -39,8 +39,8 @@ in bundle format 21. See the
 The [M11.1 diff review](review_m111_session.md) hardens path redaction, terminal-wait
 interruption, regular-file protocol validation and R bootstrap scope. Native R readiness
 and bridge-script acceptance are now separate checks. Native prediction through synthetic
-classifiers has run in CI since 2026-10-18; published-classifier prediction is still
-unverified (see the M11.3 step below).
+classifiers has run in CI since 2026-10-18, and prediction through the published
+classifiers passes locally (see the M11.3 step below).
 Final reviewed coverage passes **3,344 unique tests**, seven skips, with all four
 strict type targets, complete card lint, fixtures and style passing. The
 [review validation record](review_m111_session.md#validation) distinguishes the
@@ -352,11 +352,17 @@ run on every push. HIBAG trains synthetic classifiers, and `calling.impute` pred
 through them. They first passed with R 4.6.1 and HIBAG 1.48.2. That first run found a
 Windows-only bridge defect: R 4.6.1's `Rscript` cuts an `-e` argument at its first
 newline, so every probe failed to parse. The bootstrap now runs from a file in the
-private workspace. **Published-classifier prediction remains unverified**, because
-CI never downloads references and this machine has no R. To run it, configure
-`GENETICS_RSCRIPT` (or `GENETICS_HIBAG_TEST_RSCRIPT` for tests only) and
-`GENETICS_HIBAG_TEST_REFERENCES`, pointing at a reference root that holds the fetched
-classifiers, the dbSNP index and the 1000 Genomes chr6 VCF.
+private workspace.
+
+Prediction through the published classifiers passes locally on Windows, with R 4.6.1
+and HIBAG 1.48.2 installed for the current user (2026-10-18). All four populations
+prepare against the real dbSNP and 1000 Genomes references and return predicted loci,
+in 38–60 seconds per model. The input is synthetic genotypes at the model markers. So
+this proves the path runs end to end, not that the calls are accurate. CI cannot run
+it, because CI never downloads references. To rerun it, set `GENETICS_HIBAG_TEST_REFERENCES`
+to a reference root holding the fetched classifiers, the dbSNP index, the 1000 Genomes
+chr6 VCF and `manifest.lock`. `Rscript` is found on `PATH`, or set `GENETICS_RSCRIPT`
+(or `GENETICS_HIBAG_TEST_RSCRIPT` for tests only).
 
 The real pinned models, dbSNP and 1000 Genomes now pass reference preparation outside R.
 That check found two defects the synthetic fixtures hid: a dbSNP provenance version the

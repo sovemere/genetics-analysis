@@ -128,8 +128,12 @@ HIBAG 1.48.2 (CI run 39089215382). In that round trip, R trains synthetic classi
 and `calling.impute` predicts every locus through them. The first CI run found a
 Windows-only defect: R 4.6.1's `Rscript` cut the bridge's multi-line `-e` bootstrap at
 its first newline. The bootstrap now runs from a file in the private workspace.
-Prediction with the published classifiers is still unverified, because it needs the
-fetched references and CI never downloads them.
+The same day, prediction through all four published classifiers passed locally on
+Windows with the same R and HIBAG versions (`test_native_published_classifier`, 38–60
+seconds per model). Each model is prepared against the real dbSNP and 1000 Genomes
+references, and the run returns predicted loci. The genotypes are synthetic, drawn at
+the model markers. That establishes the path runs end to end, not that the calls are
+accurate. CI cannot run this test, because it never downloads references.
 
 ## Local use
 
