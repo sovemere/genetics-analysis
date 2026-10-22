@@ -195,7 +195,9 @@ model cannot emit, or a stage that did not run makes a card not determinable, ne
 negative. Confidence uses the weakest named locus posterior, the M9.13 study comparison and
 M11.3's call ceiling, and stays capped at moderate without an HLA frequency source. Cards
 rebuild from their frozen definition and the bundle's own records in format 23. See
-[the card contract](docs/hla_cards.md).
+[the card contract](docs/hla_cards.md). The
+[M11.4 diff review](docs/review_m114_session.md) stops allele groups counting null
+alleles and lists the HLA drug cards in the PGx views.
 [M11.5 carrier status](docs/handoff.md#next-open-step-m115-carrier-status) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

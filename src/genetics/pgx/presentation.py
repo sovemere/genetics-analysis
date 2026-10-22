@@ -80,4 +80,12 @@ def saved_report(bundle: RunBundle, gene: str | None = None) -> dict[str, Any]:
             for c in guidelines
         ],
         "guideline_status": "recorded" if guidelines else "not-recorded",
+        # M11.4 HLA drug cards live in this section but key on HLA genes, not these eight.
+        "hla_cards": []
+        if gene is not None
+        else [
+            {"card_id": c.card_id, "title": c.title, "status": c.status, "summary": c.summary}
+            for c in bundle.cards
+            if c.kind == "hla" and c.section == "pharmacogenomics"
+        ],
     }

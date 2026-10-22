@@ -50,7 +50,8 @@ cards:
       risk_context: >-
         Biopsy-confirmed celiac disease affects 0.7% of people worldwide (95% CI 0.5-0.9%;
         0.8% in Europe; Singh et al. 2018, 138,792 individuals). Assuming a 1-in-100
-        prevalence, Megiorni et al. 2009 (437 Italian patients, 551 controls) estimated risk
+        prevalence, Megiorni et al. 2009 (437 Italian children with celiac disease, 551
+        controls) estimated risk
         from about 1 in 7 for "DQ2 and DQ8 individuals" down to 1 in 2,518 for people with
         no DQ2, DQ8 or half-DQ2 chain. These are population estimates, not this person's
         probability, and HLA cannot show whether celiac disease is present.
@@ -76,7 +77,8 @@ cards:
         (DQA1*05) alone was negatively associated with disease in their Italian cohort.
       risk_context: >-
         Among 1,008 European patients, 57 (5.7%) encoded only half of DQ2.5 (Karell et al.
-        2003); among 437 Italian patients, 6% had only the DQB1*02 chain and 2% only the
+        2003); among 437 Italian children with celiac disease, 6% had only the DQB1*02 chain
+        and 2% only the
         DQA1*05 chain (Megiorni et al. 2009). These sources do not give the
         general-population share with this pattern, so no absolute risk is assigned.
       evidence: null

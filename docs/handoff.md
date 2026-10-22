@@ -38,6 +38,10 @@ immunogenetics, and B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomic
 recommendation rows come from the run's frozen CPIC release rather than the knowledge pack.
 Bundle format 23 rebuilds every HLA card from its frozen definition and the bundle's own
 HLA, PGx and ancestry records. See [the card contract](hla_cards.md).
+The [M11.4 diff review](review_m114_session.md) stops one-field allele groups counting
+null (`N`) alleles, lists the four HLA drug cards on the PGx overview and in
+`genetics pgx calls`, and tightens three card sentences against their sources. Schema 6,
+card result schema 1 and bundle format 23 are unchanged.
 **M11.3 HLA classifier selection and call confidence are implemented.**
 The model-terms opt-in now selects the HIBAG classifier from the run's saved M5
 placements and declines rather than guesses; an explicit classifier still runs with its

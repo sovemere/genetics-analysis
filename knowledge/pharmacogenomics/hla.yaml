@@ -21,10 +21,11 @@ cards:
     carrier:
       summary: >-
         These calls carry HLA-B*57:01, the allele behind abacavir hypersensitivity; in the
-        PREDICT-1 trial 47.9% of carriers had an immunologically confirmed reaction.
+        PREDICT-1 trial 47.9% of carriers given abacavir had an immunologically confirmed
+        reaction.
       detail: >-
-        PREDICT-1 randomised 1,956 people with HIV (84% white; 5.6% carried B*57:01) to
-        prospective screening or standard care. Excluding carriers eliminated
+        PREDICT-1 randomised 1,956 people with HIV (5.6% carried B*57:01; 84% of those
+        given abacavir were white) to prospective screening or standard care. Excluding carriers eliminated
         immunologically confirmed hypersensitivity (0% versus 2.7%), giving a positive
         predictive value of 47.9% and a negative predictive value of 100% for confirmed
         reactions.
@@ -43,7 +44,8 @@ cards:
           value: 0.479
           context: >-
             Positive predictive value of HLA-B*57:01 for immunologically confirmed abacavir
-            hypersensitivity in PREDICT-1 (84% white); applies to people given abacavir.
+            hypersensitivity in PREDICT-1 (84% of patients given abacavir were white);
+            applies to people given abacavir.
     non_carrier:
       summary: >-
         These calls carry no HLA-B*57:01; screened non-carriers had no immunologically
@@ -79,7 +81,8 @@ cards:
       value: 0.479
       context: >-
         Positive predictive value of HLA-B*57:01 for immunologically confirmed abacavir
-        hypersensitivity in PREDICT-1 (84% white); applies to people given abacavir.
+        hypersensitivity in PREDICT-1 (84% of patients given abacavir were white); applies
+        to people given abacavir.
   citations:
   - type: doi
     id: 10.1056/NEJMoa0706135
@@ -94,7 +97,8 @@ cards:
       Genotype and Abacavir Dosing: 2014 update'
   caveats:
   - >-
-    PREDICT-1 was 84% white; the predictive values were measured in that population.
+    84% of PREDICT-1 patients given abacavir were white; the predictive values were
+    measured in that population.
 - id: hla_b1502_carbamazepine
   section: pharmacogenomics
   kind: hla
