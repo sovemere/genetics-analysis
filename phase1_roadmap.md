@@ -16,25 +16,23 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.4 HLA-linked cards are next.** M0–M10 and M11.1–M11.3 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m114-hla-linked-cards) starts with the
-frozen [selection and confidence contract](docs/hla_selection.md).
-M11.3 chooses the HIBAG HLARES classifier from the run's saved M5 placements: the
-1000 Genomes population's cited Morales category must be named by the publisher's
-training description, the AADR placement must have placed the sample, and admissible
-alternatives must agree on the classifier. Otherwise nothing is selected and nothing is
-guessed. An explicit `--hla-classifier` still runs, with its ancestry match recorded
-against that selection. Each predicted locus folds its joint posterior, marker coverage
-and classifier ancestry match into an observation ceiling, using the calculator's own
-bands. HLA sample schema 2 is bound to the saved ancestry in bundle format 22, and format 21
-schema-1 runs are read unchanged. M11.2's
-[classifier-imputation contract](docs/hla_imputation.md) is unchanged beneath it.
-Native R/HIBAG prediction runs in CI through synthetic classifiers on Windows and Linux.
-Locally it also passes through all four published classifiers with schema-2 records
-(2026-10-18, R 4.6.1 + HIBAG 1.48.2, synthetic genotypes). The
-[M11.3 diff review](docs/review_m113_session.md) adds rendering coverage for every
-selection outcome, corrects the override wording and makes `select()` honour
-cancellation; saved formats are unchanged.
+**M11.5 carrier status is next.** M0–M10 and M11.1–M11.4 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m115-carrier-status) records what a carrier
+card must carry and what is not yet decided.
+
+M11.4 turns the frozen M11.3 classifier calls into eight cited HLA-linked cards (knowledge
+schema 6, `kind: hla`): celiac DQ2.5/DQ8, type 1 diabetes DR3/DR4-DQB1\*03:02, ankylosing
+spondylitis B27 and narcolepsy DQB1\*06:02 in immunogenetics; B\*57:01, B\*15:02, A\*31:01
+and B\*58:01 in pharmacogenomics. A drug card's carrier state selects the frozen CPIC
+`positive`/`negative` lookup, resolves other HLA genes in a CPIC key from the same record
+and leaves CYP2C9 explicit and unassessed; recommendation text is never authored. A stage
+that did not run, a named locus without a prediction, or an allele the classifier cannot
+emit makes a card not determinable, never negative. Confidence takes the weakest named
+locus posterior, M9.13's study comparison and M11.3's call ceiling, and stays capped at
+moderate without an HLA frequency source. Phase-dependent claims cannot be authored. Bundle
+format 23 rebuilds every HLA card from its frozen definition and the bundle's own HLA, PGx
+and ancestry records; formats 1–22 are read unchanged. See
+[the card contract](docs/hla_cards.md).
 
 ### Completed milestones (historical checkpoints)
 
@@ -2878,9 +2876,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       with their ancestry mismatch recorded. Per-locus ceilings use the calculator's own
       posterior/coverage/ancestry bands. Schema 2, format 22. See the
       [selection contract](docs/hla_selection.md).
-- [ ] **M11.4** HLA-linked cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing
+- [x] **M11.4** HLA-linked cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing
       spondylitis, narcolepsy (DQB1\*06:02), drug hypersensitivity (B\*57:01/abacavir,
-      B\*15:02/carbamazepine).
+      B\*15:02/carbamazepine), plus A\*31:01/carbamazepine and B\*58:01/allopurinol, which
+      the frozen CPIC release keys the same way. Knowledge schema 6 `kind: hla`; one engine
+      for the PGx overlap; declared phase policy; bundle format 23. See the
+      [card contract](docs/hla_cards.md).
 - [ ] **M11.5** Carrier status cards for array-tractable recessive conditions.
 - [ ] **M11.6** **Carrier-screening incompleteness card**: CNV-based conditions (SMN1/SMA,
       alpha-thalassemia) are invisible to this data. State it, or the section implies a
@@ -3014,6 +3015,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-10-22 | M11.4 | Eight HLA-linked cards read the frozen M11.3 calls through knowledge schema 6 (`kind: hla`): celiac DQ2.5/DQ8, type 1 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in immunogenetics; B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomics. **Three decisions.** (1) *Phase is declared, and a phase-dependent claim cannot be authored.* A multi-locus alternative says why unphased calls suffice: `heterodimer` (celiac, after Sollid 1989's cis/trans finding) or `genotype` (T1D, after Emery 2005's unphased DR3/4-DQB1\*0302 class). A DR-DQ haplotype claim would always be phase-ambiguous for the very genotype it targets, so the schema refuses it rather than rendering it as determinable. (2) *One engine for the PGx overlap.* Reading the frozen CPIC v1.60.0 catalog found HLA-B\*57:01, \*15:02, \*58:01 and HLA-A\*31:01 already keyed as `positive`/`negative` lookups with recommendation rows, so drug cards select those rows instead of authoring recommendation text; the carbamazepine HLA-A × HLA-B keys resolve both genes from the same HLA record, and phenytoin's CYP2C9 stays an explicit unassessed condition. This is why A\*31:01 and B\*58:01 were added: the same rows, no new engine. (3) *Confidence inputs each use their existing slot*: the lowest named-locus posterior as imputation quality (never multiplied), M9.13's study comparison as the weighted ancestry component, and M11.3's call ceiling (which already carries the classifier match) as a cap. The handoff had suggested passing the classifier match to the calculator; that would have used it twice and dropped the study population, and is recorded as a deviation. With no HLA frequency source every card is capped at moderate and says so. **Source check.** Every face number was read from the cited abstract or open full text via Europe PMC/PMC on 2026-10-22. One draft sentence did not survive it: the van der Linden survey abstract does not say every AS case was B27-positive, so the non-carrier text claims only what it does say. Absence stays explicit: no record, an unavailable stage, `no-markers`, `no-prediction` and alleles the classifier cannot emit are all not determinable, never negative. Bundle format 23 rebuilds each card from its frozen definition and the bundle's own HLA, PGx and ancestry records; a card from another run, an edited posterior, tier, definition or face is refused. Fifteen guards were each neutered in turn and every change failed a test; the first pass left one survivor (two same-locus terms met by one allele), closed by a synthetic homozygosity test. `ci-local` first caught a duplicate `test_cards` module basename that local runs had not exercised; the rerun passes every Windows step on Python 3.11 and 3.13 with 3,553 tests passed and 18 skipped on each (the new skip is the local-only real-CPIC acceptance, which passes here). Four strict type targets, card lint (85 cards, 371 renders) and fixtures pass. No personal export was opened. [Contract and acceptance](docs/hla_cards.md). |
 | 2026-10-18 | M11.3 diff review | Reviewed `c737261..818ba1a` (M11.3 and the `ci-local` line-ending fix). No defect in selection, saved evidence or the bundle binding. **P2: most of the HLA dashboard's selection view never rendered under test.** The only dashboard test used an explicit classifier with ancestry not run. Breaking one field of the uncertainty block, which would return a 500 for every placed run, left every test green. A new test renders selected, ambiguous-explicit, declined-explicit and unsupported `no-classifier` records through the dashboard and `hla calls`, and fails on that same change. P3 fixes: the explicit-override sentence said a not-run or declined placement "supported no classifier" and now states the automatic outcome; `select()` ignored a cancellation set after `prepare()` (reproduced) and now raises on entry; a payload-file docstring had moved onto the new format constant; an unused constant was removed. Schema 2 and format 22 are unchanged. `genetics ci-local` passes every Windows step on Python 3.11 and 3.13, with 3,513 tests passed and 17 skipped on each. [Review](docs/review_m113_session.md). |
 | 2026-10-18 | M11.3 | The HIBAG classifier is now chosen from the run's saved M5 placements, not named by hand. The 1000 Genomes population maps to its Morales category (the table M9.5 already cites). A category maps to a classifier only where the publisher's training description names it. The AADR placement must have placed the sample, and admissible 1000 Genomes alternatives must agree on the classifier. Declined, not-run, ambiguous and unsupported placements select nothing and record `no-classifier`; the stage never guesses. **Two findings from the source check.** (1) The publisher describes the Asian model's training as "East & South Asia" plus CHB+JPT, with no published split. A South Asian placement therefore selects it with an *unknown* ancestry match, not a perfect one; an uncommitted earlier draft found in the working tree had excluded South Asia and included KHV, which no description names. (2) Zheng et al. 2014 chose a 0.5 call threshold (about 80% accuracy). It is recorded beside each call but sets no tier, because the calculator's own DR2 bands already govern the posterior and M11.4's `calculate_confidence` will apply those same bands. An explicit `--hla-classifier` still runs (AGENTS.md 0.1A), with its ancestry match recorded: 1 when the placement agrees, 0 when it is contradicted, declined or unsupported, unknown otherwise. Each predicted locus folds its posterior (DR2 bands), marker coverage (`ancestry_ceiling` bands, as for polygenic coverage) and that match into an observation ceiling, with no new number. `no-markers`/`no-prediction` loci are `not_computed`. HLA sample schema 2 is bound to the same bundle's `ancestry.run.json` in format 22; format 21 keeps schema 1 and is read unchanged, and a schema/format mismatch is refused both ways. Model preparation for an automatic choice moves after ancestry; an explicit model is still verified before the export is read. CLI and dashboard show the selection, uncertainty and ceiling. Ten guards were each neutered in turn, and every change failed a test. The broad local suite: 3,465 passed, ten failed, 53 skipped (native ROH/Beagle tool roots and published-classifier references not configured). All ten failures were format-21 literals, now 22; their four files then passed 245. Native acceptance with R 4.6.1 + HIBAG 1.48.2 passed all five tests, schema-2 records, synthetic genotypes: the synthetic round trip and all four published classifiers against the real dbSNP/1000 Genomes references. Four strict type targets (228 files) and lint/format pass. No personal export was opened, and no classifier payload or derived output was added. [Contract and acceptance](docs/hla_selection.md). |
 | 2026-10-16 | M11.2 | Added explicit opt-in HIBAG HLARES hg19 classifier ingestion for European, Asian, Hispanic and African models, with pinned byte identity, isolated R metadata inspection, strand proofs from dbSNP and lock-verified 1000 Genomes chr6 allele sets, and strict complete-output validation. HLA sample schema 1 and bundle format 21 persist all seven loci, model/runtime identities, per-marker strand evidence, marker coverage, posterior and categorical unavailable/no-prediction states; historical bundles remain HLA-not-recorded. The shared engine serves run, inspect/calls CLI and dashboard views. Model terms are unresolved rather than inferred from the HIBAG package licence, so each classifier requires source opt-in. **Validating the real pinned models against the real local references, outside R and with no personal data, found two defects the synthetic fixtures hid.** (1) The frozen dbSNP provenance check demanded sidecar version 1; the producer only writes 2, so every real `prepare` would have refused. Fixtures now take the producer's constant, so a future bump fails the tests rather than saved runs. (2) dbSNP b157 lists every submitted allele, leaving 43% of model markers tetra-allelic and strand-unresolved. 1000 Genomes now votes alongside dbSNP; indel/structural records abstain and disagreement stays missing. 99.8% of marker slots are proven in all four models, all on the forward strand; one genuinely tetra-allelic position stays missing. Indexed strand lookup cuts each saved-record validation from 1.2 s to 5 ms. The full native suite passes 3,417 tests with 12 skips: seven need the absent Rscript and five are existing Windows limitations. Four strict type targets (224 files), full card lint (77/320/39), fixtures and style pass. Native positive-path R/HIBAG remains unverified. No personal export, classifier payload or derived output was added. [Contract and acceptance](docs/hla_imputation.md). |

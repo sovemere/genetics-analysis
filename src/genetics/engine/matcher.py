@@ -362,6 +362,12 @@ class Matcher:
                 status=MatchStatus.NOT_RUN,
                 reason="Guideline interpretation has not run.",
             )
+        if card.kind is CardKind.HLA:
+            return MatchResult(
+                card_id=card.id,
+                status=MatchStatus.NOT_RUN,
+                reason="HLA-linked interpretation has not run.",
+            )
         if card.kind is CardKind.COMPUTED:
             return MatchResult(
                 card_id=card.id,

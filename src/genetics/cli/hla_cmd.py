@@ -18,12 +18,14 @@ def calls(
     as_json: Annotated[bool, typer.Option("--json", help="Private frozen HLA evidence.")] = False,
 ) -> None:
     from genetics.hla.calling import report
+    from genetics.hla.cards import cards_report
     from genetics.hla.models import HLAError
     from genetics.run import store
-    from genetics.run.bundle import BundleError
+    from genetics.run.bundle import HLA_CARD_FORMAT_VERSION, BundleError
 
     try:
-        data = report(store.load_run(run_id).hla)
+        bundle = store.load_run(run_id)
+        data = report(bundle.hla)
     except (BundleError, HLAError, OSError, ValueError):
         _fail(as_json)
     else:
@@ -60,6 +62,22 @@ def calls(
                 if "confidence" in row:
                     typer.echo("  " + _ceiling(row["confidence"]))
                 typer.echo("  Marker states: " + json.dumps(row["coverage"], sort_keys=True))
+            if bundle.format_version < HLA_CARD_FORMAT_VERSION:
+                typer.echo(
+                    f"HLA-linked cards: not recorded (bundle format {bundle.format_version}); "
+                    "no current card is substituted."
+                )
+                return
+            linked = cards_report(bundle.cards)
+            typer.echo(f"HLA-linked cards: {len(linked)} saved")
+            for card in linked:
+                typer.echo(
+                    f"{card['card_id']}: {card['status']}; {card['tier'] or 'no tier'}; "
+                    f"{card['section']}"
+                )
+                typer.echo("  " + card["summary"])
+            if linked:
+                typer.echo(f"Full card evidence: genetics runs show {run_id} --json")
 
 
 def _value(value: float | None) -> str:

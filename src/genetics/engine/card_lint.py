@@ -511,6 +511,8 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
     rendered = 0
     if card.kind is CardKind.GUIDELINE:
         return [], 0
+    if card.kind is CardKind.HLA:
+        return _lint_hla_templates(card)
     if card.kind is not CardKind.INTERPRETATION:
         context: dict[str, object] = {"gene": card.gene or "GENE"}
         for field_name, template in (("summary", card.summary), ("detail", card.detail)):
@@ -556,6 +558,29 @@ def _lint_templates(card: Card) -> tuple[list[LintIssue], int]:
                 issues.append(issue)
         if outcome.risk_context is not None:
             issue = _render_one(outcome.risk_context, {}, "risk_context", card.id)
+            if issue is None:
+                rendered += 1
+            else:
+                issues.append(issue)
+    return issues, rendered
+
+
+def _lint_hla_templates(card: Card) -> tuple[list[LintIssue], int]:
+    """Render every HLA outcome with the one placeholder those cards accept.
+
+    The engine writes the call, the reliability and any CPIC rows itself, so only the
+    authored outcome text and its literal risk context are templates.
+    """
+    issues: list[LintIssue] = []
+    rendered = 0
+    gene: dict[str, object] = {"gene": card.gene or "GENE"}
+    for name, outcome in card.outcomes.items():
+        for field_name, template, values in (
+            ("summary", outcome.summary, gene),
+            ("detail", outcome.detail, gene),
+            ("risk_context", outcome.risk_context or "", {}),
+        ):
+            issue = _render_one(template, values, f"outcomes.{name}.{field_name}", card.id)
             if issue is None:
                 rendered += 1
             else:

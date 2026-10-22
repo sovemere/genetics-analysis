@@ -1,0 +1,360 @@
+schema_version: 6
+cards:
+- id: hla_celiac_dq2_dq8
+  section: immunogenetics
+  kind: hla
+  title: HLA-DQ2.5 and DQ8 and celiac disease
+  gene: HLA-DQA1/DQB1
+  hla:
+    phase: heterodimer
+    alternatives:
+    - name: DQ2.5
+      all_of:
+      - locus: DQA1
+        alleles: ['05']
+      - locus: DQB1
+        alleles: ['02']
+    - name: DQ8
+      all_of:
+      - locus: DQA1
+        alleles: ['03']
+      - locus: DQB1
+        alleles: ['03:02']
+    - name: half DQ2.5 (DQA1*05)
+      all_of:
+      - locus: DQA1
+        alleles: ['05']
+    - name: half DQ2.5 (DQB1*02)
+      all_of:
+      - locus: DQB1
+        alleles: ['02']
+    states:
+      DQ2.5: risk_heterodimer
+      DQ8: risk_heterodimer
+      half DQ2.5 (DQA1*05): half_heterodimer
+      half DQ2.5 (DQB1*02): half_heterodimer
+      none: neither
+  outcomes:
+    risk_heterodimer:
+      summary: >-
+        These calls encode DQ2.5 or DQ8, the HLA-DQ molecules carried by about 94% of
+        European people with celiac disease; most carriers never develop it.
+      detail: >-
+        Celiac disease needs dietary gluten and an HLA-DQ molecule that presents gluten
+        peptides to T cells. Sollid et al. found that 93 of 94 children with celiac disease
+        shared one DQ alpha/beta heterodimer, encoded in cis on DR3-DQ2 haplotypes and in
+        trans in DR5/DR7 heterozygotes. In the European Genetics Cluster, 947 of 1,008
+        patients (93.9%) encoded DQ2.5 (DQA1*05 with DQB1*02) or DQ8 (DQA1*03 with
+        DQB1*03:02). Carrying the molecule is close to necessary for the disease and far
+        from sufficient.
+      risk_context: >-
+        Biopsy-confirmed celiac disease affects 0.7% of people worldwide (95% CI 0.5-0.9%;
+        0.8% in Europe; Singh et al. 2018, 138,792 individuals). Assuming a 1-in-100
+        prevalence, Megiorni et al. 2009 (437 Italian patients, 551 controls) estimated risk
+        from about 1 in 7 for "DQ2 and DQ8 individuals" down to 1 in 2,518 for people with
+        no DQ2, DQ8 or half-DQ2 chain. These are population estimates, not this person's
+        probability, and HLA cannot show whether celiac disease is present.
+      evidence:
+        tier: functional
+        replication: independent
+        sample_size: 1008
+        ancestry: [EUR]
+        effect:
+          measure: proportion
+          value: 0.939
+          context: >-
+            Share of 1,008 European celiac patients encoding DQ2.5 or DQ8 (947); a case
+            composition, not a risk for carriers.
+    half_heterodimer:
+      summary: >-
+        These calls encode half of DQ2.5 (DQA1*05 or DQB1*02 alone) and neither DQ2.5 nor
+        DQ8; a minority of celiac patients have only this.
+      detail: >-
+        Of the 61 patients in the European Genetics Cluster who carried neither DQ2.5 nor
+        DQ8, 57 encoded one half of the DQ2.5 heterodimer. Megiorni et al. confirmed that
+        the beta half (DQB1*02) contributes to predisposition, while the alpha half
+        (DQA1*05) alone was negatively associated with disease in their Italian cohort.
+      risk_context: >-
+        Among 1,008 European patients, 57 (5.7%) encoded only half of DQ2.5 (Karell et al.
+        2003); among 437 Italian patients, 6% had only the DQB1*02 chain and 2% only the
+        DQA1*05 chain (Megiorni et al. 2009). These sources do not give the
+        general-population share with this pattern, so no absolute risk is assigned.
+      evidence: null
+    neither:
+      summary: >-
+        These calls encode neither DQ2.5 nor DQ8, nor either half of DQ2.5; celiac disease
+        is rare without them, but a model call is not a clinical exclusion.
+      detail: >-
+        Only 4 of 1,008 European patients (0.4%) carried neither heterodimer nor either
+        half of DQ2.5. Clinical HLA typing is used to reach this result because it makes
+        celiac disease very unlikely; here it rests on an imputed, unphased model call.
+      risk_context: >-
+        Assuming a 1-in-100 prevalence, Megiorni et al. 2009 estimated a risk of about 1 in
+        2,518 for people with no DQ2, DQ8 or half-DQ2 chain. In the European Genetics
+        Cluster, 4 of 1,008 patients (0.4%) had this pattern (Karell et al. 2003).
+      evidence:
+        tier: functional
+        replication: independent
+        sample_size: 1008
+        ancestry: [EUR]
+        effect:
+          measure: proportion
+          value: 0.004
+          context: >-
+            Share of 1,008 European celiac patients carrying neither DQ2.5, DQ8 nor either
+            half of DQ2.5 (4 patients); a case composition, not a risk for non-carriers.
+  evidence:
+    tier: functional
+    replication: independent
+    sample_size: 1008
+    ancestry: [EUR]
+    effect:
+      measure: proportion
+      value: 0.939
+      context: >-
+        Share of 1,008 European celiac patients encoding DQ2.5 or DQ8 (947); a case
+        composition, not a risk for carriers.
+  citations:
+  - type: doi
+    id: 10.1084/jem.169.1.345
+    title: Evidence for a primary association of celiac disease to a particular HLA-DQ
+      alpha/beta heterodimer
+  - type: doi
+    id: 10.1016/s0198-8859(03)00027-2
+    title: 'HLA types in celiac disease patients not carrying the DQA1*05-DQB1*02 (DQ2)
+      heterodimer: results from the European Genetics Cluster on Celiac Disease'
+  - type: doi
+    id: 10.1016/j.humimm.2008.10.018
+    title: HLA-DQ and risk gradient for celiac disease
+  - type: doi
+    id: 10.1016/j.cgh.2017.06.037
+    title: 'Global Prevalence of Celiac Disease: Systematic Review and Meta-analysis'
+  caveats:
+  - HLA-DQ carriage is a precondition for celiac disease, not a diagnosis of it.
+  - >-
+    Two copies of DQ2.5 carry more risk than one in the literature, but counting copies of
+    a two-locus heterodimer needs phased haplotypes, which these calls do not provide.
+  - >-
+    Megiorni et al. 2009 studied Italian children; Karell et al. 2003 studied patients
+    across Europe. Neither estimates risk for other ancestries.
+- id: hla_t1d_dr3_dr4_dq8
+  section: immunogenetics
+  kind: hla
+  title: HLA-DR3/DR4 with DQB1*03:02 and type 1 diabetes
+  gene: HLA-DRB1/DQB1
+  hla:
+    phase: genotype
+    alternatives:
+    - name: DR3/DR4 with DQB1*03:02
+      all_of:
+      - locus: DRB1
+        alleles: ['03']
+      - locus: DRB1
+        alleles: ['04']
+      - locus: DQB1
+        alleles: ['03:02']
+    states:
+      DR3/DR4 with DQB1*03:02: high_risk_genotype
+      none: other_genotype
+  outcomes:
+    high_risk_genotype:
+      summary: >-
+        These calls carry DRB1*03, DRB1*04 and DQB1*03:02, the HLA genotype most strongly
+        associated with type 1 diabetes (odds ratio 18 in a Colorado study); most people
+        with it never develop the disease.
+      detail: >-
+        Emery et al. typed 1,322 people with type 1 diabetes and 3,339 children from the
+        Denver general population by DR and DQB1 alleles: 30.3% of patients and 2.34% of
+        the general population had DR3/4 with DQB1*0302 (odds ratio 18.14, 95% CI
+        14.08-23.37), the highest of any genotype, and 47% of those diagnosed before age 5
+        had it. Erlich et al. attribute much of the risk to a DQ heterodimer formed in trans
+        from DQA1*05:01 on the DR3 haplotype and DQB1*03:02 on the DR4 haplotype.
+      risk_context: >-
+        The genotype was found in 2.34% of 3,339 Denver general-population children and in
+        30.3% of 1,322 patients (Emery et al. 2005), and in 2.5% of the general
+        European-ancestry population versus 36.5-45.0% of European-ancestry probands
+        (Erlich et al. 2008). These sources give genotype frequencies and odds ratios, not
+        a lifetime incidence for carriers, so no absolute risk is assigned.
+    other_genotype:
+      summary: >-
+        These calls do not carry the DR3/DR4 genotype with DQB1*03:02; other HLA genotypes
+        carry lower type 1 diabetes risk, and a model call is not a clinical exclusion.
+      detail: >-
+        Emery et al. also found raised odds ratios for DR4/4 with DQB1*0302 (4.02), DR1/4
+        with DQB1*0302 (3.41) and DR3/3. This card evaluates only the DR3/DR4 genotype with
+        DQB1*03:02, not those genotypes.
+      risk_context: >-
+        69.7% of the 1,322 patients in Emery et al. 2005 did not have this genotype, so its
+        absence does not rule out type 1 diabetes. No absolute rate is assigned.
+      evidence: null
+  evidence:
+    tier: gwas
+    replication: independent
+    sample_size: 4661
+    ancestry: [EUR, AMR]
+    effect:
+      measure: odds_ratio
+      value: 18.14
+      ci_low: 14.08
+      ci_high: 23.37
+      context: >-
+        DR3/4 with DQB1*0302 versus all other genotypes: 1,322 Colorado patients versus
+        3,339 Denver general-population children, non-Hispanic white and Hispanic.
+  citations:
+  - type: doi
+    id: 10.1111/j.1399-543x.2005.00117.x
+    title: 'Newborn HLA-DR,DQ genotype screening: age- and ethnicity-specific type 1
+      diabetes risk estimates'
+  - type: doi
+    id: 10.2337/db07-1331
+    title: 'HLA DR-DQ haplotypes and genotypes and type 1 diabetes risk: analysis of the
+      type 1 diabetes genetics consortium families'
+  caveats:
+  - >-
+    The cited genotype class groups DR4 subtypes. Erlich et al. found
+    DRB1*04:03-DQB1*03:02 protective (odds ratio 0.27), so a DRB1*04:03 call matches this
+    card although that haplotype was not a risk haplotype.
+  - >-
+    Erlich et al. found the DRB1*15:01-DQA1*01:02-DQB1*06:02 haplotype strongly protective
+    (odds ratio 0.03); this card does not evaluate protective alleles.
+  - >-
+    The odds ratio was estimated in non-Hispanic white and Hispanic Colorado populations;
+    Erlich et al. estimate the DR3/4 risk about twofold lower, with wide intervals, in their
+    small Asian sample.
+- id: hla_b27_ankylosing_spondylitis
+  section: immunogenetics
+  kind: hla
+  title: HLA-B27 and ankylosing spondylitis
+  gene: HLA-B
+  hla:
+    alternatives:
+    - name: B27
+      all_of:
+      - locus: B
+        alleles: ['27']
+    states:
+      B27: carrier
+      none: non_carrier
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry an HLA-B27 allele; 1.3% of B27-positive people aged 45 or over in
+        a Dutch population survey had ankylosing spondylitis.
+      detail: >-
+        HLA-B27 is the main genetic factor for ankylosing spondylitis. In van der Linden et
+        al.'s survey of 2,957 people aged 45 or over, 7.8% were B27-positive and 3 of about
+        230 B27-positive people (1.3%) had the disease; among B27-positive first-degree
+        relatives of B27-positive patients the figure was 21%. The call names the B27
+        subtype the classifier emitted.
+      risk_context: >-
+        1.3% of B27-positive people aged 45 or over in the general Dutch population had
+        ankylosing spondylitis, versus 21% of B27-positive first-degree relatives of
+        B27-positive patients (van der Linden et al. 1984). B27 itself is common: 7.5% of
+        US non-Hispanic white adults carry it (Reveille et al. 2012, NHANES 2009).
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-B27 allele, the main genetic factor for ankylosing
+        spondylitis; a model call is not a clinical exclusion.
+      detail: >-
+        In van der Linden et al.'s family study, none of 40 B27-negative first-degree
+        relatives of B27-positive patients had features of ankylosing spondylitis or
+        sacroiliitis.
+      risk_context: >-
+        None of 40 B27-negative first-degree relatives of patients had the disease (van der
+        Linden et al. 1984). That is not zero risk; no absolute rate for non-carriers is
+        assigned.
+      evidence: null
+  evidence:
+    tier: cohort
+    replication: independent
+    sample_size: 2957
+    ancestry: [EUR]
+    effect:
+      measure: penetrance
+      value: 0.013
+      context: >-
+        Ankylosing spondylitis in 3 of about 230 HLA-B27-positive people aged 45 or over in
+        a Dutch population survey; one population, older adults only.
+  citations:
+  - type: doi
+    id: 10.1002/art.1780270301
+    title: The risk of developing ankylosing spondylitis in HLA-B27 positive individuals.
+      A comparison of relatives of spondylitis patients with the general population
+  - type: doi
+    id: 10.1016/s0140-6736(73)91360-3
+    title: Ankylosing spondylitis and HL-A 27
+  - type: doi
+    id: 10.1002/art.33503
+    title: 'The prevalence of HLA-B27 in the US: data from the US National Health and
+      Nutrition Examination Survey, 2009'
+  caveats:
+  - >-
+    The 1.3% rests on three cases in one Dutch survey of people aged 45 or over; it is an
+    order of magnitude, not a precise penetrance.
+  - B27 frequency varies widely between populations; 7.5% is the US non-Hispanic white figure.
+- id: hla_dqb1_0602_narcolepsy
+  section: immunogenetics
+  kind: hla
+  title: HLA-DQB1*06:02 and narcolepsy with cataplexy
+  gene: HLA-DQB1
+  hla:
+    alternatives:
+    - name: DQB1*06:02
+      all_of:
+      - locus: DQB1
+        alleles: ['06:02']
+    states:
+      DQB1*06:02: carrier
+      none: non_carrier
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry HLA-DQB1*06:02, found in nearly all European patients with
+        narcolepsy with cataplexy and in about 20% of Europeans, almost none of whom
+        develop it.
+      detail: >-
+        Tafti et al. typed 1,218 European patients with narcolepsy with cataplexy and 3,541
+        controls: DQB1*06:02 carried an odds ratio of 251, and fewer than 2% of patients
+        lacked it. Because about 20% of Europeans carry the allele while 0.02-0.05% are
+        affected, carriage alone is far from sufficient; other HLA alleles, notably a
+        second DQB1*06:02 copy, also modify risk (Mignot et al. 2001).
+      risk_context: >-
+        Narcolepsy with cataplexy affects 0.02-0.05% of Europeans, while about 20% carry
+        DQB1*06:02 and fewer than 2% of patients lack it (Tafti et al. 2014). Together
+        those imply roughly 0.1-0.25% of carriers are affected; that is arithmetic on the
+        cited figures, not a measured penetrance.
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-DQB1*06:02; fewer than 2% of European patients with
+        narcolepsy with cataplexy lack it, but a model call is not a clinical exclusion.
+      detail: >-
+        This card concerns narcolepsy with cataplexy, the phenotype the cited study typed.
+      risk_context: >-
+        Fewer than 2% of 1,218 European patients with narcolepsy with cataplexy were
+        DQB1*06:02-negative (Tafti et al. 2014). No absolute rate for non-carriers is
+        assigned.
+      evidence: null
+  evidence:
+    tier: gwas
+    replication: independent
+    sample_size: 4759
+    ancestry: [EUR]
+    effect:
+      measure: odds_ratio
+      value: 251
+      context: >-
+        DQB1*06:02 carriers versus non-carriers: 1,218 European patients with narcolepsy
+        with cataplexy and 3,541 controls; the abstract gives no interval.
+  citations:
+  - type: doi
+    id: 10.5665/sleep.3300
+    title: DQB1 locus alone explains most of the risk and protection in narcolepsy with
+      cataplexy in Europe
+  - type: doi
+    id: 10.1086/318799
+    title: Complex HLA-DR and -DQ interactions confer risk of narcolepsy-cataplexy in three
+      ethnic groups
+  caveats:
+  - >-
+    Tafti et al. studied Europeans; Mignot et al. 2001 found the same tight association
+    in Japanese, white American and African American patients.

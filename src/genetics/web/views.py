@@ -996,6 +996,11 @@ class CardView(NoGenotypeRepr):
         return self.kind == "polygenic"
 
     @property
+    def is_hla(self) -> bool:
+        """An M11.4 card read from frozen HLA classifier calls, with its own detail block."""
+        return self.kind == "hla" and self.computation is not None
+
+    @property
     def polygenic(self) -> PolygenicView | None:
         """The distribution-first view of a polygenic card (M9.6), or ``None``."""
         if not self.is_polygenic or self.computation is None:
@@ -1059,7 +1064,8 @@ class CardView(NoGenotypeRepr):
         """
         if self.frequencies or self.confidence_frequency is not None:
             return None
-        if not self.is_interpreted or self.is_computed or self.is_polygenic:
+        if not self.is_interpreted or self.is_computed or self.is_polygenic or self.is_hla:
+            # An HLA card states its own frequency gap beside its classifier evidence.
             return None
         if self.multi_marker is not None:
             return None
@@ -1172,6 +1178,11 @@ class CardView(NoGenotypeRepr):
                 f"This run was saved in bundle format {self.bundle_format_version}, before "
                 "the effect size, sample size and study population were recorded. Re-run "
                 "the analysis to capture them."
+            )
+        if self.kind == "hla":
+            return (
+                "No applicable estimate is assigned to this outcome. The cited sources and "
+                "the model calls remain available."
             )
         if self.bundle_format_version >= 12 and self.kind == "interpretation":
             return (
@@ -1774,6 +1785,8 @@ class Shell(NoGenotypeRepr):
     what is in it would answer "nothing here" two different ways."""
 
     hla: Mapping[str, Any] | None = None
+    format_version: int | None = None
+    """The open bundle's format, so a view can tell "not recorded" from "none saved"."""
     pgx: Mapping[str, Any] | None = None
     pgx_framing: Mapping[str, str] | None = None
     """Current section context, separate from frozen sample and card evidence."""
@@ -1832,6 +1845,7 @@ def shell_for(
         clinvar=None if bundle is None else bundle.clinvar,
         pgx=None if bundle is None else bundle.pgx,
         hla=None if bundle is None else bundle.hla,
+        format_version=None if bundle is None else bundle.format_version,
         pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         grid=grid_for(cards, query or GridQuery()),

@@ -1,6 +1,6 @@
-# Handoff: M11.4 HLA-linked cards
+# Handoff: M11.5 carrier status
 
-As of 2026-10-18, **M0-M10 and M11.1–M11.3 are implemented; M11.4 is next**. Full-reference
+As of 2026-10-22, **M0-M10 and M11.1–M11.4 are implemented; M11.5 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,7 +31,14 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.3 HLA classifier selection and call confidence are implemented; M11.4 is next.**
+**M11.4 HLA-linked cards are implemented; M11.5 is next.** Knowledge schema 6 adds
+`kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
+diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
+immunogenetics, and B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomics, whose
+recommendation rows come from the run's frozen CPIC release rather than the knowledge pack.
+Bundle format 23 rebuilds every HLA card from its frozen definition and the bundle's own
+HLA, PGx and ancestry records. See [the card contract](hla_cards.md).
+**M11.3 HLA classifier selection and call confidence are implemented.**
 The model-terms opt-in now selects the HIBAG classifier from the run's saved M5
 placements and declines rather than guesses; an explicit classifier still runs with its
 ancestry mismatch recorded. Each predicted locus carries an observation ceiling from its
@@ -343,9 +350,51 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+## Next open step: M11.5 carrier status
+
+M11.5 adds carrier cards for recessive conditions the array can actually type, in the
+**reproductive** section (§3.1: about offspring, not self). M11.6's section-level
+incompleteness card needs M11.5's callable set to exist first, so record that set as data
+the next step can read, not only as prose.
+
+What a carrier card has to carry, and what is not yet decided:
+
+- **§4.1 governs every rare call.** A heterozygous call for a rare pathogenic allele is
+  usually a chip artifact; the M7.2 gnomAD calibration and the scoped M7.3 PPV already
+  apply to interpretation cards through `calculate_confidence`. A carrier card must show
+  the frequency-banded PPV on its face exactly as M7 cards do, never a softer tier because
+  carrier status "is only about offspring".
+- **Card shape.** The existing interpretation schema (2/3) already expresses a curated
+  carrier variant: an exhaustive genotype map, outcome-specific evidence, `risk_context`
+  and forward-only strand. Prefer authored cards over a new computed kind unless a clear
+  need appears; the ClinVar lookup (M7.1) is a reference annotation, not a card source.
+- **"Array-tractable" must be measured.** Candidates need a typed SNV on this chip, a
+  ClinVar P/LP recessive assertion and a usable gnomAD frequency. Several of the best-known
+  carrier variants fail one of these: CFTR F508del and GJB2 c.35delG are indels (§4.2;
+  matching needs a verified whitelist entry, M1.6), and SMN1 and alpha-globin are copy-number
+  states with impossibility cards already (M3.7). Check each candidate against dbSNP and the
+  real chip's marker list before authoring, and state on the card when the gene's other
+  pathogenic variants are not typed.
+- **"No variant found" is not "not a carrier".** Each card's non-carrier outcome must say
+  it covers only the typed variant(s). The section-level statement is M11.6.
+- **X-linked conditions** need M6.4's sex call and PAR-aware ploidy: a hemizygous call is
+  not a homozygote (§2), and a heterozygous X call in a sample inferred male is reported,
+  not interpreted (M1.5).
+- **Overlap with existing cards.** HFE C282Y and APOE already live in physical health;
+  G6PD is an M10.2 PGx gene. Decide placement once, with one card per fact, as M11.4 did
+  for HLA-B.
+- **Absolute context.** Carrier frequency and the couple-level risk (both partners
+  carriers, one in four per pregnancy) are population facts that need citations per
+  condition; do not compute offspring risk for an unknown partner.
+
 <a id="next-open-step-m114-hla-linked-cards"></a>
 
-## Next open step: M11.4 HLA-linked cards
+## M11.4 entry contract (implemented; retained for review)
+
+M11.4 turned the frozen classifier choice and per-locus ceilings into eight cited cards;
+see [the card contract](hla_cards.md). Recorded deviation: the M9.13 study comparison,
+not the classifier match, enters the calculator's ancestry slot, because the classifier
+match already caps every locus ceiling. The entry text follows.
 
 M11.3 supplies a frozen classifier choice and a per-locus observation ceiling, reviewed
 in [the M11.3 diff review](review_m113_session.md). M11.4 turns them into cards: celiac (DQ2/DQ8), type 1 diabetes, ankylosing spondylitis,
