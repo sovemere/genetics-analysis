@@ -55,6 +55,12 @@ def calls(
                     f"  Full conditional evidence: genetics runs show {run_id} --json "
                     f"(card {card['card_id']})"
                 )
+            if gene is None:
+                typer.echo(f"HLA-linked drug cards: {len(result['hla_cards'])} saved")
+                for card in result["hla_cards"]:
+                    typer.echo(f"  {card['card_id']}: {card['status']}")
+                if result["hla_cards"]:
+                    typer.echo(f"  Calls and full evidence: genetics hla calls {run_id}")
             for symbol, record in result["genes"].items():
                 tier = record.get("reliability", {}).get("tier", "unavailable")
                 typer.echo(

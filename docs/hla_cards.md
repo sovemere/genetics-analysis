@@ -53,6 +53,10 @@ cards:
 - **Two terms at one locus are two different alleles.** An alternative may name a locus at
   most twice, and the two terms must be met by the two different alleles of the pair, so
   `DRB1 03` + `DRB1 04` means a DR3/DR4 heterozygote.
+- **A one-field group counts only expressed alleles.** `'27'` matches `27:05` but not a
+  null allele such as `27:06N`, which is not expressed and so carries no B27 antigen (added
+  by the [session diff review](review_m114_session.md)). A card that needs a null allele
+  names it as a two-field pattern.
 - **Phase is declared, and a phase-dependent claim cannot be authored.** HIBAG calls each
   locus separately and unphased. An alternative that spans loci must say why phase does
   not change its claim: `heterodimer` (the claim is about an α/β molecule, which forms in
@@ -138,8 +142,9 @@ condition as unassessed: its display schema 2 is frozen and is not reinterpreted
 ## Sources
 
 Every number on a card face is from the cited paper's abstract or full text, checked on
-2026-10-22 against Europe PMC/PMC records. The CPIC links are the frozen v1.60.0
-publication rows.
+2026-10-22 against Europe PMC/PMC records, except the B\*15:02 European allele frequency in
+one caveat, which is the frozen CPIC v1.60.0 allele table. The CPIC links are the frozen
+v1.60.0 publication rows.
 
 | Card | Association source | Absolute context |
 |---|---|---|
@@ -187,6 +192,16 @@ installs, **3,553 tests passed and 18 skipped** on each, and byte-identical fixt
 first run caught a duplicate `test_cards` module basename that local runs had not exercised.
 No personal export was opened and no genotype-derived output is committed.
 
+## Review validation, 2026-10-22
+
+The [session diff review](review_m114_session.md) fixed null alleles in group patterns,
+listed the HLA drug cards on the PGx overview and in `genetics pgx calls`, and tightened
+three card sentences against their sources. `tests/hla/test_hla_cards.py` now holds 42
+tests; the two new assertions each failed before their fix. Full card lint with the dbSNP
+index resolves all 39 variant keys over 85 cards and 371 renders. The affected suites
+(HLA, engine, bundle/run, web, PGx and CLI) pass 1,414 tests with 5 skips, and both mypy
+platforms are clean. `genetics ci-local` then passed every Windows step on Python 3.11 and 3.13 with 3,554 tests passed and 18 skipped on each, including lint, both mypy platforms, card lint, the privacy suite and byte-identical fixtures.
+
 ## Not done here
 
 - **HIBAG's matching proportion.** Still absent from M11.2's frozen output, with no
@@ -196,5 +211,9 @@ No personal export was opened and no genotype-derived output is committed.
   moderate, and says so.
 - **Binding M10.4's HLA-B condition.** The CYP2C9 guideline card could resolve phenytoin's
   HLA-B condition from the HLA record, but only under a new guideline display schema.
+- **Suffixes in the published allele lists.** Whether any HLARES model emits a null or other
+  expression-suffixed allele was not checked, because the models are not fetched in this
+  checkout. Group patterns now exclude null alleles either way; inspect the lists with the
+  published-classifier acceptance (`GENETICS_HIBAG_TEST_REFERENCES`) when next run.
 - **Dose and phase claims.** DQ2.5 homozygosity and haplotype-defined risks need phased
   calls; the schema refuses them.

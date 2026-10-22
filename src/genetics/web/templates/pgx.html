@@ -18,6 +18,16 @@
     <p><a href="{{ shell.run_url }}/cards/{{ card.card_id }}">{{ card.title }}</a>: {{ card.summary }}</p>
   {% endfor %}
   {% if not ns.recorded %}<p>Guideline cards not recorded by this run.</p>{% endif %}
+  {% if not pgx_gene %}
+  <h2>HLA-linked drug cards</h2>
+  {% set hla = namespace(recorded=false) %}
+  {% for card in shell.cards if card.kind == "hla" and card.section == "pharmacogenomics" %}
+    {% set hla.recorded = true %}
+    <p><a href="{{ card.url }}">{{ card.title }}</a> · {{ card.status_label }} · {{ card.tier_label }}: {{ card.summary }}</p>
+  {% endfor %}
+  {% if not hla.recorded %}<p>HLA-linked drug cards not recorded by this run.</p>{% endif %}
+  <p><a href="{{ shell.run_url }}/hla">HLA classifier calls</a></p>
+  {% endif %}
   {% for gene, result in pgx_report.genes.items() %}
   <h2>{{ gene }} · {{ result.get("reliability", {}).get("tier", "unavailable") }}</h2>
   <p>{{ result.status }} · {{ result.candidates | length }} compatible candidate(s).</p>

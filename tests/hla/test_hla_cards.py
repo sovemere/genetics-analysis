@@ -346,7 +346,7 @@ def test_hla_cards_need_schema_six_and_their_own_kind() -> None:
     with pytest.raises(CardError, match="schema_version 6"):
         parse_file(text, "old.yaml")
     interpretation = _set(_base(), "kind", "impossibility")
-    with pytest.raises(CardError):
+    with pytest.raises(CardError, match="hla belongs to an HLA-linked card"):
         Card.parse(interpretation, "test")
 
 
@@ -716,6 +716,20 @@ def test_saved_cards_rebuild_from_frozen_evidence(
     page = client.get(f"/runs/{path.name}/hla")
     assert page.status_code == 200 and "HLA-linked cards" in page.text
     assert "HLA-B*57:01 and abacavir hypersensitivity" in page.text
+    pgx_page = client.get(f"/runs/{path.name}/pgx")
+    assert pgx_page.status_code == 200 and "HLA-linked drug cards" in pgx_page.text
+    assert "HLA-B*57:01 and abacavir hypersensitivity" in pgx_page.text
+    assert "narcolepsy" not in pgx_page.text  # immunogenetics cards stay on the HLA page
+    pgx_cli = CliRunner().invoke(app, ["pgx", "calls", path.name, "--json"])
+    assert pgx_cli.exit_code == 0
+    assert [c["card_id"] for c in json.loads(pgx_cli.output)["hla_cards"]] == [
+        "hla_b5701_abacavir",
+        "hla_b1502_carbamazepine",
+        "hla_a3101_carbamazepine",
+        "hla_b5801_allopurinol",
+    ]
+    pgx_text = CliRunner().invoke(app, ["pgx", "calls", path.name])
+    assert "HLA-linked drug cards: 4 saved" in pgx_text.output
     detail = client.get(f"/runs/{path.name}/cards/hla_b5701_abacavir")
     assert detail.status_code == 200 and "HLA classifier evidence" in detail.text
     assert "Frozen CPIC rows" in detail.text and "07:02 / 57:01" in detail.text
@@ -839,3 +853,18 @@ def test_real_frozen_cpic_rows_bind_each_drug_card(build: Any) -> None:
         for c in r["conditions"]
         if c["gene"] == "CYP2C9"
     )
+
+
+def test_group_patterns_never_count_null_alleles(build: Any) -> None:
+    """A null allele is not expressed: B*27:06N carries no B27 antigen (review fix)."""
+    alleles = {**ALLELES, "B": ["07:02", "27:05", "27:06N"]}
+    card = assemble(
+        "hla_b27_ankylosing_spondylitis", build({"B": ("07:02", "27:06N", 0.9)}, alleles=alleles)
+    )
+    assert card.match.outcome_name == "non_carrier"
+    assert card.computation["result"]["loci"]["B"]["emittable"] == {"27": ["27:05"]}
+    only_null = {**ALLELES, "B": ["07:02", "27:06N"]}
+    unemittable = assemble(
+        "hla_b27_ankylosing_spondylitis", build({"B": ("07:02", "27:06N", 0.9)}, alleles=only_null)
+    )
+    assert unemittable.status is MatchStatus.INSUFFICIENT_COVERAGE

@@ -321,7 +321,8 @@ Schemas 1–4 remain readable with their original kinds.
 in immunogenetics or pharmacogenomics and names ordered `alternatives`, each a list of
 locus terms that must all be carried (`all_of`). A term is a locus and its alleles, either
 two-field (`'57:01'`) or a one-field group (`'27'`); quote them, because YAML 1.1 reads
-`57:01` as a base-60 integer. Two terms at one locus must be met by the pair's two
+`57:01` as a base-60 integer. A group counts only expressed alleles: a null (`N`) allele
+carries no antigen, so name one as a two-field pattern if a card needs it. Two terms at one locus must be met by the pair's two
 different alleles. `states` maps every alternative and `none` to an outcome; the first
 carried alternative wins.
 

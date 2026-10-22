@@ -1164,8 +1164,15 @@ _HLA_KEYS: Final[frozenset[str]] = frozenset(
 
 
 def hla_pattern_matches(pattern: str, allele: str) -> bool:
-    """A two-field pattern is one allele; a one-field pattern is its allele group."""
-    return allele == pattern if ":" in pattern else allele.split(":", 1)[0] == pattern
+    """A two-field pattern is one allele; a one-field pattern is its group's expressed alleles.
+
+    A null allele (suffix ``N``) is not expressed, so it carries no antigen or heterodimer of
+    its group, and a group claim such as B27 must not count it. A card that needs a null
+    allele names it as a two-field pattern.
+    """
+    if ":" in pattern:
+        return allele == pattern
+    return allele.split(":", 1)[0] == pattern and not allele.endswith("N")
 
 
 @dataclass(frozen=True)
