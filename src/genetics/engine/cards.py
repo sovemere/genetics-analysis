@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 5
+SCHEMA_VERSION: Final[int] = 6
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -903,6 +903,11 @@ class Match:
 
 class CardKind(StrEnum):
     GUIDELINE = "guideline"
+    HLA = "hla"
+    """A claim about imputed HLA alleles, read from the frozen M11.3 classifier calls (M11.4).
+    Authored evidence and outcomes, like an interpretation; the call, the matched
+    alternative, the reliability and any CPIC rows are written by :mod:`genetics.hla.cards`,
+    never a template."""
     INTERPRETATION = "interpretation"
     COMPUTED = "computed"
     POLYGENIC = "polygenic"
@@ -992,6 +997,7 @@ _CARD_KEYS: Final[frozenset[str]] = frozenset(
         "pgs",
         "trait",
         "decile_outcomes",
+        "hla",
     }
 )
 
@@ -1121,6 +1127,228 @@ class DecileOutcomes:
         )
 
 
+# ---------------------------------------------------------------------------
+# HLA-linked cards (M11.4)
+# ---------------------------------------------------------------------------
+
+HLA_SECTIONS: Final[frozenset[Section]] = frozenset(
+    {Section.IMMUNOGENETICS, Section.PHARMACOGENOMICS}
+)
+"""Where an HLA card may sit. Pharmacogenomics cards bind a frozen CPIC lookup."""
+
+HLA_PHASES: Final[frozenset[str]] = frozenset({"heterodimer", "genotype"})
+"""Why phase does not change a multi-locus claim. ``heterodimer``: the claim is about an
+alpha/beta molecule, which forms whether its chains are encoded in cis or in trans.
+``genotype``: the cited estimate is defined by unphased allele content at those loci. A
+claim that needs cis phase has no value here, because HIBAG calls each locus separately and
+unphased: it is not determinable from these calls, so it cannot be authored."""
+
+HLA_NONE: Final[str] = "none"
+"""The state in which no alternative is carried."""
+
+_HLA_PATTERN_RE: Final[re.Pattern[str]] = re.compile(r"^[0-9]{2,3}(?::[0-9]{2,3}[A-Z]?)?$")
+_HLA_KEYS: Final[frozenset[str]] = frozenset(
+    {
+        "id",
+        "section",
+        "kind",
+        "title",
+        "gene",
+        "hla",
+        "outcomes",
+        "evidence",
+        "citations",
+        "caveats",
+    }
+)
+
+
+def hla_pattern_matches(pattern: str, allele: str) -> bool:
+    """A two-field pattern is one allele; a one-field pattern is its allele group."""
+    return allele == pattern if ":" in pattern else allele.split(":", 1)[0] == pattern
+
+
+@dataclass(frozen=True)
+class HlaTerm:
+    """One locus and the alleles that satisfy it."""
+
+    locus: str
+    alleles: tuple[str, ...]
+
+    @classmethod
+    def parse(cls, raw: Any, where: str) -> HlaTerm:
+        from genetics.hla.models import LOCI
+
+        data = _mapping(raw, where)
+        _reject_unknown(data, frozenset({"locus", "alleles"}), where)
+        locus = _require(data, "locus", where)
+        if locus not in LOCI:
+            raise CardError(f"{where}: locus must be one of {', '.join(LOCI)}")
+        raw_alleles = _require(data, "alleles", where)
+        if not isinstance(raw_alleles, list) or any(not isinstance(a, str) for a in raw_alleles):
+            raise CardError(
+                f"{where}.alleles: quote every allele; unquoted, YAML 1.1 reads 57:01 as a "
+                "base-60 integer and 05 as the number 5"
+            )
+        alleles = _string_list(raw_alleles, f"{where}.alleles")
+        if not alleles or len(set(alleles)) != len(alleles):
+            raise CardError(f"{where}: alleles must be a nonempty list without repeats")
+        for allele in alleles:
+            if not _HLA_PATTERN_RE.fullmatch(allele):
+                raise CardError(
+                    f"{where}: {allele!r} is not a two-field allele such as '57:01' or a "
+                    "one-field group such as '27'; the classifier calls two fields"
+                )
+        return cls(locus=str(locus), alleles=alleles)
+
+
+@dataclass(frozen=True)
+class HlaAlternative:
+    """Alleles that must all be carried, each met by a different allele of its locus."""
+
+    name: str
+    terms: tuple[HlaTerm, ...]
+
+    @property
+    def loci(self) -> tuple[str, ...]:
+        return tuple(dict.fromkeys(t.locus for t in self.terms))
+
+    @classmethod
+    def parse(cls, raw: Any, where: str) -> HlaAlternative:
+        data = _mapping(raw, where)
+        _reject_unknown(data, frozenset({"name", "all_of"}), where)
+        name = _require(data, "name", where)
+        if not isinstance(name, str) or not name.strip() or name != name.strip():
+            raise CardError(f"{where}: name must be nonempty text without outer spaces")
+        if name == HLA_NONE:
+            raise CardError(f"{where}: {HLA_NONE!r} names the state where nothing is carried")
+        raw_terms = _require(data, "all_of", where)
+        if not isinstance(raw_terms, list) or not 1 <= len(raw_terms) <= 6:
+            raise CardError(f"{where}.all_of: expected one to six locus terms")
+        terms = tuple(
+            HlaTerm.parse(term, f"{where}.all_of[{i}]") for i, term in enumerate(raw_terms)
+        )
+        for locus in {t.locus for t in terms}:
+            if sum(t.locus == locus for t in terms) > 2:
+                raise CardError(
+                    f"{where}: HLA-{locus} is named more than twice; a diploid locus has "
+                    "two alleles to meet its terms"
+                )
+        return cls(name=name, terms=terms)
+
+
+@dataclass(frozen=True)
+class HlaCpic:
+    """The frozen CPIC lookup a pharmacogenomics HLA card's carrier state selects."""
+
+    gene: str
+    allele: str
+
+    def lookup(self, carried: bool) -> str:
+        return f"{self.allele} {'positive' if carried else 'negative'}"
+
+
+@dataclass(frozen=True)
+class HlaSelector:
+    """Ordered alternatives; the first one carried selects the state, else ``none``."""
+
+    alternatives: tuple[HlaAlternative, ...]
+    states: Mapping[str, str]
+    phase: str | None = None
+    cpic: HlaCpic | None = None
+
+    @property
+    def loci(self) -> tuple[str, ...]:
+        from genetics.hla.models import LOCI
+
+        named = {locus for alt in self.alternatives for locus in alt.loci}
+        return tuple(locus for locus in LOCI if locus in named)
+
+    @classmethod
+    def parse(cls, raw: Any, where: str, section: Section) -> HlaSelector:
+        data = _mapping(raw, where)
+        _reject_unknown(data, frozenset({"alternatives", "states", "phase", "cpic"}), where)
+        raw_alternatives = _require(data, "alternatives", where)
+        if not isinstance(raw_alternatives, list) or not 1 <= len(raw_alternatives) <= 6:
+            raise CardError(f"{where}.alternatives: expected one to six alternatives")
+        alternatives = tuple(
+            HlaAlternative.parse(alt, f"{where}.alternatives[{i}]")
+            for i, alt in enumerate(raw_alternatives)
+        )
+        names = [alt.name for alt in alternatives]
+        if len(set(names)) != len(names):
+            raise CardError(f"{where}.alternatives: names must be unique")
+        multi_locus = any(len(alt.loci) > 1 for alt in alternatives)
+        phase = data.get("phase")
+        if multi_locus and phase not in HLA_PHASES:
+            raise CardError(
+                f"{where}.phase: an alternative spans loci, so declare why unphased calls "
+                f"suffice ({', '.join(sorted(HLA_PHASES))}). HIBAG does not phase loci, and a "
+                "claim that needs cis phase cannot be evaluated from its calls."
+            )
+        if not multi_locus and phase is not None:
+            raise CardError(f"{where}.phase: only an alternative spanning loci declares phase")
+        raw_states = _mapping(_require(data, "states", where), f"{where}.states")
+        states: dict[str, str] = {}
+        for key, value in raw_states.items():
+            if not isinstance(key, str):
+                raise CardError(f"{where}.states: keys must be alternative names")
+            states[key] = _outcome_name(value, f"{where}.states")
+        if set(states) != {*names, HLA_NONE}:
+            raise CardError(
+                f"{where}.states: map every alternative and {HLA_NONE!r} to an outcome, "
+                "including the state where nothing is carried"
+            )
+        cpic = None
+        raw_cpic = data.get("cpic")
+        if (raw_cpic is not None) != (section is Section.PHARMACOGENOMICS):
+            raise CardError(
+                f"{where}.cpic: a pharmacogenomics HLA card binds its frozen CPIC lookup, and "
+                "no other section's card may"
+            )
+        if raw_cpic is not None:
+            cpic_data = _mapping(raw_cpic, f"{where}.cpic")
+            _reject_unknown(cpic_data, frozenset({"gene", "allele"}), f"{where}.cpic")
+            gene = _require(cpic_data, "gene", f"{where}.cpic")
+            allele = _require(cpic_data, "allele", f"{where}.cpic")
+            only = alternatives[0].terms[0]
+            if (
+                len(alternatives) != 1
+                or len(alternatives[0].terms) != 1
+                or len(only.alleles) != 1
+                or ":" not in only.alleles[0]
+                or gene != f"HLA-{only.locus}"
+                or allele != f"*{only.alleles[0]}"
+                or states[names[0]] == states[HLA_NONE]
+            ):
+                raise CardError(
+                    f"{where}.cpic: a CPIC-bound card is one two-field allele at one locus, "
+                    "named as CPIC names it (gene HLA-B, allele '*57:01'), with distinct "
+                    "carrier and none outcomes"
+                )
+            cpic = HlaCpic(gene=str(gene), allele=str(allele))
+        return cls(alternatives=alternatives, states=states, phase=phase, cpic=cpic)
+
+    def to_dict(self) -> dict[str, Any]:
+        """The authored form, which :meth:`parse` reads back to an equal selector."""
+        return {
+            "alternatives": [
+                {
+                    "name": alt.name,
+                    "all_of": [{"locus": t.locus, "alleles": list(t.alleles)} for t in alt.terms],
+                }
+                for alt in self.alternatives
+            ],
+            "states": dict(self.states),
+            **({} if self.phase is None else {"phase": self.phase}),
+            **(
+                {}
+                if self.cpic is None
+                else {"cpic": {"gene": self.cpic.gene, "allele": self.cpic.allele}}
+            ),
+        }
+
+
 @dataclass(frozen=True)
 class Card:
     """One knowledge-pack entry."""
@@ -1149,6 +1377,9 @@ class Card:
     pgs: PgsDeclaration | None = None
     trait: str | None = None
     decile_outcomes: DecileOutcomes | None = None
+
+    # HLA-linked cards.
+    hla: HlaSelector | None = None
 
     @property
     def variant_key(self) -> VariantKey | None:
@@ -1260,6 +1491,10 @@ class Card:
         for name in ("computation", "method_evidence"):
             if name in data:
                 raise CardError(f"{where}: {name} belongs to a computed card")
+        if kind is CardKind.HLA:
+            return cls._parse_hla(data, where, card_id, section, title, citations, caveats, gene)
+        if "hla" in data:
+            raise CardError(f"{where}: hla belongs to an HLA-linked card")
         if kind is CardKind.POLYGENIC:
             return cls._parse_polygenic(data, where, card_id, section, title, citations, caveats)
         for name in ("pgs", "trait", "decile_outcomes"):
@@ -1345,6 +1580,63 @@ class Card:
             decile_outcomes=None
             if deciles is None
             else DecileOutcomes.parse(deciles, f"{where}.decile_outcomes", citations),
+        )
+
+    @classmethod
+    def _parse_hla(
+        cls,
+        data: Mapping[str, Any],
+        where: str,
+        card_id: str,
+        section: Section,
+        title: str,
+        citations: tuple[Citation, ...],
+        caveats: tuple[str, ...],
+        gene: str | None,
+    ) -> Card:
+        """An HLA claim. Its outcomes are authored; its call and reliability are not.
+
+        Only ``{gene}`` is a placeholder: the engine writes the classifier call, the
+        alternative it carried, the reliability and any CPIC rows onto the face, so no
+        template can leave one of them off or restate it wrongly. Every outcome states a
+        disease or adverse-reaction risk, so every outcome needs literal ``risk_context``.
+        """
+        _reject_unknown(data, _HLA_KEYS, where)
+        if section not in HLA_SECTIONS:
+            raise CardError(f"{where}: an HLA card belongs in immunogenetics or pharmacogenomics")
+        if gene is None:
+            raise CardError(f"{where}: an HLA card names its gene, such as HLA-B")
+        selector = HlaSelector.parse(_require(data, "hla", where), f"{where}.hla", section)
+        evidence = Evidence.parse(_require(data, "evidence", where), f"{where}.evidence")
+        available = frozenset({"gene"})
+        raw_outcomes = _mapping(_require(data, "outcomes", where), f"{where}.outcomes")
+        outcomes: dict[str, Outcome] = {}
+        for raw_name, body in raw_outcomes.items():
+            name = _outcome_name(raw_name, f"{where}.outcomes")
+            if name in outcomes:
+                raise CardError(f"{where}.outcomes: {name!r} is defined twice")
+            outcomes[name] = Outcome.parse(body, f"{where}.outcomes.{raw_name}", available)
+            if outcomes[name].risk_context is None:
+                raise CardError(
+                    f"{where}: every HLA outcome states a risk, so it requires risk_context"
+                )
+        referenced = set(selector.states.values())
+        if referenced != set(outcomes):
+            raise CardError(
+                f"{where}: outcomes must be exactly the ones the states name "
+                f"({', '.join(sorted(referenced))})"
+            )
+        return cls(
+            id=card_id,
+            section=section,
+            kind=CardKind.HLA,
+            title=title,
+            citations=citations,
+            caveats=caveats,
+            gene=gene,
+            outcomes=outcomes,
+            evidence=evidence,
+            hla=selector,
         )
 
     @classmethod
@@ -1499,7 +1791,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, 3, 4, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1519,6 +1811,11 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 6 and any(
+        isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "hla"
+        for entry in entries
+    ):
+        raise CardError(f"{where}: HLA-linked cards require schema_version 6")
     if version < 5 and any(
         isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "guideline"
         for entry in entries

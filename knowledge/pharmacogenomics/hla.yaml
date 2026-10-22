@@ -1,0 +1,397 @@
+schema_version: 6
+cards:
+- id: hla_b5701_abacavir
+  section: pharmacogenomics
+  kind: hla
+  title: HLA-B*57:01 and abacavir hypersensitivity
+  gene: HLA-B
+  hla:
+    alternatives:
+    - name: B*57:01
+      all_of:
+      - locus: B
+        alleles: ['57:01']
+    states:
+      B*57:01: carrier
+      none: non_carrier
+    cpic:
+      gene: HLA-B
+      allele: '*57:01'
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry HLA-B*57:01, the allele behind abacavir hypersensitivity; in the
+        PREDICT-1 trial 47.9% of carriers had an immunologically confirmed reaction.
+      detail: >-
+        PREDICT-1 randomised 1,956 people with HIV (84% white; 5.6% carried B*57:01) to
+        prospective screening or standard care. Excluding carriers eliminated
+        immunologically confirmed hypersensitivity (0% versus 2.7%), giving a positive
+        predictive value of 47.9% and a negative predictive value of 100% for confirmed
+        reactions.
+      risk_context: >-
+        Immunologically confirmed abacavir hypersensitivity: positive predictive value of
+        B*57:01 47.9%; 2.7% in the unscreened arm and 0% after carriers were excluded.
+        Clinically diagnosed hypersensitivity: 7.8% unscreened versus 3.4% screened (Mallal
+        et al. 2008). These rates apply to people given abacavir.
+      evidence:
+        tier: clinical_guideline
+        replication: independent
+        sample_size: 1956
+        ancestry: [EUR]
+        effect:
+          measure: proportion
+          value: 0.479
+          context: >-
+            Positive predictive value of HLA-B*57:01 for immunologically confirmed abacavir
+            hypersensitivity in PREDICT-1 (84% white); applies to people given abacavir.
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-B*57:01; screened non-carriers had no immunologically
+        confirmed abacavir hypersensitivity in PREDICT-1, but a model call is not clinical
+        HLA typing.
+      detail: >-
+        Clinically diagnosed hypersensitivity still occurred in 3.4% of the screened arm,
+        from which carriers had been excluded; B*57:01 predicts the immunologically
+        confirmed reaction.
+      risk_context: >-
+        0% immunologically confirmed and 3.4% clinically diagnosed abacavir hypersensitivity
+        in PREDICT-1's screened arm, which excluded carriers (Mallal et al. 2008). These
+        rates apply to people given abacavir.
+      evidence:
+        tier: clinical_guideline
+        replication: independent
+        sample_size: 1956
+        ancestry: [EUR]
+        effect:
+          measure: proportion
+          value: 0.034
+          context: >-
+            Clinically diagnosed abacavir hypersensitivity in PREDICT-1's screened arm,
+            from which HLA-B*57:01 carriers were excluded; immunologically confirmed
+            hypersensitivity was 0%.
+  evidence:
+    tier: clinical_guideline
+    replication: independent
+    sample_size: 1956
+    ancestry: [EUR]
+    effect:
+      measure: proportion
+      value: 0.479
+      context: >-
+        Positive predictive value of HLA-B*57:01 for immunologically confirmed abacavir
+        hypersensitivity in PREDICT-1 (84% white); applies to people given abacavir.
+  citations:
+  - type: doi
+    id: 10.1056/NEJMoa0706135
+    title: HLA-B*5701 screening for hypersensitivity to abacavir
+  - type: doi
+    id: 10.1038/clpt.2011.355
+    title: Clinical pharmacogenetics implementation consortium guidelines for HLA-B genotype
+      and abacavir dosing
+  - type: doi
+    id: 10.1038/clpt.2014.38
+    title: 'Clinical Pharmacogenetics Implementation Consortium Guidelines for HLA-B
+      Genotype and Abacavir Dosing: 2014 update'
+  caveats:
+  - >-
+    PREDICT-1 was 84% white; the predictive values were measured in that population.
+- id: hla_b1502_carbamazepine
+  section: pharmacogenomics
+  kind: hla
+  title: HLA-B*15:02 and carbamazepine-induced SJS/TEN
+  gene: HLA-B
+  hla:
+    alternatives:
+    - name: B*15:02
+      all_of:
+      - locus: B
+        alleles: ['15:02']
+    states:
+      B*15:02: carrier
+      none: non_carrier
+    cpic:
+      gene: HLA-B
+      allele: '*15:02'
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry HLA-B*15:02, associated with carbamazepine-induced
+        Stevens-Johnson syndrome and toxic epidermal necrolysis (pooled odds ratio 79.8,
+        in Han Chinese, Thai and Malaysian patients).
+      detail: >-
+        Tangamornsuksan et al. pooled 16 studies (227 cases, 602 matched and 2,949
+        population controls): odds ratio 79.84 (95% CI 28.45-224.06), similar in Han
+        Chinese, Thai and Malaysian subgroups; no white or Japanese patient with these
+        reactions carried the allele. Chung et al. first found it in all 44 Han Chinese
+        cases and in 3% of 101 tolerant patients. The frozen CPIC release also keys
+        oxcarbazepine and phenytoin rows on this allele.
+      risk_context: >-
+        In Taiwan, 7.7% of 4,877 screened people carried B*15:02. When carriers avoided
+        carbamazepine, no SJS/TEN occurred among screened-negative people who took it,
+        where the historical incidence of 0.23% predicted about 10 cases (Chen et al.
+        2011). The pooled odds ratio comes from Asian populations. These rates apply to
+        people given carbamazepine.
+      evidence:
+        tier: clinical_guideline
+        replication: meta_analysis
+        sample_size: 3778
+        ancestry: [EAS]
+        effect:
+          measure: odds_ratio
+          value: 79.84
+          ci_low: 28.45
+          ci_high: 224.06
+          context: >-
+            Carbamazepine-induced SJS/TEN, HLA-B*15:02 carriers versus matched controls;
+            16 studies, Han Chinese, Thai and Malaysian subgroups.
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-B*15:02; no SJS/TEN occurred among screened-negative
+        people given carbamazepine in Taiwan, but a model call is not clinical HLA typing.
+      detail: >-
+        HLA-A*31:01 is a separate carbamazepine risk allele with its own card. The CPIC
+        rows shown depend on both calls.
+      risk_context: >-
+        No SJS/TEN occurred among the B*15:02-negative people advised to take carbamazepine
+        in the Taiwan screening study, against about 10 cases expected from a 0.23%
+        historical incidence (Chen et al. 2011). These rates apply to people given
+        carbamazepine.
+      evidence:
+        tier: clinical_guideline
+        replication: independent
+        sample_size: 4877
+        ancestry: [EAS]
+        effect:
+          measure: proportion
+          value: 0.0
+          context: >-
+            SJS/TEN among HLA-B*15:02-negative people advised to take carbamazepine in
+            Taiwan: none observed, about 10 expected from a 0.23% historical incidence.
+  evidence:
+    tier: clinical_guideline
+    replication: meta_analysis
+    sample_size: 3778
+    ancestry: [EAS]
+    effect:
+      measure: odds_ratio
+      value: 79.84
+      ci_low: 28.45
+      ci_high: 224.06
+      context: >-
+        Carbamazepine-induced SJS/TEN, HLA-B*15:02 carriers versus matched controls; 16
+        studies, Han Chinese, Thai and Malaysian subgroups.
+  citations:
+  - type: doi
+    id: 10.1001/jamadermatol.2013.4114
+    title: 'Relationship between the HLA-B*1502 allele and carbamazepine-induced
+      Stevens-Johnson syndrome and toxic epidermal necrolysis: a systematic review and
+      meta-analysis'
+  - type: doi
+    id: 10.1038/428486a
+    title: 'Medical genetics: a marker for Stevens-Johnson syndrome'
+  - type: doi
+    id: 10.1056/NEJMoa1009717
+    title: Carbamazepine-induced toxic effects and HLA-B*1502 screening in Taiwan
+  - type: doi
+    id: 10.1038/clpt.2013.103
+    title: Clinical Pharmacogenetics Implementation Consortium guidelines for HLA-B genotype
+      and carbamazepine dosing
+  - type: doi
+    id: 10.1002/cpt.1004
+    title: 'Clinical Pharmacogenetics Implementation Consortium Guideline for HLA Genotype
+      and Use of Carbamazepine and Oxcarbazepine: 2017 Update'
+  caveats:
+  - >-
+    The association was established in Asian populations, where the allele is common; the
+    frozen CPIC v1.60.0 allele table gives it a European allele frequency of about 0.007%.
+- id: hla_a3101_carbamazepine
+  section: pharmacogenomics
+  kind: hla
+  title: HLA-A*31:01 and carbamazepine hypersensitivity
+  gene: HLA-A
+  hla:
+    alternatives:
+    - name: A*31:01
+      all_of:
+      - locus: A
+        alleles: ['31:01']
+    states:
+      A*31:01: carrier
+      none: non_carrier
+    cpic:
+      gene: HLA-A
+      allele: '*31:01'
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry HLA-A*31:01, associated with carbamazepine hypersensitivity in
+        Northern Europeans; the cited estimate raises the risk from 5.0% to 26.0% in
+        carriers.
+      detail: >-
+        McCormack et al.'s genome-wide study (22 hypersensitivity syndrome and 43
+        maculopapular exanthema cases, 3,987 controls, all of European descent, replicated
+        in 145 further cases) found odds ratios of 12.41 (95% CI 1.27-121.03) for
+        hypersensitivity syndrome, 8.33 (3.59-19.36) for maculopapular exanthema and 25.93
+        (4.93-116.18) for SJS/TEN. The allele has a prevalence of 2-5% in Northern European
+        populations.
+      risk_context: >-
+        Assuming a 5.0% baseline risk of carbamazepine hypersensitivity, carrying
+        HLA-A*31:01 raised the estimated risk to 26.0% and its absence lowered it to 3.8%
+        (McCormack et al. 2011, Northern European ancestry). These are modelled figures for
+        people given carbamazepine.
+      evidence:
+        tier: clinical_guideline
+        replication: independent
+        sample_size: 4052
+        ancestry: [EUR]
+        effect:
+          measure: odds_ratio
+          value: 12.41
+          ci_low: 1.27
+          ci_high: 121.03
+          context: >-
+            Carbamazepine hypersensitivity syndrome, HLA-A*31:01 carriers versus
+            non-carriers, in a genome-wide study of European-descent subjects; a wide
+            interval from 22 cases.
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-A*31:01; the cited estimate lowers carbamazepine
+        hypersensitivity risk from 5.0% to 3.8% without it, and a model call is not
+        clinical HLA typing.
+      detail: >-
+        HLA-B*15:02 is a separate carbamazepine risk allele with its own card. The CPIC
+        rows shown depend on both calls.
+      risk_context: >-
+        Assuming a 5.0% baseline risk of carbamazepine hypersensitivity, absence of
+        HLA-A*31:01 lowered the estimated risk to 3.8% (McCormack et al. 2011). This is a
+        modelled figure for people given carbamazepine.
+      evidence:
+        tier: clinical_guideline
+        replication: independent
+        sample_size: 4052
+        ancestry: [EUR]
+        effect:
+          measure: proportion
+          value: 0.038
+          context: >-
+            Estimated carbamazepine hypersensitivity risk without HLA-A*31:01 from a 5.0%
+            baseline (McCormack et al. 2011); a modelled figure, not an observed rate.
+  evidence:
+    tier: clinical_guideline
+    replication: independent
+    sample_size: 4052
+    ancestry: [EUR]
+    effect:
+      measure: odds_ratio
+      value: 12.41
+      ci_low: 1.27
+      ci_high: 121.03
+      context: >-
+        Carbamazepine hypersensitivity syndrome, HLA-A*31:01 carriers versus non-carriers,
+        in a genome-wide study of European-descent subjects; a wide interval from 22 cases.
+  citations:
+  - type: doi
+    id: 10.1056/NEJMoa1013297
+    title: HLA-A*3101 and carbamazepine-induced hypersensitivity reactions in Europeans
+  - type: doi
+    id: 10.1002/cpt.1004
+    title: 'Clinical Pharmacogenetics Implementation Consortium Guideline for HLA Genotype
+      and Use of Carbamazepine and Oxcarbazepine: 2017 Update'
+  caveats:
+  - The 5.0% baseline is the study's assumption, not a measured rate for this person.
+- id: hla_b5801_allopurinol
+  section: pharmacogenomics
+  kind: hla
+  title: HLA-B*58:01 and allopurinol severe cutaneous reactions
+  gene: HLA-B
+  hla:
+    alternatives:
+    - name: B*58:01
+      all_of:
+      - locus: B
+        alleles: ['58:01']
+    states:
+      B*58:01: carrier
+      none: non_carrier
+    cpic:
+      gene: HLA-B
+      allele: '*58:01'
+  outcomes:
+    carrier:
+      summary: >-
+        These calls carry HLA-B*58:01, associated with allopurinol-induced Stevens-Johnson
+        syndrome and toxic epidermal necrolysis (pooled odds ratio 96.6 against tolerant
+        patients).
+      detail: >-
+        Somkrua et al. pooled 4 studies with 55 cases and 678 allopurinol-tolerant controls
+        (odds ratio 96.60, 95% CI 24.49-381.00) and 5 studies with 69 cases and 3,378
+        population controls (79.28, 41.51-151.35), with similar results in Asian and
+        non-Asian subgroups. Hung et al. found the allele in all 51 Han Chinese patients
+        with allopurinol severe cutaneous adverse reactions and in 20 of 135 (15%) tolerant
+        patients.
+      risk_context: >-
+        All 51 Han Chinese patients with allopurinol-induced severe cutaneous adverse
+        reactions carried B*58:01, versus 20 of 135 (15%) allopurinol-tolerant patients
+        (Hung et al. 2005). The cited studies give odds ratios and carrier proportions, not
+        the incidence of these reactions among carriers given allopurinol, so no absolute
+        risk is assigned.
+      evidence:
+        tier: clinical_guideline
+        replication: meta_analysis
+        sample_size: 733
+        ancestry: [MULTI]
+        effect:
+          measure: odds_ratio
+          value: 96.6
+          ci_low: 24.49
+          ci_high: 381.0
+          context: >-
+            Allopurinol-induced SJS/TEN, HLA-B*58:01 carriers versus allopurinol-tolerant
+            controls; 4 studies, Asian and non-Asian subgroups.
+    non_carrier:
+      summary: >-
+        These calls carry no HLA-B*58:01, which every patient with allopurinol severe
+        cutaneous reactions carried in the original Han Chinese study; a model call is not
+        clinical HLA typing.
+      detail: >-
+        Hung et al. typed 51 cases; the pooled studies give odds ratios, not a rate of these
+        reactions without the allele.
+      risk_context: >-
+        No B*58:01-negative patient was among the 51 Han Chinese cases of allopurinol-induced
+        severe cutaneous adverse reactions (Hung et al. 2005). No absolute rate for
+        non-carriers is assigned.
+      evidence: null
+  evidence:
+    tier: clinical_guideline
+    replication: meta_analysis
+    sample_size: 733
+    ancestry: [MULTI]
+    effect:
+      measure: odds_ratio
+      value: 96.6
+      ci_low: 24.49
+      ci_high: 381.0
+      context: >-
+        Allopurinol-induced SJS/TEN, HLA-B*58:01 carriers versus allopurinol-tolerant
+        controls; 4 studies, Asian and non-Asian subgroups.
+  citations:
+  - type: doi
+    id: 10.1186/1471-2350-12-118
+    title: 'Association of HLA-B*5801 allele and allopurinol-induced Stevens Johnson
+      syndrome and toxic epidermal necrolysis: a systematic review and meta-analysis'
+  - type: doi
+    id: 10.1073/pnas.0409500102
+    title: HLA-B*5801 allele as a genetic marker for severe cutaneous adverse reactions
+      caused by allopurinol
+  - type: doi
+    id: 10.1038/clpt.2012.209
+    title: Clinical Pharmacogenetics Implementation Consortium Guidelines for Human
+      Leukocyte Antigen-B Genotype and Allopurinol Dosing
+  - type: doi
+    id: 10.1002/cpt.161
+    title: 'Clinical Pharmacogenetics Implementation Consortium (CPIC) guidelines for human
+      leukocyte antigen B (HLA-B) genotype and allopurinol dosing: 2015 update'
+  caveats:
+  - >-
+    Hung et al. studied Han Chinese patients, among whom 15% of tolerant patients also
+    carried the allele.

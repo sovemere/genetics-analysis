@@ -27,9 +27,10 @@ M6 adds four computed genome-structure cards under `structure/`: long ROH,
 Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns.
 M7.5 adds cited common health associations under `health/`, with outcome-specific
 `risk_context` on the card face and in CLI output. M10.4 adds eight declarative
-guideline selectors under `pharmacogenomics/`. The current pack has 77 cards:
+guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards under
+`immunogenetics/` and `pharmacogenomics/hla.yaml`. The current pack has 85 cards:
 37 single-variant interpretations, one two-marker interpretation, 12 assay-limit
-cards, five computed cards, 14 polygenic cards and eight guideline cards.
+cards, five computed cards, 14 polygenic cards, eight guideline cards and eight HLA cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -46,6 +47,7 @@ knowledge/
 ├── pgx/
 ├── nutrition/
 ├── health/
+├── immunogenetics/
 ├── mental_health/
 ├── psychometrics/
 ├── substance_use/
@@ -311,3 +313,27 @@ matching rules or recommendation text. The shared PGx engine derives all
 conditional recommendation branches from the saved complete CPIC source and
 candidate/mapping IDs. See [the versioned contract](../docs/pgx_guidelines.md).
 Schemas 1–4 remain readable with their original kinds.
+
+
+### HLA-linked cards (schema 6)
+
+`kind: hla` reads the frozen M11.3 HIBAG calls; it never reruns the classifier. A card lives
+in immunogenetics or pharmacogenomics and names ordered `alternatives`, each a list of
+locus terms that must all be carried (`all_of`). A term is a locus and its alleles, either
+two-field (`'57:01'`) or a one-field group (`'27'`); quote them, because YAML 1.1 reads
+`57:01` as a base-60 integer. Two terms at one locus must be met by the pair's two
+different alleles. `states` maps every alternative and `none` to an outcome; the first
+carried alternative wins.
+
+An alternative spanning loci declares `phase`: `heterodimer` when the claim concerns an
+alpha/beta molecule that forms in cis or in trans, or `genotype` when the cited estimate is
+defined by unphased allele content. There is no haplotype option: HIBAG calls each locus
+separately, so a claim that needs cis phase cannot be authored.
+
+Outcomes carry `summary`, `detail`, a required literal `risk_context` and optional
+`evidence` (as in schema 3). `{gene}` is the only placeholder; the engine writes the model
+call, the carried alternative, the reliability, the ancestry comparison and, for a
+pharmacogenomics card, the frozen CPIC rows its `cpic` lookup (`gene: HLA-B`,
+`allele: '*57:01'`) selects. Recommendation text is never authored here. A stage that did
+not run, a locus without a prediction, or an allele the classifier cannot emit makes the card
+not determinable, never negative. See [the card contract](../docs/hla_cards.md).

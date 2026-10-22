@@ -57,7 +57,7 @@ from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
-from genetics.engine.cards import Card, CardError, KnowledgePack, parse_method_evidence
+from genetics.engine.cards import Card, CardError, Evidence, KnowledgePack, parse_method_evidence
 from genetics.engine.citations import Citation
 from genetics.engine.evidence import AssembledCard
 from genetics.engine.observation_snapshot import validate_imputation_snapshot
@@ -83,8 +83,12 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 22
+BUNDLE_FORMAT_VERSION: Final[int] = 23
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 23 (M11.4) adds HLA-linked cards: each is rebuilt on write and on read from its
+frozen authored definition and this bundle's own HLA, PGx and ancestry records. Formats
+1-22 carry no HLA card and are read unchanged; no current pack is substituted for them.
 
 Version 22 (M11.3) writes HLA sample schema 2: the M5-driven classifier selection, bound to
 the saved ancestry placements, and a per-locus observation ceiling. Format 21 bundles keep
@@ -248,6 +252,9 @@ HLA_SELECTION_FORMAT_VERSION: Final[int] = 22
 """The first format whose HLA record is sample schema 2: classifier selection and per-locus
 ceilings. :data:`HLA_FORMAT_VERSION` (21) holds schema 1 only."""
 
+HLA_CARD_FORMAT_VERSION: Final[int] = 23
+"""The first format that may hold HLA-linked cards (M11.4)."""
+
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
 shape rather than by remembering to, and so a killed process leaves something visibly
@@ -379,7 +386,11 @@ def _evidence_payload(card: Card) -> dict[str, Any] | None:
     (AGENTS.md 3.2) -- whose claim is about the assay rather than about a population, and
     which the schema already forbids from carrying evidence or citations.
     """
-    evidence = card.evidence
+    return evidence_payload(card.evidence)
+
+
+def evidence_payload(evidence: Evidence | None) -> dict[str, Any] | None:
+    """One evidence block in saved form; :meth:`Evidence.parse` reads it back unchanged."""
     if evidence is None:
         return None
     effect = evidence.effect
@@ -975,6 +986,9 @@ def write_bundle(
         except HLAError as exc:
             raise BundleError("HLA sample evidence is invalid.") from exc
         _check_hla_ancestry(hla_payload, ancestry.to_dict())
+        _check_hla_cards(
+            card_payloads, hla_payload, pgx_payload, ancestry.to_dict(), BUNDLE_FORMAT_VERSION
+        )
         _write_text(staging / HLA_NAME, _render(hla_payload))
 
         manifest = {
@@ -1199,6 +1213,37 @@ def _check_hla_ancestry(hla: Mapping[str, Any], ancestry: Mapping[str, Any] | No
         raise BundleError("Saved HLA selection disagrees with the run's ancestry.")
 
 
+def _check_hla_cards(
+    entries: Sequence[Any],
+    hla: Mapping[str, Any] | None,
+    pgx: Mapping[str, Any] | None,
+    ancestry: Mapping[str, Any] | None,
+    version: int,
+) -> None:
+    """Each HLA card must rebuild exactly from this bundle's own frozen records."""
+    from genetics.hla.cards import validate_stored
+    from genetics.hla.models import HLAError
+
+    for entry in entries:
+        if isinstance(entry, Mapping) and entry.get("kind") == "hla":
+            if version < HLA_CARD_FORMAT_VERSION:
+                raise BundleError(
+                    f"HLA-linked cards require bundle format {HLA_CARD_FORMAT_VERSION}"
+                )
+            try:
+                validate_stored(entry, hla, pgx, ancestry)
+            except (
+                HLAError,
+                CardError,
+                ValueError,
+                KeyError,
+                TypeError,
+                AttributeError,
+                IndexError,
+            ) as exc:
+                raise BundleError("Saved HLA-linked card disagrees with its HLA evidence.") from exc
+
+
 def _stored_card(raw: Any, where: str) -> StoredCard:
     data = _mapping(raw, where)
     _reject_unknown(data, CARD_KEYS, where)
@@ -1225,7 +1270,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     if risk_context is not None and (
         not isinstance(risk_context, str)
         or not risk_context.strip()
-        or data.get("kind") != "interpretation"
+        or data.get("kind") not in {"interpretation", "hla"}
         or data.get("status") != "matched"
     ):
         raise BundleError(f"{where}: invalid absolute-risk context")
@@ -1239,6 +1284,11 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         if data.get("kind") == "guideline":
             if computation_map.get("source") != "pgx_guideline":
                 raise BundleError(f"{where}: invalid guideline computation source")
+        elif data.get("kind") == "hla" or computation_map.get("source") == "hla_card":
+            if data.get("kind") != "hla" or computation_map.get("source") != "hla_card":
+                raise BundleError(f"{where}: invalid HLA-linked card computation source")
+            if (computation_map.get("reliability") or {}).get("tier") != tier:
+                raise BundleError(f"{where}: HLA card reliability and confidence disagree")
         elif data.get("kind") == "polygenic" or computation_map.get("source") == "polygenic_score":
             _polygenic_shape(data, computation_map, where)
         elif (
@@ -1258,6 +1308,9 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             raise BundleError(f"{where}: computation and card statuses disagree")
     if computation_map is not None and data.get("kind") in {"polygenic", "guideline"}:
         tier = _mapping(computation_map["reliability"], where).get("tier")
+    elif computation_map is not None and data.get("kind") == "hla":
+        # Rebuilt in full by _check_hla_cards; the tier is the confidence block's.
+        pass
     elif computation_map is not None:
         if (
             data.get("section")
@@ -1434,7 +1487,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 validate_roh_result(measured_map)
             except RohError as exc:
                 raise BundleError(f"{where}: {exc}") from exc
-    elif data.get("kind") in {"computed", "polygenic", "guideline"}:
+    elif data.get("kind") in {"computed", "polygenic", "guideline", "hla"}:
         raise BundleError(f"{where}: {data.get('kind')} card has no computation record")
     frequency_source = data.get("confidence_frequency")
     return StoredCard(
@@ -1709,6 +1762,7 @@ def read_bundle(path: Path) -> RunBundle:
         _check_hla_ancestry(hla, ancestry)
 
     _check_guidelines(entries, pgx, declared)
+    _check_hla_cards(entries, hla, pgx, ancestry, declared)
     return RunBundle(
         path=directory,
         run_id=str(_require(manifest, "run_id", MANIFEST_NAME)),

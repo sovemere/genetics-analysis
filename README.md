@@ -186,7 +186,17 @@ observation ceiling from posterior, marker coverage and ancestry match, in bundl
 22. See [the selection contract](docs/hla_selection.md). The
 [M11.3 diff review](docs/review_m113_session.md) adds rendering coverage for every
 selection outcome and fixes override wording and late cancellation.
-[M11.4 HLA-linked cards](docs/handoff.md#next-open-step-m114-hla-linked-cards) are next.
+**M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds `kind: hla`: eight
+cited cards read the frozen classifier calls — celiac DQ2.5/DQ8, type 1 diabetes
+DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
+immunogenetics, and B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomics, whose
+recommendation rows come from the run's frozen CPIC release. No prediction, an allele the
+model cannot emit, or a stage that did not run makes a card not determinable, never
+negative. Confidence uses the weakest named locus posterior, the M9.13 study comparison and
+M11.3's call ceiling, and stays capped at moderate without an HLA frequency source. Cards
+rebuild from their frozen definition and the bundle's own records in format 23. See
+[the card contract](docs/hla_cards.md).
+[M11.5 carrier status](docs/handoff.md#next-open-step-m115-carrier-status) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

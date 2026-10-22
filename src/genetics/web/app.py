@@ -48,7 +48,12 @@ from genetics.engine.citations import citation_url
 from genetics.paths import UnsafeDataDirError
 from genetics.privacy import assert_no_genotype
 from genetics.run import store
-from genetics.run.bundle import BUNDLE_FORMAT_VERSION, BundleError, RunBundle
+from genetics.run.bundle import (
+    BUNDLE_FORMAT_VERSION,
+    HLA_CARD_FORMAT_VERSION,
+    BundleError,
+    RunBundle,
+)
 from genetics.run.store import RunNotFoundError
 from genetics.web import views
 from genetics.web.assets import STATIC_DIR
@@ -477,7 +482,14 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         shell = _shell(run_id, _query(request))
         if not shell.has_selection:
             return _render(shell)
-        return _render(shell, "hla.html", hla_report=report(shell.hla))
+        return _render(
+            shell,
+            "hla.html",
+            hla_report=report(shell.hla),
+            hla_cards=[card for card in shell.cards if card.kind == "hla"],
+            hla_cards_recorded=shell.format_version is not None
+            and shell.format_version >= HLA_CARD_FORMAT_VERSION,
+        )
 
     @app.get("/runs/{run_id}/pgx", response_class=HTMLResponse)
     def pgx(run_id: str, request: Request, gene: str | None = None, page: int = 1) -> Response:

@@ -1,0 +1,99 @@
+{#
+  An HLA-linked card's frozen evidence (M11.4): the classifier call for every locus the card
+  names, which alternative was carried, the reliability inputs, and any CPIC rows. Every
+  value is read from the saved computation; nothing is re-derived here.
+
+  Genotype-bearing by design (it names called alleles); not scanned. See `SCANNED_PARTIALS`.
+#}
+{% set result = card.computation.result %}
+<section class="detailblock">
+  <h3>HLA classifier evidence</h3>
+  {% if result.reason %}<p>{{ result.reason }}</p>{% endif %}
+  {% set identity = result.hla %}
+  {% if identity is none %}
+    <p>This run recorded no HLA evidence. That is not evidence for or against any allele.</p>
+  {% else %}
+    {% set choice = identity.selection %}
+    {% if identity.classifier %}
+      <p>{{ identity.classifier | capitalize }} HLARES classifier {{ identity.classifier_version }} ·
+        HLA sample schema {{ identity.schema_version }} ·
+        {% if choice is none %}explicitly requested; ancestry selection not recorded (HLA schema 1)
+        {% elif choice.basis == "ancestry" %}selected from the ancestry placement
+        {% else %}explicitly requested; automatic selection {{ choice.status }}{% endif %} ·
+        classifier ancestry match {{ "unknown" if choice is none or choice.ancestry_match is none else choice.ancestry_match }}.</p>
+      <p>Model SHA-256: <code>{{ identity.model_sha256 }}</code>.</p>
+    {% endif %}
+    {% if choice %}<p>{{ choice.reason }}</p>{% endif %}
+  {% endif %}
+  {% if result.loci %}
+    <div class="tablescroll"><table class="breakdown">
+      <caption>Calls for the loci this card names</caption>
+      <thead><tr><th scope="col">Locus</th><th scope="col">State</th><th scope="col">Model pair</th>
+        <th scope="col">Joint posterior</th><th scope="col">Markers observed</th>
+        <th scope="col">Call ceiling</th><th scope="col">Alleles the model can emit</th></tr></thead>
+      <tbody>{% for locus, row in result.loci.items() %}<tr>
+        <th scope="row">HLA-{{ locus }}</th>
+        <td>{{ row.status }}</td>
+        <td>{{ row.alleles | join(" / ") if row.alleles else "no prediction" }}</td>
+        <td class="num">{{ row.posterior if row.posterior is not none else "unavailable" }}</td>
+        <td class="num">{{ row.observed_markers }}/{{ row.model_markers }}</td>
+        <td>{% if row.confidence.status == "computed" %}{{ row.confidence.ceiling or "none" }}{% if row.confidence.ceilings %} (lowered by {{ row.confidence.ceilings | join(", ") }}){% endif %}{% else %}not computed{% endif %}</td>
+        <td>{% for pattern, alleles in row.emittable.items() %}{{ pattern }}: {{ alleles | join(", ") if alleles else "none — not determinable from this model" }}{% if not loop.last %}; {% endif %}{% endfor %}</td>
+      </tr>{% endfor %}</tbody>
+    </table></div>
+  {% endif %}
+  {% if result.alternatives %}
+    <h4>Alternatives, in order</h4>
+    <ul class="plainlist">{% for alt in result.alternatives %}
+      <li>{{ alt.name }}: {{ "carried" if alt.carried else "not carried" }} —
+        {% for term in alt.terms %}HLA-{{ term.locus }} {{ term.alleles | join(" or ") }}
+          ({{ term.assigned if term.assigned else (term.matched | join(", ") if term.matched else "no matching allele") }}){% if not loop.last %}; {% endif %}{% endfor %}</li>
+    {% endfor %}</ul>
+    <p>State: {{ result.state }} → outcome {{ result.outcome }}.</p>
+  {% endif %}
+  {% if result.phase %}<p>{{ result.phase.text }}</p>{% endif %}
+  {% if result.reliability %}
+    {% set reliability = result.reliability %}
+    <p>Weakest named call: HLA-{{ reliability.posterior_locus }}, joint posterior {{ reliability.posterior }}
+      ({{ "meets" if reliability.posterior >= reliability.published_call_threshold else "is below" }}
+      the published {{ reliability.published_call_threshold }} call threshold). Posteriors are not
+      multiplied across loci. Call ceiling: {{ reliability.locus_ceiling or "none" }}{% if reliability.ceiling_loci %}
+      at {% for locus in reliability.ceiling_loci %}HLA-{{ locus }}{% if not loop.last %}, {% endif %}{% endfor %}{% endif %}.</p>
+    <p>{{ reliability.frequency_note }}</p>
+    <p>{{ reliability.study_ancestry.text }}</p>
+  {% endif %}
+</section>
+{% set cpic = result.cpic %}
+{% if cpic %}
+<section class="detailblock">
+  <h3>Frozen CPIC rows</h3>
+  <p>{{ cpic.notice }}</p>
+  {% if cpic.status != "conditional" %}<p>{{ cpic.reason }}</p>
+  {% else %}
+    <p>{{ cpic.gene }} lookup {{ cpic.lookup }} · CPIC release {{ cpic.source.version }}; licence {{ cpic.source.license_id }}.</p>
+    {% for gap in cpic.gaps %}<p>{{ gap }}</p>{% endfor %}
+    {% for item in cpic.recommendations %}
+    <details><summary>{{ item.drug.name if item.drug else item.source_row.drugid }} —
+      {{ item.status }}; classification {{ item.source_row.classification or "not provided" }};
+      population {{ item.source_row.population or "not supplied" }}; row {{ item.source_row.id }}</summary>
+      {% if item.status == "conditional" %}
+        <p><strong>CPIC source recommendation, conditional:</strong> {{ item.source_row.drugrecommendation }}</p>
+      {% else %}<p>Implication unavailable: guideline evidence is incomplete.</p>{% endif %}
+      {% for condition in item.conditions %}
+        <p>{{ condition.gene }} requires {{ condition.required_value }}: {{ condition.state }}
+          ({{ condition.basis }}{% if condition.actual %}; this run: {{ condition.actual }}{% endif %}).</p>
+      {% endfor %}
+      {% for pair in item.pairs %}<p>CPIC gene-drug level {{ pair.cpiclevel or "not provided" }} (pair {{ pair.pairid }}).</p>{% endfor %}
+      {% if item.guideline and item.guideline.url and item.guideline.url.startswith("https://") %}
+      <p><a href="{{ item.guideline.url }}" target="_blank" rel="noopener noreferrer">{{ item.guideline.name }}</a></p>
+      {% endif %}
+      {% for gap in item.gaps %}<p>{{ gap }}</p>{% endfor %}
+      <details><summary>Complete frozen row and conditions</summary><pre>{{ item | tojson(indent=2) }}</pre></details>
+    </details>
+    {% endfor %}
+  {% endif %}
+</section>
+{% endif %}
+<section class="detailblock">
+  <details><summary>Complete saved HLA card evidence</summary><pre>{{ result | tojson(indent=2) }}</pre></details>
+</section>

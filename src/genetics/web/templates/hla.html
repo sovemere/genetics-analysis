@@ -9,6 +9,16 @@
   <h1>HLA classifier imputation</h1>
   <p><a href="{{ shell.run_url }}">Back to the run</a></p>
   <p>{{ hla_report.status }}{% if hla_report.reason %}: {{ hla_report.reason }}{% endif %}</p>
+  <h2>HLA-linked cards</h2>
+  {% if not hla_cards_recorded %}
+  <p>This run predates HLA-linked cards (bundle format {{ shell.format_version }}); none were recorded, and no current card is substituted.</p>
+  {% elif not hla_cards %}
+  <p>No HLA-linked card was saved with this run's knowledge pack.</p>
+  {% else %}
+  <ul class="plainlist">{% for card in hla_cards %}
+    <li><a href="{{ card.url }}">{{ card.title }}</a> · {{ card.section_title }} · {{ card.status_label }} · {{ card.tier_label }}<br>{{ card.summary }}</li>
+  {% endfor %}</ul>
+  {% endif %}
   {% if choice %}
   <h2>Classifier selection · {{ choice.status }}</h2>
   <p>Classifier used: {{ choice.classifier or "none" }}{% if choice.basis == "explicit" %} (explicitly requested; automatic selection: {{ choice.status }}{% if choice.automatic_classifier %}, {{ choice.automatic_classifier }}{% endif %}){% elif choice.basis == "ancestry" %} (selected from the ancestry placement){% endif %}. Ancestry match: {{ "unknown" if choice.ancestry_match is none else choice.ancestry_match }}.</p>

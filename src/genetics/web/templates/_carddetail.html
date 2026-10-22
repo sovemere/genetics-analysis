@@ -206,6 +206,10 @@
     {% include "_pgsdetail.html" %}
   {% endif %}
 
+  {% if card.is_hla %}
+    {% include "_hladetail.html" %}
+  {% endif %}
+
   {% if card.is_computed %}
     {% if card.computation.source == "pgx_guideline" %}
       {% include "_pgxguidelinedetail.html" %}

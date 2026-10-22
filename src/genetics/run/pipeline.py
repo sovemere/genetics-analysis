@@ -12,7 +12,8 @@ an enabled run does not make an original observed call an imputed observation.
 Missing allele frequencies remain unknown. Study-to-sample ancestry portability is computed
 for PGS results (M9.5) and polygenic cards are scored here (M9.6). M9.13 shares the
 run's 1000 Genomes placement with selected-outcome variant evidence before imputation.
-M11.3 selects the HLA classifier from the same two placements once both exist.
+M11.3 selects the HLA classifier from the same two placements once both exist, and M11.4
+cards read its frozen calls with the PGx record's CPIC rows.
 """
 
 from __future__ import annotations
@@ -359,6 +360,19 @@ def analyse(
         else card
         for card in cards
     )
+    hla_record = hla_stage.run(result.table)
+    from genetics.hla.cards import assemble_hla_card
+
+    # M11.4: HLA cards read the frozen classifier calls, CPIC rows and saved placements.
+    cards = tuple(
+        replace(
+            assemble_hla_card(card.card, hla_record, pgx_calls.to_dict(), context.to_dict()),
+            imputation_mode=imputation_context.mode,
+        )
+        if card.kind is CardKind.HLA
+        else card
+        for card in cards
+    )
     matches = tuple(card.match for card in cards)
     return Analysis(
         source=result.source,
@@ -372,7 +386,7 @@ def analyse(
         imputation_result=imputation_result,
         polygenic=polygenic_records,
         pgx=pgx_calls.to_dict(),
-        hla=hla_stage.run(result.table),
+        hla=hla_record,
     )
 
 
