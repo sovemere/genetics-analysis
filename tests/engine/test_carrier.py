@@ -159,12 +159,17 @@ def test_every_committed_carrier_card_reads_one_forward_autosomal_marker(
 def _misdirected(card: Card) -> list[int]:
     """Copy counts whose authored face does not say what the derived state says."""
     assert card.match is not None
-    words = ("no ", "one ", "two ")
+    faces = (
+        lambda s: s.startswith("no "),
+        lambda s: "consistent with one " in s,
+        lambda s: "consistent with two " in s,
+    )
     return [
         copies
         for copies in range(3)
-        if words[copies]
-        not in card.outcomes[card.match.genotypes[_pair(card, copies)]].summary.lower()
+        if not faces[copies](
+            card.outcomes[card.match.genotypes[_pair(card, copies)]].summary.lower()
+        )
     ]
 
 
@@ -478,6 +483,7 @@ Mutation = Callable[[dict[str, Any]], None]
         (lambda c: c["carrier"].pop("typed_scope"), "wrong fields"),
         (lambda c: c["carrier"].update(condition=""), "condition"),
         (lambda c: c.update(kind="computed"), "single-marker interpretation"),
+        (lambda c: c["variant"].update(chrom="X"), "autosomal marker"),
         (lambda c: c["match"].update(genotype="TT"), "follow from the saved call"),
         (lambda c: c["match"].update(genotype="AA"), "lacks a call"),
         (lambda c: c["match"].update(genotype=None), "lacks a call"),
@@ -492,6 +498,7 @@ Mutation = Callable[[dict[str, Any]], None]
         "missing_field",
         "empty_condition",
         "kind",
+        "x_chromosome",
         "genotype",
         "foreign_genotype",
         "no_genotype",

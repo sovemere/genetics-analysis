@@ -206,6 +206,8 @@ from physical health. The state is derived from the call, never authored; a card
 not match is "not determined", never non-carrier, and A/T or C/G homozygotes stay
 strand-ambiguous. `genetics cards carriers` lists the panel as data for M11.6. Bundle format
 24 saves and re-derives each carrier record. See [carrier status](docs/carrier_status.md).
+The [M11.5 diff review](docs/review_m115_session.md) tightens five card statements against
+their sources and refuses saved carrier records on a non-autosome.
 [M11.6 carrier-screening incompleteness](docs/handoff.md#next-open-step-m116-carrier-screening-incompleteness)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations

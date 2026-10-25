@@ -33,9 +33,14 @@ PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
 **M11.5 carrier status is implemented; M11.6 is next.** Knowledge schema 7 adds a
 `carrier` declaration to single-marker interpretation cards. Fifteen reproductive cards
-cover nine conditions and HFE C282Y joins the panel from physical health; bundle format 24
-saves each card's derived carrier state and re-derives it from the saved match. See
-[carrier status](carrier_status.md) and [the M11.6 entry contract](#next-open-step-m116-carrier-screening-incompleteness).
+cover eight conditions and HFE C282Y joins the panel from physical health, making nine;
+bundle format 24 saves each card's derived carrier state and re-derives it from the saved
+match. See [carrier status](carrier_status.md) and [the M11.6 entry contract](#next-open-step-m116-carrier-screening-incompleteness).
+The [M11.5 diff review](review_m115_session.md) found no defect in state derivation or
+the bundle checks. It tightens five card statements against their sources (Gregg 2021's
+gnomAD maximum, Scott 2010's carrier-couple pregnancies, the MCAD scope), refuses a saved
+carrier record on a non-autosome, and records that 12 of the 16 panel markers are
+multiallelic in dbSNP. Schema 7, panel schema 1 and bundle format 24 are unchanged.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
@@ -398,7 +403,16 @@ What is not yet decided:
   screening is meant to cover. Gregg et al. 2021 (ACMG practice resource,
   doi:10.1038/s41436-021-01203-z) recommends 97 autosomal recessive genes at carrier
   frequency of at least 1/200 plus X-linked genes, and is already cited by M11.5's cards;
-  verify its tables before binding counts to them.
+  verify its tables before binding counts to them. The M11.5 review read their structure:
+  Tables 1–4 bin autosomal recessive genes by a "maximum carrier frequency" column estimated
+  from gnomAD (≥1/50, <1/50 to ≥1/100, <1/100 to ≥1/150, <1/150 to ≥1/200), Table 5 lists
+  genes ascertained outside the gnomAD criteria (including SMN1 and ELP1) with published
+  frequencies, and Table 6 lists X-linked genes. The tables do not name the population each
+  maximum comes from, so a card should not claim one.
+- **"No copy" is weaker than it looks at most markers.** 12 of the 16 panel markers have a
+  third base in dbSNP, and the array's probe alleles are unpublished, so a homozygous
+  reference call cannot show that the probe tested the card's alternate. The section-level
+  card should say a no-copy result is not a negative screen even for the typed alleles.
 - **X-linked conditions.** Fragile X (repeat expansion), Duchenne (mostly deletions) and
   haemophilia A (inversions) are outside genotype calls; G6PD is a PGx call. State them as
   limits, not as panel members.
@@ -428,6 +442,7 @@ all 16 panel entries against the fetched indexes. Full dbSNP card lint passes **
 strict Windows/Linux × Python 3.11/3.13 type targets (233 files), ruff, format, fixture
 reproduction and the staged privacy scan pass. No personal export was opened: the array's
 marker list was read from the export's rsID, chromosome and position columns only.
+The [session diff review](review_m115_session.md) records its own validation.
 
 <a id="next-open-step-m115-carrier-status"></a>
 
