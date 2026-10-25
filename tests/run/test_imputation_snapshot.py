@@ -181,7 +181,7 @@ def test_snapshot_is_independent_and_uses_exact_stage_identities(
     )
     original_metadata = copy.deepcopy(stage.metadata)
     bundle = read_bundle(path)
-    assert bundle.format_version == 23
+    assert bundle.format_version == 24
     assert bundle.imputation_provenance is not None
     assert bundle.imputation_provenance["stage"] == original_metadata
     for file in stage.metadata["files"]:

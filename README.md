@@ -198,7 +198,16 @@ rebuild from their frozen definition and the bundle's own records in format 23. 
 [the card contract](docs/hla_cards.md). The
 [M11.4 diff review](docs/review_m114_session.md) stops allele groups counting null
 alleles and lists the HLA drug cards in the PGx views.
-[M11.5 carrier status](docs/handoff.md#next-open-step-m115-carrier-status) is next.
+**M11.5 carrier status is implemented.** Knowledge schema 7 adds a `carrier` declaration to
+single-marker interpretation cards: 15 reproductive cards cover sickle cell disease (HbS),
+cystic fibrosis (six CFTR SNVs), phenylketonuria (three PAH variants), MCAD deficiency,
+Gaucher, Tay-Sachs, Canavan and Fanconi anaemia group C, and HFE C282Y joins the same panel
+from physical health. The state is derived from the call, never authored; a card that did
+not match is "not determined", never non-carrier, and A/T or C/G homozygotes stay
+strand-ambiguous. `genetics cards carriers` lists the panel as data for M11.6. Bundle format
+24 saves and re-derives each carrier record. See [carrier status](docs/carrier_status.md).
+[M11.6 carrier-screening incompleteness](docs/handoff.md#next-open-step-m116-carrier-screening-incompleteness)
+is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

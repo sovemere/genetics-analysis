@@ -98,3 +98,55 @@ def lint(
 
     if not report.ok:
         raise typer.Exit(code=1)
+
+
+@cards_app.command("carriers")
+def carriers(
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """List the carrier panel: every recessive-condition marker the pack types (M11.5).
+
+    A property of the knowledge pack, not of a run: no genotype is read.
+    """
+
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.engine.carrier import carrier_panel
+
+    try:
+        panel = carrier_panel(KnowledgePack.load(knowledge))
+    except CardError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+
+    if as_json:
+        typer.echo(json.dumps(panel.to_dict(), indent=2))
+        return
+    typer.secho(
+        f"{len(panel.entries)} typed marker(s) across {len(panel.conditions)} condition(s)",
+        bold=True,
+    )
+    for condition in panel.conditions:
+        typer.echo(f"  {condition}")
+        for entry in panel.entries:
+            if entry.declaration.condition == condition:
+                note = (
+                    "  (strand-symmetric: homozygotes not oriented)"
+                    if entry.strand_symmetric
+                    else ""
+                )
+                typer.echo(
+                    f"    {entry.rsid:<13} {entry.declaration.variant}  [{entry.card_id}]{note}"
+                )
+    typer.echo(
+        "Each card types only the marker listed. Copy-number, structural and indel alleles, "
+        "and every untyped variant in these genes, are outside this panel."
+    )

@@ -1,0 +1,1227 @@
+schema_version: 7
+# M11.5 carrier cards. Each types one array SNV with a ClinVar P/LP recessive assertion and
+# a usable gnomAD frequency, measured against dbSNP b157 and the AncestryDNA V2.0 marker list
+# (docs/carrier_status.md records the audit, including every candidate that failed).
+#
+# Evidence rule: the carrier outcome uses the card-level evidence, which is either the
+# allele's share of disease alleles in a cited patient series (a case composition) or its
+# carrier prevalence in a cited screened population; the effect context says which. The
+# no-copy and two-copy outcomes assign no phenotype estimate. The couple-level figure is the
+# Mendelian expectation; Scott 2010's DNA-confirmed carrier-couple pregnancies are cited for
+# it, per condition where that study reports one.
+cards:
+  - id: hbb_hbs_carrier
+    section: reproductive
+    kind: interpretation
+    title: Sickle haemoglobin (HbS) carrier status
+    gene: HBB
+    carrier:
+      condition: Sickle cell disease
+      inheritance: autosomal_recessive
+      variant: "HBB c.20A>T (p.Glu7Val), HbS"
+      pathogenic_allele: A
+      clinvar: 15333
+      typed_scope: >-
+        This card types HbS only. HbC, HbE and the beta-thalassaemia variants, which cause
+        sickle cell disease when inherited with HbS, are not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs334
+          chrom: "11"
+          pos_grch37: 5248232
+          alleles: [A, T]
+      genotypes:
+        TT: no_hbs
+        AT: one_hbs
+        AA: two_hbs
+    outcomes:
+      no_hbs:
+        evidence: null
+        summary: "No HbS copy is indicated at this marker. This is not a negative haemoglobinopathy screen."
+        detail: >-
+          The marker reads the HbS position only. Other beta-globin variants that combine
+          with HbS to cause sickle cell disease, and alpha-thalassaemia deletions, are not
+          read. A haemoglobin test measures what this card cannot.
+        risk_context: >-
+          Ojodu 2014: sickle cell trait was found in 73.1 per 1,000 Black newborns, 6.9 per
+          1,000 Hispanic newborns and 15.5 per 1,000 newborns overall in US screening in
+          2010. No residual carrier risk is computed here: a no-copy result at this marker
+          says nothing about the other beta-globin variants.
+      one_hbs:
+        summary: "The chip pattern is consistent with one HbS copy: sickle cell trait, a carrier state that does not cause sickle cell disease."
+        detail: >-
+          HbS changes glutamic acid to valine at position 6 of the mature beta-globin chain.
+          A carrier makes both normal and sickle haemoglobin. Sickle cell disease needs two
+          disease alleles: two HbS copies, or HbS with HbC or a beta-thalassaemia allele.
+          The trait itself has reported health associations that this card does not
+          evaluate; Naik 2014 is cited for one.
+        risk_context: >-
+          If a reproductive partner also carries HbS, HbC or a beta-thalassaemia allele,
+          each pregnancy has a 1 in 4 chance of a child with sickle cell disease (Mendelian
+          expectation). Ojodu 2014: 73.1 per 1,000 Black US newborns carried the trait in
+          2010. Piel 2013 estimated 5,476,000 trait and 312,000 HbSS births worldwide in
+          2010. No partner's status is known here; no offspring risk is computed.
+      two_hbs:
+        evidence: null
+        summary: "The chip pattern is consistent with two HbS copies (HbSS), the genotype of sickle cell anaemia. An unexpected two-copy call can be a genotyping error."
+        detail: >-
+          Sickle cell anaemia is usually diagnosed in infancy through newborn screening or
+          symptoms. A two-copy call in someone without that diagnosis is more likely a
+          measurement problem than an unknown disease. Only a haemoglobin or clinical DNA
+          test establishes it. Every child of a person with two HbS copies inherits one.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to HbSS. Piel 2013 estimated
+          312,000 HbSS births worldwide in 2010. Each child of a two-copy parent is at least
+          a carrier; whether a child is affected depends on the other parent's alleles.
+    evidence:
+      tier: cohort
+      replication: independent
+      sample_size: 156732
+      ancestry: [AFR]
+      effect:
+        measure: proportion
+        value: 0.0731
+        context: "Sickle cell trait in 11,461 of 156,732 Black newborns screened in 13 US states in 2010; a carrier prevalence, not an effect on the carrier."
+    citations:
+      - type: pmid
+        id: "25503918"
+        title: Incidence of sickle cell trait--United States, 2010
+      - type: doi
+        id: 10.1016/S0140-6736(12)61229-X
+        title: "Global epidemiology of sickle haemoglobin in neonates: a contemporary geostatistical model-based map and population estimates"
+      - type: doi
+        id: 10.1001/jama.2014.15063
+        title: Association of sickle cell trait with chronic kidney disease and albuminuria in African Americans
+        note: "CKD in 239 of 1,247 trait carriers (19.2%) versus 1,994 of 14,722 noncarriers (13.5%); a separate claim about carriers, not evaluated by this card."
+      - type: accession
+        database: ClinVar
+        id: VCV000015333
+        title: NM_000518.5(HBB):c.20A>T (p.Glu7Val)
+    caveats:
+      - "The GRCh37 forward strand reads HbS as A where the reference is T; HBB runs on the reverse strand, so the transcript writes the same change as A>T at c.20. Other bases at this multiallelic site stay unmatched."
+      - "A and T are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
+      - "Newborn-screening trait rates describe the populations screened, not this person's ancestry."
+
+  - id: cftr_g542x_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR G542X)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.1624G>T (p.Gly542Ter), G542X"
+      pathogenic_allele: T
+      clinvar: 7115
+      typed_scope: >-
+        This card types G542X only. F508del, about 72% of non-Hispanic white CF chromosomes,
+        is an indel this export cannot resolve; it and most other CFTR variants are not
+        typed. Other CFTR markers have their own cards, and together they are not a CF
+        carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs113993959
+          chrom: "7"
+          pos_grch37: 117227832
+          alleles: [G, T]
+      genotypes:
+        GG: no_g542x
+        GT: one_g542x
+        TT: two_g542x
+    outcomes:
+      no_g542x:
+        evidence: null
+        summary: "No G542X copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          G542X accounted for 2.28% of non-Hispanic white, 5.10% of Hispanic and 7.55% of
+          Ashkenazi Jewish CF patient chromosomes in Watson 2004. A no-copy result here
+          leaves every other CFTR allele, including F508del, unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_g542x:
+        summary: "The chip pattern is consistent with one G542X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          G542X is a premature stop codon. Watson 2004 lists it in the ACMG carrier panel,
+          at 2.28% of non-Hispanic white, 5.10% of Hispanic, 1.45% of African American and
+          7.55% of Ashkenazi Jewish CF patient chromosomes. ClinVar classifies it pathogenic
+          at practice-guideline review status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_g542x:
+        evidence: null
+        summary: "The chip pattern is consistent with two G542X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one G542X copy; whether a child is affected
+          depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0228
+        context: "Share of non-Hispanic white CF patient chromosomes carrying G542X (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers."
+    citations: &cftr_citations
+      - type: doi
+        id: 10.1097/01.GIM.0000139506.11694.7C
+        title: "Cystic fibrosis population carrier screening: 2004 revision of American College of Medical Genetics mutation panel"
+        note: "Table 1: mutation frequency among clinically diagnosed CF patients by ethnic group."
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Tables 1, 2 and 5: Ashkenazi carrier frequencies and carrier-couple pregnancy outcomes."
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 1: maximum gnomAD carrier frequency per gene."
+    caveats: &cftr_caveats
+      - "CF-causing alleles combine: a child with G542X from one parent and F508del or any other CF-causing allele from the other is affected. The couple-level figure applies to the gene, not to this allele alone."
+      - "Ethnic-group shares describe US registry patients, not this person's ancestry."
+
+  - id: cftr_w1282x_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR W1282X)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.3846G>A (p.Trp1282Ter), W1282X"
+      pathogenic_allele: A
+      clinvar: 7129
+      typed_scope: >-
+        This card types W1282X only. F508del, about 72% of non-Hispanic white CF chromosomes,
+        is an indel this export cannot resolve; it and most other CFTR variants are not
+        typed. Other CFTR markers have their own cards, and together they are not a CF
+        carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs77010898
+          chrom: "7"
+          pos_grch37: 117282620
+          alleles: [A, G]
+      genotypes:
+        GG: no_w1282x
+        AG: one_w1282x
+        AA: two_w1282x
+    outcomes:
+      no_w1282x:
+        evidence: null
+        summary: "No W1282X copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          W1282X accounted for 45.92% of Ashkenazi Jewish but 1.50% of non-Hispanic white CF
+          patient chromosomes in Watson 2004. A no-copy result here leaves every other CFTR
+          allele, including F508del, unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_w1282x:
+        summary: "The chip pattern is consistent with one W1282X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          W1282X is a premature stop codon and the most common CF allele among Ashkenazi
+          Jewish patients: 45.92% of their CF chromosomes in Watson 2004, and a carrier
+          frequency of 1 in 50 among 8,671 fully Ashkenazi screenees in Scott 2010. It was
+          1.50% of non-Hispanic white CF chromosomes. ClinVar classifies it pathogenic at
+          practice-guideline review status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_w1282x:
+        evidence: null
+        summary: "The chip pattern is consistent with two W1282X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one W1282X copy; whether a child is affected
+          depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.015
+        context: "Share of non-Hispanic white CF patient chromosomes carrying W1282X (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers. The Ashkenazi share was 45.92%."
+    citations: *cftr_citations
+    caveats:
+      - "CF-causing alleles combine: a child with W1282X from one parent and F508del or any other CF-causing allele from the other is affected. The couple-level figure applies to the gene, not to this allele alone."
+      - "Ethnic-group shares describe US registry patients, not this person's ancestry."
+      - "This multiallelic site also carries a G>C alternate; only the declared forward-strand A is read as W1282X."
+
+  - id: cftr_g551d_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR G551D)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.1652G>A (p.Gly551Asp), G551D"
+      pathogenic_allele: A
+      clinvar: 7120
+      typed_scope: >-
+        This card types G551D only. F508del, about 72% of non-Hispanic white CF chromosomes,
+        is an indel this export cannot resolve; it and most other CFTR variants are not
+        typed. Other CFTR markers have their own cards, and together they are not a CF
+        carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs75527207
+          chrom: "7"
+          pos_grch37: 117227860
+          alleles: [A, G]
+      genotypes:
+        GG: no_g551d
+        AG: one_g551d
+        AA: two_g551d
+    outcomes:
+      no_g551d:
+        evidence: null
+        summary: "No G551D copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          G551D accounted for 2.25% of non-Hispanic white CF patient chromosomes in Watson
+          2004. A no-copy result here leaves every other CFTR allele, including F508del,
+          unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_g551d:
+        summary: "The chip pattern is consistent with one G551D copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          G551D is a missense variant (glycine to aspartate). Watson 2004 lists it in the ACMG carrier panel at 2.25% of non-Hispanic white,
+          0.56% of Hispanic and 1.21% of African American CF patient chromosomes. ClinVar
+          classifies it pathogenic at practice-guideline review status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_g551d:
+        evidence: null
+        summary: "The chip pattern is consistent with two G551D copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one G551D copy; whether a child is affected
+          depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0225
+        context: "Share of non-Hispanic white CF patient chromosomes carrying G551D (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers."
+    citations: *cftr_citations
+    caveats: *cftr_caveats
+
+  - id: cftr_621_1g_t_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR 621+1G>T)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.489+1G>T, legacy 621+1G>T"
+      pathogenic_allele: T
+      clinvar: 38799
+      typed_scope: >-
+        This card types 621+1G>T only. F508del, about 72% of non-Hispanic white CF
+        chromosomes, is an indel this export cannot resolve; it and most other CFTR variants
+        are not typed. Other CFTR markers have their own cards, and together they are not a
+        CF carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs78756941
+          chrom: "7"
+          pos_grch37: 117171169
+          alleles: [G, T]
+      genotypes:
+        GG: no_621
+        GT: one_621
+        TT: two_621
+    outcomes:
+      no_621:
+        evidence: null
+        summary: "No 621+1G>T copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          621+1G>T accounted for 1.57% of non-Hispanic white CF patient chromosomes in
+          Watson 2004. A no-copy result here leaves every other CFTR allele, including
+          F508del, unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_621:
+        summary: "The chip pattern is consistent with one 621+1G>T copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          621+1G>T changes the first base of an intron, at a splice donor. Watson 2004
+          lists it in the ACMG carrier panel at 1.57% of non-Hispanic white and 1.11% of
+          African American CF patient chromosomes. ClinVar classifies it pathogenic at
+          practice-guideline review status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_621:
+        evidence: null
+        summary: "The chip pattern is consistent with two 621+1G>T copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one 621+1G>T copy; whether a child is
+          affected depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0157
+        context: "Share of non-Hispanic white CF patient chromosomes carrying 621+1G>T (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers."
+    citations: *cftr_citations
+    caveats: *cftr_caveats
+
+  - id: cftr_n1303k_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR N1303K)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.3909C>G (p.Asn1303Lys), N1303K"
+      pathogenic_allele: G
+      clinvar: 7136
+      typed_scope: >-
+        This card types N1303K only. F508del, about 72% of non-Hispanic white CF chromosomes,
+        is an indel this export cannot resolve; it and most other CFTR variants are not
+        typed. Other CFTR markers have their own cards, and together they are not a CF
+        carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs80034486
+          chrom: "7"
+          pos_grch37: 117292931
+          alleles: [C, G]
+      genotypes:
+        CC: no_n1303k
+        CG: one_n1303k
+        GG: two_n1303k
+    outcomes:
+      no_n1303k:
+        evidence: null
+        summary: "No N1303K copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          N1303K accounted for 1.27% of non-Hispanic white CF patient chromosomes in Watson
+          2004. A no-copy result here leaves every other CFTR allele, including F508del,
+          unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_n1303k:
+        summary: "The chip pattern is consistent with one N1303K copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          N1303K is a missense variant (asparagine to lysine). Watson 2004
+          lists it in the ACMG carrier panel at 1.27% of non-Hispanic white, 1.66% of
+          Hispanic and 2.78% of Ashkenazi Jewish CF patient chromosomes. ClinVar classifies
+          it pathogenic at practice-guideline review status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_n1303k:
+        evidence: null
+        summary: "The chip pattern is consistent with two N1303K copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one N1303K copy; whether a child is affected
+          depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0127
+        context: "Share of non-Hispanic white CF patient chromosomes carrying N1303K (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers."
+    citations: *cftr_citations
+    caveats:
+      - "CF-causing alleles combine: a child with N1303K from one parent and F508del or any other CF-causing allele from the other is affected. The couple-level figure applies to the gene, not to this allele alone."
+      - "Ethnic-group shares describe US registry patients, not this person's ancestry."
+      - "C and G are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
+
+  - id: cftr_r553x_carrier
+    section: reproductive
+    kind: interpretation
+    title: Cystic fibrosis carrier status (CFTR R553X)
+    gene: CFTR
+    carrier:
+      condition: Cystic fibrosis
+      inheritance: autosomal_recessive
+      variant: "CFTR c.1657C>T (p.Arg553Ter), R553X"
+      pathogenic_allele: T
+      clinvar: 7122
+      typed_scope: >-
+        This card types R553X only. F508del, about 72% of non-Hispanic white CF chromosomes,
+        is an indel this export cannot resolve; it and most other CFTR variants are not
+        typed. Other CFTR markers have their own cards, and together they are not a CF
+        carrier screen.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs74597325
+          chrom: "7"
+          pos_grch37: 117227865
+          alleles: [C, T]
+      genotypes:
+        CC: no_r553x
+        CT: one_r553x
+        TT: two_r553x
+    outcomes:
+      no_r553x:
+        evidence: null
+        summary: "No R553X copy is indicated at this marker. This is not a negative cystic fibrosis carrier screen."
+        detail: >-
+          R553X accounted for 0.87% of non-Hispanic white, 2.81% of Hispanic and 2.32% of
+          African American CF patient chromosomes in Watson 2004. A no-copy result here
+          leaves every other CFTR allele, including F508del, unexamined.
+        risk_context: >-
+          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
+          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
+      one_r553x:
+        summary: "The chip pattern is consistent with one R553X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
+        detail: >-
+          R553X is a premature stop codon. Watson 2004 lists it in the ACMG carrier panel at
+          0.87% of non-Hispanic white, 2.81% of Hispanic and 2.32% of African American CF
+          patient chromosomes. ClinVar classifies it pathogenic at practice-guideline review
+          status.
+        risk_context: >-
+          If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
+          in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
+          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
+          here; no offspring risk is computed.
+      two_r553x:
+        evidence: null
+        summary: "The chip pattern is consistent with two R553X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Cystic fibrosis is usually diagnosed in childhood. A two-copy call in someone
+          without that diagnosis is more likely a measurement problem than an unknown
+          disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one R553X copy; whether a child is affected
+          depends on the other parent's CFTR alleles.
+    evidence:
+      tier: clinical_guideline
+      replication: independent
+      sample_size: 37263
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0087
+        context: "Share of non-Hispanic white CF patient chromosomes carrying R553X (Watson 2004, Table 1; CF Foundation data held 37,263 such chromosomes); a case composition, not a risk for carriers."
+    citations: *cftr_citations
+    caveats: *cftr_caveats
+
+  - id: pah_r408w_carrier
+    section: reproductive
+    kind: interpretation
+    title: Phenylketonuria carrier status (PAH R408W)
+    gene: PAH
+    carrier:
+      condition: Phenylketonuria (PAH deficiency)
+      inheritance: autosomal_recessive
+      variant: "PAH c.1222C>T (p.Arg408Trp), R408W"
+      pathogenic_allele: A
+      clinvar: 577
+      typed_scope: >-
+        This card types R408W only. Hillert 2020 counted 758 PAH variants in PKU patients;
+        two others have their own cards here, and the rest are not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs5030858
+          chrom: "12"
+          pos_grch37: 103234271
+          alleles: [A, G]
+      genotypes:
+        GG: no_r408w
+        AG: one_r408w
+        AA: two_r408w
+    outcomes:
+      no_r408w:
+        evidence: null
+        summary: "No R408W copy is indicated at this marker. This is not a negative PKU carrier screen."
+        detail: >-
+          R408W was the most common PAH variant in Hillert 2020, at 22.2% of alleles in
+          16,196 genotyped PKU patients from 51 countries. A no-copy result here leaves the
+          other 757 recorded variants largely unexamined.
+        risk_context: >-
+          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
+          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
+          risk is computed from one marker.
+      one_r408w:
+        summary: "The chip pattern is consistent with one R408W copy, a phenylketonuria-causing allele. One copy is a carrier state and does not cause PKU."
+        detail: >-
+          R408W is a missense variant in phenylalanine hydroxylase. In Hillert 2020 it made
+          up 22.2% of PAH alleles among 16,196 genotyped PKU patients, and R408W
+          homozygosity was the most common genotype (11.4%). ClinVar classifies it
+          pathogenic at expert-panel review status.
+        risk_context: >-
+          If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
+          a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
+          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
+      two_r408w:
+        evidence: null
+        summary: "The chip pattern is consistent with two R408W copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          PKU is detected by newborn screening in most countries that screen. A two-copy
+          call in someone without that diagnosis is more likely a measurement problem than
+          an unknown disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one R408W copy; whether a child is affected
+          depends on the other parent's PAH alleles.
+    evidence:
+      tier: expert_curated
+      replication: independent
+      sample_size: 16196
+      ancestry: [MULTI]
+      effect:
+        measure: proportion
+        value: 0.222
+        context: "Share of PAH alleles that were R408W among 16,196 PKU patients with complete genotypes in the BIOPKU database, 51 countries (Hillert 2020); a case composition, not a risk for carriers."
+    citations: &pah_citations
+      - type: doi
+        id: 10.1016/j.ajhg.2020.06.006
+        title: The Genetic Landscape and Epidemiology of Phenylketonuria
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 1: maximum gnomAD carrier frequency per gene."
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Table 5: 107 affected of 404 DNA-confirmed carrier-couple pregnancies across 16 recessive conditions, the empirical counterpart of the 1 in 4 expectation. PKU is not among them."
+    caveats: &pah_caveats
+      - "PAH alleles combine: a child with this allele from one parent and any PKU-causing PAH allele from the other has PAH deficiency, whose severity depends on both alleles."
+      - "The BIOPKU allele share pools patients from 51 countries; it varies widely by region."
+
+  - id: pah_ivs10_11g_a_carrier
+    section: reproductive
+    kind: interpretation
+    title: Phenylketonuria carrier status (PAH IVS10-11G>A)
+    gene: PAH
+    carrier:
+      condition: Phenylketonuria (PAH deficiency)
+      inheritance: autosomal_recessive
+      variant: "PAH c.1066-11G>A, legacy IVS10-11G>A"
+      pathogenic_allele: T
+      clinvar: 607
+      typed_scope: >-
+        This card types IVS10-11G>A only. Hillert 2020 counted 758 PAH variants in PKU
+        patients; two others have their own cards here, and the rest are not typed by this
+        report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs5030855
+          chrom: "12"
+          pos_grch37: 103237568
+          alleles: [C, T]
+      genotypes:
+        CC: no_ivs10
+        CT: one_ivs10
+        TT: two_ivs10
+    outcomes:
+      no_ivs10:
+        evidence: null
+        summary: "No IVS10-11G>A copy is indicated at this marker. This is not a negative PKU carrier screen."
+        detail: >-
+          IVS10-11G>A was the second most common PAH variant in Hillert 2020, at 6.4% of
+          alleles in 16,196 genotyped PKU patients. A no-copy result here leaves the other
+          recorded variants largely unexamined.
+        risk_context: >-
+          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
+          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
+          risk is computed from one marker.
+      one_ivs10:
+        summary: "The chip pattern is consistent with one IVS10-11G>A copy, a phenylketonuria-causing allele. One copy is a carrier state and does not cause PKU."
+        detail: >-
+          IVS10-11G>A is an intronic splice variant upstream of exon 11. In Hillert 2020 it
+          made up 6.4% of PAH alleles among 16,196 genotyped PKU patients, and its
+          homozygous genotype was the second most common (2.6%). ClinVar classifies it
+          pathogenic at expert-panel review status.
+        risk_context: >-
+          If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
+          a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
+          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
+      two_ivs10:
+        evidence: null
+        summary: "The chip pattern is consistent with two IVS10-11G>A copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          PKU is detected by newborn screening in most countries that screen. A two-copy
+          call in someone without that diagnosis is more likely a measurement problem than
+          an unknown disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one IVS10-11G>A copy; whether a child is
+          affected depends on the other parent's PAH alleles.
+    evidence:
+      tier: expert_curated
+      replication: independent
+      sample_size: 16196
+      ancestry: [MULTI]
+      effect:
+        measure: proportion
+        value: 0.064
+        context: "Share of PAH alleles that were IVS10-11G>A among 16,196 PKU patients with complete genotypes in the BIOPKU database, 51 countries (Hillert 2020); a case composition, not a risk for carriers."
+    citations: *pah_citations
+    caveats: *pah_caveats
+
+  - id: pah_r261q_carrier
+    section: reproductive
+    kind: interpretation
+    title: Phenylketonuria carrier status (PAH R261Q)
+    gene: PAH
+    carrier:
+      condition: Phenylketonuria (PAH deficiency)
+      inheritance: autosomal_recessive
+      variant: "PAH c.782G>A (p.Arg261Gln), R261Q"
+      pathogenic_allele: T
+      clinvar: 582
+      typed_scope: >-
+        This card types R261Q only. Hillert 2020 counted 758 PAH variants in PKU patients;
+        two others have their own cards here, and the rest are not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs5030849
+          chrom: "12"
+          pos_grch37: 103246653
+          alleles: [C, T]
+      genotypes:
+        CC: no_r261q
+        CT: one_r261q
+        TT: two_r261q
+    outcomes:
+      no_r261q:
+        evidence: null
+        summary: "No R261Q copy is indicated at this marker. This is not a negative PKU carrier screen."
+        detail: >-
+          R261Q was the third most common PAH variant in Hillert 2020, at 5.5% of alleles in
+          16,196 genotyped PKU patients. A no-copy result here leaves the other recorded
+          variants largely unexamined.
+        risk_context: >-
+          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
+          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
+          risk is computed from one marker.
+      one_r261q:
+        summary: "The chip pattern is consistent with one R261Q copy, a phenylketonuria-causing allele. One copy is a carrier state and does not cause PKU."
+        detail: >-
+          R261Q is a missense variant in phenylalanine hydroxylase. In Hillert 2020 it made
+          up 5.5% of PAH alleles among 16,196 genotyped PKU patients. ClinVar classifies it
+          pathogenic at expert-panel review status.
+        risk_context: >-
+          If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
+          a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
+          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
+      two_r261q:
+        evidence: null
+        summary: "The chip pattern is consistent with two R261Q copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          PKU is detected by newborn screening in most countries that screen. A two-copy
+          call in someone without that diagnosis is more likely a measurement problem than
+          an unknown disease; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one R261Q copy; whether a child is affected
+          depends on the other parent's PAH alleles.
+    evidence:
+      tier: expert_curated
+      replication: independent
+      sample_size: 16196
+      ancestry: [MULTI]
+      effect:
+        measure: proportion
+        value: 0.055
+        context: "Share of PAH alleles that were R261Q among 16,196 PKU patients with complete genotypes in the BIOPKU database, 51 countries (Hillert 2020); a case composition, not a risk for carriers."
+    citations: *pah_citations
+    caveats: *pah_caveats
+
+  - id: acadm_k304e_carrier
+    section: reproductive
+    kind: interpretation
+    title: MCAD deficiency carrier status (ACADM K304E)
+    gene: ACADM
+    carrier:
+      condition: Medium-chain acyl-CoA dehydrogenase (MCAD) deficiency
+      inheritance: autosomal_recessive
+      variant: "ACADM c.985A>G (p.Lys329Glu), legacy K304E"
+      pathogenic_allele: G
+      clinvar: 3586
+      typed_scope: >-
+        This card types K304E only. Andresen 2001 found 25 of 124 disease alleles in
+        screen-positive newborns were other ACADM variants, including the mild Y42H; none
+        of those is typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs77931234
+          chrom: "1"
+          pos_grch37: 76226846
+          alleles: [A, G]
+      genotypes:
+        AA: no_k304e
+        AG: one_k304e
+        GG: two_k304e
+    outcomes:
+      no_k304e:
+        evidence: null
+        summary: "No K304E copy is indicated at this marker. This is not a negative MCAD deficiency carrier screen."
+        detail: >-
+          K304E is the common MCAD deficiency allele in people of northwestern European
+          descent. A no-copy result here leaves the other ACADM variants unexamined.
+        risk_context: >-
+          Andresen 2001 summarises K304E carrier frequencies of 1 in 64 to 1 in 101 in
+          northwestern European and white US newborns; Gregg 2021 gives a maximum ACADM
+          carrier frequency of 0.0166 (about 1 in 60) across gnomAD populations. No
+          residual carrier risk is computed from one marker.
+      one_k304e:
+        summary: "The chip pattern is consistent with one K304E copy, an MCAD deficiency-causing allele. One copy is a carrier state and does not cause MCAD deficiency."
+        detail: >-
+          K304E impairs folding of medium-chain acyl-CoA dehydrogenase, a fatty-acid
+          oxidation enzyme. Among 62 US newborns found by tandem mass spectrometry screening
+          of 930,078 blood spots, 39 had two copies, 21 one and 2 none: 99 of 124 disease
+          alleles (Andresen 2001). About 80% of clinically diagnosed patients in earlier
+          series had two copies.
+        risk_context: >-
+          If a reproductive partner also carries an MCAD deficiency allele, each pregnancy
+          has a 1 in 4 chance of a child with two (Mendelian expectation). Andresen 2001
+          observed MCAD deficiency in 1 of 15,001 screened US newborns. No partner's status
+          is known here; no offspring risk is computed.
+      two_k304e:
+        evidence: null
+        summary: "The chip pattern is consistent with two K304E copies, the commonest MCAD deficiency genotype. A two-copy call can be a genotyping error."
+        detail: >-
+          Andresen 2001 notes that undiagnosed affected people may remain without symptoms
+          for decades, possibly for life, so a two-copy call in a healthy adult is not
+          contradictory in itself. Only biochemical or clinical DNA testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one K304E copy; whether a child is affected
+          depends on the other parent's ACADM alleles.
+    evidence:
+      tier: functional
+      replication: independent
+      sample_size: 62
+      ancestry: [UNKNOWN]
+      effect:
+        measure: proportion
+        value: 0.798
+        context: "99 of 124 disease alleles in 62 MCAD-deficient US newborns found by tandem mass spectrometry screening were K304E (Andresen 2001); a case composition, not a risk for carriers. Population ancestry was not reported."
+    citations:
+      - type: doi
+        id: 10.1086/320602
+        title: "Medium-chain acyl-CoA dehydrogenase (MCAD) mutations identified by MS/MS-based prospective screening of newborns differ from those observed in patients with clinical symptoms: identification and characterization of a new, prevalent mutation that results in mild MCAD deficiency"
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 1: maximum gnomAD carrier frequency per gene."
+    caveats:
+      - "Legacy K304E counts from the mature protein; current HGVS numbering from the precursor names the same change p.Lys329Glu."
+      - "Screen-detected newborns include milder genotypes than clinically diagnosed patients, so the two series give different K304E shares."
+
+  - id: gba_n370s_carrier
+    section: reproductive
+    kind: interpretation
+    title: Gaucher disease carrier status (GBA1 N370S)
+    gene: GBA1
+    carrier:
+      condition: Gaucher disease
+      inheritance: autosomal_recessive
+      variant: "GBA1 c.1226A>G (p.Asn409Ser), legacy N370S"
+      pathogenic_allele: C
+      clinvar: 4290
+      typed_scope: >-
+        This card types N370S only. Other GBA1 alleles, including L444P and 84GG, are not
+        typed by this report, and recombinant alleles formed with the nearby pseudogene
+        cannot be read from genotype calls.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs76763715
+          chrom: "1"
+          pos_grch37: 155205634
+          alleles: [C, T]
+      genotypes:
+        TT: no_n370s
+        CT: one_n370s
+        CC: two_n370s
+    outcomes:
+      no_n370s:
+        evidence: null
+        summary: "No N370S copy is indicated at this marker. This is not a negative Gaucher disease carrier screen."
+        detail: >-
+          N370S is the common Gaucher allele in Ashkenazi Jewish people: 497 carriers among
+          8,425 fully Ashkenazi screenees in Scott 2010. A no-copy result here leaves the
+          other GBA1 alleles unexamined.
+        risk_context: >-
+          Scott 2010: Gaucher carrier frequency was 1 in 15 among fully Ashkenazi screenees
+          across all tested alleles; Gregg 2021 gives a maximum GBA carrier frequency of
+          0.0086 (about 1 in 117) across gnomAD populations; the gene is now named GBA1. No residual carrier risk is
+          computed from one marker.
+      one_n370s:
+        summary: "The chip pattern is consistent with one N370S copy, a Gaucher disease allele. One copy is a carrier state and does not cause Gaucher disease."
+        detail: >-
+          N370S is a missense variant in glucocerebrosidase. Scott 2010 found it in 1 in 17 of 8,425
+          fully Ashkenazi Jewish screenees. Carriers of GBA variants have a separately
+          reported association with Parkinson disease: Sidransky 2009 found L444P or N370S
+          in 15% of Ashkenazi patients and 3% of Ashkenazi controls, and an odds ratio of
+          5.43 for any GBA mutation across 16 centres. This card does not evaluate that
+          association.
+        risk_context: >-
+          If a reproductive partner also carries a Gaucher allele, each pregnancy has a 1 in
+          4 chance of a child with two (Mendelian expectation). Scott 2010 observed 19
+          affected of 65 DNA-confirmed Gaucher carrier-couple pregnancies, 14 of them N370S
+          homozygotes. No partner's status is known here; no offspring risk is computed.
+      two_n370s:
+        evidence: null
+        summary: "The chip pattern is consistent with two N370S copies, a Gaucher disease type 1 genotype. A two-copy call can be a genotyping error."
+        detail: >-
+          N370S homozygosity is associated with type 1 Gaucher disease of variable severity;
+          Scott 2010 reports screenees homozygous for disease alleles whose clinical
+          features had gone unrecognised. Only enzyme or clinical DNA testing establishes
+          it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one N370S copy; whether a child is affected
+          depends on the other parent's GBA1 alleles.
+    evidence:
+      tier: cohort
+      replication: independent
+      sample_size: 8425
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.059
+        context: "N370S carriers among 8,425 fully Ashkenazi Jewish screenees in New York (497; Scott 2010); a carrier prevalence, not an effect on the carrier. The 1000 Genomes vocabulary has no Ashkenazi category."
+    citations:
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Tables 1, 2 and 5: Ashkenazi carrier frequencies and carrier-couple pregnancy outcomes."
+      - type: doi
+        id: 10.1056/NEJMoa0901281
+        title: Multicenter Analysis of Glucocerebrosidase Mutations in Parkinson's Disease
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 3: maximum gnomAD carrier frequency per gene."
+    caveats:
+      - "Legacy N370S counts from the mature protein; current HGVS numbering names the same change p.Asn409Ser."
+      - "The Parkinson disease odds ratio comes from case-control sampling and is not an absolute risk."
+
+  - id: hexa_ivs12_1g_c_carrier
+    section: reproductive
+    kind: interpretation
+    title: Tay-Sachs disease carrier status (HEXA IVS12+1G>C)
+    gene: HEXA
+    carrier:
+      condition: Tay-Sachs disease
+      inheritance: autosomal_recessive
+      variant: "HEXA c.1421+1G>C, legacy IVS12+1G>C"
+      pathogenic_allele: G
+      clinvar: 3890
+      typed_scope: >-
+        This card types IVS12+1G>C only. The common Ashkenazi Tay-Sachs allele,
+        1278insTATC, is an insertion this export cannot resolve, and other HEXA variants are
+        not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs147324677
+          chrom: "15"
+          pos_grch37: 72638575
+          alleles: [C, G]
+      genotypes:
+        CC: no_ivs12
+        CG: one_ivs12
+        GG: two_ivs12
+    outcomes:
+      no_ivs12:
+        evidence: null
+        summary: "No IVS12+1G>C copy is indicated at this marker. This is not a negative Tay-Sachs carrier screen."
+        detail: >-
+          IVS12+1G>C is the second Ashkenazi Tay-Sachs allele: 5 carriers among 1,015 fully
+          Ashkenazi screenees in Scott 2010, against 32 for 1278insTATC, which this export
+          cannot read. A no-copy result here leaves most Tay-Sachs carriers undetected.
+        risk_context: >-
+          Scott 2010: Tay-Sachs carrier frequency was 1 in 27 among fully Ashkenazi Jewish
+          screenees by DNA; Gregg 2021 gives a maximum HEXA carrier frequency of 0.033
+          (about 1 in 30) across gnomAD populations. No residual carrier risk is computed
+          from one marker.
+      one_ivs12:
+        summary: "The chip pattern is consistent with one IVS12+1G>C copy, a Tay-Sachs disease allele. One copy is a carrier state and does not cause Tay-Sachs disease."
+        detail: >-
+          IVS12+1G>C changes the first base of HEXA intron 12, at a splice donor. Scott 2010 found it in
+          5 of 1,015 fully Ashkenazi Jewish screenees (1 in 203), a small count with a wide
+          uncertainty. ClinVar classifies it pathogenic with multiple concordant submitters.
+        risk_context: >-
+          If a reproductive partner also carries a Tay-Sachs allele, each pregnancy has a 1
+          in 4 chance of a child with two (Mendelian expectation). Scott 2010 observed 31
+          affected of 102 DNA-confirmed Tay-Sachs carrier-couple pregnancies. No partner's
+          status is known here; no offspring risk is computed.
+      two_ivs12:
+        evidence: null
+        summary: "The chip pattern is consistent with two IVS12+1G>C copies, a Tay-Sachs genotype. In an adult without neurological disease, a two-copy call of an allele this rare is almost certainly a genotyping error."
+        detail: >-
+          Two copies of a splice-donor allele like this one are associated with the
+          infantile form of Tay-Sachs disease. A two-copy call in a healthy adult is far
+          more likely a measurement problem than the disease; only clinical testing
+          establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent would inherit one copy; whether a child is affected
+          depends on the other parent's HEXA alleles.
+    evidence:
+      tier: cohort
+      replication: independent
+      sample_size: 1015
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0049
+        context: "IVS12+1G>C carriers among 1,015 fully Ashkenazi Jewish screenees in New York (5; Scott 2010); a carrier prevalence, not an effect on the carrier. The 1000 Genomes vocabulary has no Ashkenazi category."
+    citations:
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Tables 1, 2 and 5: Ashkenazi carrier frequencies and carrier-couple pregnancy outcomes."
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 1: maximum gnomAD carrier frequency per gene."
+    caveats:
+      - "C and G are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
+      - "ClinVar also records c.1421+1G>T and c.1421+1G>A at this base; only the declared forward-strand G (c.1421+1G>C) is read."
+      - "Enzyme-based screening, used for Tay-Sachs until 2005 in Scott 2010, detects carriers this marker cannot."
+
+  - id: aspa_e285a_carrier
+    section: reproductive
+    kind: interpretation
+    title: Canavan disease carrier status (ASPA E285A)
+    gene: ASPA
+    carrier:
+      condition: Canavan disease
+      inheritance: autosomal_recessive
+      variant: "ASPA c.854A>C (p.Glu285Ala), E285A"
+      pathogenic_allele: C
+      clinvar: 2605
+      typed_scope: >-
+        This card types E285A only. Y231X, the second Ashkenazi Canavan allele, and other
+        ASPA variants are not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs28940279
+          chrom: "17"
+          pos_grch37: 3402294
+          alleles: [A, C]
+      genotypes:
+        AA: no_e285a
+        AC: one_e285a
+        CC: two_e285a
+    outcomes:
+      no_e285a:
+        evidence: null
+        summary: "No E285A copy is indicated at this marker. This is not a negative Canavan disease carrier screen."
+        detail: >-
+          E285A is the common Ashkenazi Canavan allele: 134 carriers among 8,793 fully
+          Ashkenazi screenees in Scott 2010. A no-copy result here leaves Y231X and the
+          other ASPA variants unexamined.
+        risk_context: >-
+          Scott 2010: Canavan carrier frequency was 1 in 55 among fully Ashkenazi Jewish
+          screenees across the tested alleles; Gregg 2021 gives a maximum ASPA carrier
+          frequency of 0.0199 (about 1 in 50) across gnomAD populations. No residual carrier
+          risk is computed from one marker.
+      one_e285a:
+        summary: "The chip pattern is consistent with one E285A copy, a Canavan disease allele. One copy is a carrier state and does not cause Canavan disease."
+        detail: >-
+          E285A is a missense variant in aspartoacylase. Scott 2010 found it in 1 in 66 of
+          8,793 fully Ashkenazi Jewish screenees. ClinVar classifies it pathogenic or likely
+          pathogenic with multiple concordant submitters.
+        risk_context: >-
+          If a reproductive partner also carries a Canavan allele, each pregnancy has a 1 in
+          4 chance of a child with two (Mendelian expectation). Scott 2010 observed 6
+          affected of 28 DNA-confirmed Canavan carrier-couple pregnancies. No partner's
+          status is known here; no offspring risk is computed.
+      two_e285a:
+        evidence: null
+        summary: "The chip pattern is consistent with two E285A copies, a Canavan genotype. A two-copy call of an allele this rare is almost certainly a genotyping error in a healthy adult."
+        detail: >-
+          Canavan disease is a severe leukodystrophy that presents in infancy. A two-copy
+          call in a healthy adult is far more likely a measurement problem than the disease;
+          only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent would inherit one copy; whether a child is affected
+          depends on the other parent's ASPA alleles.
+    evidence:
+      tier: cohort
+      replication: independent
+      sample_size: 8793
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.0152
+        context: "E285A carriers among 8,793 fully Ashkenazi Jewish screenees in New York (134; Scott 2010); a carrier prevalence, not an effect on the carrier. The 1000 Genomes vocabulary has no Ashkenazi category."
+    citations:
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Tables 1, 2 and 5: Ashkenazi carrier frequencies and carrier-couple pregnancy outcomes."
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 1: maximum gnomAD carrier frequency per gene."
+    caveats:
+      - "Ashkenazi carrier frequencies describe the New York screening cohort, not this person's ancestry."
+
+  - id: fancc_ivs4_4a_t_carrier
+    section: reproductive
+    kind: interpretation
+    title: Fanconi anaemia group C carrier status (FANCC IVS4+4A>T)
+    gene: FANCC
+    carrier:
+      condition: Fanconi anaemia, complementation group C
+      inheritance: autosomal_recessive
+      variant: "FANCC c.456+4A>T, legacy IVS4+4A>T"
+      pathogenic_allele: A
+      clinvar: 12045
+      typed_scope: >-
+        This card types IVS4+4A>T only. Other FANCC variants, and the other Fanconi anaemia
+        genes, are not typed by this report.
+    match:
+      strand: forward_only
+      variants:
+        - rsid: rs104886456
+          chrom: "9"
+          pos_grch37: 97934315
+          alleles: [A, T]
+      genotypes:
+        TT: no_ivs4
+        AT: one_ivs4
+        AA: two_ivs4
+    outcomes:
+      no_ivs4:
+        evidence: null
+        summary: "No IVS4+4A>T copy is indicated at this marker. This is not a negative Fanconi anaemia carrier screen."
+        detail: >-
+          IVS4+4A>T is the FANCC allele Ashkenazi carrier screening tests for. A no-copy
+          result here leaves other FANCC variants and the other Fanconi anaemia genes
+          unexamined.
+        risk_context: >-
+          Scott 2010: Fanconi anaemia group C carrier frequency was 1 in 100 among fully
+          Ashkenazi Jewish screenees; Gregg 2021 gives a maximum FANCC carrier frequency of
+          0.012 (about 1 in 83) across gnomAD populations. No residual carrier risk is
+          computed from one marker.
+      one_ivs4:
+        summary: "The chip pattern is consistent with one IVS4+4A>T copy, a Fanconi anaemia group C allele. One copy is a carrier state and does not cause Fanconi anaemia."
+        detail: >-
+          IVS4+4A>T changes the fourth base of FANCC intron 4, near a splice donor. Scott
+          2010 found it in 66 of 6,620 fully Ashkenazi Jewish screenees (1 in 100); the
+          other FANCC allele tested, c.67delG, was found in none of 914. ClinVar classifies it pathogenic with multiple concordant submitters.
+        risk_context: >-
+          If a reproductive partner also carries a FANCC allele, each pregnancy has a 1 in 4
+          chance of a child with two (Mendelian expectation). Scott 2010 monitored one
+          Fanconi anaemia carrier-couple pregnancy, too few for an empirical rate. No
+          partner's status is known here; no offspring risk is computed.
+      two_ivs4:
+        evidence: null
+        summary: "The chip pattern is consistent with two IVS4+4A>T copies, a Fanconi anaemia genotype. A two-copy call of an allele this rare is more often a genotyping error."
+        detail: >-
+          Fanconi anaemia usually presents in childhood with bone-marrow failure or
+          congenital differences. A two-copy call in someone without that diagnosis is
+          more likely a measurement problem; only clinical testing establishes it.
+        risk_context: >-
+          This card assigns no penetrance or outcome estimate to a two-copy call. Every
+          child of a two-copy parent inherits one copy; whether a child is affected depends
+          on the other parent's FANCC alleles.
+    evidence:
+      tier: cohort
+      replication: independent
+      sample_size: 6620
+      ancestry: [EUR]
+      effect:
+        measure: proportion
+        value: 0.01
+        context: "IVS4+4A>T carriers among 6,620 fully Ashkenazi Jewish screenees in New York (66; Scott 2010); a carrier prevalence, not an effect on the carrier. The 1000 Genomes vocabulary has no Ashkenazi category."
+    citations:
+      - type: doi
+        id: 10.1002/humu.21327
+        title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
+        note: "Tables 1, 2 and 5: Ashkenazi carrier frequencies and carrier-couple pregnancy outcomes."
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Table 2: maximum gnomAD carrier frequency per gene."
+    caveats:
+      - "A and T are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
+      - "Ashkenazi carrier frequencies describe the New York screening cohort, not this person's ancestry."

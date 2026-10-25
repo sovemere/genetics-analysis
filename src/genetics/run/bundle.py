@@ -83,8 +83,12 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 23
+BUNDLE_FORMAT_VERSION: Final[int] = 24
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 24 (M11.5) adds a ``carrier`` record to every card: ``None`` except on a carrier
+card, where it holds the frozen schema-7 declaration and the state derived from the card's
+own saved call. Formats 1-23 carry no carrier record and are read unchanged.
 
 Version 23 (M11.4) adds HLA-linked cards: each is rebuilt on write and on read from its
 frozen authored definition and this bundle's own HLA, PGx and ancestry records. Formats
@@ -254,6 +258,9 @@ ceilings. :data:`HLA_FORMAT_VERSION` (21) holds schema 1 only."""
 
 HLA_CARD_FORMAT_VERSION: Final[int] = 23
 """The first format that may hold HLA-linked cards (M11.4)."""
+
+CARRIER_FORMAT_VERSION: Final[int] = 24
+"""The first format that may hold a carrier record (M11.5)."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
@@ -471,6 +478,7 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "risk_context": assembled.risk_context,
         "imputation_mode": assembled.imputation_mode,
         "ancestry_comparison": assembled.ancestry_comparison,
+        "carrier": None if assembled.carrier is None else dict(assembled.carrier),
     }
 
 
@@ -542,6 +550,7 @@ CARD_KEYS: Final[frozenset[str]] = frozenset(
         "risk_context",
         "imputation_mode",
         "ancestry_comparison",
+        "carrier",
     }
 )
 
@@ -704,6 +713,8 @@ class StoredCard(NoGenotypeRepr):
     risk_context: str | None = None
     imputation_mode: str | None = None
     ancestry_comparison: Mapping[str, Any] | None = None
+    carrier: Mapping[str, Any] | None = None
+    """A carrier card's frozen declaration and derived state (format 24+); otherwise None."""
 
 
 @dataclass(frozen=True)
@@ -927,6 +938,7 @@ def write_bundle(
             _render({"cards": card_payloads}),
         )
         _check_card_ancestry(card_payloads, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
+        _check_carriers(card_payloads, BUNDLE_FORMAT_VERSION)
         ancestry_text = _render(ancestry.to_dict())
         # Scanned like the QC report and for the same reason: it is a derived summary with
         # no business carrying a call. A haplogroup name implies genotypes at its defining
@@ -1211,6 +1223,21 @@ def _check_hla_ancestry(hla: Mapping[str, Any], ancestry: Mapping[str, Any] | No
         raise BundleError("Saved HLA selection disagrees with the run's ancestry.") from exc
     if derived != choice.get("source"):
         raise BundleError("Saved HLA selection disagrees with the run's ancestry.")
+
+
+def _check_carriers(entries: Sequence[Any], version: int) -> None:
+    """Each carrier record must follow from its own card's saved call (format 24+)."""
+    from genetics.engine.carrier import CarrierRecordError, validate_record
+
+    for entry in entries:
+        if not isinstance(entry, Mapping) or entry.get("carrier") is None:
+            continue
+        if version < CARRIER_FORMAT_VERSION:
+            raise BundleError(f"Carrier records require bundle format {CARRIER_FORMAT_VERSION}")
+        try:
+            validate_record(entry)
+        except CarrierRecordError as exc:
+            raise BundleError(f"Saved carrier card is inconsistent: {exc}") from exc
 
 
 def _check_hla_cards(
@@ -1529,6 +1556,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         risk_context=risk_context,
         imputation_mode=data.get("imputation_mode"),
         ancestry_comparison=data.get("ancestry_comparison"),
+        carrier=None if data.get("carrier") is None else _mapping(data["carrier"], where),
     )
 
 
@@ -1694,6 +1722,7 @@ def read_bundle(path: Path) -> RunBundle:
         for key in sorted(ANCESTRY_KEYS):
             _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
     _check_card_ancestry(entries, ancestry, declared)
+    _check_carriers(entries, declared)
     if declared >= 7:
         from genetics.health.clinvar import ClinVarError, validate_lookup
 

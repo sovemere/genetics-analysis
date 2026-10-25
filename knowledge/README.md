@@ -28,9 +28,11 @@ Neanderthal and Denisovan allele sharing, and sex-chromosome call patterns.
 M7.5 adds cited common health associations under `health/`, with outcome-specific
 `risk_context` on the card face and in CLI output. M10.4 adds eight declarative
 guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards under
-`immunogenetics/` and `pharmacogenomics/hla.yaml`. The current pack has 85 cards:
-37 single-variant interpretations, one two-marker interpretation, 12 assay-limit
-cards, five computed cards, 14 polygenic cards, eight guideline cards and eight HLA cards.
+`immunogenetics/` and `pharmacogenomics/hla.yaml`. M11.5 adds 15 carrier cards under
+`reproductive/` and a carrier declaration on HFE C282Y. The current pack has 100 cards:
+52 single-variant interpretations (16 of them carrier cards), one two-marker
+interpretation, 12 assay-limit cards, five computed cards, 14 polygenic cards, eight
+guideline cards and eight HLA cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -48,6 +50,7 @@ knowledge/
 ├── nutrition/
 ├── health/
 ├── immunogenetics/
+├── reproductive/
 ├── mental_health/
 ├── psychometrics/
 ├── substance_use/
@@ -338,3 +341,17 @@ pharmacogenomics card, the frozen CPIC rows its `cpic` lookup (`gene: HLA-B`,
 `allele: '*57:01'`) selects. Recommendation text is never authored here. A stage that did
 not run, a locus without a prediction, or an allele the classifier cannot emit makes the card
 not determinable, never negative. See [the card contract](../docs/hla_cards.md).
+
+
+### Carrier declarations (schema 7)
+
+A single-marker interpretation card may declare `carrier`: the autosomal recessive
+condition it types, the typed allele as a reader knows it, the forward-strand
+`pathogenic_allele`, its ClinVar VariationID and a literal `typed_scope` sentence saying what
+the card does not see. Every interpretation card in the reproductive section must declare
+one; physical health may (HFE C282Y does). The match must be `forward_only`, zero, one and
+two pathogenic copies must each map to their own outcome, and every outcome needs literal
+`risk_context` stating carrier frequency and the couple-level figure. The engine derives
+the carrier state from the call and saves it; a card that did not match is "not
+determined", never non-carrier. `genetics cards carriers` lists the resulting panel. See
+[carrier status](../docs/carrier_status.md).

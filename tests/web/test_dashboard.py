@@ -806,7 +806,32 @@ CONDITIONAL_FIELDS = {
     "multi_marker": "test_multimarker_metadata_reaches_the_detail_template",
     "risk_context": "test_absolute_risk_context_reaches_face_and_detail",
     "imputation": "test_imputation_metadata_reaches_face_and_detail",
+    "carrier": "test_carrier_status_reaches_face_and_detail",
 }
+
+
+def test_carrier_status_reaches_face_and_detail() -> None:
+    card = replace(
+        _full_card(),
+        carrier=views.CarrierView(
+            state="carrier",
+            condition="CONDITION-MARKER",
+            variant="VARIANT-MARKER",
+            pathogenic_allele="G",
+            clinvar=4242,
+            typed_scope="SCOPE-MARKER",
+        ),
+    )
+    face = _render_card(card, "_cardface.html")
+    detail = _render_card(card, "_carddetail.html")
+    for markup in (face, detail):
+        assert "CONDITION-MARKER" in markup and "SCOPE-MARKER" in markup
+        assert "One copy of the typed allele" in markup
+    assert "VARIANT-MARKER" in detail and "clinvar/variation/4242/" in detail
+    assert card.carrier is not None
+    undetermined = replace(card, carrier=replace(card.carrier, state=None, clinvar=None))
+    assert "Not determined" in _render_card(undetermined, "_cardface.html")
+    assert "clinvar/variation" not in _render_card(undetermined, "_carddetail.html")
 
 
 def test_multimarker_metadata_reaches_the_detail_template() -> None:

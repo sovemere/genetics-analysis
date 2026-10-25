@@ -810,6 +810,45 @@ class VariantView:
 
 
 @dataclass(frozen=True)
+class CarrierView:
+    """A carrier card's condition, what it types and the state its call implies (M11.5).
+
+    The state label is the reader's result and so genotype-bearing, like a card summary;
+    it is rendered only in the unscanned face and detail partials.
+    """
+
+    state: str | None
+    condition: str
+    variant: str
+    pathogenic_allele: str
+    clinvar: int | None
+    typed_scope: str
+
+    @property
+    def state_label(self) -> str:
+        from genetics.engine.carrier import STATE_LABELS
+
+        return STATE_LABELS.get(self.state, "Not determined")
+
+    @property
+    def clinvar_url(self) -> str | None:
+        if self.clinvar is None:
+            return None
+        return f"https://www.ncbi.nlm.nih.gov/clinvar/variation/{self.clinvar}/"
+
+    @classmethod
+    def of(cls, raw: Mapping[str, Any]) -> CarrierView:
+        return cls(
+            state=_text(raw.get("state")),
+            condition=_text(raw.get("condition")) or "",
+            variant=_text(raw.get("variant")) or "",
+            pathogenic_allele=_text(raw.get("pathogenic_allele")) or "",
+            clinvar=_count(raw.get("clinvar")),
+            typed_scope=_text(raw.get("typed_scope")) or "",
+        )
+
+
+@dataclass(frozen=True)
 class ScoreRow:
     """One line of the confidence breakdown: what went in, and what it scored.
 
@@ -960,6 +999,7 @@ class CardView(NoGenotypeRepr):
     risk_context: str | None = None
     imputation_mode: str | None = None
     imputation: Mapping[str, Any] | None = None
+    carrier: CarrierView | None = None
 
     @property
     def imputation_mode_label(self) -> str:
@@ -1246,6 +1286,7 @@ class CardView(NoGenotypeRepr):
             risk_context=card.risk_context,
             imputation_mode=card.imputation_mode,
             imputation=(card.observation or {}).get("imputation"),
+            carrier=None if card.carrier is None else CarrierView.of(card.carrier),
         )
 
 

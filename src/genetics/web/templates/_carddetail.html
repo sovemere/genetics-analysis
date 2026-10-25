@@ -58,6 +58,23 @@
   tier the card does not have. A false explanation is worse than a blank, because a reader
   cannot tell it from the case where it is true.
 #}
+{% if card.carrier %}
+  <section class="detailblock">
+    <h3>Carrier status</h3>
+    <p class="caution">{{ card.carrier.typed_scope }}</p>
+    <dl class="facts">
+      <div><dt>Condition</dt><dd>{{ card.carrier.condition }} (autosomal recessive)</dd></div>
+      <div><dt>Typed allele</dt><dd>{{ card.carrier.variant }}; forward-strand {{ card.carrier.pathogenic_allele }}</dd></div>
+      <div><dt>Result</dt><dd>{{ card.carrier.state_label }}</dd></div>
+      {% if card.carrier.clinvar_url %}
+        <div><dt>ClinVar</dt><dd><a href="{{ card.carrier.clinvar_url }}" rel="noopener noreferrer">VariationID {{ card.carrier.clinvar }}</a></dd></div>
+      {% endif %}
+    </dl>
+    <p class="muted">A carrier result concerns a child's inheritance, not the carrier's own
+      health. No partner's status is known here, so no offspring risk is computed.</p>
+  </section>
+{% endif %}
+
 {% if not card.is_impossibility and not card.is_computed %}
   <section class="detailblock">
     <h3>Effect size</h3>

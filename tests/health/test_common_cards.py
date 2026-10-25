@@ -182,6 +182,7 @@ def test_outcome_evidence_requires_schema_three(version: int) -> None:
             (Path(__file__).parents[2] / "knowledge/health/common.yaml").read_text(encoding="utf-8")
         )["cards"][0]
         raw["match"].pop("strand")
+        raw.pop("carrier")
     with pytest.raises(CardError, match="schema_version 3"):
         parse_file(yaml.safe_dump({"schema_version": version, "cards": [raw]}), "old.yaml")
 

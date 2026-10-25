@@ -1,6 +1,6 @@
-# Handoff: M11.5 carrier status
+# Handoff: M11.6 carrier-screening incompleteness
 
-As of 2026-10-22, **M0-M10 and M11.1–M11.4 are implemented; M11.5 is next**. Full-reference
+As of 2026-10-25, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,7 +31,12 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.4 HLA-linked cards are implemented; M11.5 is next.** Knowledge schema 6 adds
+**M11.5 carrier status is implemented; M11.6 is next.** Knowledge schema 7 adds a
+`carrier` declaration to single-marker interpretation cards. Fifteen reproductive cards
+cover nine conditions and HFE C282Y joins the panel from physical health; bundle format 24
+saves each card's derived carrier state and re-derives it from the saved match. See
+[carrier status](carrier_status.md) and [the M11.6 entry contract](#next-open-step-m116-carrier-screening-incompleteness).
+**M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
 immunogenetics, and B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomics, whose
@@ -354,7 +359,79 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
-## Next open step: M11.5 carrier status
+<a id="next-open-step-m116-carrier-screening-incompleteness"></a>
+
+## Next open step: M11.6 carrier-screening incompleteness
+
+M11.6 is the reproductive section's **section-level** statement: carrier screening from a
+genotyping array is incomplete as a category, not only for the two conditions with
+impossibility cards (`smn1_copy_number`, `alpha_globin_deletions`, M3.7). M11.5 supplies the
+callable set it needs; read [carrier status](carrier_status.md) first.
+
+What M11.5 hands over:
+
+- **The panel is data.** `genetics.engine.carrier.carrier_panel(pack)` and
+  `genetics cards carriers --json` (panel schema 1) list 16 typed markers over nine
+  conditions, each with its condition, inheritance, typed allele, ClinVar VariationID,
+  `typed_scope` sentence and `strand_symmetric` flag. It is a property of the knowledge
+  pack and carries no genotype.
+- **The audit is the exclusion list.** `docs/carrier_status.md` records three classes:
+  not typed as an SNV (indels such as F508del, 35delG and 1278insTATC; alleles absent from
+  the array such as HbC and HbE; copy-number states), typed but failing a criterion
+  (conflicting ClinVar aggregates), and **tractable but not authored** (beta-thalassaemia
+  SNVs, SERPINA1, ATP7B and others). The last class is a gap in this pack, not in the
+  array; M11.6 must not count it as typed, and should say so differently from an assay
+  limit.
+- **Per-run results.** A saved carrier record whose `state` is `null` — marker absent,
+  no-call, strand-ambiguous homozygote at one of the four A/T or C/G markers — was not
+  determined for that person. Counting those from the saved records needs no genotype.
+
+What is not yet decided:
+
+- **Card shape.** An impossibility card is static and citation-free, and the §3.2 register
+  test requires a matching AGENTS.md bullet in both directions. A computed card can state
+  counts from the panel, but `kind: computed` is restricted to genome structure and the
+  ClinVar coverage card; extending it to reproductive needs a computation name, a saved
+  record and bundle validation. A static statement cannot say how many markers this pack
+  types; prefer computed if the count is on the card.
+- **Reference set.** To say what is *excluded*, M11.6 needs a cited list of what carrier
+  screening is meant to cover. Gregg et al. 2021 (ACMG practice resource,
+  doi:10.1038/s41436-021-01203-z) recommends 97 autosomal recessive genes at carrier
+  frequency of at least 1/200 plus X-linked genes, and is already cited by M11.5's cards;
+  verify its tables before binding counts to them.
+- **X-linked conditions.** Fragile X (repeat expansion), Duchenne (mostly deletions) and
+  haemophilia A (inversions) are outside genotype calls; G6PD is a PGx call. State them as
+  limits, not as panel members.
+- **Existing per-gene cards.** `smn1_copy_number` and `alpha_globin_deletions` stay; the
+  section-level card is a different claim and must not duplicate their text.
+
+<a id="accepted-m115-carrier-status"></a>
+
+## Accepted M11.5 carrier status
+
+Implemented on 2026-10-25 under the contract in [carrier status](carrier_status.md).
+Knowledge schema 7 binds each `carrier` declaration to its genotype map (one autosomal
+biallelic marker, forward-only, the pathogenic allele declared, zero/one/two copies each
+on their own outcome, literal `risk_context` everywhere). Bundle format 24 saves and
+re-derives the state; formats 1–23 are read unchanged. Two findings shaped it: the matcher
+leaves four of the sixteen markers strand-ambiguous for homozygotes regardless of
+`forward_only`, so the panel flags them and heterozygous carriers are still reported; and
+rs76173977, first taken for the Ashkenazi HEXA IVS12+1G>C allele, is IVS9+1G>A — the
+right marker is rs147324677.
+
+Validation on 2026-10-25, Windows, Python 3.13, Java 17 and the pinned PLINK/Beagle tools
+configured: the full native suite passes **3,659 tests with nine skips** — the five existing
+Windows skips and the four published-classifier HIBAG tests, which need the separate
+reference root the native HLA tests document and do not touch carrier code. The 95 new
+carrier tests, plus one dashboard outlet test, include the native ClinVar/gnomAD binding of
+all 16 panel entries against the fetched indexes. Full dbSNP card lint passes **100 cards, 506 renders, 54/54 marker keys**; all four
+strict Windows/Linux × Python 3.11/3.13 type targets (233 files), ruff, format, fixture
+reproduction and the staged privacy scan pass. No personal export was opened: the array's
+marker list was read from the export's rsID, chromosome and position columns only.
+
+<a id="next-open-step-m115-carrier-status"></a>
+
+## M11.5 entry contract (implemented; retained for review)
 
 M11.5 adds carrier cards for recessive conditions the array can actually type, in the
 **reproductive** section (§3.1: about offspring, not self). M11.6's section-level
