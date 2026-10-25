@@ -31,6 +31,10 @@
       {% include "_pgschart.html" %}
     {% endif %}
     <p class="cardsummary">{{ card.summary }}</p>
+    {% if card.carrier %}
+      <p class="cardmeta">Carrier status: {{ card.carrier.state_label }} · {{ card.carrier.condition }}, autosomal recessive</p>
+      <p class="caution">{{ card.carrier.typed_scope }}</p>
+    {% endif %}
     {% if card.polygenic and card.effect %}
       <p class="cardmeta">Published study association: {{ card.effect.display }}.
         {% if card.effect.context %}{{ card.effect.context }}{% endif %}

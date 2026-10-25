@@ -16,9 +16,19 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.5 carrier status is next.** M0–M10 and M11.1–M11.4 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m115-carrier-status) records what a carrier
-card must carry and what is not yet decided.
+**M11.6 carrier-screening incompleteness is next.** M0–M10 and M11.1–M11.5 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m116-carrier-screening-incompleteness)
+records what the section-level card must say and the panel it reads.
+
+M11.5 adds knowledge schema 7's `carrier` declaration and 15 reproductive carrier cards over
+nine conditions; HFE C282Y joins the panel from physical health. Every marker was measured
+against dbSNP, the array's marker list, ClinVar and gnomAD; indels, untyped alleles,
+conflicting classifications and unsourced candidates are recorded as excluded rather than
+dropped. The carrier state is derived from the call and re-derived from the saved match in
+bundle format 24; an unmatched card is "not determined", never non-carrier, and A/T or C/G
+homozygotes stay strand-ambiguous while heterozygous carriers are still reported.
+`genetics cards carriers --json` is the panel M11.6 reads. See
+[carrier status](docs/carrier_status.md).
 
 M11.4 turns the frozen M11.3 classifier calls into eight cited HLA-linked cards (knowledge
 schema 6, `kind: hla`): celiac DQ2.5/DQ8, type 1 diabetes DR3/DR4-DQB1\*03:02, ankylosing
@@ -2885,7 +2895,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       the frozen CPIC release keys the same way. Knowledge schema 6 `kind: hla`; one engine
       for the PGx overlap; declared phase policy; bundle format 23. See the
       [card contract](docs/hla_cards.md).
-- [ ] **M11.5** Carrier status cards for array-tractable recessive conditions.
+- [x] **M11.5** Carrier status cards for array-tractable recessive conditions. Knowledge
+      schema 7 `carrier` declaration bound to the genotype map; 15 reproductive cards plus
+      HFE C282Y; panel schema 1 (`genetics cards carriers`); bundle format 24 re-derives
+      each saved state. Measured candidate audit with every exclusion recorded. See
+      [carrier status](docs/carrier_status.md).
 - [ ] **M11.6** **Carrier-screening incompleteness card**: CNV-based conditions (SMN1/SMA,
       alpha-thalassemia) are invisible to this data. State it, or the section implies a
       completeness it does not have.

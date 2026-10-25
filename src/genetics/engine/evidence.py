@@ -200,6 +200,8 @@ class AssembledCard(NoGenotypeRepr):
     risk_context: str | None = None
     imputation_mode: str | None = None
     ancestry_comparison: Mapping[str, Any] | None = None
+    carrier: Mapping[str, Any] | None = None
+    """A carrier card's declaration and derived state (M11.5); None for every other card."""
 
     @property
     def has_interpretation(self) -> bool:
@@ -477,6 +479,8 @@ def assemble_card(
             "status belongs to impossibility cards"
         )
 
+    from genetics.engine.carrier import carrier_record
+
     if match.status is not MatchStatus.MATCHED:
         # There is no personal finding to score or outcome template to render.  The match
         # reason is already written for the card face and remains distinct across absent,
@@ -499,6 +503,7 @@ def assemble_card(
             citations=card.citations,
             authored_caveats=card.caveats,
             computed_caveats=match.caveats,
+            carrier=carrier_record(card, match),
         )
 
     if match.outcome is None:
@@ -568,6 +573,7 @@ def assemble_card(
         authored_caveats=card.caveats,
         computed_caveats=computed_caveats,
         risk_context=match.outcome.risk_context,
+        carrier=carrier_record(card, match),
     )
 
 

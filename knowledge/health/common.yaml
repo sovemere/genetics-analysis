@@ -1,10 +1,20 @@
-schema_version: 3
+schema_version: 7
 cards:
   - id: hfe_c282y_iron_overload
     section: physical_health
     kind: interpretation
     title: HFE C282Y and iron-overload disease
     gene: HFE
+    carrier:
+      condition: HFE hereditary haemochromatosis
+      inheritance: autosomal_recessive
+      variant: "HFE c.845G>A (p.Cys282Tyr), C282Y"
+      pathogenic_allele: A
+      clinvar: 9
+      typed_scope: >-
+        This card types C282Y only. H63D and other HFE variants, which form compound
+        genotypes with C282Y, are not evaluated, and most C282Y homozygotes in Allen 2008
+        did not develop documented iron-overload disease.
     match:
       strand: forward_only
       variants:

@@ -261,6 +261,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
                 "risk_context": card.risk_context,
                 "imputation_mode": card.imputation_mode,
                 "ancestry_comparison": card.ancestry_comparison,
+                "carrier": None if card.carrier is None else dict(card.carrier),
             }
             for card in bundle.cards
         ],
@@ -472,6 +473,14 @@ def runs_show(
         typer.secho(f"  {tier:<16}", fg=typer.colors.CYAN, nl=False)
         typer.echo(f"{card.section:<14} {card.card_id:<34} {card.title}")
         typer.echo(f"    Imputation mode: {card.imputation_mode or 'not recorded'}")
+        if card.carrier is not None:
+            from genetics.engine.carrier import STATE_LABELS
+
+            typer.echo(
+                f"    Carrier: {STATE_LABELS[card.carrier['state']]} -- "
+                f"{card.carrier['variant']}; {card.carrier['condition']}, autosomal recessive"
+            )
+            typer.echo(f"    {card.carrier['typed_scope']}")
         if card.risk_context is not None:
             typer.echo(f"    {card.summary}")
             typer.echo(f"    {card.risk_context}")

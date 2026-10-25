@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 6
+SCHEMA_VERSION: Final[int] = 7
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -897,6 +897,166 @@ class Match:
 
 
 # ---------------------------------------------------------------------------
+# Carrier status (M11.5)
+# ---------------------------------------------------------------------------
+
+CARRIER_SECTIONS: Final[frozenset[Section]] = frozenset(
+    {Section.REPRODUCTIVE, Section.PHYSICAL_HEALTH}
+)
+"""Where a carrier declaration may sit. Reproductive is its home; physical health holds a
+recessive condition whose two-copy state is the self-relevant claim (HFE C282Y), so the
+same card joins the carrier panel instead of being written twice."""
+
+_CARRIER_KEYS: Final[frozenset[str]] = frozenset(
+    {"condition", "inheritance", "variant", "pathogenic_allele", "clinvar", "typed_scope"}
+)
+
+
+class Inheritance(StrEnum):
+    """How the condition a carrier card names is inherited.
+
+    Autosomal recessive only. An X-linked carrier claim needs the M6.4 sex call and
+    PAR-aware ploidy before a call can mean anything, and the X-linked conditions carrier
+    screening names (fragile X, Duchenne, haemophilia A) are repeat expansions, deletions
+    and inversions this array cannot type in any case. A value is added when a card needs
+    it, with its own ploidy rule, rather than accepted now and honoured by nothing.
+    """
+
+    AUTOSOMAL_RECESSIVE = "autosomal_recessive"
+
+
+class CarrierState(StrEnum):
+    """How many copies of the declared pathogenic allele a matched call carries.
+
+    Derived from the call and the declaration, never authored: a carrier card's outcome
+    names are free text, so a state read from them would be only as right as the names.
+    """
+
+    NON_CARRIER = "non_carrier"
+    CARRIER = "carrier"
+    TWO_COPIES = "two_copies"
+
+    @classmethod
+    def of(cls, copies: int) -> CarrierState:
+        return (cls.NON_CARRIER, cls.CARRIER, cls.TWO_COPIES)[copies]
+
+
+@dataclass(frozen=True)
+class CarrierDeclaration:
+    """The recessive condition a single-marker card types, and how much of it (schema 7).
+
+    This is what makes the carrier panel data rather than prose: M11.6's section-level
+    statement reads the set of these, not the outcome text. ``typed_scope`` is the card's
+    own statement of what it does not see -- the gene's other pathogenic variants -- and is
+    rendered on the card face, because "no variant found" read without it is the false
+    reassurance carrier screening from an array is known for.
+    """
+
+    condition: str
+    inheritance: Inheritance
+    variant: str
+    """The typed allele as a reader knows it: HGVS plus the legacy name, if any."""
+    pathogenic_allele: str
+    """The forward-strand GRCh37 base that is pathogenic. One of the card's two alleles."""
+    clinvar: int
+    """ClinVar VariationID classifying that allele. Checked against the pinned release by
+    the native reference test, not here: this module is offline."""
+    typed_scope: str
+
+    def copies(self, genotype: str) -> int:
+        return genotype.count(self.pathogenic_allele)
+
+    def state(self, genotype: str) -> CarrierState:
+        return CarrierState.of(self.copies(genotype))
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "condition": self.condition,
+            "inheritance": self.inheritance.value,
+            "variant": self.variant,
+            "pathogenic_allele": self.pathogenic_allele,
+            "clinvar": self.clinvar,
+            "typed_scope": self.typed_scope,
+        }
+
+    @classmethod
+    def parse(cls, raw: Any, where: str) -> CarrierDeclaration:
+        data = _mapping(raw, where)
+        _reject_unknown(data, _CARRIER_KEYS, where)
+        text: dict[str, str] = {}
+        for key in ("condition", "variant", "typed_scope"):
+            value = _require(data, key, where)
+            if not isinstance(value, str) or not value.strip():
+                raise CardError(f"{where}.{key}: expected nonempty text")
+            text[key] = value.strip()
+        # Literal on purpose: the scope sentence is the same for every reader of this card.
+        _check_template(text["typed_scope"], f"{where}.typed_scope", frozenset())
+        inheritance_text = _require(data, "inheritance", where)
+        try:
+            inheritance = Inheritance(str(inheritance_text).strip().lower())
+        except ValueError:
+            raise CardError(
+                f"{where}.inheritance: {inheritance_text!r} is not supported. Only "
+                "autosomal_recessive is; an X-linked carrier claim needs sex-aware ploidy "
+                "that no carrier card implements."
+            ) from None
+        allele = _require(data, "pathogenic_allele", where)
+        if not isinstance(allele, str) or not re.fullmatch(r"[ACGT]", allele.strip().upper()):
+            raise CardError(f"{where}.pathogenic_allele: expected one base A/C/G/T")
+        clinvar = _require(data, "clinvar", where)
+        if isinstance(clinvar, bool) or not isinstance(clinvar, int) or clinvar <= 0:
+            raise CardError(f"{where}.clinvar: expected a positive ClinVar VariationID")
+        return cls(
+            condition=text["condition"],
+            inheritance=inheritance,
+            variant=text["variant"],
+            pathogenic_allele=allele.strip().upper(),
+            clinvar=clinvar,
+            typed_scope=text["typed_scope"],
+        )
+
+    def check(self, match: Match, outcomes: Mapping[str, Outcome], where: str) -> None:
+        """Bind the declaration to the genotype map it describes.
+
+        Each copy count must have exactly one outcome, and the three counts three different
+        outcomes, so the derived state always names one outcome. Outcome names are free
+        text, so this cannot see a map that sends the heterozygote to the no-copy *prose*;
+        the committed cards' direction is bound by ``tests/engine/test_carrier.py``, which
+        reads each outcome's face against the state the call derives.
+        """
+        if len(match.variants) != 1:
+            raise CardError(f"{where}: a carrier declaration types exactly one marker")
+        key = match.variant.key
+        if not key.chrom.is_autosome:
+            raise CardError(f"{where}: autosomal_recessive requires an autosomal marker")
+        if len(key.alleles) != 2 or self.pathogenic_allele not in key.alleles:
+            raise CardError(
+                f"{where}: pathogenic_allele must be one of the marker's two declared alleles"
+            )
+        if not match.forward_only:
+            raise CardError(
+                f"{where}: carrier cards require strand: forward_only. A complemented "
+                "reading at a multiallelic site can turn another alternate into a carrier "
+                "claim, and the vendor reports the forward strand."
+            )
+        by_copies: dict[int, set[str]] = {}
+        for genotype, outcome in match.genotypes.items():
+            by_copies.setdefault(self.copies(genotype), set()).add(outcome)
+        names = [by_copies.get(n, set()) for n in (0, 1, 2)]
+        if any(len(group) != 1 for group in names) or len(set().union(*names)) != 3:
+            raise CardError(
+                f"{where}: zero, one and two copies of {self.pathogenic_allele} must each map "
+                "to their own outcome"
+            )
+        missing = sorted(name for name, outcome in outcomes.items() if outcome.risk_context is None)
+        if missing:
+            raise CardError(
+                f"{where}: carrier outcomes state carrier frequency and couple-level risk, "
+                f"so {', '.join(missing)} requires risk_context"
+            )
+
+
+# ---------------------------------------------------------------------------
 # Cards
 # ---------------------------------------------------------------------------
 
@@ -998,6 +1158,7 @@ _CARD_KEYS: Final[frozenset[str]] = frozenset(
         "trait",
         "decile_outcomes",
         "hla",
+        "carrier",
     }
 )
 
@@ -1388,6 +1549,9 @@ class Card:
     # HLA-linked cards.
     hla: HlaSelector | None = None
 
+    # Carrier status (single-marker interpretation cards, M11.5).
+    carrier: CarrierDeclaration | None = None
+
     @property
     def variant_key(self) -> VariantKey | None:
         return self.match.variant.key if self.match and len(self.match.variants) == 1 else None
@@ -1429,6 +1593,8 @@ class Card:
         title = str(_require(data, "title", where)).strip()
         if not title:
             raise CardError(f"{where}: title is empty")
+        if "carrier" in data and kind is not CardKind.INTERPRETATION:
+            raise CardError(f"{where}: carrier belongs to a single-marker interpretation card")
 
         citations = cls._parse_citations(data.get("citations"), where, kind)
         caveats = _string_list(data.get("caveats") or [], f"{where}.caveats")
@@ -1745,6 +1911,20 @@ class Card:
             if section is Section.PHYSICAL_HEALTH and outcomes[name].risk_context is None:
                 raise CardError(f"{where}: health outcomes require absolute-risk context")
 
+        carrier = None
+        if "carrier" in data:
+            if section not in CARRIER_SECTIONS:
+                raise CardError(
+                    f"{where}: a carrier declaration belongs in reproductive or physical health"
+                )
+            carrier = CarrierDeclaration.parse(data["carrier"], f"{where}.carrier")
+            carrier.check(match, outcomes, f"{where}.carrier")
+        elif section is Section.REPRODUCTIVE:
+            raise CardError(
+                f"{where}: a reproductive interpretation card is a carrier card and declares "
+                "carrier: its condition, inheritance, pathogenic allele and typed scope"
+            )
+
         referenced = set(match.genotypes.values()) | set(match.diplotypes.values())
         unknown = sorted(referenced - set(outcomes))
         if unknown:
@@ -1771,6 +1951,7 @@ class Card:
             match=match,
             outcomes=outcomes,
             evidence=evidence,
+            carrier=carrier,
         )
 
 
@@ -1798,7 +1979,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, 3, 4, 5, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1818,6 +1999,8 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 7 and any(isinstance(entry, Mapping) and "carrier" in entry for entry in entries):
+        raise CardError(f"{where}: carrier declarations require schema_version 7")
     if version < 6 and any(
         isinstance(entry, Mapping) and str(entry.get("kind", "")).strip().lower() == "hla"
         for entry in entries
