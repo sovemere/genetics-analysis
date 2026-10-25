@@ -37,6 +37,7 @@ from genetics.engine.matcher import (
     complement,
     is_strand_ambiguous,
 )
+from genetics.ingest.schema import AUTOSOMES
 
 PANEL_SCHEMA_VERSION: Final[int] = 1
 """Bumped when a reader of :meth:`CarrierPanel.to_dict` would misread it."""
@@ -214,7 +215,9 @@ def validate_record(entry: Mapping[str, Any]) -> None:
     if isinstance(clinvar, bool) or not isinstance(clinvar, int) or clinvar <= 0:
         raise CarrierRecordError("carrier ClinVar VariationID must be a positive integer")
     variant = entry.get("variant")
-    alleles = variant.get("alleles") if isinstance(variant, Mapping) else None
+    if not isinstance(variant, Mapping) or variant.get("chrom") not in AUTOSOMES:
+        raise CarrierRecordError("autosomal_recessive requires an autosomal marker")
+    alleles = variant.get("alleles")
     allele = record["pathogenic_allele"]
     if (
         not isinstance(alleles, list)

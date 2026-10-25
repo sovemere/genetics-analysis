@@ -2,8 +2,8 @@
 
 M11.5 adds carrier cards for recessive conditions this array can actually type, in the
 **reproductive** section (AGENTS.md §3.1: about offspring, not self). Fifteen new cards
-cover nine conditions; the existing HFE C282Y card in physical health joins the same
-panel without being written twice. The set of typed markers is recorded as data —
+cover eight conditions; the existing HFE C282Y card in physical health joins the same
+panel without being written twice, making nine. The set of typed markers is recorded as data —
 **the carrier panel** — so M11.6's section-level incompleteness statement can say exactly
 what it excludes.
 
@@ -103,9 +103,11 @@ context says which of two published quantities it is:
   Ashkenazi-panel alleles).
 
 Neither is a risk for the carrier, and both contexts say so. The calculator scores a
-proportion as its value, so the effect component contributes little for every carrier card;
-confidence is carried by source tier, replication and measurement reliability. No
-calculator change was made. The scoped rare-call PPV (M7.3) applies automatically, as on
+proportion at its own value, so the effect component spans the panel's published range:
+0.0049 for Tay-Sachs IVS12+1G>C, 0.0731 for HbS, 0.222 for PAH R408W and 0.798 for MCAD
+K304E. It measures how much of the disease, or of the screened population, the allele
+accounts for, not how consequential or reliable one copy is; source tier, replication and
+measurement reliability carry the rest. No calculator change was made. The scoped rare-call PPV (M7.3) applies automatically, as on
 every interpretation card; no carrier allele's maximum gnomAD population frequency falls
 below the 0.001% band.
 
@@ -116,7 +118,9 @@ couple-level figure: if a reproductive partner also carries a disease-causing al
 same gene, each pregnancy has a 1 in 4 chance of a child with two (the Mendelian
 expectation). Scott 2010's DNA-confirmed carrier-couple pregnancies are cited per condition
 where it reports one (CF 33/134, Tay-Sachs 31/102, Gaucher 19/65, Canavan 6/28; 107/404
-pooled across 16 conditions). **No offspring risk is computed for an unknown partner**, and
+pooled over the 11 of its 16 conditions with any pregnancy in which both parents were
+DNA-confirmed carriers). Fanconi anaemia's one monitored pregnancy had a single confirmed
+parent, so that card cites no empirical rate. **No offspring risk is computed for an unknown partner**, and
 the detail view says so. A no-copy outcome states the population carrier frequency without
 computing a residual risk from one marker.
 
@@ -206,7 +210,7 @@ absent, as on CI); `genetics cards lint` resolves all 54 marker keys against dbS
 | GALT Q188R (rs75391579) | ClinVar aggregate is "conflicting classifications". |
 | BTD D444H (rs13078881) | ClinVar G>C aggregate is conflicting. |
 | HFE H63D (rs1799945) | ClinVar aggregate is conflicting. |
-| HBB −29A>G (rs34598529) | No gnomAD exomes record (promoter, outside the capture). |
+| HBB −29A>G (rs34598529) | No gnomAD r2.1.1 exomes record (a promoter variant). |
 
 **Tractable, not authored in M11.5** — each passes the measured criteria but was not
 written, for the reason given. They are not in the panel, and M11.6 must not count them as
@@ -219,7 +223,7 @@ typed:
 | CFTR R117H (rs78655421) | Consequence depends on the cis poly-T tract, which the array does not type. |
 | PAH IVS12+1G>A (rs5030861) | Its allele share is only in Hillert 2020's supplementary table, which was not read. |
 | ASPA Y231X (rs28940574) | Second Ashkenazi Canavan allele; deferred with the other secondary alleles. |
-| SERPINA1 PiZ (rs28929474), PiS (rs17580) | Placement undecided: PiZZ is a self-health claim with adult lung and liver risk, PiS is pathogenic mainly with Z. Belongs with physical health or M12. |
+| SERPINA1 PiZ (rs28929474), PiS (rs17580) | Placement undecided: PiZZ is a self-health claim with adult lung and liver risk, and ClinVar classifies PiS pathogenic with low penetrance. Belongs with physical health or M12. |
 | ATP7B H1069Q (rs76151636) | No per-variant source verified this session. |
 | MEFV M694V (rs61752717), V726A (rs28940579) | ClinVar names both dominant and recessive FMF; the inheritance a card would state is unsettled. |
 | GJB2 V37I (rs72474224), M34T (rs35887622) | Mild or debated penetrance; not authored without a penetrance source. |
@@ -229,10 +233,18 @@ typed:
 
 ## Residual limits, recorded rather than fixed
 
-- **The effect component reflects allele share or prevalence, not consequence.** A minor
-  CF allele's carrier call scores lower on that 15% component than HbS's; the tier is
-  dominated by source tier, replication and frequency. Recorded so nobody reads the tier
-  gap as a difference in how reliable the call is.
+- **The effect component reflects allele share or prevalence, not consequence.** MCAD
+  K304E scores 0.798 on that 15% component and Tay-Sachs IVS12+1G>C 0.0049, a gap of up to
+  0.12 in the weighted score. Recorded so nobody reads a tier gap between carrier cards as
+  a difference in how reliable or consequential one copy is.
+- **The array's probe alleles are not published.** dbSNP b157 lists a third (or fourth)
+  base at 12 of the 16 panel markers; only ASPA E285A, FANCC IVS4+4A>T, PAH R408W and PAH
+  IVS10-11G>A are biallelic there. A card matches only its declared pair, so a call with
+  any other base is an allele mismatch, never a state. The export cannot show which
+  alternate a probe was designed for, though: if a probe targets a different alternate, a
+  carrier of the card's allele can read as the homozygous reference call, which is the
+  no-copy outcome. The no-copy text already says it is not a negative screen; this is one
+  more reason it cannot be.
 - **Homozygous calls at the four symmetric markers are never interpreted from a direct
   call.** A reader with the common homozygote sees "strand ambiguous" on those four cards.
 - **Watson 2004's sample size.** The card states the 37,263 non-Hispanic white CF

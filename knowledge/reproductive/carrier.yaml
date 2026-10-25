@@ -139,8 +139,8 @@ cards:
           Ashkenazi Jewish CF patient chromosomes in Watson 2004. A no-copy result here
           leaves every other CFTR allele, including F508del, unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_g542x:
         summary: "The chip pattern is consistent with one G542X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -152,9 +152,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_g542x:
         evidence: null
         summary: "The chip pattern is consistent with two G542X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -187,7 +187,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 1: maximum gnomAD carrier frequency per gene."
+        note: "Table 1: maximum carrier frequency per gene, estimated from gnomAD."
     caveats: &cftr_caveats
       - "CF-causing alleles combine: a child with G542X from one parent and F508del or any other CF-causing allele from the other is affected. The couple-level figure applies to the gene, not to this allele alone."
       - "Ethnic-group shares describe US registry patients, not this person's ancestry."
@@ -228,8 +228,8 @@ cards:
           patient chromosomes in Watson 2004. A no-copy result here leaves every other CFTR
           allele, including F508del, unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_w1282x:
         summary: "The chip pattern is consistent with one W1282X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -242,9 +242,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_w1282x:
         evidence: null
         summary: "The chip pattern is consistent with two W1282X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -307,8 +307,8 @@ cards:
           2004. A no-copy result here leaves every other CFTR allele, including F508del,
           unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_g551d:
         summary: "The chip pattern is consistent with one G551D copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -319,9 +319,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_g551d:
         evidence: null
         summary: "The chip pattern is consistent with two G551D copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -381,8 +381,8 @@ cards:
           Watson 2004. A no-copy result here leaves every other CFTR allele, including
           F508del, unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_621:
         summary: "The chip pattern is consistent with one 621+1G>T copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -394,9 +394,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_621:
         evidence: null
         summary: "The chip pattern is consistent with two 621+1G>T copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -456,8 +456,8 @@ cards:
           2004. A no-copy result here leaves every other CFTR allele, including F508del,
           unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_n1303k:
         summary: "The chip pattern is consistent with one N1303K copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -469,9 +469,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_n1303k:
         evidence: null
         summary: "The chip pattern is consistent with two N1303K copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -534,8 +534,8 @@ cards:
           African American CF patient chromosomes in Watson 2004. A no-copy result here
           leaves every other CFTR allele, including F508del, unexamined.
         risk_context: >-
-          Gregg 2021: CFTR carrier frequency reaches 0.041 (about 1 in 24) in the gnomAD
-          population where it is highest; Scott 2010 found 1 in 23 among 8,671 fully
+          Gregg 2021 estimated a maximum CFTR carrier frequency of 0.041 (about 1 in 24)
+          from gnomAD; Scott 2010 found 1 in 23 among 8,671 fully
           Ashkenazi Jewish screenees. No residual carrier risk is computed from one marker.
       one_r553x:
         summary: "The chip pattern is consistent with one R553X copy, a cystic fibrosis-causing allele. One copy is a carrier state and does not cause cystic fibrosis."
@@ -547,9 +547,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a CF-causing allele, each pregnancy has a 1
           in 4 chance of a child with cystic fibrosis (Mendelian expectation). Scott 2010
-          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. CF
-          carrier frequency: up to about 1 in 24 (Gregg 2021). No partner's status is known
-          here; no offspring risk is computed.
+          observed 33 affected of 134 DNA-confirmed CF carrier-couple pregnancies. The
+          maximum CFTR carrier frequency estimated from gnomAD is about 1 in 24 (Gregg
+          2021). No partner's status is known here; no offspring risk is computed.
       two_r553x:
         evidence: null
         summary: "The chip pattern is consistent with two R553X copies, a cystic fibrosis genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -607,8 +607,8 @@ cards:
           16,196 genotyped PKU patients from 51 countries. A no-copy result here leaves the
           other 757 recorded variants largely unexamined.
         risk_context: >-
-          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
-          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          Gregg 2021 estimated a maximum PAH carrier frequency of 0.046 (about 1 in 22)
+          from gnomAD. Hillert 2020 estimated PKU at 1 in 23,930 births
           worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
           risk is computed from one marker.
       one_r408w:
@@ -621,8 +621,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
           a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
-          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
-          2021). No partner's status is known here; no offspring risk is computed.
+          depends on both alleles). The maximum PAH carrier frequency estimated from
+          gnomAD is about 1 in 22 (Gregg 2021). No partner's status is known here; no
+          offspring risk is computed.
       two_r408w:
         evidence: null
         summary: "The chip pattern is consistent with two R408W copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -650,11 +651,11 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 1: maximum gnomAD carrier frequency per gene."
+        note: "Table 1: maximum carrier frequency per gene, estimated from gnomAD."
       - type: doi
         id: 10.1002/humu.21327
         title: Experience with carrier screening and prenatal diagnosis for 16 Ashkenazi Jewish genetic diseases
-        note: "Table 5: 107 affected of 404 DNA-confirmed carrier-couple pregnancies across 16 recessive conditions, the empirical counterpart of the 1 in 4 expectation. PKU is not among them."
+        note: "Table 5: 107 affected of 404 pregnancies in which both parents were DNA-confirmed carriers, pooled over the 11 of its 16 conditions with any such pregnancy; the empirical counterpart of the 1 in 4 expectation. PKU is not among them."
     caveats: &pah_caveats
       - "PAH alleles combine: a child with this allele from one parent and any PKU-causing PAH allele from the other has PAH deficiency, whose severity depends on both alleles."
       - "The BIOPKU allele share pools patients from 51 countries; it varies widely by region."
@@ -694,8 +695,8 @@ cards:
           alleles in 16,196 genotyped PKU patients. A no-copy result here leaves the other
           recorded variants largely unexamined.
         risk_context: >-
-          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
-          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          Gregg 2021 estimated a maximum PAH carrier frequency of 0.046 (about 1 in 22)
+          from gnomAD. Hillert 2020 estimated PKU at 1 in 23,930 births
           worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
           risk is computed from one marker.
       one_ivs10:
@@ -708,8 +709,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
           a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
-          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
-          2021). No partner's status is known here; no offspring risk is computed.
+          depends on both alleles). The maximum PAH carrier frequency estimated from
+          gnomAD is about 1 in 22 (Gregg 2021). No partner's status is known here; no
+          offspring risk is computed.
       two_ivs10:
         evidence: null
         summary: "The chip pattern is consistent with two IVS10-11G>A copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -767,8 +769,8 @@ cards:
           16,196 genotyped PKU patients. A no-copy result here leaves the other recorded
           variants largely unexamined.
         risk_context: >-
-          Gregg 2021: PAH carrier frequency reaches 0.046 (about 1 in 22) in the gnomAD
-          population where it is highest. Hillert 2020 estimated PKU at 1 in 23,930 births
+          Gregg 2021 estimated a maximum PAH carrier frequency of 0.046 (about 1 in 22)
+          from gnomAD. Hillert 2020 estimated PKU at 1 in 23,930 births
           worldwide, from 1 in 4,500 (Italy) to 1 in 125,000 (Japan). No residual carrier
           risk is computed from one marker.
       one_r261q:
@@ -780,8 +782,9 @@ cards:
         risk_context: >-
           If a reproductive partner also carries a PKU-causing PAH allele, each pregnancy has
           a 1 in 4 chance of a child with PAH deficiency (Mendelian expectation; severity
-          depends on both alleles). PAH carrier frequency: up to about 1 in 22 (Gregg
-          2021). No partner's status is known here; no offspring risk is computed.
+          depends on both alleles). The maximum PAH carrier frequency estimated from
+          gnomAD is about 1 in 22 (Gregg 2021). No partner's status is known here; no
+          offspring risk is computed.
       two_r261q:
         evidence: null
         summary: "The chip pattern is consistent with two R261Q copies, a PKU genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -817,9 +820,9 @@ cards:
       pathogenic_allele: G
       clinvar: 3586
       typed_scope: >-
-        This card types K304E only. Andresen 2001 found 25 of 124 disease alleles in
-        screen-positive newborns were other ACADM variants, including the mild Y42H; none
-        of those is typed by this report.
+        This card types K304E only. In Andresen 2001, 25 of 124 disease alleles in
+        screen-positive newborns were not K304E; among them was the mild Y42H. No other
+        ACADM variant is typed by this report.
     match:
       strand: forward_only
       variants:
@@ -841,7 +844,7 @@ cards:
         risk_context: >-
           Andresen 2001 summarises K304E carrier frequencies of 1 in 64 to 1 in 101 in
           northwestern European and white US newborns; Gregg 2021 gives a maximum ACADM
-          carrier frequency of 0.0166 (about 1 in 60) across gnomAD populations. No
+          carrier frequency of 0.0166 (about 1 in 60), estimated from gnomAD. No
           residual carrier risk is computed from one marker.
       one_k304e:
         summary: "The chip pattern is consistent with one K304E copy, an MCAD deficiency-causing allele. One copy is a carrier state and does not cause MCAD deficiency."
@@ -883,7 +886,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 1: maximum gnomAD carrier frequency per gene."
+        note: "Table 1: maximum carrier frequency per gene, estimated from gnomAD."
     caveats:
       - "Legacy K304E counts from the mature protein; current HGVS numbering from the precursor names the same change p.Lys329Glu."
       - "Screen-detected newborns include milder genotypes than clinically diagnosed patients, so the two series give different K304E shares."
@@ -925,8 +928,8 @@ cards:
         risk_context: >-
           Scott 2010: Gaucher carrier frequency was 1 in 15 among fully Ashkenazi screenees
           across all tested alleles; Gregg 2021 gives a maximum GBA carrier frequency of
-          0.0086 (about 1 in 117) across gnomAD populations; the gene is now named GBA1. No residual carrier risk is
-          computed from one marker.
+          0.0086 (about 1 in 117), estimated from gnomAD; the gene is now named GBA1. No
+          residual carrier risk is computed from one marker.
       one_n370s:
         summary: "The chip pattern is consistent with one N370S copy, a Gaucher disease allele. One copy is a carrier state and does not cause Gaucher disease."
         detail: >-
@@ -973,7 +976,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 3: maximum gnomAD carrier frequency per gene."
+        note: "Table 3: maximum carrier frequency per gene, estimated from gnomAD."
     caveats:
       - "Legacy N370S counts from the mature protein; current HGVS numbering names the same change p.Asn409Ser."
       - "The Parkinson disease odds ratio comes from case-control sampling and is not an absolute risk."
@@ -1015,7 +1018,7 @@ cards:
         risk_context: >-
           Scott 2010: Tay-Sachs carrier frequency was 1 in 27 among fully Ashkenazi Jewish
           screenees by DNA; Gregg 2021 gives a maximum HEXA carrier frequency of 0.033
-          (about 1 in 30) across gnomAD populations. No residual carrier risk is computed
+          (about 1 in 30), estimated from gnomAD. No residual carrier risk is computed
           from one marker.
       one_ivs12:
         summary: "The chip pattern is consistent with one IVS12+1G>C copy, a Tay-Sachs disease allele. One copy is a carrier state and does not cause Tay-Sachs disease."
@@ -1032,10 +1035,10 @@ cards:
         evidence: null
         summary: "The chip pattern is consistent with two IVS12+1G>C copies, a Tay-Sachs genotype. In an adult without neurological disease, a two-copy call of an allele this rare is almost certainly a genotyping error."
         detail: >-
-          Two copies of a splice-donor allele like this one are associated with the
-          infantile form of Tay-Sachs disease. A two-copy call in a healthy adult is far
-          more likely a measurement problem than the disease; only clinical testing
-          establishes it.
+          Classic Tay-Sachs disease begins in infancy; later-onset forms also exist, and
+          this card does not assign a form to two IVS12+1G>C copies. A two-copy call in
+          a healthy adult is far more likely a measurement problem than the disease; only
+          clinical testing establishes it.
         risk_context: >-
           This card assigns no penetrance or outcome estimate to a two-copy call. Every
           child of a two-copy parent would inherit one copy; whether a child is affected
@@ -1057,7 +1060,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 1: maximum gnomAD carrier frequency per gene."
+        note: "Table 1: maximum carrier frequency per gene, estimated from gnomAD."
     caveats:
       - "C and G are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
       - "ClinVar also records c.1421+1G>T and c.1421+1G>A at this base; only the declared forward-strand G (c.1421+1G>C) is read."
@@ -1099,7 +1102,7 @@ cards:
         risk_context: >-
           Scott 2010: Canavan carrier frequency was 1 in 55 among fully Ashkenazi Jewish
           screenees across the tested alleles; Gregg 2021 gives a maximum ASPA carrier
-          frequency of 0.0199 (about 1 in 50) across gnomAD populations. No residual carrier
+          frequency of 0.0199 (about 1 in 50), estimated from gnomAD. No residual carrier
           risk is computed from one marker.
       one_e285a:
         summary: "The chip pattern is consistent with one E285A copy, a Canavan disease allele. One copy is a carrier state and does not cause Canavan disease."
@@ -1140,7 +1143,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 1: maximum gnomAD carrier frequency per gene."
+        note: "Table 1: maximum carrier frequency per gene, estimated from gnomAD."
     caveats:
       - "Ashkenazi carrier frequencies describe the New York screening cohort, not this person's ancestry."
 
@@ -1180,7 +1183,7 @@ cards:
         risk_context: >-
           Scott 2010: Fanconi anaemia group C carrier frequency was 1 in 100 among fully
           Ashkenazi Jewish screenees; Gregg 2021 gives a maximum FANCC carrier frequency of
-          0.012 (about 1 in 83) across gnomAD populations. No residual carrier risk is
+          0.012 (about 1 in 83), estimated from gnomAD. No residual carrier risk is
           computed from one marker.
       one_ivs4:
         summary: "The chip pattern is consistent with one IVS4+4A>T copy, a Fanconi anaemia group C allele. One copy is a carrier state and does not cause Fanconi anaemia."
@@ -1190,9 +1193,10 @@ cards:
           other FANCC allele tested, c.67delG, was found in none of 914. ClinVar classifies it pathogenic with multiple concordant submitters.
         risk_context: >-
           If a reproductive partner also carries a FANCC allele, each pregnancy has a 1 in 4
-          chance of a child with two (Mendelian expectation). Scott 2010 monitored one
-          Fanconi anaemia carrier-couple pregnancy, too few for an empirical rate. No
-          partner's status is known here; no offspring risk is computed.
+          chance of a child with two (Mendelian expectation). Scott 2010 reports no
+          Fanconi anaemia pregnancy in which both parents were DNA-confirmed carriers, so
+          there is no empirical rate. No partner's status is known here; no offspring risk
+          is computed.
       two_ivs4:
         evidence: null
         summary: "The chip pattern is consistent with two IVS4+4A>T copies, a Fanconi anaemia genotype. A two-copy call of an allele this rare is more often a genotyping error."
@@ -1221,7 +1225,7 @@ cards:
       - type: doi
         id: 10.1038/s41436-021-01203-z
         title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
-        note: "Table 2: maximum gnomAD carrier frequency per gene."
+        note: "Table 2: maximum carrier frequency per gene, estimated from gnomAD."
     caveats:
       - "A and T are complementary bases, so the strand of a homozygous call cannot be established from the export: no copy and two copies show the same letters, and the card reports that as strand-ambiguous instead of choosing. A heterozygous call is one copy on either strand and is reported."
       - "Ashkenazi carrier frequencies describe the New York screening cohort, not this person's ancestry."
