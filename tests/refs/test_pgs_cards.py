@@ -41,6 +41,7 @@ from genetics.engine.cards import (
 )
 from genetics.engine.confidence import ConfidenceTier, calculate_polygenic_confidence
 from genetics.engine.matcher import MatchStatus
+from genetics.external.plink2 import Plink2NotFoundError
 from genetics.ingest import ingest
 from genetics.ingest.schema import GenotypeTable
 from genetics.paths import runs_dir
@@ -395,6 +396,23 @@ def test_not_fetched_unlicensed_and_unplaced_cards_still_render_with_reasons(
     setup = {**setup, "catalog": restricted}
     card = polygenic_card(run(setup, fake))
     assert card.status is MatchStatus.NOT_RUN and "opt-in" in card.summary
+
+
+def test_a_missing_plink_fails_before_reference_preparation_or_ingest(
+    setup: dict[str, Any], fake: MultiPlink, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Preparing one real score's reference takes minutes; a missing PLINK 2 used to
+    # surface only at the first score, after every reference had been prepared.
+    from genetics.run import pipeline
+
+    reached: list[str] = []
+    monkeypatch.setattr(runner, "prepare_reference", lambda *a, **k: reached.append("reference"))
+    monkeypatch.setattr(pipeline, "ingest", lambda *a, **k: reached.append("ingest"))
+    polygenic = stage(setup, fake, tools_root=tmp_path / "no-tools")
+    polygenic.plink = None
+    with pytest.raises(Plink2NotFoundError, match="genetics tools install --only plink2"):
+        analyse(EXPORT, knowledge_dir=setup["knowledge"], no_impute=True, polygenic=polygenic)
+    assert reached == []
 
 
 def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(

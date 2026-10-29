@@ -132,6 +132,11 @@ class PolygenicStage:
                 )
                 continue
             scoring.inspect()
+            if self.plink is None:
+                # Every prepared score runs through the pinned PLINK 2. Find it before the
+                # reference preparation, which takes minutes per score: a missing install
+                # was reported only at the first score, after all of them.
+                self.plink = Plink2.discover(tools_root=self.tools_root)
             if progress:
                 progress(f"Preparing public reference for {card.pgs.pgs_id}")
             reference = prepare_reference(
