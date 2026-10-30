@@ -344,6 +344,9 @@ class Extraction:
     provenance: Mapping[str, Any]
 
 
+_DOSE_DIGITS = bytes.maketrans(b"012", b"\x00\x01\x02")
+
+
 def _cache_path(key: str) -> Path:
     return cache_dir() / "pgs" / "reference" / f"{key}.pgs-reference.tsv.gz"
 
@@ -352,15 +355,20 @@ def _read_cache(
     path: Path, key: str, rows: Sequence[ScoreVariant], n_samples: int
 ) -> Extraction | None:
     try:
-        with gzip.open(path, "rt", encoding="utf-8") as handle:
+        with gzip.open(path, "rb") as handle:
             header = json.loads(handle.readline())
             states: dict[int, str] = {}
             doses: dict[int, bytes] = {}
             for line in handle:
-                number, state, values = line.rstrip("\n").split("\t")
-                states[int(number)] = state
-                if state == RESOLVED:
-                    doses[int(number)] = bytes(int(v) for v in values)
+                number, state, values = line.rstrip(b"\n").split(b"\t")
+                row = int(number)
+                states[row] = state.decode("utf-8")
+                if states[row] == RESOLVED:
+                    # Checked and decoded per row in C: a per-character int() took 212 s for
+                    # a 955,437-row score, this 13 s. Anything but 0, 1 or 2 is corrupt.
+                    if values.translate(None, b"012"):
+                        return None
+                    doses[row] = values.translate(_DOSE_DIGITS)
     except (OSError, EOFError, ValueError, zlib.error, UnicodeError):
         return None
     samples = tuple(header.get("samples", ())) if isinstance(header, dict) else ()
@@ -371,7 +379,7 @@ def _read_cache(
         or set(states) != {r.row_number for r in rows}
         or any(s not in REFERENCE_STATES for s in states.values())
         or set(doses) != {n for n, s in states.items() if s == RESOLVED}
-        or any(len(d) != n_samples or max(d, default=0) > 2 for d in doses.values())
+        or any(len(d) != n_samples for d in doses.values())
     ):
         return None
     return Extraction(key, samples, states, doses, header["provenance"])
