@@ -107,13 +107,19 @@ Panel extraction streams each needed chromosome VCF once, in parallel processes,
 verifies the lock's SHA-256 in the same pass. The result is cached under the user-data
 cache as `<key>.pgs-reference.tsv.gz`. The key is the public score's identity plus the
 panel's lock digests. The cache holds public data only: the public score's rows in the
-public panel. A corrupt cache is rebuilt.
+public panel. A corrupt cache is rebuilt; a dose other than 0, 1 or 2, or a row of the
+wrong length, counts as corrupt.
+
+Reading the cache back checks and decodes each row in one C-level pass. For a
+955,437-row score it took **13 s**, against **212 s** for the per-character parse it
+replaced (2026-10-31).
 
 For PGS000001 (77 rows, 20 chromosomes), the first run took **228 s** on a 16-core
 machine and a cached rerun took **1.3 s**. Large scores scale with row count:
 
 - The reference matrix is held as one byte per sample per comparable row, roughly
-  2.5 KB per row.
+  2.5 KB per row: about 2.5 GB for a genome-wide score of a million rows. `genetics run`
+  therefore holds one score's extraction at a time ([cards](pgs_cards.md#what-a-run-does)).
 - Resolving each row is a Python pass over 2,504 calls.
 
 Everything restricted to a person is private and stays in the score result: the

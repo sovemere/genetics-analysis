@@ -348,6 +348,36 @@ def test_extraction_cache_is_reused_and_rebuilt_when_corrupt(
     assert not isinstance(rebuilt, str) and rebuilt.doses == first.doses
 
 
+@pytest.mark.parametrize("dose", ["3", "x", "\x01", ""])
+def test_a_cached_dose_other_than_0_1_or_2_rebuilds_the_extraction(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, dose: str
+) -> None:
+    monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path / "appdata"))
+    root, _ = standard(tmp_path)
+    scoring = definition(tmp_path / "def", ROWS)
+    panel = discover_panel(root)
+    assert not isinstance(panel, str)
+    first = extract(scoring, panel, workers=1)
+    assert not isinstance(first, str)
+    cache = next((tmp_path / "appdata").rglob("*.pgs-reference.tsv.gz"))
+    lines = gzip.decompress(cache.read_bytes()).decode().split("\n")
+    row = next(i for i, line in enumerate(lines) if f"\t{reference.RESOLVED}\t" in line)
+    # The last sample's dose: a raw control byte would decode to a valid dose if unchecked.
+    lines[row] = lines[row][:-1] + dose
+    cache.write_bytes(gzip.compress("\n".join(lines).encode()))
+    reads: list[str] = []
+    native = reference._extract_chromosome
+
+    def counted(*args: Any) -> Any:
+        reads.append(args[2])
+        return native(*args)
+
+    monkeypatch.setattr(reference, "_extract_chromosome", counted)
+    rebuilt = extract(scoring, panel, workers=1)
+    assert reads, "a corrupt cached dose must send the extraction back to the panel"
+    assert not isinstance(rebuilt, str) and rebuilt.doses == first.doses
+
+
 def test_group_statistics_mid_rank_wilson_quantiles_and_histogram() -> None:
     stats = group_statistics([1.0, 2.0, 3.0, 4.0], 2.0)
     assert stats["below"] == 1 and stats["ties"] == 1

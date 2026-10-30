@@ -7,6 +7,12 @@ extraction -- happens in :meth:`PolygenicStage.prepare`, which the pipeline call
 reading the export, so a tampered reference fails before a genome is parsed (the M9.4 review
 rule). The 1000 Genomes placement is made once per run and shared by every score.
 
+The stage keeps only each verified panel between the two steps, not the extraction. A
+genome-wide score's extraction is about 2.5 GB in memory; holding the pack's 14 from
+preparation to scoring reached 23 GB with ten loaded and exhausted a 32 GB machine
+(2026-10-30). Scoring therefore reloads each from the extraction cache that preparation
+wrote, one at a time.
+
 Absent is not wrong: a scoring file that is not fetched, metadata that is not fetched, or a
 licence that needs an opt-in leaves the card ``not_run`` with the reason and the fix. A file
 that is present and disagrees with its lock digest raises, as every reference does.
@@ -30,7 +36,13 @@ from genetics.paths import reference_lock, reference_manifest, references_dir
 from genetics.pgs.cards import assemble_polygenic_card
 from genetics.pgs.catalog import Catalog, PgsError, fingerprint
 from genetics.pgs.engine import score
-from genetics.pgs.reference import PreparedReference, attach_reference, prepare_reference
+from genetics.pgs.reference import (
+    Panel,
+    PreparedReference,
+    attach_reference,
+    extract,
+    prepare_reference,
+)
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 from genetics.refs import lock as refs_lock
@@ -44,8 +56,13 @@ class Prepared:
 
     card: Card
     scoring: ScoringFile | None = None
-    reference: PreparedReference | Mapping[str, str] | None = None
+    reference: Panel | Mapping[str, str] | None = None
+    """The verified panel, whose extraction is cached on disk, or why there is none."""
     reason: str | None = None
+
+
+def _panel_only(reference: PreparedReference | Mapping[str, str]) -> Panel | Mapping[str, str]:
+    return reference.panel if isinstance(reference, PreparedReference) else reference
 
 
 def locate_scoring_file(card: Card, root: Path) -> Path | str:
@@ -139,8 +156,11 @@ class PolygenicStage:
                 self.plink = Plink2.discover(tools_root=self.tools_root)
             if progress:
                 progress(f"Preparing public reference for {card.pgs.pgs_id}")
-            reference = prepare_reference(
-                scoring, references_root=root, workers=self.workers, progress=progress
+            # No local keeps the extraction, or it would live on into the next score's.
+            reference = _panel_only(
+                prepare_reference(
+                    scoring, references_root=root, workers=self.workers, progress=progress
+                )
             )
             self.prepared[card.id] = Prepared(card, scoring, reference)
 
@@ -176,7 +196,7 @@ class PolygenicStage:
         records: dict[str, dict[str, Any]] = {}
         placement = self.placement or (self._run_placement if self._run_target is table else None)
         if placement is None and any(
-            isinstance(p.reference, PreparedReference) for p in self.prepared.values()
+            isinstance(p.reference, Panel) for p in self.prepared.values()
         ):
             placement = self.place(table, progress)
         for item in self.prepared.values():
@@ -197,11 +217,12 @@ class PolygenicStage:
                 imputation_provenance=imputation_provenance,
                 progress=progress,
             )
+            # Passed as a temporary, so this score's extraction is freed before the next loads.
             result = attach_reference(
                 result,
                 item.scoring,
                 table=table,
-                prepared=item.reference,
+                prepared=self._reload(item, progress),
                 references_root=self.references_root,
                 tools_root=self.tools_root,
                 plink=native,
@@ -213,3 +234,19 @@ class PolygenicStage:
             records[item.card.id] = record
             cards[item.card.id] = assemble_polygenic_card(item.card, record)
         return cards, records
+
+    def _reload(
+        self, item: Prepared, progress: Callable[[str], None] | None
+    ) -> PreparedReference | Mapping[str, str] | None:
+        """The score's extraction, read back from the cache ``prepare`` wrote.
+
+        The key binds the cache to this score and the verified panel's lock digests. A cache
+        removed since then is re-extracted, verifying each VCF against its lock again.
+        """
+        if not isinstance(item.reference, Panel):
+            return item.reference
+        assert item.scoring is not None
+        extraction = extract(item.scoring, item.reference, workers=self.workers, progress=progress)
+        if isinstance(extraction, str):
+            return {"status": "not_run", "reason": extraction}
+        return PreparedReference(item.reference, extraction)

@@ -51,8 +51,11 @@ uses (`pgs/runner.py`):
 1. **Before reading the export,** `PolygenicStage.prepare` locates each scoring file,
    verifies it against `manifest.lock`, applies the licence gate and extracts the public
    1000 Genomes rows. A tampered file therefore fails before any personal data is read.
+   The extraction is written to its cache, and the stage keeps only the verified panel.
 2. **After imputation,** the stage places the sample among 1000 Genomes populations once
-   per run and scores each card.
+   per run and scores each card. Each card's extraction is reloaded from the cache and
+   released before the next card's loads. Holding all of them from step 1 reached 23 GB
+   with ten of the pack's 14 loaded and exhausted a 32 GB machine (2026-10-30).
 3. **Each card's private score record** is saved in the bundle as `pgs.run.json`. This
    needs **bundle format 17**; formats 1–16 carry no polygenic cards.
 

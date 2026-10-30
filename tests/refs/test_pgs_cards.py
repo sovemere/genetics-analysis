@@ -9,10 +9,12 @@ private run is read.
 
 from __future__ import annotations
 
+import gc
 import hashlib
 import itertools
 import json
 import math
+import weakref
 from pathlib import Path
 from typing import Any
 
@@ -45,6 +47,7 @@ from genetics.external.plink2 import Plink2NotFoundError
 from genetics.ingest import ingest
 from genetics.ingest.schema import GenotypeTable
 from genetics.paths import runs_dir
+from genetics.pgs import reference as pgs_reference
 from genetics.pgs import runner
 from genetics.pgs.cards import (
     INTERVAL_BASIS,
@@ -413,6 +416,40 @@ def test_a_missing_plink_fails_before_reference_preparation_or_ingest(
     with pytest.raises(Plink2NotFoundError, match="genetics tools install --only plink2"):
         analyse(EXPORT, knowledge_dir=setup["knowledge"], no_impute=True, polygenic=polygenic)
     assert reached == []
+
+
+def test_a_run_holds_one_reference_extraction_at_a_time(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # A genome-wide extraction is about 2.5 GB, and holding the pack's 14 from preparation
+    # to scoring exhausted a 32 GB machine: each must be freed before the next one loads.
+    again = CARD.replace("id: synthetic_polygenic", "id: synthetic_polygenic_again")
+    (setup["knowledge"] / "again.yaml").write_text(again, encoding="utf-8")
+    live: list[weakref.ref[Any]] = []
+    held: list[int] = []
+    reads: list[str] = []
+    native_extract, native_read = pgs_reference.extract, pgs_reference._extract_chromosome
+
+    def tracked(*args: Any, **kwargs: Any) -> Any:
+        gc.collect()
+        held.append(sum(ref() is not None for ref in live))
+        extraction = native_extract(*args, **kwargs)
+        live.append(weakref.ref(extraction))
+        return extraction
+
+    def counted(*args: Any) -> Any:
+        reads.append(args[2])
+        return native_read(*args)
+
+    monkeypatch.setattr(pgs_reference, "extract", tracked)
+    monkeypatch.setattr(runner, "extract", tracked)
+    monkeypatch.setattr(pgs_reference, "_extract_chromosome", counted)
+    analysis = run(setup, fake)
+    # Two preparations, then two reloads; the panel is read once and the cache after that.
+    assert held == [0, 0, 0, 0] and reads == ["1"]
+    records = [analysis.polygenic[c] for c in ("synthetic_polygenic", "synthetic_polygenic_again")]
+    assert records[0]["reference_distribution"]["status"] == "computed"
+    assert records[0]["reference_distribution"] == records[1]["reference_distribution"]
 
 
 def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(
