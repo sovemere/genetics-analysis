@@ -30,6 +30,7 @@ from genetics.engine.evidence import (
 from genetics.engine.matcher import MatchResult, MatchStatus, Strand
 from genetics.ingest import ingest
 from genetics.paths import UnsafeDataDirError, repo_root
+from genetics.pgs.records import score_file_name
 from genetics.privacy import GenotypeLeakError, find_genotypes
 from genetics.qc.report import QCReport
 from genetics.run.bundle import (
@@ -456,6 +457,9 @@ def test_a_bundle_payload_is_gitignored_everywhere_in_the_checkout(directory: st
     # tuple here is the kind of second name that forgets the next one.
     for name in PAYLOAD_FILES:
         assert _is_ignored(f"{directory}{name}"), f"{directory}{name} is committable"
+    # Format 25's per-card score records, named from card ids rather than listed.
+    name = score_file_name("synthetic_polygenic")
+    assert _is_ignored(f"{directory}{name}"), f"{directory}{name} is committable"
 
 
 @pytest.mark.privacy

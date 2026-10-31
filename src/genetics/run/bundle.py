@@ -68,6 +68,8 @@ from genetics.imputation import snapshot as imputation_snapshot
 from genetics.imputation.context import ImputationContext
 from genetics.imputation.target import ImputationError
 from genetics.paths import UnsafeDataDirError, is_inside_repo, reference_lock, runs_dir, tools_dir
+from genetics.pgs.catalog import PgsError
+from genetics.pgs.records import ScoreRecords, is_score_file_name, score_file_name
 from genetics.privacy import NoGenotypeRepr, assert_no_genotype
 from genetics.qc.report import QCReport
 from genetics.refs import lock as refs_lock
@@ -83,8 +85,15 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 24
+BUNDLE_FORMAT_VERSION: Final[int] = 25
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 25 saves each polygenic card's private score record as its own gzip file,
+``pgs-<card id>.run.json.gz``, recorded in the manifest like any payload; ``pgs.run.json``
+becomes schema 2, an index from card id to file. A genome-wide record is about 1.9 GB
+parsed and 46 MB compressed, and checking is one record at a time. The records themselves
+(score schema) are unchanged. Formats 17-24 keep every record inline in schema 1 and are
+read unchanged.
 
 Version 24 (M11.5) adds a ``carrier`` record to every card: ``None`` except on a carrier
 card, where it holds the frozen schema-7 declaration and the state derived from the card's
@@ -261,6 +270,10 @@ HLA_CARD_FORMAT_VERSION: Final[int] = 23
 
 CARRIER_FORMAT_VERSION: Final[int] = 24
 """The first format that may hold a carrier record (M11.5)."""
+
+SCORE_FILES_FORMAT_VERSION: Final[int] = 25
+"""The first format whose score records are per-card gzip files indexed by schema-2
+:data:`PGS_NAME`; formats 17-24 hold them inline in schema 1."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
@@ -739,7 +752,10 @@ class RunBundle(NoGenotypeRepr):
     imputation: Mapping[str, Any] | None = None
     imputation_provenance: Mapping[str, Any] | None = None
     polygenic: Mapping[str, Mapping[str, Any]] | None = None
-    """Private score records by polygenic card id (format 17+); None when not recorded."""
+    """Private score records by polygenic card id (format 17+); None when not recorded.
+
+    From format 25 a :class:`ScoreRecords`, which parses a fresh copy of a record on every
+    access: read one at a time, never all at once."""
     hla: Mapping[str, Any] | None = None
     pgx: Mapping[str, Any] | None = None
     """Frozen PGx sample-call schema 1; None for pre-format-19 runs."""
@@ -961,10 +977,15 @@ def write_bundle(
             ):
                 raise BundleError("ClinVar coverage card disagrees with supplied lookup")
         _write_text(staging / CLINVAR_NAME, _render(clinvar_payload))
-        scores = {key: dict(value) for key, value in (polygenic or {}).items()}
-        _check_polygenic(card_payloads, scores)
-        _check_shared_pgs_placement(scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
-        _write_text(staging / PGS_NAME, _render({"schema_version": 1, "scores": scores}))
+        try:
+            scores = ScoreRecords.of(polygenic)
+            score_files = {key: score_file_name(key) for key in sorted(scores)}
+        except (PgsError, TypeError, ValueError) as exc:
+            raise BundleError(f"{PGS_NAME}: a score record cannot be saved: {exc}") from exc
+        _check_polygenic(card_payloads, scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
+        for key, name in score_files.items():
+            (staging / name).write_bytes(scores.compressed(key))
+        _write_text(staging / PGS_NAME, _render({"schema_version": 2, "files": score_files}))
         from genetics.pgx.calling import CallingError, unavailable, validate_execution
 
         pgx_payload = (
@@ -1022,7 +1043,9 @@ def write_bundle(
                 "cards": len(cards),
                 "with_interpretation": sum(1 for card in cards if card.has_interpretation),
             },
-            "files": {name: _digest(staging / name) for name in PAYLOAD_FILES} | dosage_hashes,
+            "files": {name: _digest(staging / name) for name in PAYLOAD_FILES}
+            | dosage_hashes
+            | {name: _digest(staging / name) for name in score_files.values()},
         }
         manifest_text = _render(manifest)
 
@@ -1168,11 +1191,19 @@ def _check_guidelines(entries: Sequence[Any], pgx: Mapping[str, Any] | None, ver
                 raise BundleError("Saved guideline card disagrees with its PGx evidence.") from exc
 
 
-def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
+def _check_polygenic(
+    entries: Sequence[Any],
+    scores: Mapping[str, Any],
+    ancestry: Mapping[str, Any] | None,
+    version: int,
+) -> None:
     """Each polygenic card must be reproduced by its own stored score record, and no
-    record may sit in the bundle without the card that displays it."""
+    record may sit in the bundle without the card that displays it.
+
+    Each record is parsed once and dropped before the next: a genome-wide record is about
+    1.9 GB parsed, and :class:`ScoreRecords` parses a fresh copy on every access.
+    """
     from genetics.pgs.cards import validate_stored
-    from genetics.pgs.catalog import PgsError
 
     polygenic = {
         e["card_id"]: e for e in entries if isinstance(e, Mapping) and e.get("kind") == "polygenic"
@@ -1181,27 +1212,54 @@ def _check_polygenic(entries: Sequence[Any], scores: Mapping[str, Any]) -> None:
         raise BundleError(f"{PGS_NAME}: a score record has no polygenic card")
     for card_id, entry in polygenic.items():
         try:
-            validate_stored(entry, scores.get(card_id))
+            record = scores.get(card_id)
+            validate_stored(entry, record)
         except (PgsError, KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
             # Every structural failure is damage to this bundle, never a raw traceback.
             raise BundleError(f"{CARDS_NAME}: polygenic card {card_id!r}: {exc}") from exc
+        if record is not None:
+            _check_shared_pgs_placement(record, ancestry, version)
+
+
+def _read_score_files(directory: Path, recorded: set[str]) -> ScoreRecords:
+    """Format 25+: the schema-2 index, and exactly the per-card files it names.
+
+    ``recorded`` is every score file the manifest digests, already checked against those
+    digests: an unindexed file is refused as firmly as a missing one.
+    """
+    stored = _load_json(directory / PGS_NAME)
+    _reject_unknown(stored, frozenset({"schema_version", "files"}), PGS_NAME)
+    if stored.get("schema_version") != 2:
+        raise BundleError(f"{PGS_NAME}: unsupported schema_version")
+    files = _mapping(_require(stored, "files", PGS_NAME), f"{PGS_NAME}.files")
+    try:
+        expected = {str(key): score_file_name(str(key)) for key in files}
+    except PgsError as exc:
+        raise BundleError(f"{PGS_NAME}.files: {exc}") from exc
+    if dict(files) != expected or set(expected.values()) != recorded:
+        raise BundleError(f"{PGS_NAME}.files disagrees with the score files the manifest records")
+    try:
+        return ScoreRecords(
+            {key: (directory / name).read_bytes() for key, name in expected.items()}
+        )
+    except OSError as exc:
+        raise BundleError(f"{PGS_NAME}: a score file cannot be read") from exc
 
 
 def _check_shared_pgs_placement(
-    scores: Mapping[str, Mapping[str, Any]], ancestry: Mapping[str, Any] | None, version: int
+    record: Mapping[str, Any], ancestry: Mapping[str, Any] | None, version: int
 ) -> None:
     """A new run must use the same frozen placement/gate for variants and every PRS."""
     placement = None if ancestry is None else ancestry.get("reference_population")
     if version < 18 or placement is None:
         return
-    for record in scores.values():
-        block = record.get("reference_distribution")
-        if record.get("ancestry") != ancestry or (
-            isinstance(block, Mapping)
-            and block.get("status") == "computed"
-            and block.get("placement") != placement
-        ):
-            raise BundleError("Saved polygenic ancestry disagrees with the shared run placement")
+    block = record.get("reference_distribution")
+    if record.get("ancestry") != ancestry or (
+        isinstance(block, Mapping)
+        and block.get("status") == "computed"
+        and block.get("placement") != placement
+    ):
+        raise BundleError("Saved polygenic ancestry disagrees with the shared run placement")
 
 
 def _hla_schema(version: int) -> int:
@@ -1741,7 +1799,15 @@ def read_bundle(path: Path) -> RunBundle:
             raise BundleError(str(exc)) from exc
 
     polygenic: Mapping[str, Mapping[str, Any]] | None = None
-    if declared >= PGS_FORMAT_VERSION:
+    score_names = {name for name in recorded if is_score_file_name(name)}
+    if score_names and declared < SCORE_FILES_FORMAT_VERSION:
+        raise BundleError(
+            f"Per-card score files require bundle format {SCORE_FILES_FORMAT_VERSION}"
+        )
+    if declared >= SCORE_FILES_FORMAT_VERSION:
+        polygenic = _read_score_files(directory, score_names)
+        _check_polygenic(entries, polygenic, ancestry, declared)
+    elif declared >= PGS_FORMAT_VERSION:
         stored = _load_json(directory / PGS_NAME)
         _reject_unknown(stored, frozenset({"schema_version", "scores"}), PGS_NAME)
         if stored.get("schema_version") != 1:
@@ -1750,8 +1816,7 @@ def read_bundle(path: Path) -> RunBundle:
         polygenic = {
             str(key): _mapping(value, f"{PGS_NAME}.scores.{key}") for key, value in scores.items()
         }
-        _check_polygenic(entries, polygenic)
-        _check_shared_pgs_placement(polygenic, ancestry, declared)
+        _check_polygenic(entries, polygenic, ancestry, declared)
     elif any(isinstance(e, Mapping) and e.get("kind") == "polygenic" for e in entries):
         raise BundleError(f"Polygenic cards require bundle format {PGS_FORMAT_VERSION}")
 

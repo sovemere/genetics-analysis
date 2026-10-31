@@ -11,7 +11,8 @@ The stage keeps only each verified panel between the two steps, not the extracti
 genome-wide score's extraction is about 2.5 GB in memory; holding the pack's 14 from
 preparation to scoring reached 23 GB with ten loaded and exhausted a 32 GB machine
 (2026-10-30). Scoring therefore reloads each from the extraction cache that preparation
-wrote, one at a time.
+wrote, one at a time. Each card's private record is kept compressed for the same reason
+(:mod:`genetics.pgs.records`): holding them parsed, a run reached 15 GB at the seventh score.
 
 Absent is not wrong: a scoring file that is not fetched, metadata that is not fetched, or a
 licence that needs an opt-in leaves the card ``not_run`` with the reason and the fix. A file
@@ -20,7 +21,6 @@ that is present and disagrees with its lock digest raises, as every reference do
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -36,6 +36,7 @@ from genetics.paths import reference_lock, reference_manifest, references_dir
 from genetics.pgs.cards import assemble_polygenic_card
 from genetics.pgs.catalog import Catalog, PgsError, fingerprint
 from genetics.pgs.engine import score
+from genetics.pgs.records import ScoreRecords
 from genetics.pgs.reference import (
     Panel,
     PreparedReference,
@@ -190,10 +191,10 @@ class PolygenicStage:
         ancestry: Mapping[str, Any],
         imputation_provenance: Mapping[str, Any] | None,
         progress: Callable[[str], None] | None = None,
-    ) -> tuple[dict[str, AssembledCard], dict[str, dict[str, Any]]]:
+    ) -> tuple[dict[str, AssembledCard], ScoreRecords]:
         """Assembled polygenic cards and their private score records, by card id."""
         cards: dict[str, AssembledCard] = {}
-        records: dict[str, dict[str, Any]] = {}
+        records = ScoreRecords()
         placement = self.placement or (self._run_placement if self._run_target is table else None)
         if placement is None and any(
             isinstance(p.reference, Panel) for p in self.prepared.values()
@@ -203,37 +204,66 @@ class PolygenicStage:
             if item.scoring is None:
                 cards[item.card.id] = assemble_polygenic_card(item.card, None, reason=item.reason)
                 continue
-            if progress:
-                progress(f"Scoring {item.scoring.headers['pgs_id']} with pinned PLINK")
-            native = self.plink or Plink2.discover(tools_root=self.tools_root)
-            result = score(
-                item.scoring,
+            cards[item.card.id] = self._score_one(
+                item,
+                records,
                 table=table,
-                dosages=None if dosages is None else dosages(),
                 sex=sex,
-                no_impute=dosages is None,
-                plink=native,
+                dosages=dosages,
                 ancestry=ancestry,
                 imputation_provenance=imputation_provenance,
-                progress=progress,
-            )
-            # Passed as a temporary, so this score's extraction is freed before the next loads.
-            result = attach_reference(
-                result,
-                item.scoring,
-                table=table,
-                prepared=self._reload(item, progress),
-                references_root=self.references_root,
-                tools_root=self.tools_root,
-                plink=native,
                 placement=placement,
                 progress=progress,
             )
-            # The JSON form, so the in-memory record is exactly what the bundle persists.
-            record = json.loads(json.dumps(result.to_dict(), allow_nan=False))
-            records[item.card.id] = record
-            cards[item.card.id] = assemble_polygenic_card(item.card, record)
         return cards, records
+
+    def _score_one(
+        self,
+        item: Prepared,
+        records: ScoreRecords,
+        *,
+        table: GenotypeTable,
+        sex: InferredSex,
+        dosages: Callable[[], Iterator[DosageRecord]] | None,
+        ancestry: Mapping[str, Any],
+        imputation_provenance: Mapping[str, Any] | None,
+        placement: PopulationResult | None,
+        progress: Callable[[str], None] | None,
+    ) -> AssembledCard:
+        """Score one card and keep its record only compressed.
+
+        A genome-wide record is about 1.9 GB parsed. Its result, its parsed form and the
+        extraction are all locals here, freed on return before the next card is scored.
+        """
+        assert item.scoring is not None
+        if progress:
+            progress(f"Scoring {item.scoring.headers['pgs_id']} with pinned PLINK")
+        native = self.plink or Plink2.discover(tools_root=self.tools_root)
+        result = score(
+            item.scoring,
+            table=table,
+            dosages=None if dosages is None else dosages(),
+            sex=sex,
+            no_impute=dosages is None,
+            plink=native,
+            ancestry=ancestry,
+            imputation_provenance=imputation_provenance,
+            progress=progress,
+        )
+        result = attach_reference(
+            result,
+            item.scoring,
+            table=table,
+            prepared=self._reload(item, progress),
+            references_root=self.references_root,
+            tools_root=self.tools_root,
+            plink=native,
+            placement=placement,
+            progress=progress,
+        )
+        # The JSON form, so the card is assembled from exactly what the bundle persists.
+        record = records.add(item.card.id, result.to_dict())
+        return assemble_polygenic_card(item.card, record)
 
     def _reload(
         self, item: Prepared, progress: Callable[[str], None] | None

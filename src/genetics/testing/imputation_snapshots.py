@@ -217,6 +217,27 @@ def remove_snapshot_for_historical_fixture(directory: Path, manifest: dict[str, 
             manifest["files"].pop(name)
 
 
+def inline_score_records_for_historical_fixture(directory: Path, manifest: dict[str, Any]) -> None:
+    """Fabricate a pre-format-25 ``pgs.run.json``: schema 1, every score record inline.
+
+    Drops the per-card score files from ``manifest["files"]`` and re-records the index; the
+    caller writes the manifest, as with :func:`remove_snapshot_for_historical_fixture`.
+    """
+    from genetics.pgs.records import ScoreRecords, is_score_file_name
+
+    path = directory / "pgs.run.json"
+    index = json.loads(path.read_text(encoding="utf-8"))
+    if index["schema_version"] == 2:  # idempotent: a fixture may be rewritten twice
+        files = index["files"]
+        records = ScoreRecords({k: (directory / name).read_bytes() for k, name in files.items()})
+        raw = json.dumps({"schema_version": 1, "scores": dict(records.items())}).encode()
+        path.write_bytes(raw)
+        manifest["files"]["pgs.run.json"] = hashlib.sha256(raw).hexdigest()
+    for name in tuple(manifest["files"]):
+        if is_score_file_name(name):
+            manifest["files"].pop(name)
+
+
 def remove_card_ancestry_for_historical_fixture(directory: Path) -> None:
     """Fabricate pre-M9.13 bytes only from synthetic unknown-ancestry records."""
     manifest_path = directory / "manifest.json"

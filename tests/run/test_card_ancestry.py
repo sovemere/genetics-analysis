@@ -31,6 +31,7 @@ from genetics.run.bundle import (
     write_bundle,
 )
 from genetics.run.pipeline import analyse
+from genetics.testing.imputation_snapshots import inline_score_records_for_historical_fixture
 from genetics.web import WebConfig, create_app
 
 
@@ -291,6 +292,7 @@ def test_frozen_cli_dashboard_and_historical_format(
     )
     raw = json.loads((old / MANIFEST_NAME).read_text())
     raw["format_version"] = 17
+    inline_score_records_for_historical_fixture(old, raw)
     (old / MANIFEST_NAME).write_text(json.dumps(raw), encoding="utf-8")
     historical = read_bundle(old).cards[0]
     assert historical.ancestry_comparison is None

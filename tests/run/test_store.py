@@ -507,6 +507,20 @@ def test_delete_accepts_the_wreckage_of_a_bundle(runs_root: Path) -> None:
     assert not empty.exists()
 
 
+def test_delete_accepts_wreckage_holding_per_card_score_files(runs_root: Path) -> None:
+    # Format 25 names a score file per polygenic card, so no fixed member list can hold them.
+    wreck = runs_root / "gutted-scores"
+    wreck.mkdir()
+    (wreck / "pgs.run.json").write_text("{}", encoding="utf-8")
+    (wreck / "pgs-some_score.run.json.gz").write_bytes(b"")
+    assert delete_run("gutted-scores", runs_root) == wreck
+    stray = runs_root / "not-a-bundle"
+    stray.mkdir()
+    (stray / "pgs-some_score.json.gz").write_bytes(b"")
+    with pytest.raises(BundleError, match="Refusing to delete"):
+        delete_run("not-a-bundle", runs_root)
+
+
 def test_a_newer_format_run_is_not_counted_as_damaged(
     runs_root: Path, sample_qc: QCReport, sample_pack: KnowledgePack
 ) -> None:

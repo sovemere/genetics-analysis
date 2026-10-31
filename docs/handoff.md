@@ -1,6 +1,6 @@
 # Handoff: M11.6 carrier-screening incompleteness
 
-As of 2026-10-25, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
+As of 2026-11-01, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -41,6 +41,16 @@ the bundle checks. It tightens five card statements against their sources (Gregg
 gnomAD maximum, Scott 2010's carrier-couple pregnancies, the MCAD scope), refuses a saved
 carrier record on a non-autosome, and records that 12 of the 16 panel markers are
 multiallelic in dbSNP. Schema 7, panel schema 1 and bundle format 24 are unchanged.
+**A synthetic end-to-end `genetics run` now fits in memory (2026-10-30 to 11-01).** Two
+attempts on a 32 GB machine were stopped for low memory: the polygenic stage held every
+score's 2.5 GB public 1000 Genomes extraction from preparation to scoring, then every
+private score record (about 1.9 GB parsed per genome-wide score) until saving. Extractions
+now reload one at a time from their cache, which reads 16 times faster. Records stay
+compressed (`pgs/records.py`), and **bundle format 25** saves each as its own
+`pgs-<card id>.run.json.gz`, indexed by `pgs.run.json` schema 2; no evidence is dropped and
+the score record schema is unchanged. Measured stages before the second stop: 14 score
+references 16.5 min, ClinVar coverage 4.5 min, runs of homozygosity 9.5 min, six of 14
+scores 14 min. See the roadmap log.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
@@ -1084,9 +1094,14 @@ Contract for M9.7:
     have 10^5–10^6 rows.
   - Before shipping one, measure the reference extraction (time, memory, cache size).
   - Measure the per-score dosage pass in a default imputed run.
-  - Measure the size of its `pgs.run.json` record: it keeps every term with its native
-    evidence. If a million-row record is impractical, propose a storage change (with a
-    bundle format bump) here first. Do not quietly drop evidence.
+  - Measure the size of its saved record: it keeps every term with its native evidence.
+    *Measured 2026-11-01 on the synthetic export without imputation:* PGS002143's record
+    (966,283 rows) is about 1.9 GB parsed, 743 MB as compact JSON and 46 MB compressed;
+    37% of the per-term JSON is the copied scoring-file columns and 41% the two phases'
+    doses. Bundle format 25 stores each record compressed in its own file and checks one
+    at a time. The terms stay whole because a saved run re-checks coverage, the other
+    allele and unusable rows' raw definitions from them without the scoring file. Measure
+    again with imputation on: the after-imputation doses will be denser.
   - Report coverage before and after imputation for each score on the real panel.
 - **Acceptance.** Run the full `cards lint`, fetch and lock every new score, and put
   public 1000 Genomes stand-ins through the polygenic stage. Then **look at the
@@ -1107,7 +1122,8 @@ Contract for M9.7:
   (scoring-file lock, licence gate, public 1000 Genomes extraction), places the sample once,
   then scores each card with the M9.2-M9.5 functions. Absent inputs give `not_run` with the
   fix; a lock mismatch raises. A run gives no restricted-licence opt-in.
-- **Bundle format 17.** `pgs.run.json` holds each card's private score record. Reading
+- **Bundle format 17.** `pgs.run.json` holds each card's private score record (from
+  format 25, one `pgs-<card id>.run.json.gz` per card, indexed by `pgs.run.json`). Reading
   re-derives the record's coverage, distribution and portability, then the card's display,
   reliability and face text, and refuses any disagreement or an unpaired record.
 - **No point estimate.** The display carries the reference histogram and quantiles and the

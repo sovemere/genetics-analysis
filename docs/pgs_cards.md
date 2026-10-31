@@ -56,8 +56,13 @@ uses (`pgs/runner.py`):
    per run and scores each card. Each card's extraction is reloaded from the cache and
    released before the next card's loads. Holding all of them from step 1 reached 23 GB
    with ten of the pack's 14 loaded and exhausted a 32 GB machine (2026-10-30).
-3. **Each card's private score record** is saved in the bundle as `pgs.run.json`. This
-   needs **bundle format 17**; formats 1–16 carry no polygenic cards.
+3. **Each card's private score record** is saved in the bundle. From format 25 each is its
+   own gzip file, `pgs-<card id>.run.json.gz`, and `pgs.run.json` (schema 2) is the index;
+   formats 17–24 hold every record inline in `pgs.run.json` (schema 1). A genome-wide
+   record keeps a term per scoring row: for PGS002143 (966,283 rows) about 1.9 GB parsed,
+   743 MB as compact JSON and 46 MB compressed. The run holds records compressed and every
+   check parses one at a time (2026-11-01). Polygenic cards need **bundle format 17** or
+   later; formats 1–16 carry none.
 
 Absence and errors are handled differently:
 

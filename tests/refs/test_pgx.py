@@ -28,6 +28,7 @@ from genetics.pgx.sql import REQUIRED, Tables, copy_value, read_dump
 from genetics.qc.report import InferredSex
 from genetics.refs import manifest, postprocess
 from genetics.refs.postprocess import ProcessError, ProcessStatus
+from genetics.testing.imputation_snapshots import inline_score_records_for_historical_fixture
 
 if TYPE_CHECKING:
     from genetics.engine.cards import KnowledgePack
@@ -466,6 +467,7 @@ def test_saved_pgx_cli_dashboard_and_historical_parity(
     header["format_version"] = 18
     header["files"].pop(PGX_NAME)
     (path / PGX_NAME).unlink()
+    inline_score_records_for_historical_fixture(path, header)
     manifest_path.write_text(json.dumps(header), encoding="utf-8")
     assert read_bundle(path).pgx is None
     historical = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19")
@@ -1975,6 +1977,7 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
         header["format_version"] = 18
         header["files"].pop(PGX_NAME)
         (path / PGX_NAME).unlink()
+        inline_score_records_for_historical_fixture(path, header)
         header_path.write_text(json.dumps(header), encoding="utf-8")
     before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
     bundle = read_bundle(path)

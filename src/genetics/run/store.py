@@ -46,6 +46,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from genetics.imputation.snapshot import CATALOG_NAMES, is_dosage_name
+from genetics.pgs.records import is_score_file_name
 from genetics.privacy import NoGenotypeRepr
 from genetics.run.bundle import (
     BUNDLE_FORMAT_VERSION,
@@ -507,7 +508,9 @@ def _unexpected_members(directory: Path) -> list[str]:
     return sorted(
         item.name
         for item in directory.iterdir()
-        if item.name not in BUNDLE_MEMBERS and not is_dosage_name(item.name)
+        if item.name not in BUNDLE_MEMBERS
+        and not is_dosage_name(item.name)
+        and not is_score_file_name(item.name)
     )
 
 

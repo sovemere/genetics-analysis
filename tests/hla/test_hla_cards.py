@@ -25,6 +25,8 @@ from genetics.external import hibag
 from genetics.hla import calling, cards, models, selection
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.refs import postprocess
+from genetics.run.bundle import SCORE_FILES_FORMAT_VERSION
+from genetics.testing.imputation_snapshots import inline_score_records_for_historical_fixture
 
 ALLELES = {
     "A": ["01:01", "02:01", "31:01"],
@@ -662,6 +664,8 @@ def _rewrite(path: Path, name: str, payload: Any, *, version: int | None = None)
     header["files"][name] = hashlib.sha256(raw).hexdigest()
     if version is not None:
         header["format_version"] = version
+        if version < SCORE_FILES_FORMAT_VERSION:
+            inline_score_records_for_historical_fixture(path, header)
     header_path.write_text(json.dumps(header))
 
 

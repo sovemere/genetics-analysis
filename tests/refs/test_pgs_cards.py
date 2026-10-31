@@ -10,6 +10,7 @@ private run is read.
 from __future__ import annotations
 
 import gc
+import gzip
 import hashlib
 import itertools
 import json
@@ -58,6 +59,7 @@ from genetics.pgs.cards import (
     record_digest,
 )
 from genetics.pgs.catalog import ID_COLUMN, TERMS_COLUMN, Catalog, PgsError, ScoreMetadata
+from genetics.pgs.records import ScoreRecords, encode, score_file_name
 from genetics.pgs.runner import PolygenicStage, locate_scoring_file
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
@@ -66,6 +68,7 @@ from genetics.run.bundle import (
     CARDS_NAME,
     MANIFEST_NAME,
     PGS_NAME,
+    SCORE_FILES_FORMAT_VERSION,
     BundleError,
     read_bundle,
 )
@@ -1292,24 +1295,79 @@ def tamper_cases() -> dict[str, Any]:
     def phase_coverage(data: dict[str, Any]) -> None:
         _card(data)["computation"]["result"]["phase_coverage"]["before"]["variants_covered"] += 1
 
+    def record_sum(path: Path) -> None:
+        _rewrite_score(path, lambda d: d["before"].update(sum=99.0))
+
+    def record_portability(path: Path) -> None:
+        _rewrite_score(path, lambda d: d["portability"].update(ancestry_match=0.1))
+
+    def record_missing(path: Path) -> None:
+        _rewrite(path, PGS_NAME, lambda d: d["files"].clear())
+        _record_file(path, SCORE_FILE, None)
+
+    def record_orphan(path: Path) -> None:
+        orphan = score_file_name("extra")
+        _rewrite(path, PGS_NAME, lambda d: d["files"].update(extra=orphan))
+        _record_file(path, orphan, (path / SCORE_FILE).read_bytes())
+
+    def record_unindexed(path: Path) -> None:
+        _rewrite(path, PGS_NAME, lambda d: d["files"].clear())
+
+    def record_misnamed(path: Path) -> None:
+        _rewrite(path, PGS_NAME, lambda d: d["files"].update(synthetic_polygenic=CARDS_NAME))
+
+    def record_undecodable(path: Path) -> None:
+        _record_file(path, SCORE_FILE, gzip.compress(b"not json", mtime=0))
+
+    def record_inline_schema(path: Path) -> None:
+        _rewrite(path, PGS_NAME, lambda d: d.update(schema_version=1))
+
+    def files_in_an_older_format(path: Path) -> None:
+        manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+        manifest["format_version"] = SCORE_FILES_FORMAT_VERSION - 1
+        (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+
+    def cards(change: Any) -> Any:
+        return lambda path: _rewrite(path, CARDS_NAME, change)
+
     return {
-        f.__name__: (CARDS_NAME, f)
-        for f in (face, point, tier, evidence_tier, status, phase_coverage)
+        f.__name__: cards(f) for f in (face, point, tier, evidence_tier, status, phase_coverage)
     } | {
-        "record_sum": (
-            PGS_NAME,
-            lambda d: d["scores"]["synthetic_polygenic"]["before"].update(sum=99.0),
-        ),
-        "record_portability": (
-            PGS_NAME,
-            lambda d: d["scores"]["synthetic_polygenic"]["portability"].update(ancestry_match=0.1),
-        ),
-        "record_missing": (PGS_NAME, lambda d: d["scores"].clear()),
-        "record_orphan": (
-            PGS_NAME,
-            lambda d: d["scores"].update(extra=d["scores"]["synthetic_polygenic"]),
-        ),
+        f.__name__: f
+        for f in (
+            record_sum,
+            record_portability,
+            record_missing,
+            record_orphan,
+            record_unindexed,
+            record_misnamed,
+            record_undecodable,
+            record_inline_schema,
+            files_in_an_older_format,
+        )
     }
+
+
+SCORE_FILE = score_file_name("synthetic_polygenic")
+
+
+def _record_file(path: Path, name: str, data: bytes | None) -> None:
+    """Write (or with ``None`` remove) a payload file and re-record its digest."""
+    manifest_path = path / MANIFEST_NAME
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if data is None:
+        (path / name).unlink()
+        del manifest["files"][name]
+    else:
+        (path / name).write_bytes(data)
+        manifest["files"][name] = hashlib.sha256(data).hexdigest()
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+
+
+def _rewrite_score(path: Path, change: Any) -> None:
+    data = json.loads(gzip.decompress((path / SCORE_FILE).read_bytes()))
+    change(data)
+    _record_file(path, SCORE_FILE, gzip.compress(encode(data), mtime=0))
 
 
 @pytest.mark.parametrize("case", sorted(tamper_cases()))
@@ -1317,10 +1375,29 @@ def test_tampered_polygenic_runs_are_refused(
     setup: dict[str, Any], fake: MultiPlink, case: str
 ) -> None:
     path = save(run(setup, fake))
-    name, change = tamper_cases()[case]
-    _rewrite(path, name, change)
+    read_bundle(path)
+    tamper_cases()[case](path)
     with pytest.raises(BundleError):
         read_bundle(path)
+
+
+def test_a_record_is_saved_as_its_own_compressed_file(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    analysis = run(setup, fake)
+    assert isinstance(analysis.polygenic, ScoreRecords)
+    path = save(analysis)
+    index = json.loads((path / PGS_NAME).read_text(encoding="utf-8"))
+    assert index == {"schema_version": 2, "files": {"synthetic_polygenic": SCORE_FILE}}
+    saved = (path / SCORE_FILE).read_bytes()
+    assert saved == analysis.polygenic.compressed("synthetic_polygenic")
+    assert json.loads(gzip.decompress(saved)) == analysis.polygenic["synthetic_polygenic"]
+    manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+    assert manifest["files"][SCORE_FILE] == hashlib.sha256(saved).hexdigest()
+    # A record parses afresh on every access, so iterating never holds two.
+    assert (
+        analysis.polygenic["synthetic_polygenic"] is not analysis.polygenic["synthetic_polygenic"]
+    )
 
 
 def test_an_older_format_cannot_carry_a_polygenic_card(
@@ -1333,6 +1410,7 @@ def test_an_older_format_cannot_carry_a_polygenic_card(
     manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
     manifest["format_version"] = 16
     del manifest["files"][PGS_NAME]
+    del manifest["files"][SCORE_FILE]
     (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
     with pytest.raises(BundleError, match="format 17"):
         read_bundle(path)
