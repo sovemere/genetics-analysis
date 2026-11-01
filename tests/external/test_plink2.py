@@ -24,12 +24,16 @@ import pytest
 
 from genetics.external import plink2 as mod
 from genetics.external.plink2 import (
+    DEFAULT_MEMORY_MB,
+    MEMORY_ENV,
     Plink2,
     Plink2Error,
     Plink2NotFoundError,
+    Plink2ResultInfo,
     Plink2RunError,
     Plink2VersionError,
 )
+from genetics.external.plink19 import Plink19
 from genetics.refs import tools
 
 PINNED = "PLINK v2.0.0-a.7.3 64-bit (8 Aug 2026)"
@@ -146,6 +150,7 @@ def test_discover_raises_rather_than_returning_none_for_a_broken_binary(tmp_path
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("no_memory_override")
 def test_run_appends_out_and_preserves_argument_order(
     tmp_path: Path, stub_plink2: Callable[[str], Plink2]
 ) -> None:
@@ -159,8 +164,119 @@ def test_run_appends_out_and_preserves_argument_order(
         if line.startswith("ARGV:")
     ).split("|")
     assert argv[:4] == ["--vcf", "in.vcf", "--make-pgen", "--sort-vars"]
-    assert argv[4] == "--out"
-    assert Path(argv[5]) == tmp_path / "o" / "s"
+    assert argv[4:6] == ["--memory", str(DEFAULT_MEMORY_MB)]
+    assert argv[6] == "--out"
+    assert Path(argv[7]) == tmp_path / "o" / "s"
+    assert result.args == ("--vcf", "in.vcf", "--make-pgen", "--sort-vars")
+
+
+def _argv(result: Plink2ResultInfo) -> list[str]:
+    return next(
+        line.removeprefix("ARGV:")
+        for line in result.stdout.splitlines()
+        if line.startswith("ARGV:")
+    ).split("|")
+
+
+@pytest.fixture
+def no_memory_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv(MEMORY_ENV, raising=False)
+
+
+@pytest.mark.usefixtures("no_memory_override")
+def test_the_default_cap_is_4_gib_and_the_pinned_plink_1_9_gets_it_too(
+    tmp_path: Path, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    """Without the flag both pinned builds reserve half of physical memory (2026-11-01)."""
+    assert DEFAULT_MEMORY_MB == 4096
+    stub = stub_plink2(ECHO_ARGV)
+    plink19 = Plink19(path=stub.path, version=stub.version)
+
+    argv = _argv(plink19.run(["--bfile", "x", "--homozyg"], out=tmp_path / "s"))
+
+    assert argv.count("--memory") == 1
+    assert argv[argv.index("--memory") + 1] == "4096"
+
+
+@pytest.mark.usefixtures("no_memory_override")
+def test_a_callers_own_memory_flag_is_kept_and_not_doubled(
+    tmp_path: Path, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    """The polygenic engine's ``--score`` sets 1024 itself; that value must reach PLINK."""
+    plink = stub_plink2(ECHO_ARGV)
+
+    argv = _argv(plink.run(["--pfile", "x", "--memory", "1024"], out=tmp_path / "s"))
+
+    assert argv.count("--memory") == 1
+    assert argv[argv.index("--memory") + 1] == "1024"
+
+
+def test_the_environment_overrides_the_cap(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    monkeypatch.setenv(MEMORY_ENV, " 12000 ")
+    plink = stub_plink2(ECHO_ARGV)
+
+    argv = _argv(plink.run(["--pfile", "x"], out=tmp_path / "s"))
+
+    assert argv[argv.index("--memory") + 1] == "12000"
+
+
+@pytest.mark.parametrize("bad", ["639", "0", "-4096", "4096.5", "4 GB", "abc", "٤٠٩٦"])
+def test_an_unusable_override_is_refused_by_name_before_plink_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, bad: str, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    """639 is one below the pinned PLINK 2's floor; the last value is Arabic-Indic digits."""
+    monkeypatch.setenv(MEMORY_ENV, bad)
+    marker = tmp_path / "ran"
+    plink = stub_plink2(f"open({str(marker)!r}, 'w').close()\n")
+
+    with pytest.raises(Plink2Error, match=MEMORY_ENV) as excinfo:
+        plink.run(["--pfile", "x"], out=tmp_path / "s")
+
+    assert not isinstance(excinfo.value, Plink2RunError)
+    assert not marker.exists()
+
+
+OUT_OF_MEMORY = """
+import sys
+sys.stderr.write('Error: Out of memory.  Consider "--pca approx" instead.\\n')
+sys.stderr.write("Failed allocation size: 1152000000\\n")
+sys.exit(2)
+"""
+"""The pinned PLINK 2's words and exit code for ``--pca`` beyond its workspace, measured on
+``--dummy 12000 3000 --memory 640 --pca 5``. PLINK 1.9 exits 1 with "Error: Out of memory.
+The --memory flag may be helpful."; the hint keys on the shared phrase, not the code."""
+
+
+@pytest.mark.usefixtures("no_memory_override")
+def test_running_out_of_the_capped_workspace_names_the_override(
+    tmp_path: Path, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    plink = stub_plink2(OUT_OF_MEMORY)
+
+    with pytest.raises(Plink2RunError) as excinfo:
+        plink.run(["--pfile", "x", "--pca", "5"], out=tmp_path / "s")
+
+    message = str(excinfo.value)
+    assert excinfo.value.returncode == 2
+    assert "Out of memory" in message and "Failed allocation size" in message
+    assert f"capped PLINK 2's workspace at {DEFAULT_MEMORY_MB} MiB" in message
+    assert MEMORY_ENV in message
+
+
+@pytest.mark.usefixtures("no_memory_override")
+def test_a_callers_own_cap_running_out_gets_no_hint_about_the_wrappers(
+    tmp_path: Path, stub_plink2: Callable[[str], Plink2]
+) -> None:
+    """The variable would not change a value the caller fixed, so naming it would mislead."""
+    plink = stub_plink2(OUT_OF_MEMORY)
+
+    with pytest.raises(Plink2RunError) as excinfo:
+        plink.run(["--pfile", "x", "--memory", "1024"], out=tmp_path / "s")
+
+    assert "Out of memory" in str(excinfo.value)
+    assert MEMORY_ENV not in str(excinfo.value)
 
 
 @pytest.mark.parametrize("bad", ["--out", "--out=elsewhere"])

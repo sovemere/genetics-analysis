@@ -35,10 +35,21 @@ file does -- into a terminal, an issue comment, a bug report -- so only the ``Er
 hours, and a wrapper-level default would be a guess whose only effect is to kill the
 longest, most expensive step in the pipeline. Callers that know their budget pass one; the
 version probe, which is the one call whose duration is knowable, has its own.
+
+**Every invocation gets a ``--memory`` cap unless its caller set one.** Without the flag,
+both pinned builds reserve half of physical memory for their workspace before reading
+anything ("32616 MiB RAM detected; reserving 16308 MiB for main workspace."), however
+small the job. Beside a Python process holding a polygenic score, that reservation is what
+a 32 GB machine cannot spare. The default, :data:`DEFAULT_MEMORY_MB`, is the cap the
+synthetic end-to-end runs of 2026-10-30 and 31 used; the most PLINK held under it was
+about 1.3 GB, during runs of homozygosity. :data:`MEMORY_ENV` overrides it for every call.
+A cap that proves too small fails as PLINK's own "Out of memory" error, and the wrapper
+adds the variable's name to it.
 """
 
 from __future__ import annotations
 
+import os
 import subprocess
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -50,6 +61,8 @@ from genetics.privacy import NoGenotypeRepr, redact
 from genetics.refs import tools
 
 __all__ = [
+    "DEFAULT_MEMORY_MB",
+    "MEMORY_ENV",
     "PLINK2_TOOL_ID",
     "Plink2",
     "Plink2Error",
@@ -57,9 +70,20 @@ __all__ = [
     "Plink2ResultInfo",
     "Plink2RunError",
     "Plink2VersionError",
+    "memory_mb",
 ]
 
 PLINK2_TOOL_ID = "plink2"
+
+MEMORY_ENV = "GENETICS_PLINK_MEMORY_MB"
+"""Overrides :data:`DEFAULT_MEMORY_MB` for every PLINK 2 and PLINK 1.9 invocation."""
+
+DEFAULT_MEMORY_MB = 4096
+"""The workspace cap, in MiB, passed as ``--memory`` when a caller sets none."""
+
+_MINIMUM_MEMORY_MB = 640
+"""The pinned PLINK 2's own floor: ``--memory 64`` exits 8 with "Invalid --memory argument
+'64' (minimum 640)". PLINK 1.9's is 64, so one value valid for both starts here."""
 
 _WRAP_COLUMN = 79
 """Where the pinned build hard-wraps its messages, measured rather than assumed: the
@@ -278,8 +302,10 @@ class Plink2:
                 "`out` argument instead so that every invocation's output has one home."
             )
 
+        cap = None if "--memory" in argv else memory_mb()
         out.parent.mkdir(parents=True, exist_ok=True)
-        command = [str(self.path), *argv, "--out", str(out)]
+        memory = [] if cap is None else ["--memory", str(cap)]
+        command = [str(self.path), *argv, *memory, "--out", str(out)]
 
         try:
             completed = subprocess.run(
@@ -308,9 +334,15 @@ class Plink2:
 
         if completed.returncode != 0:
             detail = _error_text(completed.stderr, log_text)
+            hint = ""
+            if cap is not None and "Out of memory" in detail:
+                hint = (
+                    f" This run capped {self.label}'s workspace at {cap} MiB; set "
+                    f"{MEMORY_ENV} to a larger number of MiB to raise it."
+                )
             raise Plink2RunError(
                 f"{self.label} failed (exit {completed.returncode}): "
-                f"{detail or 'it reported no error text.'}",
+                f"{detail or 'it reported no error text.'}{hint}",
                 returncode=completed.returncode,
                 messages=tuple(detail.splitlines()) if detail else (),
             )
@@ -324,6 +356,25 @@ class Plink2:
             log_path=log_path,
             warnings=_warnings(log_text or completed.stdout),
         )
+
+
+def memory_mb() -> int:
+    """The ``--memory`` cap for an invocation whose caller set none.
+
+    Read on every call rather than once, so a test or a long-lived process sees the
+    environment as it is now. A value that is not a whole number of MiB at or above
+    PLINK 2's floor is refused here, naming the variable, rather than reaching PLINK as an
+    "Invalid --memory argument" error that never mentions where the number came from.
+    """
+    raw = os.environ.get(MEMORY_ENV, "").strip()
+    if not raw:
+        return DEFAULT_MEMORY_MB
+    if not raw.isascii() or not raw.isdigit() or int(raw) < _MINIMUM_MEMORY_MB:
+        raise Plink2Error(
+            f"{MEMORY_ENV} must be a whole number of MiB, at least {_MINIMUM_MEMORY_MB} "
+            f"(PLINK 2's minimum); it is {raw!r}."
+        )
+    return int(raw)
 
 
 def _read_log(path: Path) -> str:

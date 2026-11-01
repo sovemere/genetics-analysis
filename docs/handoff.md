@@ -50,7 +50,10 @@ compressed (`pgs/records.py`), and **bundle format 25** saves each as its own
 `pgs-<card id>.run.json.gz`, indexed by `pgs.run.json` schema 2; no evidence is dropped and
 the score record schema is unchanged. Measured stages before the second stop: 14 score
 references 16.5 min, ClinVar coverage 4.5 min, runs of homozygosity 9.5 min, six of 14
-scores 14 min. See the roadmap log.
+scores 14 min. See the roadmap log. Every PLINK 2 and PLINK 1.9 call is now capped at
+`--memory 4096` unless its caller sets its own; without the flag each reserves half of
+physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
+names it (`external/plink2.py`).
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
