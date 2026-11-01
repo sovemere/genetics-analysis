@@ -48,9 +48,14 @@ private score record (about 1.9 GB parsed per genome-wide score) until saving. E
 now reload one at a time from their cache, which reads 16 times faster. Records stay
 compressed (`pgs/records.py`), and **bundle format 25** saves each as its own
 `pgs-<card id>.run.json.gz`, indexed by `pgs.run.json` schema 2; no evidence is dropped and
-the score record schema is unchanged. Measured stages before the second stop: 14 score
-references 16.5 min, ClinVar coverage 4.5 min, runs of homozygosity 9.5 min, six of 14
-scores 14 min. See the roadmap log. Every PLINK 2 and PLINK 1.9 call is now capped at
+the score record schema is unchanged. **A complete run on `0f772ff` took 57.8 min**
+(synthetic export, `--no-impute`, warm reference caches): 14 score references 10.4 min,
+ClinVar coverage 3.5 min, runs of homozygosity 7.7 min, 14 scores 27.9 min, PGx and HLA
+16 s, saving 7.7 min. Saving is mostly the write-side check of the 14 score records;
+opening the run re-checks them too and has not been timed. Python peaked at 7.6 GB while
+one score was loaded, and at least 10.9 GB stayed free. The saved run is 948 MB: 0.5 GB
+of compressed score records, and a 402 MB `cards.run.json` in which `g6pd_guidelines`
+alone is 85 MB (52 MB of `branches`, 33 MB of `recommendations`). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is now capped at
 `--memory 4096` unless its caller sets its own; without the flag each reserves half of
 physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
 names it (`external/plink2.py`).
