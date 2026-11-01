@@ -85,6 +85,29 @@ def _no_fetched_references_for_ancestry(
 
 
 @pytest.fixture(scope="session", autouse=True)
+def _run_parts_outside_the_user_cache(
+    tmp_path_factory: pytest.TempPathFactory,
+) -> Iterator[None]:
+    """A test that runs `genetics run` without its own data directory keeps saved parts here.
+
+    `genetics run` saves resumable parts under the user cache (run/parts.py). A CLI test that
+    expects a run to fail, and sets no ``GENETICS_DATA_DIR``, would otherwise leave them in
+    this machine's real cache, as one did on 2026-11-01. A test with its own data directory
+    keeps them there, where it can look for them.
+    """
+    from genetics import paths
+
+    fallback = tmp_path_factory.mktemp("run-parts")
+
+    def isolated() -> Path:
+        return paths.run_parts_dir() if os.environ.get("GENETICS_DATA_DIR") else fallback
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr("genetics.run.parts.run_parts_dir", isolated)
+        yield
+
+
+@pytest.fixture(scope="session", autouse=True)
 def _uncoloured_cli() -> Iterator[None]:
     """Make Typer's help and error output plain text, the same way everywhere.
 

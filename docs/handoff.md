@@ -78,9 +78,12 @@ ClinVar, runs of homozygosity and archaic cards (about 12 min) are recomputed, a
 bundle write stays a single rename. Parts are reused only under the same export, engine
 source, knowledge pack, reference lock, tools and options. A damaged part is recomputed
 with a progress line saying so, and the bundle writer checks every reused part as it
-would a fresh one. Parts are private, under `cache/run-parts/`, and are removed once the
-bundle is saved; `--restart` discards them first. Nothing here has been timed on an
-imputed run.
+would a fresh one. Parts are private, under `cache/run-parts/`. Nothing is written there
+until the first part is saved, and the parts are removed once the bundle is saved;
+`--restart` discards them first. A test session keeps them in a temporary directory
+unless the test sets its own data directory (`tests/conftest.py`): one CLI test that
+expects a failing run left a contract file in the real cache before this. Nothing here has
+been timed on an imputed run.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in

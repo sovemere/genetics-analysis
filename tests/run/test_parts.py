@@ -231,6 +231,8 @@ def test_each_part_round_trips_and_a_failed_save_costs_only_the_resume(
     root = tmp_path / "parts"
     parts = RunParts.open({"run": 1}, root=root, progress=messages.append)
     assert messages[-1].startswith("Saving this run's parts as they finish")
+    # Nothing is written before the first part, so a run failing earlier leaves nothing.
+    assert not root.exists()
     # Two records at one locus stay together and in order; a locus nobody reads is dropped.
     stream = [dosage(10, "1"), dosage(20, "1"), dosage(20, "1"), dosage(30, "2")]
     index = index_dosages(stream, {("1", 20), ("2", 30)})

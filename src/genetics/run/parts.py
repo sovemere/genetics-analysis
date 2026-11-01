@@ -127,6 +127,8 @@ class RunParts(NoGenotypeRepr):
     directory: Path
     key: str
     progress: Callable[[str], None] | None = None
+    terms: bytes = b""
+    """The canonical contract, written beside the first part saved."""
 
     @classmethod
     def open(
@@ -137,7 +139,11 @@ class RunParts(NoGenotypeRepr):
         restart: bool = False,
         progress: Callable[[str], None] | None = None,
     ) -> RunParts:
-        """The parts saved under ``terms``, after discarding them when ``restart``."""
+        """The parts saved under ``terms``, after discarding them when ``restart``.
+
+        Nothing is written until a part is saved, so a run that fails before its first part
+        leaves nothing behind.
+        """
         text = _canonical(dict(terms))
         key = hashlib.sha256(text).hexdigest()
         base = (root if root is not None else run_parts_dir()).resolve()
@@ -149,25 +155,21 @@ class RunParts(NoGenotypeRepr):
             )
         if base.is_symlink() or directory.is_symlink():
             raise RunPartsError("A saved run parts directory cannot be a symbolic link.")
-        parts = cls(directory, key, progress)
+        parts = cls(directory, key, progress, text)
         if restart and directory.exists():
             shutil.rmtree(directory)
             parts._emit("Discarded the saved parts of an earlier run of this export")
-        directory.mkdir(parents=True, exist_ok=True)
-        try:
-            same = json.loads((directory / CONTRACT_NAME).read_bytes()) == json.loads(text)
-        except FileNotFoundError:
-            same = None
-        except (OSError, ValueError):
-            same = False
-        if same is False:
-            # The key is the digest of these terms, so a disagreeing file is a damaged one,
-            # and nothing it was saved beside can be told apart from damage either.
-            parts._emit("The saved run parts' contract is damaged; discarding them")
-            shutil.rmtree(directory)
-            directory.mkdir(parents=True)
-        if not same:
-            parts._replace(CONTRACT_NAME, text)
+        if directory.exists():
+            try:
+                same = json.loads((directory / CONTRACT_NAME).read_bytes()) == json.loads(text)
+            except (OSError, ValueError):
+                same = False
+            if not same:
+                # The key is the digest of these terms, and the contract is written before
+                # any part, so a missing or disagreeing one is damage, and nothing saved
+                # beside it can be told apart from damage either.
+                parts._emit("The saved run parts' contract is damaged; discarding them")
+                shutil.rmtree(directory)
         held = parts.describe()
         parts._emit(
             f"Resuming an interrupted run of this export from its saved parts: {held}"
@@ -231,6 +233,9 @@ class RunParts(NoGenotypeRepr):
         """Save one part. Failing to save costs the resume, never the run."""
         pending = self.directory / f"{PENDING_PREFIX}{uuid.uuid4().hex}-{name}"
         try:
+            if not (self.directory / CONTRACT_NAME).exists():
+                self.directory.mkdir(parents=True, exist_ok=True)
+                self._replace(CONTRACT_NAME, self.terms)
             try:
                 with pending.open("wb") as handle:
                     write(handle)
@@ -290,10 +295,12 @@ class RunParts(NoGenotypeRepr):
 
     def discard(self) -> None:
         """Remove every saved part, once the run's bundle holds the result."""
+        if not self.directory.exists():
+            with contextlib.suppress(OSError):
+                self.directory.parent.rmdir()
+            return
         try:
             shutil.rmtree(self.directory)
-        except FileNotFoundError:
-            pass
         except OSError as exc:
             self._emit(
                 f"Could not remove this run's saved parts ({exc.strerror or type(exc).__name__});"
