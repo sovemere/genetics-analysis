@@ -13,7 +13,7 @@ import math
 import re
 import zlib
 from collections import Counter
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TextIO
@@ -24,6 +24,13 @@ FLAGS = ("is_haplotype", "is_diplotype", "is_interaction", "is_dominant", "is_re
 DOSAGE_WEIGHTS = ("dosage_0_weight", "dosage_1_weight", "dosage_2_weight")
 BUILDS = {"GRCh37", "GRCh38", "hg19", "hg38", "NCBI36", "NR"}
 BUILD_ALIASES = {"hg19": "GRCh37", "hg38": "GRCh38"}
+
+# Built once: each was rebuilt per call, three calls a row, and the chromosome set alone was
+# 40% of parsing a 966,283-row score (2026-11-01).
+_CHROMS = frozenset({*(str(i) for i in range(1, 23)), "X", "Y", "MT", "M", "XY"})
+_CHROM_ALIASES = {"M": "MT", "XY": "PAR"}
+_SNV_ALLELE = re.compile(r"[ACGT]+")
+_OTHER_ALLELE = re.compile(r"[ACGTID-]+(?:[,/][ACGTID-]+)*")
 
 
 def _number(value: str, label: str, line: int) -> float:
@@ -39,7 +46,9 @@ def _number(value: str, label: str, line: int) -> float:
 def _position(value: str, label: str, line: int) -> int | None:
     if not value:
         return None
-    if not re.fullmatch(r"[0-9]+", value) or int(value) <= 0:
+    # ASCII digits only, as the regular expression [0-9]+ accepted: str.isdigit alone would
+    # also take superscripts and other scripts' digits.
+    if not (value.isascii() and value.isdigit()) or int(value) <= 0:
         raise PgsError(f"Scoring row {line}: invalid {label}.")
     return int(value)
 
@@ -47,9 +56,9 @@ def _position(value: str, label: str, line: int) -> int | None:
 def _chrom(value: str, line: int) -> str | None:
     if not value:
         return None
-    if value not in {*(str(i) for i in range(1, 23)), "X", "Y", "MT", "M", "XY"}:
+    if value not in _CHROMS:
         raise PgsError(f"Scoring row {line}: unsupported chromosome.")
-    return {"M": "MT", "XY": "PAR"}.get(value, value)
+    return _CHROM_ALIASES.get(value, value)
 
 
 def _header(handle: TextIO) -> tuple[dict[str, str], tuple[str, ...]]:
@@ -110,23 +119,28 @@ class ScoreVariant:
 def _row(fields: Mapping[str, str], *, line: int, harmonized: bool) -> ScoreVariant:
     flags: dict[str, bool] = {}
     for key in FLAGS:
-        value = fields.get(key, "").casefold()
-        if value not in {"", "true", "false"}:
-            raise PgsError(f"Scoring row {line}: invalid model flag.")
+        value = fields.get(key, "")
+        if value:
+            value = value.casefold()
+            if value not in {"true", "false"}:
+                raise PgsError(f"Scoring row {line}: invalid model flag.")
         flags[key] = value == "true"
     if flags["is_dominant"] and flags["is_recessive"]:
         raise PgsError(f"Scoring row {line}: conflicting inheritance models.")
     features = {key for key, enabled in flags.items() if enabled}
-    for chr_key, pos_key in (("chr_name", "chr_position"), ("hm_chr", "hm_pos")):
-        chrom = _chrom(fields.get(chr_key, ""), line)
-        position = _position(fields.get(pos_key, ""), pos_key, line)
-        if harmonized and chr_key == "hm_chr" and (chrom is None) != (position is None):
-            raise PgsError(f"Scoring row {line}: incomplete coordinate pair.")
-    prefix = "hm_" if harmonized else "chr_"
-    chrom = _chrom(fields.get(prefix + ("chr" if harmonized else "name"), ""), line)
-    position = _position(
-        fields.get(prefix + ("pos" if harmonized else "position"), ""), "position", line
+    # Both pairs are validated whichever is used; the used pair is then taken from here
+    # rather than parsed a second time.
+    original = (
+        _chrom(fields.get("chr_name", ""), line),
+        _position(fields.get("chr_position", ""), "chr_position", line),
     )
+    lifted = (
+        _chrom(fields.get("hm_chr", ""), line),
+        _position(fields.get("hm_pos", ""), "hm_pos", line),
+    )
+    if harmonized and (lifted[0] is None) != (lifted[1] is None):
+        raise PgsError(f"Scoring row {line}: incomplete coordinate pair.")
+    chrom, position = lifted if harmonized else original
     identifier = fields.get("rsID", "")
     if chrom is None or position is None:
         chrom = None
@@ -141,7 +155,7 @@ def _row(fields: Mapping[str, str], *, line: int, harmonized: bool) -> ScoreVari
     hla = identifier.startswith("HLA-") or fields.get("imputation_method", "") != ""
     if hla:
         features.add("special_calling_method")
-    if not re.fullmatch(r"[ACGT]+", allele):
+    if not _SNV_ALLELE.fullmatch(allele):
         if allele in {"I", "D", "-"}:
             features.add("unresolved_indel")
         elif not complex_model and not hla:
@@ -154,7 +168,7 @@ def _row(fields: Mapping[str, str], *, line: int, harmonized: bool) -> ScoreVari
             other
             and not complex_model
             and not hla
-            and (not re.fullmatch(r"[ACGTID-]+(?:[,/][ACGTID-]+)*", other) or other == allele)
+            and (not _OTHER_ALLELE.fullmatch(other) or other == allele)
         ):
             raise PgsError(f"Scoring row {line}: invalid other allele definition.")
     if fields.get("hm_inferOtherAllele"):
@@ -263,10 +277,17 @@ class ScoringFile:
         if fingerprint(self.path) != dict(self.source):
             raise PgsError("Scoring source changed during iteration.")
 
-    def inspect(self) -> dict[str, Any]:
+    def inspect(self, variants: Sequence[ScoreVariant] | None = None) -> dict[str, Any]:
+        """The score's definition summary.
+
+        ``variants`` may pass rows a caller has already read in full from this file's own
+        :meth:`iter_variants`, which checked the source before and after; the file is then
+        not parsed a second time. Scoring did exactly that, at 14 s a parse for a
+        966,283-row score.
+        """
         features: Counter[str] = Counter()
         rows = 0
-        for variant in self.iter_variants():
+        for variant in self.iter_variants() if variants is None else variants:
             rows += 1
             features.update(variant.features)
         return {

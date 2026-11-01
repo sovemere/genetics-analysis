@@ -11,6 +11,7 @@ from genetics.engine.matcher import MatchResult
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, GenotypeTable
 from genetics.qc.report import InferredSex
 
+from .dosages import SCORING_CHROMOSOMES
 from .pipeline import ImputationResult
 from .quality import ImputationEvidence
 from .target import ImputationError, regions
@@ -59,7 +60,7 @@ def card_input(
             duplicates.add(locus)
         seen.add(locus)
         if (
-            record.chrom not in {*(str(i) for i in range(1, 23)), "X"}
+            record.chrom not in SCORING_CHROMOSOMES
             or record.source not in {"imputed_no_call", "imputed_untyped"}
             or record.status != "resolved"
             or len(record.alt) != 1

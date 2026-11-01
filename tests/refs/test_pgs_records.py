@@ -1,4 +1,4 @@
-"""Private score records held compressed (format 25), on fabricated records only."""
+"""Private score records held compressed (formats 25-26), on fabricated records only."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ import json
 
 import pytest
 
+from genetics.pgs.cards import record_digest
 from genetics.pgs.catalog import PgsError
 from genetics.pgs.records import ScoreRecords, encode, is_score_file_name, score_file_name
 
@@ -26,6 +27,14 @@ def test_records_compress_canonically_and_parse_afresh_on_every_access() -> None
     assert held["card_a"] == RECORD and held["card_a"] is not held["card_a"]
     assert ScoreRecords.of(held) is held
     assert held.get("absent") is None
+
+
+def test_the_stored_text_is_the_ascii_canonical_form_a_card_digests() -> None:
+    held = ScoreRecords()
+    held.add("card_a", RECORD)
+    record, text_sha256 = held.parsed("card_a")
+    assert record == RECORD and rb"\u00e9" in gzip.decompress(held.compressed("card_a"))
+    assert text_sha256 == record_digest(RECORD)
 
 
 def test_records_refuse_duplicates_nan_and_undecodable_bytes() -> None:

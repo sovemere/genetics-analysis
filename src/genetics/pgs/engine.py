@@ -27,7 +27,7 @@ from typing import Any, ClassVar
 from genetics import __version__
 from genetics.engine.matcher import complement, is_strand_ambiguous, strand_canonical
 from genetics.external.plink2 import Plink2, Plink2Error
-from genetics.imputation.dosages import DosageRecord, parse_record
+from genetics.imputation.dosages import SCORING_CHROMOSOMES, DosageRecord, parse_record
 from genetics.imputation.quality import ImputationEvidence
 from genetics.ingest.schema import GenotypeTable
 from genetics.paths import cache_dir, is_inside_repo, tools_manifest
@@ -38,6 +38,8 @@ from genetics.qc.report import InferredSex
 from genetics.qc.sex_regions import PAR_GRCH37
 
 SAMPLE = "SAMPLE"
+_AUTOSOMES = frozenset(str(i) for i in range(1, 23))
+_SNV = re.compile(r"[ACGT]+")
 SCORE_SCHEMA_VERSION = 4
 UNSUPPORTED_FEATURES = {
     "is_haplotype",
@@ -101,7 +103,7 @@ class ScoreResult(NoGenotypeRepr):
 
 
 def _ploidy(chrom: str | None, position: int | None, sex: InferredSex) -> int | None:
-    if chrom in {str(i) for i in range(1, 23)}:
+    if chrom in _AUTOSOMES:
         return 2
     if chrom == "X" and position is not None:
         if any(start <= position <= end for start, end in PAR_GRCH37["X"]):
@@ -112,9 +114,9 @@ def _ploidy(chrom: str | None, position: int | None, sex: InferredSex) -> int | 
 
 def allele_pair(row: ScoreVariant) -> tuple[str, str] | None:
     other = row.fields.get("other_allele") or row.fields.get("hm_inferOtherAllele")
-    if not re.fullmatch(r"[ACGT]+", row.effect_allele):
+    if not _SNV.fullmatch(row.effect_allele):
         return None
-    if other is None or not re.fullmatch(r"[ACGT]+", other) or other == row.effect_allele:
+    if other is None or not _SNV.fullmatch(other) or other == row.effect_allele:
         return None
     return row.effect_allele, other
 
@@ -305,7 +307,7 @@ def validate_mode_flags(*flags: bool) -> None:
 def ineligibility_reason(row: ScoreVariant) -> str | None:
     if UNSUPPORTED_FEATURES.intersection(row.features):
         return "unsupported_model"
-    if row.chrom not in {*(str(i) for i in range(1, 23)), "X"}:
+    if row.chrom not in SCORING_CHROMOSOMES:
         return "unsupported_chromosome" if row.chrom is not None else "unresolved_locus"
     if row.position is None:
         return "unresolved_locus"
@@ -632,11 +634,52 @@ def _native_sum_impl(
         ) from exc
 
 
+@dataclass(frozen=True, repr=False)
+class DosageIndex(NoGenotypeRepr):
+    """One read of a run's native dosage stream, kept at the loci its scores use.
+
+    Each score used to read and digest the whole imputed stream itself. That pass costs the
+    same whatever the score's size: 48-69 min per score at M9.9-M9.12 acceptance, so a
+    14-score pack would spend about 12 hours re-reading one stream. A run reads it once.
+    Records keep stream order at each locus, so a score sees exactly what it would have
+    filtered for itself, and the stream digest is the one each score recorded.
+    """
+
+    _repr_fields: ClassVar[tuple[str, ...]] = ("loci_held",)
+    records: Mapping[tuple[str, int], tuple[DosageRecord, ...]]
+    stream_sha256: str
+
+    @property
+    def loci_held(self) -> int:
+        return len(self.records)
+
+
+def index_dosages(
+    dosages: Iterable[DosageRecord],
+    loci: Collection[tuple[str, int]],
+    progress: Callable[[str], None] | None = None,
+) -> DosageIndex:
+    """Read ``dosages`` once: digest every record and keep those at ``loci``."""
+    records: dict[tuple[str, int], list[DosageRecord]] = {}
+    digest = hashlib.sha256()
+    for count, record in enumerate(dosages, 1):
+        if not isinstance(record, DosageRecord):
+            raise PgsError("The scoring dosage iterator returned an invalid record type.")
+        digest.update(json.dumps(record.to_dict(), sort_keys=True, separators=(",", ":")).encode())
+        digest.update(b"\n")
+        locus = (record.chrom, record.pos_grch37)
+        if locus in loci:
+            records.setdefault(locus, []).append(record)
+        if progress and count % 500_000 == 0:
+            progress("Reading native dosage evidence for PGS scoring")
+    return DosageIndex({key: tuple(found) for key, found in records.items()}, digest.hexdigest())
+
+
 def score(
     scoring: ScoringFile,
     *,
     table: GenotypeTable | None,
-    dosages: Iterable[DosageRecord] | None = None,
+    dosages: Iterable[DosageRecord] | DosageIndex | None = None,
     sex: InferredSex,
     no_impute: bool = False,
     allow_restricted: bool = False,
@@ -649,9 +692,11 @@ def score(
 ) -> ScoreResult:
     """Shared low-level engine; explicitly disabled imputation is the only direct-only mode.
 
-    A validated saved dosage iterator can score after imputation without an original
-    array. Its before-imputation result is then unavailable, never reconstructed from
-    the partial stage-direct stream. Low quality and unknown phase quality are retained.
+    ``dosages`` is a stream, read here, or a run's :class:`DosageIndex`, read once for every
+    score; both give the same result. A validated saved dosage iterator can score after
+    imputation without an original array. Its before-imputation result is then unavailable,
+    never reconstructed from the partial stage-direct stream. Low quality and unknown phase
+    quality are retained.
     """
     validate_mode_flags(no_impute, allow_restricted, allow_in_repo)
     if no_impute and (dosages is not None or table is None):
@@ -679,22 +724,14 @@ def score(
             if locus in loci:
                 probes.setdefault(locus, []).append(probe)
         input_digest = digest.hexdigest()
-    records: dict[tuple[str, int], list[DosageRecord]] = {}
-    dosage_digest = hashlib.sha256() if dosages is not None else None
-    if dosages is not None:
-        for count, record in enumerate(dosages, 1):
-            if not isinstance(record, DosageRecord):
-                raise PgsError("The scoring dosage iterator returned an invalid record type.")
-            if dosage_digest is not None:
-                dosage_digest.update(
-                    json.dumps(record.to_dict(), sort_keys=True, separators=(",", ":")).encode()
-                )
-                dosage_digest.update(b"\n")
-            locus = (record.chrom, record.pos_grch37)
-            if locus in loci:
-                records.setdefault(locus, []).append(record)
-            if progress and count % 500_000 == 0:
-                progress("Reading native dosage evidence for PGS scoring")
+    index = (
+        dosages
+        if dosages is None or isinstance(dosages, DosageIndex)
+        else index_dosages(dosages, loci, progress)
+    )
+    records: Mapping[tuple[str, int], Sequence[DosageRecord]] = (
+        {} if index is None else index.records
+    )
     terms: list[Term] = []
     for row in rows:
         locus = (row.chrom or "", row.position or 0)
@@ -788,9 +825,9 @@ def score(
         else "computed"
         if before_result["sum"] is not None or after_result["sum"] is not None
         else "no_usable_observations",
-        "score_definition": scoring.inspect(),
+        "score_definition": scoring.inspect(rows),
         "original_table_sha256": input_digest,
-        "dosage_stream_sha256": dosage_digest.hexdigest() if dosage_digest is not None else None,
+        "dosage_stream_sha256": None if index is None else index.stream_sha256,
         "inferred_sex": sex.value,
         "imputation_mode": "disabled" if no_impute else "enabled",
         "imputation_provenance": None

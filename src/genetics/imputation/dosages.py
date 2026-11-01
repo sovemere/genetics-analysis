@@ -16,6 +16,10 @@ from genetics.privacy import NoGenotypeRepr
 
 from .target import ImputationError, Target
 
+SCORING_CHROMOSOMES = frozenset({*(str(i) for i in range(1, 23)), "X"})
+"""Autosomes and X. Built once: it was rebuilt for every record of a saved dosage stream,
+which an imputed run reads once per polygenic score."""
+
 
 @dataclass(frozen=True, repr=False)
 class DosageRecord(NoGenotypeRepr):
@@ -54,7 +58,7 @@ def parse_record(raw: Mapping[str, Any]) -> DosageRecord:
                 values[name] = tuple(values[name])
         record = DosageRecord(**values)
         if (
-            record.chrom not in {*(str(i) for i in range(1, 23)), "X"}
+            record.chrom not in SCORING_CHROMOSOMES
             or type(record.pos_grch37) is not int
             or record.pos_grch37 < 1
             or type(record.ploidy) is not int

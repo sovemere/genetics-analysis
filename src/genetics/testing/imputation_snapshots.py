@@ -217,12 +217,43 @@ def remove_snapshot_for_historical_fixture(directory: Path, manifest: dict[str, 
             manifest["files"].pop(name)
 
 
+def inline_guideline_results_for_historical_fixture(
+    directory: Path, manifest: dict[str, Any]
+) -> None:
+    """Fabricate a pre-format-26 ``cards.run.json``: guideline results saved in full.
+
+    Rebuilds each referenced result from the bundle's own ``pgx.run.json`` and re-records the
+    file's digest; the caller writes the manifest. Idempotent.
+    """
+    from genetics.pgx.guidelines import SAVED_FROM, restore_stored
+
+    path = directory / "cards.run.json"
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    cards = payload["cards"]
+    referenced = [
+        i
+        for i, card in enumerate(cards)
+        if card.get("kind") == "guideline"
+        and card["computation"]["result"].get("derived_from") == SAVED_FROM
+    ]
+    if not referenced:
+        return
+    pgx = json.loads((directory / "pgx.run.json").read_text(encoding="utf-8"))
+    for index in referenced:
+        cards[index] = restore_stored(cards[index], pgx)
+    text = json.dumps(payload).encode()
+    path.write_bytes(text)
+    manifest["files"]["cards.run.json"] = hashlib.sha256(text).hexdigest()
+
+
 def inline_score_records_for_historical_fixture(directory: Path, manifest: dict[str, Any]) -> None:
     """Fabricate a pre-format-25 ``pgs.run.json``: schema 1, every score record inline.
 
     Drops the per-card score files from ``manifest["files"]`` and re-records the index; the
     caller writes the manifest, as with :func:`remove_snapshot_for_historical_fixture`.
+    Guideline results are saved in full too, as every format before 26 saves them.
     """
+    inline_guideline_results_for_historical_fixture(directory, manifest)
     from genetics.pgs.records import ScoreRecords, is_score_file_name
 
     path = directory / "pgs.run.json"

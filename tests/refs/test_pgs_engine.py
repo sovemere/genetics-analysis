@@ -22,7 +22,7 @@ from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.paths import repo_root
 from genetics.pgs import engine, workflow
 from genetics.pgs.catalog import ID_COLUMN, TERMS_COLUMN, Catalog, PgsError, ScoreMetadata
-from genetics.pgs.engine import score, write_result
+from genetics.pgs.engine import index_dosages, score, write_result
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 
@@ -217,6 +217,38 @@ def test_review_excluded_native_terms_retain_full_evidence(
         if len(records) == 1
         else {"kind": "ambiguous_panel_records", "records": [r.to_dict() for r in records]}
     )
+
+
+def test_a_run_index_scores_exactly_as_reading_the_stream_does(
+    tmp_path: Path, fake: MatrixPlink
+) -> None:
+    """Records off the score's loci, two at one locus and stream order all carry over."""
+    scoring = definition(tmp_path, [weight(102), weight(103, other="T")])
+    stream = [
+        dosage(101),
+        dosage(102),
+        dosage(103, ref="T", values=(0.5,)),
+        dosage(103, ref="T", values=(1.5,)),
+        dosage(104),
+    ]
+
+    def scored(dosages: Any, work: str) -> dict[str, Any]:
+        return score(
+            scoring,
+            table=None,
+            dosages=dosages,
+            sex=InferredSex.FEMALE,
+            plink=fake,
+            workspace=tmp_path / work,
+        ).to_dict()
+
+    index = index_dosages(stream, {("1", 101), ("1", 102), ("1", 103), ("1", 999)})
+    assert set(index.records) == {("1", 101), ("1", 102), ("1", 103)}
+    assert index.records[("1", 103)] == tuple(stream[2:4])
+    assert scored(index, "index") == scored(iter(stream), "stream")
+    assert repr(index) == "DosageIndex(loci_held=3)"
+    with pytest.raises(PgsError, match="invalid record type"):
+        index_dosages([stream[0], object()], {("1", 101)})  # type: ignore[list-item]
 
 
 @pytest.mark.parametrize("saved", [False, True])

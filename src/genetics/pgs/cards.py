@@ -118,11 +118,16 @@ def unavailable_reason(record: Mapping[str, Any]) -> str:
 
 
 def derive_position(
-    record: Mapping[str, Any], *, display_schema_version: int = DISPLAY_SCHEMA_VERSION
+    record: Mapping[str, Any],
+    *,
+    display_schema_version: int = DISPLAY_SCHEMA_VERSION,
+    score_sha256: str | None = None,
 ) -> dict[str, Any] | None:
     """The person's place in the reference, as an interval over a distribution; or None.
 
     Pure function of the private record. No sum and no point percentile leave it.
+    ``score_sha256`` passes the record's digest when the caller has it: computing it means
+    serialising a genome-wide record, about 6 s.
     """
     phase = _phase(record)
     if phase is None:
@@ -176,7 +181,7 @@ def derive_position(
     display = {
         "schema_version": display_schema_version,
         "pgs_id": record["pgs_id"],
-        "score_sha256": record_digest(record),
+        "score_sha256": record_digest(record) if score_sha256 is None else score_sha256,
         "phase": phase,
         "imputation_mode": record["imputation_mode"],
         "licence": record["score_definition"]["metadata"]["license"],
@@ -420,22 +425,30 @@ def build_result(
     record: Mapping[str, Any] | None,
     *,
     display_schema_version: int = DISPLAY_SCHEMA_VERSION,
+    score_sha256: str | None = None,
 ) -> Any:
-    """The stored display: derived position plus the card's authored blocks."""
+    """The stored display: derived position plus the card's authored blocks.
+
+    ``score_sha256`` is the record's digest when the caller has already computed or
+    verified it; otherwise it is computed here, once.
+    """
     if record is None:
         return None
     if type(display_schema_version) is not int or display_schema_version not in {1, 2}:
         raise PgsError("Unsupported polygenic display schema version.")
     if record.get("pgs_id") != authored["pgs_id"]:
         raise PgsError("The score result belongs to a different PGS than the card.")
-    position = derive_position(record, display_schema_version=display_schema_version)
+    digest = record_digest(record) if score_sha256 is None else score_sha256
+    position = derive_position(
+        record, display_schema_version=display_schema_version, score_sha256=digest
+    )
     base = (
         position
         if position is not None
         else {
             "schema_version": display_schema_version,
             "pgs_id": record["pgs_id"],
-            "score_sha256": record_digest(record),
+            "score_sha256": digest,
             "position": None,
             "portability": record.get("portability"),
         }
@@ -541,8 +554,18 @@ def evidence_from_payload(payload: Mapping[str, Any]) -> Evidence:
     )
 
 
-def validate_stored(data: Mapping[str, Any], record: Mapping[str, Any] | None) -> None:
-    """Refuse a stored polygenic card that its own score record does not reproduce."""
+def validate_stored(
+    data: Mapping[str, Any],
+    record: Mapping[str, Any] | None,
+    *,
+    text_sha256: str | None = None,
+) -> None:
+    """Refuse a stored polygenic card that its own score record does not reproduce.
+
+    ``text_sha256`` is the digest of the JSON text ``record`` was parsed from. Equal to the
+    card's ``score_sha256``, it proves that text is the record's canonical form, so the
+    record is not serialised again; otherwise the digest is computed from ``record``.
+    """
     from genetics.pgs.coverage import compute_coverage
     from genetics.pgs.portability import compute_portability
     from genetics.pgs.reference import validate_distribution
@@ -554,8 +577,10 @@ def validate_stored(data: Mapping[str, Any], record: Mapping[str, Any] | None) -
         if record is not None or data["status"] != "not_run":
             raise PgsError("A polygenic card without a result must be not run and unscored.")
     else:
-        if record is None or record_digest(record) != result["score_sha256"]:
+        expected = result["score_sha256"]
+        if record is None or (text_sha256 != expected and record_digest(record) != expected):
             raise PgsError("The stored score record does not match the polygenic card.")
+        # The record is now proven to digest to `expected`, so nothing below recomputes it.
         schema = int(record["schema_version"])
         if json.loads(json.dumps(compute_coverage(record, schema_version=schema))) != record.get(
             "coverage"
@@ -574,7 +599,12 @@ def validate_stored(data: Mapping[str, Any], record: Mapping[str, Any] | None) -
         if (
             json.loads(
                 json.dumps(
-                    build_result(authored, record, display_schema_version=result["schema_version"])
+                    build_result(
+                        authored,
+                        record,
+                        display_schema_version=result["schema_version"],
+                        score_sha256=expected,
+                    )
                 )
             )
             != result

@@ -35,7 +35,7 @@ from genetics.ingest.schema import GenotypeTable
 from genetics.paths import reference_lock, reference_manifest, references_dir
 from genetics.pgs.cards import assemble_polygenic_card
 from genetics.pgs.catalog import Catalog, PgsError, fingerprint
-from genetics.pgs.engine import score
+from genetics.pgs.engine import DosageIndex, index_dosages, score
 from genetics.pgs.records import ScoreRecords
 from genetics.pgs.reference import (
     Panel,
@@ -200,6 +200,7 @@ class PolygenicStage:
             isinstance(p.reference, Panel) for p in self.prepared.values()
         ):
             placement = self.place(table, progress)
+        index = None if dosages is None else self._index_dosages(dosages, progress)
         for item in self.prepared.values():
             if item.scoring is None:
                 cards[item.card.id] = assemble_polygenic_card(item.card, None, reason=item.reason)
@@ -209,13 +210,37 @@ class PolygenicStage:
                 records,
                 table=table,
                 sex=sex,
-                dosages=dosages,
+                dosages=index,
                 ancestry=ancestry,
                 imputation_provenance=imputation_provenance,
                 placement=placement,
                 progress=progress,
             )
         return cards, records
+
+    def _index_dosages(
+        self,
+        dosages: Callable[[], Iterator[DosageRecord]],
+        progress: Callable[[str], None] | None,
+    ) -> DosageIndex | None:
+        """The run's dosage stream read once, at every locus a prepared score uses.
+
+        Collecting the loci costs one more parse of each scoring file (about 14 s for a
+        966,283-row score); reading the stream once per score cost about 50 min each.
+        """
+        scorings = [item.scoring for item in self.prepared.values() if item.scoring is not None]
+        if not scorings:
+            return None
+        loci: set[tuple[str, int]] = set()
+        for scoring in scorings:
+            loci.update(
+                (row.chrom, row.position)
+                for row in scoring.iter_variants()
+                if row.chrom is not None and row.position is not None
+            )
+        if progress:
+            progress(f"Reading native dosage evidence once for {len(scorings)} polygenic scores")
+        return index_dosages(dosages(), loci, progress)
 
     def _score_one(
         self,
@@ -224,7 +249,7 @@ class PolygenicStage:
         *,
         table: GenotypeTable,
         sex: InferredSex,
-        dosages: Callable[[], Iterator[DosageRecord]] | None,
+        dosages: DosageIndex | None,
         ancestry: Mapping[str, Any],
         imputation_provenance: Mapping[str, Any] | None,
         placement: PopulationResult | None,
@@ -242,7 +267,7 @@ class PolygenicStage:
         result = score(
             item.scoring,
             table=table,
-            dosages=None if dosages is None else dosages(),
+            dosages=dosages,
             sex=sex,
             no_impute=dosages is None,
             plink=native,

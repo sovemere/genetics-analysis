@@ -85,8 +85,17 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 25
+BUNDLE_FORMAT_VERSION: Final[int] = 26
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 26 saves each PGx guideline card's ``computation.result`` as a reference: its display
+schema, ``derived_from: pgx.run.json`` and the sha256 of the result. The result is a pure
+projection of the run's PGx record and repeated every unresolved diplotype alternative with
+the CPIC rows it joins, already saved there: 175 MB of a 402 MB ``cards.run.json`` on the
+synthetic export. A reader rebuilds it from ``pgx.run.json``, as it always did to check it,
+and requires the saved digest. Score records are also written ASCII-escaped, the exact text
+their card digests, so a reader checks that digest on the stored bytes; format 25's
+unescaped records are digested from their content. Formats 20-25 keep full results.
 
 Version 25 saves each polygenic card's private score record as its own gzip file,
 ``pgs-<card id>.run.json.gz``, recorded in the manifest like any payload; ``pgs.run.json``
@@ -274,6 +283,9 @@ CARRIER_FORMAT_VERSION: Final[int] = 24
 SCORE_FILES_FORMAT_VERSION: Final[int] = 25
 """The first format whose score records are per-card gzip files indexed by schema-2
 :data:`PGS_NAME`; formats 17-24 hold them inline in schema 1."""
+
+GUIDELINE_REFERENCE_FORMAT_VERSION: Final[int] = 26
+"""The first format saving guideline results by reference to :data:`PGX_NAME`."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
@@ -949,9 +961,12 @@ def write_bundle(
             raise BundleError(str(exc)) from exc
         _write_text(staging / IMPUTATION_PROVENANCE_NAME, _render(imputation_record))
         _write_text(staging / QC_NAME, _render(qc.to_dict()))
+        from genetics.pgx.guidelines import saved_form
+
+        saved_payloads = [saved_form(p) if p["kind"] == "guideline" else p for p in card_payloads]
         _write_text(
             staging / CARDS_NAME,
-            _render({"cards": card_payloads}),
+            _render({"cards": saved_payloads}),
         )
         _check_card_ancestry(card_payloads, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
         _check_carriers(card_payloads, BUNDLE_FORMAT_VERSION)
@@ -1006,7 +1021,8 @@ def write_bundle(
             )
         except (CallingError, ImputationError) as exc:
             raise BundleError(str(exc)) from exc
-        _check_guidelines(card_payloads, pgx_payload, BUNDLE_FORMAT_VERSION)
+        # The saved forms, so what a reader will rebuild is what is checked here.
+        _check_guidelines(saved_payloads, pgx_payload, BUNDLE_FORMAT_VERSION)
         _write_text(staging / PGX_NAME, _render(pgx_payload))
 
         from genetics.hla.calling import unavailable as hla_unavailable
@@ -1178,17 +1194,28 @@ def _polygenic_shape(data: Mapping[str, Any], computation: Mapping[str, Any], wh
         raise BundleError(f"{where}: invalid polygenic card status")
 
 
-def _check_guidelines(entries: Sequence[Any], pgx: Mapping[str, Any] | None, version: int) -> None:
-    from genetics.pgx.guidelines import validate_stored
+def _check_guidelines(
+    entries: Sequence[Any], pgx: Mapping[str, Any] | None, version: int
+) -> list[Any]:
+    """Check every guideline card against the PGx record; return the cards as read.
 
-    for entry in entries:
+    From format 26 a guideline card's result is saved by reference and returned rebuilt.
+    """
+    from genetics.pgx.guidelines import restore_stored, validate_stored
+
+    checked = list(entries)
+    for index, entry in enumerate(checked):
         if isinstance(entry, Mapping) and entry.get("kind") == "guideline":
             if version < 20:
                 raise BundleError("Guideline cards require bundle format 20")
             try:
-                validate_stored(entry, pgx)
+                if version >= GUIDELINE_REFERENCE_FORMAT_VERSION:
+                    checked[index] = restore_stored(entry, pgx)
+                else:
+                    validate_stored(entry, pgx)
             except (ValueError, KeyError, TypeError, AttributeError, IndexError) as exc:
                 raise BundleError("Saved guideline card disagrees with its PGx evidence.") from exc
+    return checked
 
 
 def _check_polygenic(
@@ -1212,8 +1239,13 @@ def _check_polygenic(
         raise BundleError(f"{PGS_NAME}: a score record has no polygenic card")
     for card_id, entry in polygenic.items():
         try:
-            record = scores.get(card_id)
-            validate_stored(entry, record)
+            text_sha256 = None
+            record: Mapping[str, Any] | None
+            if isinstance(scores, ScoreRecords) and card_id in scores:
+                record, text_sha256 = scores.parsed(card_id)
+            else:
+                record = scores.get(card_id)
+            validate_stored(entry, record, text_sha256=text_sha256)
         except (PgsError, KeyError, TypeError, ValueError, AttributeError, IndexError) as exc:
             # Every structural failure is damage to this bundle, never a raw traceback.
             raise BundleError(f"{CARDS_NAME}: polygenic card {card_id!r}: {exc}") from exc
@@ -1855,7 +1887,7 @@ def read_bundle(path: Path) -> RunBundle:
             raise BundleError("Saved HLA evidence is invalid.") from exc
         _check_hla_ancestry(hla, ancestry)
 
-    _check_guidelines(entries, pgx, declared)
+    entries = _check_guidelines(entries, pgx, declared)
     _check_hla_cards(entries, hla, pgx, ancestry, declared)
     return RunBundle(
         path=directory,

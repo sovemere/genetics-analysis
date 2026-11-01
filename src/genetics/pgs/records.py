@@ -8,12 +8,15 @@ so a caller that iterates holds one at a time.
 
 The compressed bytes are exactly what a bundle saves as ``pgs-<card id>.run.json.gz`` (from
 format 25): canonical JSON, gzip with a zero timestamp, so the same record compresses to the
-same bytes on this machine.
+same bytes on this machine. From format 26 the JSON is ASCII-escaped, making it the exact
+text a card's ``score_sha256`` digests: a reader checks that digest on the stored bytes
+instead of re-serialising the parsed record, which took 6 s for a 966,283-row record.
 """
 
 from __future__ import annotations
 
 import gzip
+import hashlib
 import json
 import re
 import zlib
@@ -38,10 +41,14 @@ def is_score_file_name(name: str) -> bool:
 
 
 def encode(record: Mapping[str, Any]) -> bytes:
-    """Canonical JSON for one record; NaN and infinity are refused, as everywhere else."""
-    return json.dumps(
-        record, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False
-    ).encode("utf-8")
+    """Canonical JSON for one record; NaN and infinity are refused, as everywhere else.
+
+    The text :func:`genetics.pgs.cards.record_digest` hashes, byte for byte. Format 25 wrote
+    it unescaped (``ensure_ascii=False``); such a record's digest is recomputed when read.
+    """
+    return json.dumps(record, sort_keys=True, separators=(",", ":"), allow_nan=False).encode(
+        "ascii"
+    )
 
 
 class ScoreRecords(Mapping[str, Mapping[str, Any]]):
@@ -73,14 +80,23 @@ class ScoreRecords(Mapping[str, Mapping[str, Any]]):
         return self._compressed[key]
 
     def __getitem__(self, key: str) -> Mapping[str, Any]:
+        return self.parsed(key)[0]
+
+    def parsed(self, key: str) -> tuple[dict[str, Any], str]:
+        """A fresh parse of one record, and the sha256 of the JSON text it was parsed from.
+
+        When that digest equals the card's ``score_sha256``, the text is the record's
+        canonical form and the record need not be serialised again to check it.
+        """
         data = self._compressed[key]
         try:
-            record = json.loads(gzip.decompress(data))
+            text = gzip.decompress(data)
+            record = json.loads(text)
         except (OSError, EOFError, zlib.error, ValueError) as exc:
             raise PgsError(f"The saved score record for {key!r} cannot be decoded.") from exc
         if not isinstance(record, dict):
             raise PgsError(f"The saved score record for {key!r} is not an object.")
-        return record
+        return record, hashlib.sha256(text).hexdigest()
 
     def __iter__(self) -> Iterator[str]:
         return iter(self._compressed)

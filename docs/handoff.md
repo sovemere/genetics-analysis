@@ -51,11 +51,16 @@ compressed (`pgs/records.py`), and **bundle format 25** saves each as its own
 the score record schema is unchanged. **A complete run on `0f772ff` took 57.8 min**
 (synthetic export, `--no-impute`, warm reference caches): 14 score references 10.4 min,
 ClinVar coverage 3.5 min, runs of homozygosity 7.7 min, 14 scores 27.9 min, PGx and HLA
-16 s, saving 7.7 min. Saving is mostly the write-side check of the 14 score records;
-opening the run re-checks them too and has not been timed. Python peaked at 7.6 GB while
-one score was loaded, and at least 10.9 GB stayed free. The saved run is 948 MB: 0.5 GB
-of compressed score records, and a 402 MB `cards.run.json` in which `g6pd_guidelines`
-alone is 85 MB (52 MB of `branches`, 33 MB of `recommendations`). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is now capped at
+16 s, saving 7.7 min. Saving is mostly the write-side check of the 14 score records.
+Python peaked at 7.6 GB while one score was loaded, and at least 10.9 GB stayed free.
+Opening that run took 8.1 min (peak 5.8 GB). **Bundle format 26** then cut both costs:
+guideline results are saved by reference to `pgx.run.json` (`cards.run.json` 402 MB to
+0.8 MB; see [guideline cards](pgx_guidelines.md)), and each score record is checked
+with one digest, on its stored bytes, instead of three re-serialisations. A format-26
+copy of the same run is 593 MB and opens in 5.7 min with identical output. The scoring
+parser is 1.8 times faster (PGS002143: 24.9 s to 14.1 s) and a score parses its file
+four times rather than five, and an imputed run reads its dosage stream once, not once
+per score (unmeasured). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is now capped at
 `--memory 4096` unless its caller sets its own; without the flag each reserves half of
 physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
 names it (`external/plink2.py`).
@@ -1101,7 +1106,11 @@ Contract for M9.7:
   - Real-panel acceptance so far is PGS000001, 77 rows. Most physical-health scores
     have 10^5–10^6 rows.
   - Before shipping one, measure the reference extraction (time, memory, cache size).
-  - Measure the per-score dosage pass in a default imputed run.
+  - Measure the dosage pass in a default imputed run. Since 2026-11-01 a run reads the
+    imputed stream once for all its scores (`engine.DosageIndex`) instead of once per
+    score, which cost 48–69 min each at acceptance. The saving is unmeasured: no imputed
+    run has been made since. Measure the run's peak too, since the index holds every
+    record at the union of the pack's score loci for the whole scoring stage.
   - Measure the size of its saved record: it keeps every term with its native evidence.
     *Measured 2026-11-01 on the synthetic export without imputation:* PGS002143's record
     (966,283 rows) is about 1.9 GB parsed, 743 MB as compact JSON and 46 MB compressed;
@@ -1131,7 +1140,8 @@ Contract for M9.7:
   then scores each card with the M9.2-M9.5 functions. Absent inputs give `not_run` with the
   fix; a lock mismatch raises. A run gives no restricted-licence opt-in.
 - **Bundle format 17.** `pgs.run.json` holds each card's private score record (from
-  format 25, one `pgs-<card id>.run.json.gz` per card, indexed by `pgs.run.json`). Reading
+  format 25, one `pgs-<card id>.run.json.gz` per card, indexed by `pgs.run.json`; from
+  format 26, ASCII-escaped so its digest is checked on the stored bytes). Reading
   re-derives the record's coverage, distribution and portability, then the card's display,
   reliability and face text, and refuses any disagreement or an unpaired record.
 - **No point estimate.** The display carries the reference histogram and quantiles and the

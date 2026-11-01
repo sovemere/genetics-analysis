@@ -56,12 +56,19 @@ uses (`pgs/runner.py`):
    per run and scores each card. Each card's extraction is reloaded from the cache and
    released before the next card's loads. Holding all of them from step 1 reached 23 GB
    with ten of the pack's 14 loaded and exhausted a 32 GB machine (2026-10-30).
+   **The imputed dosage stream is read once per run** (`engine.DosageIndex`), keeping only
+   the records at loci some prepared score uses. Each score used to read and digest the
+   whole stream itself, a pass that cost 48–69 min per score at M9.9–M9.12 acceptance
+   whatever the score's size. Each record still holds the whole stream's digest, and a
+   score sees exactly the records it would have filtered for itself.
 3. **Each card's private score record** is saved in the bundle. From format 25 each is its
    own gzip file, `pgs-<card id>.run.json.gz`, and `pgs.run.json` (schema 2) is the index;
    formats 17–24 hold every record inline in `pgs.run.json` (schema 1). A genome-wide
    record keeps a term per scoring row: for PGS002143 (966,283 rows) about 1.9 GB parsed,
    743 MB as compact JSON and 46 MB compressed. The run holds records compressed and every
-   check parses one at a time (2026-11-01). Polygenic cards need **bundle format 17** or
+   check parses one at a time (2026-11-01). From format 26 the JSON is ASCII-escaped, the
+   exact text the card's `score_sha256` digests, so the check hashes the stored bytes
+   rather than re-serialising the record. Polygenic cards need **bundle format 17** or
    later; formats 1–16 carry none.
 
 Absence and errors are handled differently:
@@ -127,7 +134,9 @@ and refuses the run if anything disagrees. This is the same pattern M9.3–M9.5 
 checks:
 
 1. **The record.** The digest must match. Coverage, distribution and portability are
-   recomputed from the record's own evidence.
+   recomputed from the record's own evidence. The digest is computed once per check: on
+   the stored bytes from format 26, from the parsed record before that. A check used to
+   serialise a genome-wide record three times for it, 6 s each.
 2. **The card.** Its display, reliability (rebuilt from the stored evidence) and face text
    are recomputed and must match exactly.
 3. **The pairing.** Every polygenic card has its record, and every record has its card.

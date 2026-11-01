@@ -28,7 +28,10 @@ from genetics.pgx.sql import REQUIRED, Tables, copy_value, read_dump
 from genetics.qc.report import InferredSex
 from genetics.refs import manifest, postprocess
 from genetics.refs.postprocess import ProcessError, ProcessStatus
-from genetics.testing.imputation_snapshots import inline_score_records_for_historical_fixture
+from genetics.testing.imputation_snapshots import (
+    inline_guideline_results_for_historical_fixture,
+    inline_score_records_for_historical_fixture,
+)
 
 if TYPE_CHECKING:
     from genetics.engine.cards import KnowledgePack
@@ -2956,6 +2959,7 @@ def test_m104_review_one_bad_identifier_keeps_valid_citation(
     assert recommendation["publications"][0][invalid] == "invalid-identifier"
 
 
+@pytest.mark.parametrize("saved_in_full", [True, False])
 @pytest.mark.parametrize("version", [1, 2])
 def test_m104_review_reader_rejects_numeric_substitution(
     frozen: dict[str, Any],
@@ -2964,6 +2968,7 @@ def test_m104_review_reader_rejects_numeric_substitution(
     sample_cards: tuple[AssembledCard, ...],
     tmp_path: Path,
     version: int,
+    saved_in_full: bool,
 ) -> None:
     import hashlib
 
@@ -2989,10 +2994,92 @@ def test_m104_review_reader_rejects_numeric_substitution(
         tools_root=tmp_path / "tools",
     )
     card_path = path / CARDS_NAME
-    payload = json.loads(card_path.read_text(encoding="utf8"))
-    payload["cards"][-1]["computation"]["result"]["branches"][0]["candidate_index"] = False
-    card_path.write_text(json.dumps(payload), encoding="utf8")
     header = json.loads((path / "manifest.json").read_text(encoding="utf8"))
+    if saved_in_full:
+        # Format 25, the last to save the result itself: a bool for 0 inside it.
+        header["format_version"] = 25
+        inline_guideline_results_for_historical_fixture(path, header)
+    payload = json.loads(card_path.read_text(encoding="utf8"))
+    result = payload["cards"][-1]["computation"]["result"]
+    if saved_in_full:
+        result["branches"][0]["candidate_index"] = False
+    else:
+        # Format 26 saves a reference; a bool or float for its schema number.
+        result["schema_version"] = True if version == 1 else float(version)
+    card_path.write_text(json.dumps(payload), encoding="utf8")
+    header["files"][CARDS_NAME] = hashlib.sha256(card_path.read_bytes()).hexdigest()
+    (path / "manifest.json").write_text(json.dumps(header), encoding="utf8")
+    with pytest.raises(BundleError, match="guideline card disagrees"):
+        read_bundle(path)
+
+
+@pytest.mark.parametrize(
+    "damage", ["none", "digest", "source", "extra_key", "full_in_26", "reference_in_25"]
+)
+def test_format_26_saves_guideline_results_by_reference_and_rebuilds_them(
+    frozen: dict[str, Any],
+    sample_qc: QCReport,
+    sample_pack: KnowledgePack,
+    sample_cards: tuple[AssembledCard, ...],
+    tmp_path: Path,
+    damage: str,
+) -> None:
+    """The result repeats the PGx record: 85 MB for G6PD on the synthetic export."""
+    import hashlib
+
+    from genetics.ancestry.context import AncestryContext
+    from genetics.pgx.guidelines import assemble_guideline_card
+    from genetics.run.bundle import (
+        CARDS_NAME,
+        BundleError,
+        _card_payload,
+        read_bundle,
+        write_bundle,
+    )
+
+    guideline_source(frozen)
+    raw = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=sample_qc.sex.inferred,
+    ).record
+    card = assemble_guideline_card(guideline_card(), raw)
+    path = write_bundle(
+        qc=sample_qc,
+        cards=(*sample_cards, card),
+        pack=replace(sample_pack, cards=(*sample_pack.cards, card.card)),
+        ancestry=AncestryContext.not_run("Synthetic guideline reference"),
+        pgx=raw,
+        runs_root=tmp_path / "runs",
+        lock_path=tmp_path / "missing.lock",
+        tools_root=tmp_path / "tools",
+    )
+    card_path = path / CARDS_NAME
+    header = json.loads((path / "manifest.json").read_text(encoding="utf8"))
+    payload = json.loads(card_path.read_text(encoding="utf8"))
+    saved = payload["cards"][-1]["computation"]["result"]
+    full = json.loads(json.dumps(_card_payload(card)["computation"]["result"]))
+    assert saved == {
+        "schema_version": 2,
+        "derived_from": "pgx.run.json",
+        "sha256": hashlib.sha256(json.dumps(full, sort_keys=True).encode()).hexdigest(),
+    }
+    if damage == "none":
+        stored = read_bundle(path).cards[-1]
+        assert stored.computation is not None
+        assert json.loads(json.dumps(stored.computation["result"])) == full
+        return
+    if damage == "digest":
+        saved["sha256"] = "0" * 64
+    elif damage == "source":
+        saved["derived_from"] = "cards.run.json"
+    elif damage == "extra_key":
+        saved["branches"] = full["branches"]
+    elif damage == "full_in_26":
+        payload["cards"][-1]["computation"]["result"] = full
+    else:
+        header["format_version"] = 25
+    card_path.write_text(json.dumps(payload), encoding="utf8")
     header["files"][CARDS_NAME] = hashlib.sha256(card_path.read_bytes()).hexdigest()
     (path / "manifest.json").write_text(json.dumps(header), encoding="utf8")
     with pytest.raises(BundleError, match="guideline card disagrees"):

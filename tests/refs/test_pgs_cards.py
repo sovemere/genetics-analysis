@@ -455,6 +455,44 @@ def test_a_run_holds_one_reference_extraction_at_a_time(
     assert records[0]["reference_distribution"] == records[1]["reference_distribution"]
 
 
+def test_a_run_reads_the_dosage_stream_once_for_all_its_scores(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    """Each score once re-read the whole imputed stream: about 50 min each at acceptance."""
+    again = CARD.replace("id: synthetic_polygenic", "id: synthetic_polygenic_again")
+    (setup["knowledge"] / "again.yaml").write_text(again, encoding="utf-8")
+    original = ingest(EXPORT).table
+    last = ROWS[-1][0]
+    reduced = GenotypeTable(original.frame.filter(pl.col("pos_grch37") != last), vendor="synthetic")
+    # A record no score uses, before and after the one they do, and the one they use.
+    stream = [dosage(last - 1, ref="G"), dosage(last, ref="G"), dosage(last + 1, ref="G")]
+    opened: list[int] = []
+
+    def dosages() -> Any:
+        opened.append(1)
+        return iter(stream)
+
+    prepared = stage(setup, fake)
+    prepared.prepare(KnowledgePack.load(setup["knowledge"]))
+    cards, records = prepared.score(
+        table=reduced,
+        sex=InferredSex.MALE,
+        dosages=dosages,
+        ancestry=AncestryContext.not_run("synthetic acceptance").to_dict(),
+        imputation_provenance=None,
+    )
+    assert opened == [1]
+    first, second = records["synthetic_polygenic"], records["synthetic_polygenic_again"]
+    assert first == second and first["after"]["status"] == "scored"
+    # The digest each record keeps is the whole stream's, as a per-score read recorded it.
+    streamed = hashlib.sha256()
+    for record in stream:
+        text = json.dumps(record.to_dict(), sort_keys=True, separators=(",", ":"))
+        streamed.update(text.encode() + bytes([10]))
+    assert first["dosage_stream_sha256"] == streamed.hexdigest()
+    assert cards["synthetic_polygenic"].summary == cards["synthetic_polygenic_again"].summary
+
+
 def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(
     setup: dict[str, Any], fake: MultiPlink, tmp_path: Path
 ) -> None:
@@ -1370,6 +1408,34 @@ def _rewrite_score(path: Path, change: Any) -> None:
     _record_file(path, SCORE_FILE, gzip.compress(encode(data), mtime=0))
 
 
+def test_a_canonical_record_is_checked_on_its_stored_bytes_without_reserialising(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Re-serialising a 966,283-row record to digest it took 6 s per score (2026-11-01)."""
+    path = save(run(setup, fake))
+
+    def refuse(record: Any) -> str:
+        raise AssertionError("a canonical record was serialised again to digest it")
+
+    monkeypatch.setattr("genetics.pgs.cards.record_digest", refuse)
+    read_bundle(path)
+
+
+def test_a_record_saved_in_other_valid_json_is_still_digested_from_its_content(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    """Format 25 wrote records unescaped; any such text is checked by its parsed content."""
+    path = save(run(setup, fake))
+    record = json.loads(gzip.decompress((path / SCORE_FILE).read_bytes()))
+    text = json.dumps(record, sort_keys=True, indent=1, ensure_ascii=False).encode()
+    assert hashlib.sha256(text).hexdigest() != hashlib.sha256(encode(record)).hexdigest()
+    _record_file(path, SCORE_FILE, gzip.compress(text, mtime=0))
+    read_bundle(path)
+    _rewrite_score(path, lambda data: data["terms"][0].update(weight=0.125))
+    with pytest.raises(BundleError, match="does not match"):
+        read_bundle(path)
+
+
 @pytest.mark.parametrize("case", sorted(tamper_cases()))
 def test_tampered_polygenic_runs_are_refused(
     setup: dict[str, Any], fake: MultiPlink, case: str
@@ -1528,7 +1594,7 @@ def test_review_structural_damage_is_a_bundle_error(
     path = save(run(setup, fake))
     for error in (AttributeError, IndexError):
 
-        def broken(*args: Any, error: type[Exception] = error) -> None:
+        def broken(*args: Any, error: type[Exception] = error, **kwargs: Any) -> None:
             raise error("synthetic structural damage")
 
         monkeypatch.setattr("genetics.pgs.cards.validate_stored", broken)

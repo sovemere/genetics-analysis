@@ -10,7 +10,7 @@ import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from decimal import Decimal
-from typing import Any
+from typing import Any, Final
 from urllib.parse import urlsplit
 
 from genetics.engine.cards import Card, CardKind
@@ -401,8 +401,36 @@ def assemble_guideline_card(
     )
 
 
-def validate_stored(entry: Mapping[str, Any], raw: Mapping[str, Any] | None) -> None:
-    """Bind display and citations to the validated sample snapshot, without current caches."""
+SAVED_FROM: Final[str] = "pgx.run.json"
+"""Where a format-26 bundle's guideline results are rebuilt from."""
+
+_REFERENCE_KEYS: Final[frozenset[str]] = frozenset({"schema_version", "derived_from", "sha256"})
+
+
+def result_reference(result: Mapping[str, Any]) -> dict[str, Any]:
+    """What a bundle saves, from format 26, in place of a guideline card's result.
+
+    The result is a pure projection of the run's PGx record, and copies every unresolved
+    diplotype alternative with the CPIC rows it joins: 85 MB for G6PD on the synthetic
+    export (17,578 alternatives), 175 MB across the pack's six cards, all already saved in
+    ``pgx.run.json``. The bundle keeps its digest and rebuilds it on read.
+    """
+    return {
+        "schema_version": result["schema_version"],
+        "derived_from": SAVED_FROM,
+        "sha256": digest(result),
+    }
+
+
+def saved_form(entry: Mapping[str, Any]) -> dict[str, Any]:
+    """A guideline card payload as format 26 saves it: its result by reference."""
+    computation = dict(entry["computation"])
+    computation["result"] = result_reference(computation["result"])
+    return {**entry, "computation": computation}
+
+
+def _expected(entry: Mapping[str, Any], raw: Mapping[str, Any] | None) -> dict[str, Any]:
+    """The payload this card's saved fields and the frozen PGx record reproduce."""
     from genetics.run.bundle import _card_payload
 
     card = Card.parse(
@@ -421,5 +449,29 @@ def validate_stored(entry: Mapping[str, Any], raw: Mapping[str, Any] | None) -> 
     expected = _card_payload(assemble_guideline_card(card, raw, display_schema_version=version))
     # Mode is independently bound to the run; every other field must reproduce exactly.
     expected["imputation_mode"] = entry.get("imputation_mode")
-    if digest(entry) != digest(expected):
+    return expected
+
+
+def validate_stored(entry: Mapping[str, Any], raw: Mapping[str, Any] | None) -> None:
+    """Formats 20-25: the saved card, result included, must reproduce exactly."""
+    if digest(entry) != digest(_expected(entry, raw)):
         raise ValueError("Saved guideline card disagrees with frozen PGx evidence.")
+
+
+def restore_stored(entry: Mapping[str, Any], raw: Mapping[str, Any] | None) -> dict[str, Any]:
+    """Format 26+: the card with its result rebuilt from the frozen PGx record.
+
+    Every saved field must reproduce, and the rebuilt result must have the digest saved in
+    its place. A result saved in full is refused: one format, one representation.
+    """
+    reference = entry["computation"]["result"]
+    if (
+        not isinstance(reference, Mapping)
+        or set(reference) != _REFERENCE_KEYS
+        or reference["derived_from"] != SAVED_FROM
+    ):
+        raise ValueError("Saved guideline result is not a reference to the PGx record.")
+    expected = _expected(entry, raw)
+    if digest(saved_form(expected)) != digest(entry):
+        raise ValueError("Saved guideline card disagrees with frozen PGx evidence.")
+    return expected

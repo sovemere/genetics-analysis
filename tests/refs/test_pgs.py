@@ -276,7 +276,14 @@ def test_metadata_archive_links_and_duplicate_members_cannot_supply_terms(tmp_pa
         {"chr_position": "0"},
         {"chr_position": "-1"},
         {"chr_position": "1.2"},
+        # Digits str.isdigit accepts and the original [0-9]+ did not: superscript two and
+        # Arabic-Indic digits. The faster position check must refuse them the same way.
+        {"chr_position": "²"},
+        {"chr_position": "١٢"},
+        {"chr_position": "+5"},
+        {"chr_position": " 5"},
         {"chr_name": "23"},
+        {"chr_name": "chr1"},
         {"is_dominant": "maybe"},
         {"is_dominant": "TRUE", "is_recessive": "TRUE"},
         {"OR": "0"},
@@ -378,6 +385,20 @@ def test_unresolved_loci_and_indels_are_visible_not_inferred(
     (variant,) = ScoringFile.open(path, catalog).iter_variants()
     assert variant.chrom is None and variant.position is None
     assert {"unresolved_locus", "unresolved_indel"} <= set(variant.features)
+
+
+def test_inspecting_rows_already_read_matches_reading_them_again(
+    tmp_path: Path, catalog: Catalog
+) -> None:
+    """Scoring passes the rows it parsed rather than parsing a genome-wide file twice."""
+    row = {**BASE, "chr_position": "", "effect_allele": "I", "is_dominant": "True"}
+    path = scoring_file(tmp_path / "score.txt", row=row)
+    score = ScoringFile.open(path, catalog)
+    rows = list(score.iter_variants())
+    summary = score.inspect(rows)
+    assert summary == score.inspect()
+    assert summary["rows"] == 1
+    assert {"is_dominant", "unresolved_indel", "unresolved_locus"} <= set(summary["features"])
 
 
 def test_stream_is_bound_to_its_original_file(tmp_path: Path, catalog: Catalog) -> None:
