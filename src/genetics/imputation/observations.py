@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import replace
 
 import polars as pl
@@ -11,14 +12,18 @@ from genetics.engine.matcher import MatchResult
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, GenotypeTable
 from genetics.qc.report import InferredSex
 
-from .dosages import SCORING_CHROMOSOMES
+from .dosages import SCORING_CHROMOSOMES, DosageRecord
 from .pipeline import ImputationResult
 from .quality import ImputationEvidence
 from .target import ImputationError, regions
 
 
 def card_input(
-    pack: KnowledgePack, result: ImputationResult, *, sex: InferredSex
+    pack: KnowledgePack,
+    result: ImputationResult,
+    *,
+    sex: InferredSex,
+    dosages: Iterable[DosageRecord] | None = None,
 ) -> tuple[GenotypeTable, dict[tuple[str, int], ImputationEvidence]]:
     """Stream full dosages, retaining only exact biallelic SNVs requested by cards.
 
@@ -26,6 +31,9 @@ def card_input(
     strand-unresolved probes. Multiple panel records at a requested position are
     ambiguous. Dosages are never rounded to manufacture hard calls: the validated
     Beagle GT is used for categorical findings; DS and quality remain separate.
+
+    ``dosages`` replaces ``result``'s full stream with a run's single read of it, which
+    must hold every record at every card locus, in stream order (``DosageIndex``).
     """
     alleles: dict[tuple[str, int], set[frozenset[str]]] = {}
     for card in pack.cards:
@@ -52,7 +60,7 @@ def card_input(
     selected = {}
     duplicates: set[tuple[str, int]] = set()
     seen: set[tuple[str, int]] = set()
-    for record in result.iter_dosages():
+    for record in result.iter_dosages() if dosages is None else dosages:
         locus = (record.chrom, record.pos_grch37)
         if locus not in requested:
             continue

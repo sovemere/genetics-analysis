@@ -76,6 +76,20 @@ class ScoreRecords(Mapping[str, Mapping[str, Any]]):
         parsed: dict[str, Any] = json.loads(text)
         return parsed
 
+    def restore(self, key: str, data: bytes) -> dict[str, Any]:
+        """Hold a record saved compressed by an interrupted run, and return its JSON form.
+
+        Held only once it decodes, so a damaged saved record leaves nothing behind it.
+        """
+        if key in self._compressed:
+            raise PgsError(f"A score record for {key!r} is already held.")
+        self._compressed[key] = data
+        try:
+            return self.parsed(key)[0]
+        except PgsError:
+            del self._compressed[key]
+            raise
+
     def compressed(self, key: str) -> bytes:
         return self._compressed[key]
 

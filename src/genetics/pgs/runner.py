@@ -187,12 +187,19 @@ class PolygenicStage:
         *,
         table: GenotypeTable,
         sex: InferredSex,
-        dosages: Callable[[], Iterator[DosageRecord]] | None,
+        dosages: Callable[[], Iterator[DosageRecord]] | DosageIndex | None,
         ancestry: Mapping[str, Any],
         imputation_provenance: Mapping[str, Any] | None,
         progress: Callable[[str], None] | None = None,
+        saved: Callable[[str], bytes | None] | None = None,
+        keep: Callable[[str, bytes], None] | None = None,
     ) -> tuple[dict[str, AssembledCard], ScoreRecords]:
-        """Assembled polygenic cards and their private score records, by card id."""
+        """Assembled polygenic cards and their private score records, by card id.
+
+        ``dosages`` is the run's stream, read here once, or the index a run already read.
+        ``saved`` returns a card's compressed record from an interrupted run, if it saved
+        one, and ``keep`` saves each record as it is scored (:mod:`genetics.run.parts`).
+        """
         cards: dict[str, AssembledCard] = {}
         records = ScoreRecords()
         placement = self.placement or (self._run_placement if self._run_target is table else None)
@@ -200,11 +207,27 @@ class PolygenicStage:
             isinstance(p.reference, Panel) for p in self.prepared.values()
         ):
             placement = self.place(table, progress)
-        index = None if dosages is None else self._index_dosages(dosages, progress)
+        index = (
+            dosages
+            if dosages is None or isinstance(dosages, DosageIndex)
+            else self._index_dosages(dosages, progress)
+        )
         for item in self.prepared.values():
             if item.scoring is None:
                 cards[item.card.id] = assemble_polygenic_card(item.card, None, reason=item.reason)
                 continue
+            stored = None if saved is None else saved(item.card.id)
+            if stored is not None:
+                try:
+                    record = records.restore(item.card.id, stored)
+                except PgsError:
+                    if progress:
+                        progress(f"The saved {item.card.id} score cannot be decoded; rescoring")
+                else:
+                    if progress:
+                        progress(f"Reusing the saved {item.scoring.headers['pgs_id']} score")
+                    cards[item.card.id] = assemble_polygenic_card(item.card, record)
+                    continue
             cards[item.card.id] = self._score_one(
                 item,
                 records,
@@ -216,30 +239,38 @@ class PolygenicStage:
                 placement=placement,
                 progress=progress,
             )
+            if keep is not None:
+                keep(item.card.id, records.compressed(item.card.id))
         return cards, records
+
+    def loci(self) -> set[tuple[str, int]]:
+        """Every locus a prepared score reads.
+
+        One more parse of each scoring file (about 14 s for a 966,283-row score); reading
+        the dosage stream once per score cost about 50 min each.
+        """
+        loci: set[tuple[str, int]] = set()
+        for item in self.prepared.values():
+            if item.scoring is not None:
+                loci.update(
+                    (row.chrom, row.position)
+                    for row in item.scoring.iter_variants()
+                    if row.chrom is not None and row.position is not None
+                )
+        return loci
 
     def _index_dosages(
         self,
         dosages: Callable[[], Iterator[DosageRecord]],
         progress: Callable[[str], None] | None,
     ) -> DosageIndex | None:
-        """The run's dosage stream read once, at every locus a prepared score uses.
-
-        Collecting the loci costs one more parse of each scoring file (about 14 s for a
-        966,283-row score); reading the stream once per score cost about 50 min each.
-        """
-        scorings = [item.scoring for item in self.prepared.values() if item.scoring is not None]
+        """The run's dosage stream read once, at every locus a prepared score uses."""
+        scorings = sum(1 for item in self.prepared.values() if item.scoring is not None)
         if not scorings:
             return None
-        loci: set[tuple[str, int]] = set()
-        for scoring in scorings:
-            loci.update(
-                (row.chrom, row.position)
-                for row in scoring.iter_variants()
-                if row.chrom is not None and row.position is not None
-            )
+        loci = self.loci()
         if progress:
-            progress(f"Reading native dosage evidence once for {len(scorings)} polygenic scores")
+            progress(f"Reading native dosage evidence once for {scorings} polygenic scores")
         return index_dosages(dosages(), loci, progress)
 
     def _score_one(

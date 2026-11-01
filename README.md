@@ -341,6 +341,12 @@ Default imputation requires the full prepared panels/maps and pinned Java tools;
 prerequisites fail explicitly. Development/testing can select `--no-impute`, which is
 visible in the saved run and cards; it is never selected automatically.
 
+An imputed run takes hours, so `genetics run` saves its long parts as they finish: the
+imputation, one read of the imputed doses, each polygenic score, and the PGx and HLA
+calls. Rerunning an interrupted run of the same export resumes after the last saved
+part. The parts are private and stay outside the checkout; they are removed once the run
+is saved, and `--restart` discards them to start over.
+
 The dashboard links to each run's ClinVar reference lookup. These are reference
 annotations; its [ACMG view](docs/secondary_findings.md) retains likely artifacts and
 states that only clinical sequencing can establish or exclude a variant. Full lookup

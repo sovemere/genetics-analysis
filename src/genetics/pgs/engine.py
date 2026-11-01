@@ -19,7 +19,7 @@ import os
 import re
 import uuid
 from collections import Counter
-from collections.abc import Callable, Collection, Iterable, Mapping, Sequence
+from collections.abc import Callable, Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any, ClassVar
@@ -636,12 +636,13 @@ def _native_sum_impl(
 
 @dataclass(frozen=True, repr=False)
 class DosageIndex(NoGenotypeRepr):
-    """One read of a run's native dosage stream, kept at the loci its scores use.
+    """One read of a run's native dosage stream, kept at the loci its readers use.
 
     Each score used to read and digest the whole imputed stream itself. That pass costs the
     same whatever the score's size: 48-69 min per score at M9.9-M9.12 acceptance, so a
-    14-score pack would spend about 12 hours re-reading one stream. A run reads it once.
-    Records keep stream order at each locus, so a score sees exactly what it would have
+    14-score pack would spend about 12 hours re-reading one stream. A run reads it once,
+    at every locus a card input, a score or a PGx call reads (:mod:`genetics.run.parts`).
+    Records keep stream order at each locus, so a reader sees exactly what it would have
     filtered for itself, and the stream digest is the one each score recorded.
     """
 
@@ -652,6 +653,16 @@ class DosageIndex(NoGenotypeRepr):
     @property
     def loci_held(self) -> int:
         return len(self.records)
+
+    def iter_records(self) -> Iterator[DosageRecord]:
+        """The held records in stream order, as a reader filtering the stream would see them.
+
+        Records at one locus are adjacent in the stream (each job's output is sorted by
+        position, and jobs do not overlap), so grouping by locus in first-seen order keeps
+        the stream's own order.
+        """
+        for found in self.records.values():
+            yield from found
 
 
 def index_dosages(
@@ -671,7 +682,7 @@ def index_dosages(
         if locus in loci:
             records.setdefault(locus, []).append(record)
         if progress and count % 500_000 == 0:
-            progress("Reading native dosage evidence for PGS scoring")
+            progress(f"Reading imputed doses: {count:,} records")
     return DosageIndex({key: tuple(found) for key, found in records.items()}, digest.hexdigest())
 
 

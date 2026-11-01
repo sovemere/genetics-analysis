@@ -493,6 +493,56 @@ def test_a_run_reads_the_dosage_stream_once_for_all_its_scores(
     assert cards["synthetic_polygenic"].summary == cards["synthetic_polygenic_again"].summary
 
 
+def test_an_interrupted_run_rescores_only_the_scores_it_had_not_saved(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A genome-wide imputed score takes minutes; one finished is never computed again."""
+    from genetics.paths import run_parts_dir
+
+    again = CARD.replace("id: synthetic_polygenic", "id: synthetic_polygenic_again")
+    (setup["knowledge"] / "again.yaml").write_text(again, encoding="utf-8")
+    fresh = run(setup, fake)
+    scored: list[str] = []
+    original = runner.PolygenicStage._score_one
+
+    def scoring(self: Any, item: Any, *args: Any, **kwargs: Any) -> Any:
+        scored.append(item.card.id)
+        if len(scored) == 2:
+            raise KeyboardInterrupt
+        return original(self, item, *args, **kwargs)
+
+    def resumable(**kwargs: Any) -> Any:
+        return analyse(
+            EXPORT,
+            knowledge_dir=setup["knowledge"],
+            ancestry=lambda table, qc: AncestryContext.not_run("synthetic: no ancestry stage"),
+            no_impute=True,
+            polygenic=stage(setup, fake),
+            resumable=True,
+            **kwargs,
+        )
+
+    monkeypatch.setattr(runner.PolygenicStage, "_score_one", scoring)
+    with pytest.raises(KeyboardInterrupt):
+        resumable()
+    first, second = scored
+    messages: list[str] = []
+    resumed = resumable(progress=messages.append)
+    assert scored[2:] == [second]
+    assert "Reusing the saved PGS000001 score" in messages
+    assert "1 polygenic score(s)" in next(m for m in messages if m.startswith("Resuming"))
+    for card_id in (first, second):
+        assert resumed.polygenic[card_id] == fresh.polygenic[card_id]
+        cards = [
+            next(c for c in analysis.cards if c.card_id == card_id) for analysis in (resumed, fresh)
+        ]
+        assert cards[0].computation == cards[1].computation
+        assert cards[0].summary == cards[1].summary
+    bundle = read_bundle(save(resumed))
+    assert bundle.polygenic is not None and bundle.polygenic[first] == fresh.polygenic[first]
+    assert not run_parts_dir().exists()
+
+
 def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(
     setup: dict[str, Any], fake: MultiPlink, tmp_path: Path
 ) -> None:

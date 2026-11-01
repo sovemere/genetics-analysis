@@ -64,6 +64,23 @@ per score (unmeasured). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is
 `--memory 4096` unless its caller sets its own; without the flag each reserves half of
 physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
 names it (`external/plink2.py`).
+**An interrupted `genetics run` now resumes (2026-11-01).** A default imputed run is
+estimated at 3-4 hours, and an interruption after imputation used to keep only Beagle's
+per-job checkpoints. `genetics run` now saves its long parts as they finish
+(`run/parts.py`), and rerunning the same export picks up after the last one:
+1. the completed imputation, reopened by its dosage files' digests rather than re-derived;
+2. one read of the imputed doses, which card inputs, polygenic scores and PGx calls now
+   share; each used to parse the whole stream, about 20 min apiece;
+3. each polygenic score, as it finishes;
+4. the PGx and HLA calls.
+
+ClinVar, runs of homozygosity and archaic cards (about 12 min) are recomputed, and the
+bundle write stays a single rename. Parts are reused only under the same export, engine
+source, knowledge pack, reference lock, tools and options. A damaged part is recomputed
+with a progress line saying so, and the bundle writer checks every reused part as it
+would a fresh one. Parts are private, under `cache/run-parts/`, and are removed once the
+bundle is saved; `--restart` discards them first. Nothing here has been timed on an
+imputed run.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
@@ -1107,10 +1124,11 @@ Contract for M9.7:
     have 10^5–10^6 rows.
   - Before shipping one, measure the reference extraction (time, memory, cache size).
   - Measure the dosage pass in a default imputed run. Since 2026-11-01 a run reads the
-    imputed stream once for all its scores (`engine.DosageIndex`) instead of once per
-    score, which cost 48–69 min each at acceptance. The saving is unmeasured: no imputed
-    run has been made since. Measure the run's peak too, since the index holds every
-    record at the union of the pack's score loci for the whole scoring stage.
+    imputed stream once (`engine.DosageIndex`), for card inputs, every score and PGx,
+    instead of once per score (48–69 min each at acceptance) and once each for card
+    inputs and PGx. The saving is unmeasured: no imputed run has been made since.
+    Measure the run's peak too: the read holds every record at the union of those loci
+    (estimated 1.3 million records, about 1.1 GB) from imputation until PGx calling.
   - Measure the size of its saved record: it keeps every term with its native evidence.
     *Measured 2026-11-01 on the synthetic export without imputation:* PGS002143's record
     (966,283 rows) is about 1.9 GB parsed, 743 MB as compact JSON and 46 MB compressed;

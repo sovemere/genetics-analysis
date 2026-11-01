@@ -61,6 +61,7 @@ from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
 from genetics.refs.postprocess import ProcessError
 from genetics.run.bundle import BundleError
+from genetics.run.parts import RunPartsError
 from genetics.run.pipeline import Analysis, analyse, save
 from genetics.structure.archaic import ArchaicError
 from genetics.structure.roh import RohError
@@ -201,11 +202,21 @@ def run(
             help="Explicitly disable default imputation; recorded in the run and cards.",
         ),
     ] = False,
+    restart: Annotated[
+        bool,
+        typer.Option(
+            "--restart",
+            help="Discard the parts an interrupted run of this export saved, and start over. "
+            "Without it, a rerun resumes after the last part saved.",
+        ),
+    ] = False,
 ) -> None:
     """Analyse an export and save the result as an immutable run bundle.
 
     Prints QC, card counts and the new run id. Never prints a genotype -- read the cards
-    with `genetics runs show <run-id>`.
+    with `genetics runs show <run-id>`. Long parts are saved as they finish, outside the
+    checkout, so rerunning an interrupted run of the same export resumes after them; they
+    are removed once the bundle is saved.
     """
 
     def progress(message: str) -> None:
@@ -226,6 +237,8 @@ def run(
             knowledge_dir=knowledge,
             progress=progress,
             no_impute=no_impute,
+            resumable=True,
+            restart=restart,
             **hla_options,
         )
         path = save(analysis, progress=progress)
@@ -237,6 +250,7 @@ def run(
         CardError,
         EvidenceAssemblyError,
         BundleError,
+        RunPartsError,
         OSError,
         RohError,
         ArchaicError,

@@ -78,6 +78,14 @@ def cache_dir() -> Path:
     return user_data_dir() / "cache"
 
 
+def run_parts_dir() -> Path:
+    """Saved parts of unfinished runs (:mod:`genetics.run.parts`). Genotype-derived.
+
+    Removed run by run once the bundle is saved; what remains is an interrupted run's.
+    """
+    return cache_dir() / "run-parts"
+
+
 def tools_dir() -> Path:
     """Third-party binaries fetched at setup (PLINK 2, Beagle)."""
     return user_data_dir() / "tools"
@@ -143,6 +151,7 @@ def app_write_paths() -> tuple[tuple[str, Path, bool], ...]:
         ("user_data_dir", user_data_dir(), True),
         ("runs_dir", runs_dir(), True),
         ("cache_dir", cache_dir(), True),
+        ("run_parts_dir", run_parts_dir(), True),
         ("tools_dir", tools_dir(), True),
         ("ci_dir", ci_dir(), True),
         ("references_dir", references_dir(), True),

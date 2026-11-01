@@ -14,6 +14,10 @@ for PGS results (M9.5) and polygenic cards are scored here (M9.6). M9.13 shares 
 run's 1000 Genomes placement with selected-outcome variant evidence before imputation.
 M11.3 selects the HLA classifier from the same two placements once both exist, and M11.4
 cards read its frozen calls with the PGx record's CPIC rows.
+
+An imputed run reads its dose stream once, at every locus card inputs, polygenic scores and
+PGx calls read. A resumable run saves that read and its other long parts as they finish
+(:mod:`genetics.run.parts`), so an interrupted run of the same export picks up after them.
 """
 
 from __future__ import annotations
@@ -54,11 +58,13 @@ from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestResult, SourceInfo, ingest
 from genetics.ingest.keys import LocusKey
 from genetics.ingest.schema import Chrom
+from genetics.pgs.engine import DosageIndex, index_dosages
 from genetics.pgs.runner import PolygenicStage
 from genetics.pgx.calling import CallingStage
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
 from genetics.run.bundle import write_bundle
+from genetics.run.parts import RunParts, contract
 from genetics.structure.archaic import infer_archaic_cards
 from genetics.structure.interpretation import infer_roh_cards
 from genetics.structure.sex_chromosomes import infer_sex_chromosome_cards
@@ -94,6 +100,8 @@ class Analysis(NoGenotypeRepr):
     """Private M9 score records by polygenic card id, saved as ``pgs.run.json``."""
     hla: Mapping[str, Any] | None = None
     pgx: Mapping[str, Any] | None = None
+    parts: RunParts | None = None
+    """A resumable run's saved parts, removed once :func:`save` has written the bundle."""
 
     @property
     def vendor(self) -> str:
@@ -220,10 +228,17 @@ def analyse(
     polygenic: PolygenicStage | None = None,
     pgx: CallingStage | None = None,
     hla: HLAStage | None = None,
+    resumable: bool = False,
+    restart: bool = False,
 ) -> Analysis:
     """Parse, QC, infer ancestry, impute by default, then evaluate quality-aware cards.
 
     Writes no run bundle.
+
+    ``resumable`` saves the run's long parts as they finish and reuses those an interrupted
+    run of the same export saved (:mod:`genetics.run.parts`); ``restart`` discards them
+    first. The parts' contract names the default stages' inputs and the HLA request, so a
+    caller replacing a stage must not share parts between differently built stages.
 
     ``ancestry`` replaces the default stage, :func:`~genetics.ancestry.context.
     infer_ancestry`. ``progress`` is handed to that default and receives one line per slow
@@ -252,6 +267,22 @@ def analyse(
     hla_stage = hla if hla is not None else HLAStage()
     hla_stage.prepare(progress)
     result: IngestResult = ingest(input_path)
+    if type(resumable) is not bool or type(restart) is not bool:
+        raise ImputationError("resumable and restart must be explicit booleans.")
+    parts = (
+        RunParts.open(
+            contract(
+                input_path,
+                pack=pack,
+                no_impute=no_impute,
+                options={"hla_population": hla_stage.population, "hla_opt_in": hla_stage.opt_in},
+            ),
+            restart=restart,
+            progress=progress,
+        )
+        if resumable
+        else None
+    )
     if ancestry is None:
         context = infer_ancestry(result.table, result.qc, progress=progress)
     else:
@@ -269,16 +300,30 @@ def analyse(
         if progress:
             progress("Imputation disabled by explicit --no-impute request")
     else:
-        imputation_result = impute(result.table, sex=result.qc.sex.inferred, progress=progress)
+        imputation_result = None if parts is None else parts.imputation(result.table)
+        if imputation_result is None:
+            imputation_result = impute(result.table, sex=result.qc.sex.inferred, progress=progress)
+            if parts is not None:
+                parts.save_imputation(imputation_result)
         if imputation_result.original is not result.table:
             raise ImputationError("Imputation returned observations for a different target.")
         imputation_context = ImputationContext.enabled(
             imputation_result.summary(), quality_aware=True
         )
+    doses = (
+        None
+        if imputation_result is None
+        else _read_doses(imputation_result, pack, polygenic_stage, pgx_stage, parts, progress)
+    )
     matching_table, imputed = (
         (result.table, {})
         if imputation_result is None
-        else card_input(pack, imputation_result, sex=result.qc.sex.inferred)
+        else card_input(
+            pack,
+            imputation_result,
+            sex=result.qc.sex.inferred,
+            dosages=None if doses is None else doses.iter_records(),
+        )
     )
     matches = match_pack(
         pack,
@@ -333,40 +378,48 @@ def analyse(
     polygenic_cards, polygenic_records = polygenic_stage.score(
         table=result.table,
         sex=result.qc.sex.inferred,
-        dosages=None if imputation_result is None else imputation_result.iter_dosages,
+        dosages=doses,
         ancestry=context.to_dict(),
         imputation_provenance=None if imputation_result is None else imputation_result.metadata,
         progress=progress,
+        saved=None if parts is None else parts.score,
+        keep=None if parts is None else parts.save_score,
     )
     cards = tuple(polygenic_cards.get(card.card_id, card) for card in cards)
     cards = tuple(replace(card, imputation_mode=imputation_context.mode) for card in cards)
     matches = tuple(card.match for card in cards)
-    if progress:
-        progress("Calling SNP-tractable PGx genes with unresolved alternatives retained")
-    pgx_calls = pgx_stage.run(
-        result.table,
-        sex=result.qc.sex.inferred,
-        dosages=None if imputation_result is None else imputation_result.iter_dosages,
-        frequencies=frequency_records,
-    )
+    calls = None if parts is None else parts.calls()
+    if calls is None:
+        if progress:
+            progress("Calling SNP-tractable PGx genes with unresolved alternatives retained")
+        pgx_record = pgx_stage.run(
+            result.table,
+            sex=result.qc.sex.inferred,
+            dosages=None if doses is None else doses.iter_records,
+            frequencies=frequency_records,
+        ).to_dict()
+        hla_record = hla_stage.run(result.table)
+        if parts is not None:
+            parts.save_calls(pgx_record, hla_record)
+    else:
+        pgx_record, hla_record = calls
     from genetics.pgx.guidelines import assemble_guideline_card
 
     cards = tuple(
         replace(
-            assemble_guideline_card(card.card, pgx_calls.to_dict()),
+            assemble_guideline_card(card.card, pgx_record),
             imputation_mode=imputation_context.mode,
         )
         if card.kind is CardKind.GUIDELINE
         else card
         for card in cards
     )
-    hla_record = hla_stage.run(result.table)
     from genetics.hla.cards import assemble_hla_card
 
     # M11.4: HLA cards read the frozen classifier calls, CPIC rows and saved placements.
     cards = tuple(
         replace(
-            assemble_hla_card(card.card, hla_record, pgx_calls.to_dict(), context.to_dict()),
+            assemble_hla_card(card.card, hla_record, pgx_record, context.to_dict()),
             imputation_mode=imputation_context.mode,
         )
         if card.kind is CardKind.HLA
@@ -385,9 +438,49 @@ def analyse(
         imputation=imputation_context,
         imputation_result=imputation_result,
         polygenic=polygenic_records,
-        pgx=pgx_calls.to_dict(),
+        pgx=pgx_record,
         hla=hla_record,
+        parts=parts,
     )
+
+
+def _read_doses(
+    imputation: ImputationResult,
+    pack: KnowledgePack,
+    polygenic: PolygenicStage,
+    pgx: CallingStage,
+    parts: RunParts | None,
+    progress: Callable[[str], None] | None,
+) -> DosageIndex:
+    """The imputed stream read once, at every locus a later stage reads.
+
+    Card inputs, polygenic scores and PGx calls each filtered the whole stream for their own
+    loci: a parse of 81 million records, about 20 min, each time. Each now reads the records
+    this pass holds for it, in stream order, so it sees what it would have filtered itself.
+    """
+    saved = None if parts is None else parts.doses()
+    if saved is not None:
+        return saved
+    loci = {
+        (variant.key.chrom.value, variant.key.pos_grch37)
+        for card in pack.cards
+        if card.match is not None
+        for variant in card.match.variants
+    }
+    loci.update(polygenic.loci())
+    if pgx.catalog is not None:
+        from genetics.pgx.calling import loci as pgx_loci
+
+        loci.update(pgx_loci(pgx.catalog))
+    if progress:
+        progress(
+            "Reading imputed doses once for card inputs, polygenic scores and PGx "
+            f"at {len(loci):,} loci"
+        )
+    doses = index_dosages(imputation.iter_dosages(), loci, progress)
+    if parts is not None:
+        parts.save_doses(doses)
+    return doses
 
 
 def save(
@@ -412,7 +505,7 @@ def save(
         raise ImputationError(
             "Enabled analysis cannot be saved without its completed imputation stage."
         )
-    return write_bundle(
+    path = write_bundle(
         qc=analysis.qc,
         cards=analysis.cards,
         pack=analysis.pack,
@@ -430,3 +523,6 @@ def save(
         lock_path=lock_path,
         tools_root=tools_root,
     )
+    if analysis.parts is not None:
+        analysis.parts.discard()
+    return path

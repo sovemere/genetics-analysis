@@ -292,6 +292,10 @@ gnomad_frequencies.sqlite*
 *.imputation-work/
 *.imputation.lock
 *.dosages.jsonl.gz
+# Saved parts of an unfinished `genetics run` (run/parts.py): imputation, the dose read,
+# score records and PGx/HLA calls. Written under the cache directory, outside the checkout;
+# the file names also fall under *.run.json, *.run.json.gz and *.dosages.jsonl.gz.
+run-parts/
 # M8.6 bundles reuse *.dosages.jsonl.gz and *.run.json for full dosage/provenance
 # snapshots, including byte-identical panel/map catalogs. Do not re-include these.
 /knowledge/**/*.imputation-work/
