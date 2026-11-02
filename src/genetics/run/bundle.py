@@ -997,7 +997,7 @@ def write_bundle(
             score_files = {key: score_file_name(key) for key in sorted(scores)}
         except (PgsError, TypeError, ValueError) as exc:
             raise BundleError(f"{PGS_NAME}: a score record cannot be saved: {exc}") from exc
-        _check_polygenic(card_payloads, scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION)
+        _check_polygenic(card_payloads, scores, ancestry.to_dict(), BUNDLE_FORMAT_VERSION, progress)
         for key, name in score_files.items():
             (staging / name).write_bytes(scores.compressed(key))
         _write_text(staging / PGS_NAME, _render({"schema_version": 2, "files": score_files}))
@@ -1010,14 +1010,17 @@ def write_bundle(
                 "PGx calling was not supplied to the bundle writer.", sex=qc.sex.inferred.value
             ).to_dict()
         )
+        recorded = imputation_record["status"] == "recorded"
+        if progress and recorded:
+            progress("Checking the PGx calls against every saved imputed dose")
         try:
             validate_execution(
                 pgx_payload,
                 sex=qc.sex.inferred.value,
                 imputation_mode=execution["mode"],
-                native_dosages=None
-                if imputation_record["status"] != "recorded"
-                else imputation_snapshot.iter_saved(staging, imputation_record),
+                native_dosages=imputation_snapshot.iter_saved(staging, imputation_record, progress)
+                if recorded
+                else None,
             )
         except (CallingError, ImputationError) as exc:
             raise BundleError(str(exc)) from exc
@@ -1223,12 +1226,14 @@ def _check_polygenic(
     scores: Mapping[str, Any],
     ancestry: Mapping[str, Any] | None,
     version: int,
+    progress: Callable[[str], None] | None = None,
 ) -> None:
     """Each polygenic card must be reproduced by its own stored score record, and no
     record may sit in the bundle without the card that displays it.
 
     Each record is parsed once and dropped before the next: a genome-wide record is about
-    1.9 GB parsed, and :class:`ScoreRecords` parses a fresh copy on every access.
+    1.9 GB parsed, and :class:`ScoreRecords` parses a fresh copy on every access. That is
+    most of a minute per imputed genome-wide score, hence ``progress``.
     """
     from genetics.pgs.cards import validate_stored
 
@@ -1237,7 +1242,9 @@ def _check_polygenic(
     }
     if not set(scores) <= set(polygenic):
         raise BundleError(f"{PGS_NAME}: a score record has no polygenic card")
-    for card_id, entry in polygenic.items():
+    for index, (card_id, entry) in enumerate(polygenic.items(), start=1):
+        if progress:
+            progress(f"Checking saved polygenic score {index}/{len(polygenic)}: {card_id}")
         try:
             text_sha256 = None
             record: Mapping[str, Any] | None

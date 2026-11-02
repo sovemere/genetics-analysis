@@ -615,9 +615,20 @@ def publish(
         ) from None
 
 
-def iter_saved(directory: Path, raw: Mapping[str, Any] | None) -> Iterator[DosageRecord]:
+def iter_saved(
+    directory: Path,
+    raw: Mapping[str, Any] | None,
+    progress: Callable[[str], None] | None = None,
+) -> Iterator[DosageRecord]:
+    """Every saved dose record, each file checked against its digest before it is read.
+
+    ``progress``, when given, hears a record count at most every 30 seconds: one pass over
+    a full imputed run reads some 81 million records and otherwise says nothing.
+    """
     if raw is None or raw.get("status") != "recorded":
         raise ImputationError("Full imputation dosage evidence was not recorded for this run.")
+    count = 0
+    heartbeat = time.monotonic()
     try:
         for file in raw["stage"]["files"]:
             path = directory / file["name"]
@@ -627,6 +638,11 @@ def iter_saved(directory: Path, raw: Mapping[str, Any] | None) -> Iterator[Dosag
                 or digest(path) != file["sha256"]
             ):
                 raise ImputationError("Saved dosage payload has changed since the run was opened.")
-            yield from iter_records(path)
+            for record in iter_records(path):
+                count += 1
+                if progress and count % 100_000 == 0 and time.monotonic() - heartbeat >= 30:
+                    progress(f"Reading saved imputed doses: {count:,} records")
+                    heartbeat = time.monotonic()
+                yield record
     except OSError:
         raise ImputationError("Saved dosage payload is missing or unreadable.") from None

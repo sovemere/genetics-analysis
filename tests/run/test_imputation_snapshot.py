@@ -8,6 +8,7 @@ import json
 from collections.abc import Callable
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, cast
 
 import pytest
@@ -200,7 +201,35 @@ def test_snapshot_is_independent_and_uses_exact_stage_identities(
     assert any("Copying" in event for event in events) and any(
         "Validating" in event for event in events
     )
+    assert "Checking the PGx calls against every saved imputed dose" in events
     assert_no_genotype("\n".join(events))
+
+
+def test_a_long_pass_over_saved_doses_reports_its_count(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The PGx save check reads every saved dose; on a real run that is 19 silent minutes."""
+    analysis, _ = prepared
+    bundle = read_bundle(
+        pipeline.save(
+            analysis, tools_root=tmp_path / "missing-tools", lock_path=tmp_path / "missing.lock"
+        )
+    )
+    raw = bundle.imputation_provenance
+    assert raw is not None
+    record = next(bundle.iter_dosages())
+    monkeypatch.setattr(snapshot, "iter_records", lambda path: iter([record] * 100_000))
+    started = iter([0.0])
+    monkeypatch.setattr(
+        "genetics.imputation.snapshot.time",
+        SimpleNamespace(monotonic=lambda: next(started, 31.0)),
+    )
+    events: list[str] = []
+    files = len(raw["stage"]["files"])
+    assert sum(1 for _ in snapshot.iter_saved(bundle.path, raw, events.append)) == 100_000 * files
+    assert events == ["Reading saved imputed doses: 100,000 records"]
 
 
 def test_disabled_run_records_no_execution_or_dosages(

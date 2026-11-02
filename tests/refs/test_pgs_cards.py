@@ -538,9 +538,13 @@ def test_an_interrupted_run_rescores_only_the_scores_it_had_not_saved(
         ]
         assert cards[0].computation == cards[1].computation
         assert cards[0].summary == cards[1].summary
-    bundle = read_bundle(save(resumed))
+    saving: list[str] = []
+    bundle = read_bundle(save(resumed, progress=saving.append))
     assert bundle.polygenic is not None and bundle.polygenic[first] == fresh.polygenic[first]
     assert not run_parts_dir().exists()
+    # Checking a saved imputed score takes most of a minute; each one is announced.
+    checks = [m for m in saving if m.startswith("Checking saved polygenic score")]
+    assert len(checks) == 2 and checks[0].startswith("Checking saved polygenic score 1/2: ")
 
 
 def test_a_saved_score_made_under_another_ancestry_result_is_rescored(

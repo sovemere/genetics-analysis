@@ -341,7 +341,9 @@ Default imputation requires the full prepared panels/maps and pinned Java tools;
 prerequisites fail explicitly. Development/testing can select `--no-impute`, which is
 visible in the saved run and cards; it is never selected automatically.
 
-An imputed run takes hours, so `genetics run` saves its long parts as they finish: the
+An imputed run takes about 5½ hours ([measured](docs/review_run_cost_session.md) on a
+public 1000 Genomes stand-in, peaking at 10.9 GB). `genetics run` therefore saves its long
+parts as they finish: the
 imputation, one read of the imputed doses, each polygenic score, and the PGx and HLA
 calls. Rerunning an interrupted run of the same export resumes after the last saved
 part. The parts are private and stay outside the checkout; they are removed once the run

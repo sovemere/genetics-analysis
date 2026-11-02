@@ -64,8 +64,8 @@ per score (unmeasured). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is
 `--memory 4096` unless its caller sets its own; without the flag each reserves half of
 physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
 names it (`external/plink2.py`).
-**An interrupted `genetics run` now resumes (2026-11-01).** A default imputed run is
-estimated at 3-4 hours, and an interruption after imputation used to keep only Beagle's
+**An interrupted `genetics run` now resumes (2026-11-01).** A default imputed run takes
+about 5½ hours (measured below), and an interruption after imputation used to keep only Beagle's
 per-job checkpoints. `genetics run` now saves its long parts as they finish
 (`run/parts.py`), and rerunning the same export picks up after the last one:
 1. the completed imputation, reopened by its dosage files' digests rather than re-derived;
@@ -93,6 +93,23 @@ with one polars thread three processes agreed. Those sums now use `math.fsum`
 safety net, a saved score is reused only if it carries this run's ancestry, and the saved
 PGx and HLA calls only if they were made under it; otherwise they are recomputed with a
 progress line, rather than failing at the save.
+**The first default imputed run completed (2026-11-02).** The synthetic fixtures cannot be
+imputed: their coordinates are invented, so Beagle finds no panel markers in its first
+window. The run used public 1000 Genomes stand-in HG00097, written as an AncestryDNA export
+outside the checkout (290,285 autosomal markers, no sex-chromosome or MT markers). On
+`af40ed1` it ran and saved in 4 h 59 min; a fresh run is about 5½ hours:
+- **imputation:** 22 autosomes, 2 h 31 min fresh, or 1 h 57 min when the imputation stage
+  reuses Beagle's completed jobs. Almost all of it is Python reading panel markers and
+  validating doses; Beagle itself took 44 s on chromosome 1;
+- **one dose read:** 29 min, for 81,272,000 records at 1,316,215 loci;
+- **14 scores:** 80 min;
+- **saving:** 54 min, made up of dose validation (23 min), score checks (12 min) and the
+  PGx pass over every saved dose (19 min).
+
+Python peaked at 10.9 GB and the bundle is 1.3 GB. A real export adds chromosome X, so it
+should take about 5¾–6 hours fresh. PLINK 2 crashed once (0xC0000005) scoring reference
+samples, and the resume rescored that score. The save now reports progress through its
+last 31 minutes, which were silent. See the [run-cost diff review](review_run_cost_session.md).
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
@@ -1138,17 +1155,18 @@ Contract for M9.7:
   - Measure the dosage pass in a default imputed run. Since 2026-11-01 a run reads the
     imputed stream once (`engine.DosageIndex`), for card inputs, every score and PGx,
     instead of once per score (48–69 min each at acceptance) and once each for card
-    inputs and PGx. The saving is unmeasured: no imputed run has been made since.
-    Measure the run's peak too: the read holds every record at the union of those loci
-    (estimated 1.3 million records, about 1.1 GB) from imputation until PGx calling.
+    inputs and PGx. *Measured 2026-11-02 on a public stand-in:* the one read takes
+    29 min over 81,272,000 records and keeps those at 1,316,215 loci, from imputation
+    until PGx calling. The run peaked at 10.9 GB, while scoring.
   - Measure the size of its saved record: it keeps every term with its native evidence.
     *Measured 2026-11-01 on the synthetic export without imputation:* PGS002143's record
     (966,283 rows) is about 1.9 GB parsed, 743 MB as compact JSON and 46 MB compressed;
     37% of the per-term JSON is the copied scoring-file columns and 41% the two phases'
     doses. Bundle format 25 stores each record compressed in its own file and checks one
     at a time. The terms stay whole because a saved run re-checks coverage, the other
-    allele and unusable rows' raw definitions from them without the scoring file. Measure
-    again with imputation on: the after-imputation doses will be denser.
+    allele and unusable rows' raw definitions from them without the scoring file. *With
+    imputation (2026-11-02):* about 62 MB compressed per genome-wide record, and 701 MB
+    for the pack's 14.
   - Report coverage before and after imputation for each score on the real panel.
 - **Acceptance.** Run the full `cards lint`, fetch and lock every new score, and put
   public 1000 Genomes stand-ins through the polygenic stage. Then **look at the
