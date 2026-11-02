@@ -106,7 +106,8 @@ outside the checkout (290,285 autosomal markers, no sex-chromosome or MT markers
 - **saving:** 54 min, made up of dose validation (23 min), score checks (12 min) and the
   PGx pass over every saved dose (19 min).
 
-Python peaked at 10.9 GB and the bundle is 1.3 GB. A real export adds chromosome X, so it
+Python peaked at 10.9 GB and the bundle is 1.3 GB; reopening it takes 52 min, because
+it repeats the save's checks. A real export adds chromosome X, so it
 should take about 5¾–6 hours fresh. PLINK 2 crashed once (0xC0000005) scoring reference
 samples, and the resume rescored that score. The save now reports progress through its
 last 31 minutes, which were silent. See the [run-cost diff review](review_run_cost_session.md).

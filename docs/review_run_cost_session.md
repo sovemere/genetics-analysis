@@ -89,7 +89,8 @@ during the save). The bundle holds 1.3 GB:
 - 132 MB for everything else.
 
 The imputation cache holds 3.9 GB. The saved parts were removed once the bundle was
-written.
+written. Reopening the saved run (`read_bundle`) took 52 min, with the test suite running
+alongside; it repeats the save's checks.
 
 ## Findings and fixes
 
@@ -180,7 +181,7 @@ written.
   imputation took 44 s.
 - **Saving and opening an imputed run each read the 81 million saved dose records twice:**
   the snapshot validation and the PGx check. Together with the score-record checks, that
-  is the 54-minute save. Folding the PGx check into the snapshot validation's pass would
+  is the 54-minute save and the 52-minute reopen. Folding the PGx check into the snapshot validation's pass would
   save about 19 minutes on each.
 - **This run is a stand-in.** It has 290,285 autosomal markers where the array has 677,436,
   and no X, Y or MT markers. Chromosome X imputation, sex inference and G6PD calling, and
