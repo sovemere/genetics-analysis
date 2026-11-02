@@ -90,6 +90,10 @@ class ScoreRecords(Mapping[str, Mapping[str, Any]]):
             del self._compressed[key]
             raise
 
+    def discard(self, key: str) -> None:
+        """Forget one held record, as when a restored one is not reused."""
+        del self._compressed[key]
+
     def compressed(self, key: str) -> bytes:
         return self._compressed[key]
 

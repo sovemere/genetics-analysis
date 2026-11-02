@@ -430,6 +430,27 @@ def test_an_ancestry_failure_is_reported_as_its_own_kind(
     assert not any(store_root.iterdir()), "a failed run saved a bundle"
 
 
+@pytest.mark.parametrize("args", [[], ["--json"]], ids=["human", "json"])
+def test_a_polygenic_scoring_failure_is_reported_without_a_traceback(
+    export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch, args: list[str]
+) -> None:
+    """PgsError was missing from the refusals `genetics run` reports, so an intermittent
+    PLINK crash in reference scoring printed a traceback (2026-11-02)."""
+    from genetics.pgs.catalog import PgsError
+
+    def broken(input_path: Path, **kwargs: Any) -> Any:
+        raise PgsError("PLINK reference scoring failed; no reference distribution accepted.")
+
+    monkeypatch.setattr("genetics.cli.run_cmd.analyse", broken)
+    result = _run(export, *args)
+    assert result.exit_code == 2
+    assert "no reference distribution accepted" in result.output
+    assert "Traceback" not in result.output
+    if args:
+        assert json.loads(result.stdout)["error"]["kind"] == "polygenic"
+    assert not any(store_root.iterdir()), "a failed run saved a bundle"
+
+
 def test_progress_goes_to_stderr_so_json_stays_one_document(
     export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

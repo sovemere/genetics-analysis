@@ -543,6 +543,47 @@ def test_an_interrupted_run_rescores_only_the_scores_it_had_not_saved(
     assert not run_parts_dir().exists()
 
 
+def test_a_saved_score_made_under_another_ancestry_result_is_rescored(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each record carries the run's ancestry, and the bundle refuses one that differs.
+
+    A resumed run recomputes ancestry. When it differed, by a last bit in polars' sums
+    (2026-11-02), the reused scores failed the bundle check after the rest of the run.
+    """
+    from genetics.paths import run_parts_dir
+
+    def resumable(reason: str, **kwargs: Any) -> Any:
+        return analyse(
+            EXPORT,
+            knowledge_dir=setup["knowledge"],
+            ancestry=lambda table, qc: AncestryContext.not_run(reason),
+            no_impute=True,
+            polygenic=stage(setup, fake),
+            resumable=True,
+            **kwargs,
+        )
+
+    resumable("synthetic: first ancestry result")  # parts saved, run never saved
+    scored: list[str] = []
+    original = runner.PolygenicStage._score_one
+
+    def scoring(self: Any, item: Any, *args: Any, **kwargs: Any) -> Any:
+        scored.append(item.card.id)
+        return original(self, item, *args, **kwargs)
+
+    monkeypatch.setattr(runner.PolygenicStage, "_score_one", scoring)
+    messages: list[str] = []
+    resumed = resumable("synthetic: another ancestry result", progress=messages.append)
+    assert scored == ["synthetic_polygenic"]
+    assert (
+        "The saved PGS000001 score was made under a different ancestry result; rescoring"
+        in messages
+    )
+    assert read_bundle(save(resumed)).polygenic is not None
+    assert not run_parts_dir().exists()
+
+
 def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(
     setup: dict[str, Any], fake: MultiPlink, tmp_path: Path
 ) -> None:

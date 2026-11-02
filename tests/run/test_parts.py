@@ -240,7 +240,8 @@ def test_each_part_round_trips_and_a_failed_save_costs_only_the_resume(
     records = ScoreRecords()
     records.add("card_a", {"after": {"sum": 1.25}})
     parts.save_score("card_a", records.compressed("card_a"))
-    parts.save_calls({"status": "unavailable"}, {"status": "not_run"})
+    placed = {"reference_population": {"fits": [{"fit": 0.5}]}}
+    parts.save_calls({"status": "unavailable"}, {"status": "not_run"}, placed)
 
     again = RunParts.open({"run": 1}, root=root, progress=messages.append)
     assert messages[-1].endswith("the dose read, 1 polygenic score(s), PGx and HLA calls")
@@ -250,7 +251,15 @@ def test_each_part_round_trips_and_a_failed_save_costs_only_the_resume(
         "after": {"sum": 1.25}
     }
     assert again.score("card_b") is None
-    assert again.calls() == ({"status": "unavailable"}, {"status": "not_run"})
+    assert again.calls(placed) == ({"status": "unavailable"}, {"status": "not_run"})
+    # Calls made under another ancestry result (HLA's classifier is chosen from it) are
+    # not reused: the bundle checks the HLA record against the run's ancestry.
+    moved = {"reference_population": {"fits": [{"fit": 0.5000000000000001}]}}
+    assert again.calls(moved) is None
+    assert messages[-1] == (
+        "The saved PGx and HLA calls were made under a different ancestry result; calling again"
+    )
+    again.save_calls({"status": "unavailable"}, {"status": "not_run"}, placed)
 
     with monkeypatch.context() as patched:
 
@@ -291,13 +300,16 @@ def test_the_imputation_part_is_reused_only_while_its_files_match(
     messages: list[str] = []
     parts = RunParts.open({"run": 1}, root=tmp_path / "parts", progress=messages.append)
     parts.save_imputation(result)
-    reopened = parts.imputation(table)
+    reopened = parts.imputation(table, "male")
     assert reopened is not None and reopened.resumed
     assert reopened.metadata == result.metadata
     assert list(reopened.iter_dosages()) == list(result.iter_dosages())
 
     other = ingest(export).table.frame.head(10)
-    assert parts.imputation(GenotypeTable(other, vendor=table.vendor)) is None
+    assert parts.imputation(GenotypeTable(other, vendor=table.vendor), "male") is None
+    assert messages[-1].startswith("The saved imputation no longer matches its dosage files")
+    parts.save_imputation(result)
+    assert parts.imputation(table, "female") is None
     assert messages[-1].startswith("The saved imputation no longer matches its dosage files")
 
     # Parts read from one imputation are not reused after imputation runs again.
@@ -310,7 +322,7 @@ def test_the_imputation_part_is_reused_only_while_its_files_match(
     assert parts.describe() == "imputation"
 
     result.dosage_files[0].write_bytes(b"changed")
-    assert parts.imputation(table) is None
+    assert parts.imputation(table, "male") is None
 
 
 def test_the_single_dose_read_gives_card_inputs_what_they_filtered_for_themselves(

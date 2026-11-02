@@ -56,6 +56,7 @@ from genetics.hla.calling import HLAStage
 from genetics.hla.models import HLAError
 from genetics.imputation.target import ImputationError
 from genetics.ingest import IngestError
+from genetics.pgs.catalog import PgsError
 from genetics.pgx.calling import CallingError
 from genetics.privacy import assert_no_genotype
 from genetics.qc import AnchorError, InferredSex
@@ -86,6 +87,10 @@ def _error_kind(exc: Exception) -> str:
         return "hla"
     if isinstance(exc, CallingError):
         return "pgx"
+    if isinstance(exc, PgsError):
+        return "polygenic"
+    if isinstance(exc, RunPartsError):
+        return "run_parts"
     if isinstance(exc, ImputationError | BeagleError | ProcessError):
         return "imputation"
     if isinstance(exc, IngestError | AnchorError):
@@ -261,6 +266,7 @@ def run(
         BeagleError,
         ProcessError,
         CallingError,
+        PgsError,
         HLAError,
         HIBAGError,
     ) as exc:

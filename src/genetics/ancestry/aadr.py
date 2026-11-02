@@ -97,7 +97,7 @@ from genetics.ancestry.eigenstrat import (
     PackedGenotypes,
     read_individuals,
 )
-from genetics.ancestry.populations import PopulationModel
+from genetics.ancestry.populations import PopulationModel, exact_group_means
 from genetics.ancestry.projection import Projection
 from genetics.engine.matcher import complement
 from genetics.external.harmonize import PanelSites, is_snp_site, orient
@@ -589,17 +589,18 @@ def build_ancient_model(
         pl.col("date_bp").median().alias("date_median"),
         pl.col("date_bp").min().alias("date_min"),
         pl.col("date_bp").max().alias("date_max"),
-        pl.col("called").mean().alias("mean_called"),
-        *[pl.col(name).mean().alias(name) for name in pcs],
     )
+    # Means summed exactly: polars' thread-dependent row order changed their last bit
+    # from one process to the next (populations.exact_group_means).
+    means = exact_group_means(kept, "group", ["called", *pcs])
     groups = tuple(
         AncientGroup(
             group=str(row["group"]),
             n_individuals=int(row["n"]),
             date_bp_median=float(row["date_median"]),
             date_bp_range=(float(row["date_min"]), float(row["date_max"])),
-            centroid=tuple(float(row[name]) for name in pcs),
-            mean_called=float(row["mean_called"]),
+            centroid=tuple(float(value) for value in means[row["group"]][1:]),
+            mean_called=float(means[row["group"]][0]),
         )
         for row in aggregated.sort("group").iter_rows(named=True)
     )

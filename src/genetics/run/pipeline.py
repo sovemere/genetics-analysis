@@ -300,7 +300,9 @@ def analyse(
         if progress:
             progress("Imputation disabled by explicit --no-impute request")
     else:
-        imputation_result = None if parts is None else parts.imputation(result.table)
+        imputation_result = (
+            None if parts is None else parts.imputation(result.table, result.qc.sex.inferred.value)
+        )
         if imputation_result is None:
             imputation_result = impute(result.table, sex=result.qc.sex.inferred, progress=progress)
             if parts is not None:
@@ -388,7 +390,7 @@ def analyse(
     cards = tuple(polygenic_cards.get(card.card_id, card) for card in cards)
     cards = tuple(replace(card, imputation_mode=imputation_context.mode) for card in cards)
     matches = tuple(card.match for card in cards)
-    calls = None if parts is None else parts.calls()
+    calls = None if parts is None else parts.calls(context.to_dict())
     if calls is None:
         if progress:
             progress("Calling SNP-tractable PGx genes with unresolved alternatives retained")
@@ -400,7 +402,7 @@ def analyse(
         ).to_dict()
         hla_record = hla_stage.run(result.table)
         if parts is not None:
-            parts.save_calls(pgx_record, hla_record)
+            parts.save_calls(pgx_record, hla_record, context.to_dict())
     else:
         pgx_record, hla_record = calls
     from genetics.pgx.guidelines import assemble_guideline_card

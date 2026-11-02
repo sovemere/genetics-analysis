@@ -936,6 +936,26 @@ def _pc_names(k: int) -> list[str]:
     return [f"PC{i + 1}" for i in range(k)]
 
 
+def exact_group_means(
+    frame: pl.DataFrame, key: str, columns: Sequence[str]
+) -> dict[object, tuple[float, ...]]:
+    """Each ``key`` group's mean of every column in ``columns``, summed exactly.
+
+    Polars sums a group's rows in whatever order its threads deliver them, so the same
+    panel fitted centroids a last bit apart from one process to the next. Measured
+    2026-11-02: every process placed one public stand-in export with different fit values,
+    which changed the ancestry every saved polygenic record carries and stopped an
+    interrupted run from resuming. :func:`math.fsum` is exactly rounded, so the order the
+    rows arrive in cannot change a mean.
+    """
+    return {
+        group_key[0]: tuple(
+            math.fsum(group.get_column(name).to_list()) / group.height for name in columns
+        )
+        for group_key, group in frame.group_by(key)
+    }
+
+
 def _pooled_within_sd(
     frame: pl.DataFrame, centroids: pl.DataFrame, pcs: Sequence[str]
 ) -> list[float]:
@@ -955,8 +975,10 @@ def _pooled_within_sd(
         )
     out: list[float] = []
     for name in pcs:
-        total = joined.select(((pl.col(name) - pl.col(f"{name}_c")) ** 2).sum()).item()
-        sd = math.sqrt(float(total) / degrees)
+        # Summed exactly, for the reason exact_group_means gives: a join's row order varies
+        # with polars' threads, and a plain sum's last bit with it.
+        squares = joined.select((pl.col(name) - pl.col(f"{name}_c")) ** 2).to_series()
+        sd = math.sqrt(math.fsum(squares.to_list()) / degrees)
         # `not sd > 0` rather than `sd <= 0`, because every comparison against NaN is false
         # and NaN is the likeliest form an unscalable axis takes. Written the other way, one
         # NaN coordinate anywhere in the panel makes this scale NaN, then the threshold NaN,
@@ -1034,10 +1056,16 @@ def build_population_model(
             "projected samples, so none of them can carry a spread."
         )
 
-    centroids = frame.group_by("population").agg(
-        pl.col("region").first(),
-        pl.len().alias("n"),
-        *[pl.col(name).mean().alias(name) for name in pcs],
+    means = exact_group_means(frame, "population", pcs)
+    grouped = frame.group_by("population").agg(
+        pl.col("region").sort_by("sample_id").first(), pl.len().alias("n")
+    )
+    order = grouped.get_column("population").to_list()
+    centroids = grouped.with_columns(
+        [
+            pl.Series(name, [means[population][i] for population in order], dtype=pl.Float64)
+            for i, name in enumerate(pcs)
+        ]
     )
     if centroids.height < _MIN_POPULATIONS:
         raise PopulationsError(

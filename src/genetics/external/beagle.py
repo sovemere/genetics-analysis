@@ -645,7 +645,7 @@ class Beagle:
                 message = (
                     "Beagle exhausted its Java heap; increase memory_mb."
                     if heap_failure.is_set()
-                    else "Beagle failed; inspect its private job logs."
+                    else f"Beagle failed; inspect its private job logs in {console.parent}."
                 )
                 raise BeagleRunError(message, returncode=process.returncode)
         except OSError:

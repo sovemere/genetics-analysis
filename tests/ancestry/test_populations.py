@@ -145,6 +145,26 @@ def built(**kwargs: object) -> tuple[PopulationModel, pl.DataFrame]:
     return build_population_model(projection(coordinates), labels), coordinates
 
 
+def test_the_model_is_the_same_whatever_order_the_rows_arrive_in() -> None:
+    """Polars sums a group's rows in the order its threads deliver them, so a plain mean's
+    last bit varied by process: one export's placement differed on every run (2026-11-02),
+    and an interrupted run could not resume because its saved scores carry the placement.
+    """
+    coordinates, labels = panel(FOUR_CORNERS)
+    models = [
+        build_population_model(projection(frame), labels)
+        for frame in (
+            coordinates,
+            coordinates.reverse(),
+            coordinates.sample(fraction=1.0, shuffle=True, seed=7),
+        )
+    ]
+    for model in models[1:]:
+        assert model.scale == models[0].scale
+        assert model.centroids.sort("population").equals(models[0].centroids.sort("population"))
+        assert model.decline_threshold == models[0].decline_threshold
+
+
 # ---------------------------------------------------------------------------
 # Labels
 # ---------------------------------------------------------------------------

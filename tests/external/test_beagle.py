@@ -263,7 +263,12 @@ def test_failed_or_partial_jobs_never_publish_completion_and_can_restart(
         assert "increase memory_mb" in str(error.value)
     root = out.with_name(out.name + ".beagle-work")
     assert not (root / "complete").exists()
-    assert list(root.glob("attempt-*"))
+    attempts = list(root.glob("attempt-*"))
+    assert attempts
+    if mode == "fail":
+        # The message names where the private logs are, not just that they exist.
+        (attempt,) = attempts
+        assert str(error.value).endswith(f"inspect its private job logs in {attempt}.")
     monkeypatch.delenv("BEAGLE_STUB_MODE")
     result = runner.run(**inputs, out=out)
     assert result.vcf.is_file() and not result.resumed

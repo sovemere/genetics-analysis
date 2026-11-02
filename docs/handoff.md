@@ -82,8 +82,17 @@ would a fresh one. Parts are private, under `cache/run-parts/`. Nothing is writt
 until the first part is saved, and the parts are removed once the bundle is saved;
 `--restart` discards them first. A test session keeps them in a temporary directory
 unless the test sets its own data directory (`tests/conftest.py`): one CLI test that
-expects a failing run left a contract file in the real cache before this. Nothing here has
-been timed on an imputed run.
+expects a failing run left a contract file in the real cache before this.
+**Ancestry is now reproducible to the bit, and saved parts are bound to it (2026-11-02).**
+The first resumed imputed run failed its save: every polygenic record carries the run's
+ancestry, and the resumed run placed the same export a last bit differently (fit values
+up to 8.8e-16 apart). Polars sums a group's rows in the order its threads deliver them,
+so the 1000 Genomes centroids, pooled spread and ancient-group means varied by process;
+with one polars thread three processes agreed. Those sums now use `math.fsum`
+(`populations.exact_group_means`), and three processes give identical ancestry. As a
+safety net, a saved score is reused only if it carries this run's ancestry, and the saved
+PGx and HLA calls only if they were made under it; otherwise they are recomputed with a
+progress line, rather than failing at the save.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in

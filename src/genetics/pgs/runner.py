@@ -199,6 +199,9 @@ class PolygenicStage:
         ``dosages`` is the run's stream, read here once, or the index a run already read.
         ``saved`` returns a card's compressed record from an interrupted run, if it saved
         one, and ``keep`` saves each record as it is scored (:mod:`genetics.run.parts`).
+        A saved record is reused only if it carries this run's ``ancestry``: the bundle
+        refuses a record whose ancestry differs from the run's, and finding that out at
+        the save, after the rest of the run, would cost the run.
         """
         cards: dict[str, AssembledCard] = {}
         records = ScoreRecords()
@@ -218,16 +221,24 @@ class PolygenicStage:
                 continue
             stored = None if saved is None else saved(item.card.id)
             if stored is not None:
+                pgs_id = item.scoring.headers["pgs_id"]
                 try:
                     record = records.restore(item.card.id, stored)
                 except PgsError:
                     if progress:
-                        progress(f"The saved {item.card.id} score cannot be decoded; rescoring")
+                        progress(f"The saved {pgs_id} score cannot be decoded; rescoring")
                 else:
+                    if record.get("ancestry") == ancestry:
+                        if progress:
+                            progress(f"Reusing the saved {pgs_id} score")
+                        cards[item.card.id] = assemble_polygenic_card(item.card, record)
+                        continue
+                    records.discard(item.card.id)
                     if progress:
-                        progress(f"Reusing the saved {item.scoring.headers['pgs_id']} score")
-                    cards[item.card.id] = assemble_polygenic_card(item.card, record)
-                    continue
+                        progress(
+                            f"The saved {pgs_id} score was made under a different ancestry "
+                            "result; rescoring"
+                        )
             cards[item.card.id] = self._score_one(
                 item,
                 records,

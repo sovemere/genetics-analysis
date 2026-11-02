@@ -76,6 +76,12 @@ def _canonical(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), allow_nan=False).encode("ascii")
 
 
+def _value_sha256(value: Any) -> str:
+    """A digest of a JSON value; infinities are allowed, as ancestry thresholds may be."""
+    text = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(text).hexdigest()
+
+
 def _file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -126,9 +132,9 @@ class RunParts(NoGenotypeRepr):
     _repr_fields: ClassVar[tuple[str, ...]] = ("key",)
     directory: Path
     key: str
-    progress: Callable[[str], None] | None = None
-    terms: bytes = b""
+    terms: bytes
     """The canonical contract, written beside the first part saved."""
+    progress: Callable[[str], None] | None = None
 
     @classmethod
     def open(
@@ -155,7 +161,7 @@ class RunParts(NoGenotypeRepr):
             )
         if base.is_symlink() or directory.is_symlink():
             raise RunPartsError("A saved run parts directory cannot be a symbolic link.")
-        parts = cls(directory, key, progress, text)
+        parts = cls(directory, key, text, progress)
         if restart and directory.exists():
             shutil.rmtree(directory)
             parts._emit("Discarded the saved parts of an earlier run of this export")
@@ -333,8 +339,8 @@ class RunParts(NoGenotypeRepr):
         text = _canonical(payload)
         self._publish(IMPUTATION_NAME, lambda handle: handle.write(text), "imputation")
 
-    def imputation(self, table: GenotypeTable) -> ImputationResult | None:
-        """The completed imputation of ``table``, if its dosage files still match."""
+    def imputation(self, table: GenotypeTable, sex: str) -> ImputationResult | None:
+        """The completed imputation of ``table`` with ``sex``, if its files still match."""
         data = self._load(IMPUTATION_NAME, "imputation")
         if data is None:
             return None
@@ -346,6 +352,7 @@ class RunParts(NoGenotypeRepr):
             target = hashlib.sha256(table.frame.write_csv().encode()).hexdigest()
             if (
                 metadata["contract"]["target_sha256"] != target
+                or metadata["contract"]["sex"] != sex
                 or len(paths) != len(expected)
                 or any(
                     path.name not in expected
@@ -429,7 +436,9 @@ class RunParts(NoGenotypeRepr):
 
     # -- 4. PGx and HLA -----------------------------------------------------------------
 
-    def calls(self) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    def calls(self, ancestry: Mapping[str, Any]) -> tuple[dict[str, Any], dict[str, Any]] | None:
+        """The saved calls, if they were made under ``ancestry``: HLA's classifier is
+        chosen from it, and the bundle checks the HLA record against it."""
         data = self._load(CALLS_NAME, "PGx and HLA")
         if data is None:
             return None
@@ -437,7 +446,7 @@ class RunParts(NoGenotypeRepr):
             raw = json.loads(data)
             if (
                 not isinstance(raw, dict)
-                or set(raw) != {"pgx", "hla"}
+                or set(raw) != {"pgx", "hla", "ancestry_sha256"}
                 or not isinstance(raw["pgx"], dict)
                 or not isinstance(raw["hla"], dict)
             ):
@@ -445,9 +454,18 @@ class RunParts(NoGenotypeRepr):
         except ValueError:
             self._drop(CALLS_NAME, "The saved PGx and HLA calls do not decode; calling again")
             return None
+        if raw["ancestry_sha256"] != _value_sha256(ancestry):
+            self._drop(
+                CALLS_NAME,
+                "The saved PGx and HLA calls were made under a different ancestry result; "
+                "calling again",
+            )
+            return None
         self._emit("Reusing this run's saved PGx and HLA calls")
         return raw["pgx"], raw["hla"]
 
-    def save_calls(self, pgx: Mapping[str, Any], hla: Mapping[str, Any]) -> None:
-        payload = _canonical({"pgx": pgx, "hla": hla})
+    def save_calls(
+        self, pgx: Mapping[str, Any], hla: Mapping[str, Any], ancestry: Mapping[str, Any]
+    ) -> None:
+        payload = _canonical({"pgx": pgx, "hla": hla, "ancestry_sha256": _value_sha256(ancestry)})
         self._publish(CALLS_NAME, lambda handle: handle.write(payload), "PGx and HLA")

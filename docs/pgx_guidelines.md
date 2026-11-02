@@ -14,6 +14,7 @@ publication evidence, conditions, gaps and inherited reliability. Save and reloa
 rederive the display from the independently validated, immutable PGx sample
 record. Formats 1–19 remain readable without adding current interpretations.
 No new private file type is needed; existing card and run privacy rules apply.
+M9.13 confidence arithmetic is unchanged.
 
 **From bundle format 26 (2026-11-01) the result is saved by reference.** It is a
 pure projection of `pgx.run.json`, and it copies every unresolved candidate with
@@ -24,7 +25,6 @@ guideline cards held 175 MB. A format-26 card saves `{"schema_version",
 the result from the PGx record and requires both the saved fields and that digest,
 then serves the full result, so the CLI, card JSON and dashboard are unchanged.
 Formats 20–25 still save and check the full result.
-M9.13 confidence arithmetic is unchanged.
 
 Resolve each candidate's definition IDs to labels and native copy counts, then
 follow its mapping IDs through diplotype, lookup and result rows. PHENOTYPE
