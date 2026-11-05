@@ -1,6 +1,6 @@
 # Handoff: M11.6 carrier-screening incompleteness
 
-As of 2026-11-01, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
+As of 2026-11-05, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -65,7 +65,7 @@ per score (unmeasured). See the roadmap log. Every PLINK 2 and PLINK 1.9 call is
 physical memory. `GENETICS_PLINK_MEMORY_MB` overrides the cap, and an out-of-memory error
 names it (`external/plink2.py`).
 **An interrupted `genetics run` now resumes (2026-11-01).** A default imputed run takes
-about 5½ hours (measured below), and an interruption after imputation used to keep only Beagle's
+5½–8 hours (measured below), and an interruption after imputation used to keep only Beagle's
 per-job checkpoints. `genetics run` now saves its long parts as they finish
 (`run/parts.py`), and rerunning the same export picks up after the last one:
 1. the completed imputation, reopened by its dosage files' digests rather than re-derived;
@@ -107,10 +107,48 @@ outside the checkout (290,285 autosomal markers, no sex-chromosome or MT markers
   PGx pass over every saved dose (19 min).
 
 Python peaked at 10.9 GB and the bundle is 1.3 GB; reopening it takes 52 min, because
-it repeats the save's checks. A real export adds chromosome X, so it
-should take about 5¾–6 hours fresh. PLINK 2 crashed once (0xC0000005) scoring reference
+it repeats the save's checks. PLINK 2 crashed once (0xC0000005) scoring reference
 samples, and the resume rescored that score. The save now reports progress through its
 last 31 minutes, which were silent. See the [run-cost diff review](review_run_cost_session.md).
+**The first real-export run completed (2026-11-05).** `genetics run` on `962d319`, with
+default options and a fresh imputation, ran and saved in 7 h 49 min:
+- **score references, ingest, ancestry:** 7.4 min, from warm caches;
+- **imputation:** 3 h 31 min, 23 jobs (22 autosomes and X non-PAR);
+- **one dose read:** 51.5 min, about 83 million records;
+- **ClinVar coverage, runs of homozygosity, archaic:** 12 min;
+- **14 scores:** 1 h 59 min;
+- **PGx:** 11 s;
+- **saving:** 67 min, made up of dose validation (31 min), the ClinVar write (1 min), score
+  checks (15 min) and the PGx pass (19 min).
+
+Python peaked at 14.7 GB and Java at 4.3 GB, and at least 6.9 GB stayed free. The bundle
+is 2.1 GB: score records 761 MB, the ClinVar lookup 721 MB (24 MB on the stand-in) and
+doses 505 MB. The imputation cache is 4.6 GB. The estimate was 5¾–6 hours. Public work
+that should not depend on the export also ran slower: scoring the reference samples took
+a median 7.7 min per score, against 5.0 on the stand-in. Part of the gap may therefore be
+the machine or memory pressure; the cause is not established.
+
+The reopen passed in 54 min. From that one opened copy, all 114 dashboard pages returned
+200 and seven CLI reads exited 0, each in under 10 s, with their output discarded unread.
+The largest page is a 47 MB guideline card, and `runs show --json` prints 1 GB.
+**Three things this run leaves open:**
+1. **Reading a saved imputed run costs about 54 min per read. Decide this before more
+   imputed runs are read.** Every `genetics runs show`, `pgx calls` and dashboard page calls
+   `read_bundle`, which repeats the save's checks, so each page load pays it again. The
+   figure is `read_bundle`'s; the render check above shared one opened copy so as not to
+   pay it 121 times. Options, for the owner: keep one opened copy in the dashboard process,
+   or record that a run passed its deep checks and repeat only the digests until
+   `runs list --verify` asks for more. Folding the PGx check into the dose validation's
+   pass saves only about 19 min.
+2. **HLA did not run.** The four HIBAG classifiers are not fetched, because their model terms
+   are unspecified and fetching needs the owner's explicit opt-in; the HLA cards record
+   that they did not run. Adding it is
+   `genetics refs fetch --only <classifier> --opt-in <classifier>` for the selected
+   classifier, then a rerun with `--hla-model-opt-in`.
+3. **X's pseudoautosomal intervals are not imputed on this vendor's exports.** They report
+   `insufficient_typed_calls`, as [the pipeline contract](imputation_pipeline.md) says:
+   AncestryDNA labels those markers chromosome 25, which has no coordinate contract. The
+   intervals outside them (`X_left`, `X_right`) report the same.
 **M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds
 `kind: hla`, and eight cited cards read the frozen classifier calls: celiac DQ2.5/DQ8, type 1
 diabetes DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in

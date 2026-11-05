@@ -186,7 +186,8 @@ alongside; it repeats the save's checks.
 - **This run is a stand-in.** It has 290,285 autosomal markers where the array has 677,436,
   and no X, Y or MT markers. Chromosome X imputation, sex inference and G6PD calling, and
   HLA on real MHC markers have not yet run at full scale. The first run on a real export
-  will exercise them, and should take about 5¾–6 hours fresh.
+  will exercise them, and should take about 5¾–6 hours fresh. *It ran on 2026-11-05 and
+  took 7 h 49 min; see [the handoff](handoff.md).*
 - **Two concurrent runs of one export share a parts directory without a lock.** Each part
   is written whole and checked by digest, so the worst case is recomputation.
 - **A reused imputation part is trusted by its file digests** rather than re-derived, as the
