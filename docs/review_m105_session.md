@@ -1,6 +1,6 @@
 # M10.5 session diff review
 
-Scope: `3b58d18..955487e`, covering the shared PGx current-context adapter,
+Scope: `3d29a80..86f3296`, covering the shared PGx current-context adapter,
 CLI, shell model, notice template, placement, synthetic checks and handoff.
 No personal export is opened. Production code and saved formats are unchanged.
 

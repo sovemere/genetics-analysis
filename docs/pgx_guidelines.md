@@ -150,6 +150,6 @@ focused guideline/interface/static checks, four strict type targets, full card
 lint, fixtures, style and whitespace checks pass. Full-source seeded-synthetic
 acceptance and written reload pass in **109.05 seconds**, including exact
 canonical-payload comparison of all eight legacy cards with the original
-`0a6f95a` implementation. New cards use display schema 2; historical schema-1
+`dcf134e` implementation. New cards use display schema 2; historical schema-1
 interpretations remain unchanged. M10.5 section framing is now implemented;
 M11.1 R/HIBAG detection and bridge is the next open item.

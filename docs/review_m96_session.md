@@ -1,6 +1,6 @@
 # M9.5–M9.6 session diff review
 
-I reviewed `b2bde81..317c825` on 2026-10-09. That range covers:
+I reviewed `857abe4..de6a4d1` on 2026-10-09. That range covers:
 
 - **M9.5 ancestry portability:** `pgs/portability.py`, `engine/confidence.py::ancestry_ceiling`,
   schema-4 score results and `genetics pgs portability`.

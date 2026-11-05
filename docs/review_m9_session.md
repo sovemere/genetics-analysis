@@ -1,6 +1,6 @@
 # M9.1–M9.2 diff review
 
-Reviewed `7ca87aa..94a3b22`, completed 2026-10-09: the M9.1 parser/licence/reference
+Reviewed `18d1dd9..c2068d2`, completed 2026-10-09: the M9.1 parser/licence/reference
 transform and M9.2 native scoring/workflows/CLI, together with their tests, privacy
 ignores and handoff. Review probes use fabricated observations only. No personal
 export, private saved run or new reference payload was opened or fetched.

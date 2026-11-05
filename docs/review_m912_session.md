@@ -1,6 +1,6 @@
 # M9.12 session diff review
 
-Reviewed on 2026-10-14: `1c4921e..e894b5d`, covering four fitness variant
+Reviewed on 2026-10-14: `425486c..7983ea1`, covering four fitness variant
 cards, the PGS002143 grip card, reference manifest/lock, synthetic tests and
 milestone documentation. The implementation leaves the engine, knowledge
 schemas 3/4, bundle format 17 and renderer unchanged.

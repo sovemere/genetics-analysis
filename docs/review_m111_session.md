@@ -1,6 +1,6 @@
 # M11.1 session diff review
 
-Scope: `60b38e7..3a7c32d`, covering optional R/HIBAG readiness, doctor JSON,
+Scope: `81b54eb..6e67fd8`, covering optional R/HIBAG readiness, doctor JSON,
 subprocess execution, the shared termination helper, ignore rules, tests and
 documentation. The review uses synthetic inputs only and does not install R,
 HIBAG or classifiers. Bundle format 20 and knowledge schema 5 remain unchanged.

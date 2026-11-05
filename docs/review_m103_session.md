@@ -1,6 +1,6 @@
 # M10.3 session diff review
 
-Scope: `1bee233..a98124d`, covering saved CYP2D6 limitation presentation,
+Scope: `6caae8e..f51c056`, covering saved CYP2D6 limitation presentation,
 CLI/dashboard integration, the six acceptance cases and next-step documentation.
 All reproductions use the shipped assay-limit card and fabricated or synthetic
 runs; no consumer export is opened.

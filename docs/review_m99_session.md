@@ -1,6 +1,6 @@
 # M9.9 session diff review
 
-Reviewed on 2026-10-13: `e63fffb..54e2e7d`, covering M9.9's authored knowledge,
+Reviewed on 2026-10-13: `1605de7..69789af`, covering M9.9's authored knowledge,
 reference manifest/lock, synthetic integration tests and acceptance documentation.
 The milestone changes no shared engine, knowledge schema, bundle format or
 renderer. The review's test and documentation changes are recorded below.

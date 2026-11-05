@@ -1,6 +1,6 @@
 # M9.3–M9.4 diff review
 
-I reviewed `c723e74..78f6db5` on 2026-10-09. That range covers:
+I reviewed `7f7a00a..d6a9034` on 2026-10-09. That range covers:
 
 - M9.3 per-score coverage: `pgs/coverage.py`, the schema-2 results and `genetics pgs
   coverage`.

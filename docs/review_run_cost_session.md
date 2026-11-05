@@ -1,22 +1,22 @@
 # Run memory, cost and resumability: session diff review
 
-Scope: `fe5d617..5d48b41`, the eight commits after the M11.5 review that made a synthetic
+Scope: `7308ce8..3ebaf79`, the eight commits after the M11.5 review that made a synthetic
 end-to-end `genetics run` fit in memory, cut its cost, and made it resumable:
 
 | Commit | Change |
 |---|---|
-| `33c2e29` | PLINK 2 is found before polygenic reference preparation |
-| `ba94c2e` | one polygenic reference extraction held at a time; faster extraction-cache reads |
-| `b9c2f34` | score records kept compressed; bundle format 25 (per-card score files) |
-| `0f772ff` | every PLINK call capped at `--memory 4096` unless its caller sets one |
-| `6c4643e` | first complete synthetic run recorded |
-| `8c8d113` | bundle format 26 (guideline results by reference, records checked on stored bytes), parser and coverage hot paths, one dose read for all scores |
-| `ed4f447` | saved run parts (`run/parts.py`); one dose read shared by card inputs, scores and PGx |
-| `5d48b41` | saved parts written only once one exists; test sessions keep them private |
+| `5ebb307` | PLINK 2 is found before polygenic reference preparation |
+| `3ce627d` | one polygenic reference extraction held at a time; faster extraction-cache reads |
+| `0052c9b` | score records kept compressed; bundle format 25 (per-card score files) |
+| `34898fa` | every PLINK call capped at `--memory 4096` unless its caller sets one |
+| `01d0a97` | first complete synthetic run recorded |
+| `94ca589` | bundle format 26 (guideline results by reference, records checked on stored bytes), parser and coverage hot paths, one dose read for all scores |
+| `84d9c54` | saved run parts (`run/parts.py`); one dose read shared by card inputs, scores and PGx |
+| `3ebaf79` | saved parts written only once one exists; test sessions keep them private |
 
 The review read every source and test change against the code it replaced, and ran the
 first default imputed `genetics run` alongside it. It used synthetic inputs and a public
-1000 Genomes stand-in only, and opened no personal genotype. Fixes are in `af40ed1`, and
+1000 Genomes stand-in only, and opened no personal genotype. Fixes are in `a5bf931`, and
 the save's progress lines in the commit that adds this review.
 
 ## The imputed run
@@ -30,7 +30,7 @@ as an AncestryDNA-format export in the session's scratch directory and was never
 It has no sex-chromosome markers, so sex is ambiguous and imputation covers the 22
 autosomes.
 
-**First attempt (`5d48b41`, 2026-11-02).** Warm caches, 32 GB machine:
+**First attempt (`3ebaf79`, 2026-11-02).** Warm caches, 32 GB machine:
 
 | Stage | Time |
 |---|---|
@@ -55,7 +55,7 @@ and the imputation metadata.
 The 14th score was rescored in 3.7 min, and PGx and HLA took 12 s from the saved read.
 The save then failed on the ancestry mismatch below, 18 minutes in.
 
-**The completed run (`af40ed1`).** After the fixes below, the run was started again on the
+**The completed run (`a5bf931`).** After the fixes below, the run was started again on the
 same export and data directory and saved, 4 h 59 min end to end:
 
 | Stage | Time |
@@ -127,37 +127,37 @@ alongside; it repeats the save's checks.
   pipeline. A sentence in `docs/pgx_guidelines.md` had been split from its paragraph.
 - **P4 — `RunParts.terms` defaulted to empty bytes,** so a directly constructed instance
   could write an empty contract that the next open discards. It is now required.
-- **Found before the review, in `5d48b41`:** a CLI test that expects `genetics run` to fail
+- **Found before the review, in `3ebaf79`:** a CLI test that expects `genetics run` to fail
   sets no data directory, and opening saved parts wrote a contract into the real cache.
 
 ## Checked without change
 
-- **Extraction-cache reads (`ba94c2e`).** `bytes.translate(None, b"012")` is empty exactly
+- **Extraction-cache reads (`3ce627d`).** `bytes.translate(None, b"012")` is empty exactly
   when a dose row holds only 0, 1 and 2, so the dropped `max(d) > 2` check is still made, per
   row, before decoding. A cache removed between preparation and scoring is re-extracted,
   verifying each VCF against its lock again.
-- **Format 25 (`b9c2f34`).** Every score file the manifest records is digest-checked with the
+- **Format 25 (`0052c9b`).** Every score file the manifest records is digest-checked with the
   other payloads before `_read_score_files` reads it; the schema-2 index must name exactly
   those files, and a score file below format 25 is refused. Names come from
   `score_file_name`, whose pattern admits no path separator.
-- **PLINK cap (`0f772ff`).** The cap is appended only when the caller passed no `--memory`;
+- **PLINK cap (`34898fa`).** The cap is appended only when the caller passed no `--memory`;
   the out-of-memory hint is added only under the wrapper's own cap; an override below
   PLINK 2's 640 MiB floor, or not ASCII digits, is refused naming the variable.
-- **Format 26 (`8c8d113`).** A guideline card is restored only if every saved field and the
+- **Format 26 (`94ca589`).** A guideline card is restored only if every saved field and the
   rebuilt result's digest reproduce from the frozen PGx record; a result saved in full under
   format 26, or a reference under format 25, is refused. The score-record fast path is sound:
   the stored text's sha256 equalling the card's `score_sha256` proves the text is the
   record's canonical form, so skipping the re-serialisation loses no check.
-- **Parser hot path (`8c8d113`).** `_row` validates both coordinate pairs in the same order
+- **Parser hot path (`94ca589`).** `_row` validates both coordinate pairs in the same order
   with the same labels as before, and takes the used pair from that validation; `_position`
   accepts ASCII digits only, as `[0-9]+` did; `_all_str` is `all(isinstance(v, str))`.
-- **One dose read (`8c8d113`, `ed4f447`).** Card inputs, the polygenic index and PGx each
+- **One dose read (`94ca589`, `84d9c54`).** Card inputs, the polygenic index and PGx each
   kept only the records at their own loci, in stream order, and each still does: the shared
   read holds every record at the union of those loci, grouped by locus in first-seen order,
   which is stream order because records at one locus are adjacent. Saving a run re-reads
   the full saved stream for the PGx check (`validate_execution`), so a read that lost or
   reordered a PGx record would fail the save. Tested directly for card inputs.
-- **Saved parts (`ed4f447`, `5d48b41`).** Parts are keyed by the digest of a genotype-free
+- **Saved parts (`84d9c54`, `3ebaf79`).** Parts are keyed by the digest of a genotype-free
   contract (export, engine source, knowledge pack, reference lock, tools, options) and each
   file by its digest in the journal; a fresh imputation drops every part read from an earlier
   one; a failed save costs the resume only. The bundle writer checks reused parts exactly as

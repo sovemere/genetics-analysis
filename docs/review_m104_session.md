@@ -1,6 +1,6 @@
 # M10.4 session diff review
 
-Scope: `3f7f944..0a6f95a`, covering declarative guideline selectors, conditional
+Scope: `7cd7e7f..dcf134e`, covering declarative guideline selectors, conditional
 CPIC joins, card assembly, frozen bundle validation, CLI/dashboard presentation,
 synthetic acceptance and next-step documentation. No personal export is opened.
 
@@ -43,7 +43,7 @@ source pins, candidate enumeration and M9.13 confidence stay unchanged.
 
 Complete-source offline acceptance passes in **109.05 seconds** using seeded
 synthetic calls. All eight schema-1 cards compare exactly, by canonical serialized
-payload, with the original `0a6f95a` module. Both display versions validate, and
+payload, with the original `dcf134e` module. Both display versions validate, and
 new schema-2 cards survive independent sample JSON and written bundle reload.
 This uses the complete frozen public source and no personal data. Server-rendered
 HTTP checks verify saved interfaces; no interactive browser review is claimed.

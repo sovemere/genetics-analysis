@@ -1,6 +1,6 @@
 # M10.2 session diff review
 
-Scope: implementation commit `c519c08` against `ae9ada6`, covering the sample
+Scope: implementation commit `567817e` against `72c941c`, covering the sample
 caller, bundle/pipeline integration, CLI, dashboard and handoff. All reproductions
 use fabricated references and synthetic observations. No consumer export is read.
 
@@ -71,7 +71,7 @@ The pre-commit hook also verifies fixture reproduction, staged privacy, the
 privacy suite and repository style before this review is committed.
 
 An offline full-source acceptance compared the original implementation from
-`c519c08` with the corrected caller using the same seeded synthetic observations
+`567817e` with the corrected caller using the same seeded synthetic observations
 and public frequencies. Their canonical results are identical; the corrected
 schema-1 validator also accepts the original JSON roundtrip. All eight genes
 survive. Including checksum verification of the pinned 63 GB frequency source,

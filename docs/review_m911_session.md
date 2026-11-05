@@ -1,6 +1,6 @@
 # M9.11 session diff review
 
-Reviewed on 2026-10-13: `1bebcff..92d2efb`, covering the three sleep/circadian
+Reviewed on 2026-10-13: `b010aca..6b7de4b`, covering the three sleep/circadian
 cards, reference manifest/lock, synthetic integration tests, corpus counts and
 acceptance documentation. No shared engine, knowledge schema, bundle format
 or renderer changed in that diff.

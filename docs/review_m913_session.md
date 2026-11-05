@@ -1,6 +1,6 @@
 # M9.13 diff-driven review (2026-10-14)
 
-Reviewed `3c13ac9..38afe9c`, including implementation, synthetic tests and the
+Reviewed `9444983..a8fa961`, including implementation, synthetic tests and the
 M10.1 handoff. No personal export, saved personal run or genotype-derived public
 artifact was read or created. The source model corpus and confidence policy remain
 unchanged; bundle format 18 remains the current contract.

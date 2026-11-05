@@ -1,6 +1,6 @@
 # M7.5 session diff review — 2026-10-06
 
-Reviewed `1fc2f00..537e3c5`, the session's common-health cards, two-marker matching,
+Reviewed `239865f..aa75287`, the session's common-health cards, two-marker matching,
 confidence/serialization, pipeline integration, CLI/dashboard and documentation changes.
 The implementation checkpoint passed [all five CI jobs](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 This follow-up fixes the defects below and prepares [M7.6](handoff.md#next-m76).
@@ -26,7 +26,7 @@ This follow-up fixes the defects below and prepares [M7.6](handoff.md#next-m76).
 2. **Medium: saved marker calibration could contradict the observations.**
    The original validator accepted a digest-consistent marker snapshot whose observation
    was imputed while its confidence still claimed a direct call. Loading the original
-   validator from `537e3c5` reproduced acceptance; the corrected validator rejects it
+   validator from `aa75287` reproduced acceptance; the corrected validator rejects it
    with a genotype-free domain error. Regression cases also cover a common companion
    replacing the rarest called-allele frequency, overstated rarity/unknown-frequency/
    poor-quality tiers, and another outcome's phenotype inputs. Multi-marker schema 2

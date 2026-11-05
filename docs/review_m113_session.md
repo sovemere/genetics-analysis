@@ -1,8 +1,8 @@
 # M11.3 session diff review
 
-Scope: `c737261..818ba1a`. That covers M11.3's ancestry-driven HLA classifier selection
-and per-locus call confidence (`a75fe6a`), plus the `genetics ci-local` line-ending fix
-(`818ba1a`): 23 files across selection, confidence, calling, bundle, CLI, dashboard,
+Scope: `c9a09ba..7cfbcdf`. That covers M11.3's ancestry-driven HLA classifier selection
+and per-locus call confidence (`74265da`), plus the `genetics ci-local` line-ending fix
+(`7cfbcdf`): 23 files across selection, confidence, calling, bundle, CLI, dashboard,
 tests and documentation. The review used synthetic inputs only and opened no personal
 export. HLA sample schema 2, selection schema 1 and bundle format 22 are unchanged by it.
 

@@ -1,6 +1,6 @@
 # Session diff review: M7.6 through M8.2
 
-Reviewed `5f2c75d..f0c756d` on 2026-10-07: quantitative ClinVar coverage and format-13
+Reviewed `a659f0d..8531684` on 2026-10-07: quantitative ClinVar coverage and format-13
 snapshots, the Beagle wrapper/doctor/CI additions, full reference preparation, manifests,
 privacy ignores, tests and documentation. The review follows the diff and its downstream
 callers. No personal export was opened, and all new test inputs are generated.

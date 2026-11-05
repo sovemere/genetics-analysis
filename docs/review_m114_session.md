@@ -1,6 +1,6 @@
 # M11.4 session diff review
 
-Scope: `994f70a..03093ad`, M11.4's HLA-linked cards: 25 files across the card schema, the
+Scope: `ea57c12..bf2f5c7`, M11.4's HLA-linked cards: 25 files across the card schema, the
 new `genetics.hla.cards` engine, pipeline, bundle format 23, CLI, dashboard, eight knowledge
 cards, tests and documentation. The review used synthetic inputs and the public frozen CPIC
 release only, and opened no personal export. Knowledge schema 6, HLA card result schema 1
@@ -64,7 +64,7 @@ and bundle format 23 are unchanged by it.
   clinical exclusion.
 - Re-validation re-parses the frozen definition with the current schema, as M10.4's
   guideline cards do. A future breaking schema change needs a versioned reader.
-- A bundle saved between `03093ad` and this fix in which a group pattern matched a null
+- A bundle saved between `bf2f5c7` and this fix in which a group pattern matched a null
   allele would now be refused on read. None is known to exist: the change landed the same
   day and only synthetic records have been written.
 

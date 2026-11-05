@@ -48,7 +48,7 @@ private score record (about 1.9 GB parsed per genome-wide score) until saving. E
 now reload one at a time from their cache, which reads 16 times faster. Records stay
 compressed (`pgs/records.py`), and **bundle format 25** saves each as its own
 `pgs-<card id>.run.json.gz`, indexed by `pgs.run.json` schema 2; no evidence is dropped and
-the score record schema is unchanged. **A complete run on `0f772ff` took 57.8 min**
+the score record schema is unchanged. **A complete run on `34898fa` took 57.8 min**
 (synthetic export, `--no-impute`, warm reference caches): 14 score references 10.4 min,
 ClinVar coverage 3.5 min, runs of homozygosity 7.7 min, 14 scores 27.9 min, PGx and HLA
 16 s, saving 7.7 min. Saving is mostly the write-side check of the 14 score records.
@@ -97,7 +97,7 @@ progress line, rather than failing at the save.
 imputed: their coordinates are invented, so Beagle finds no panel markers in its first
 window. The run used public 1000 Genomes stand-in HG00097, written as an AncestryDNA export
 outside the checkout (290,285 autosomal markers, no sex-chromosome or MT markers). On
-`af40ed1` it ran and saved in 4 h 59 min; a fresh run is about 5½ hours:
+`a5bf931` it ran and saved in 4 h 59 min; a fresh run is about 5½ hours:
 - **imputation:** 22 autosomes, 2 h 31 min fresh, or 1 h 57 min when the imputation stage
   reuses Beagle's completed jobs. Almost all of it is Python reading panel markers and
   validating doses; Beagle itself took 44 s on chromosome 1;
@@ -110,7 +110,13 @@ Python peaked at 10.9 GB and the bundle is 1.3 GB; reopening it takes 52 min, be
 it repeats the save's checks. PLINK 2 crashed once (0xC0000005) scoring reference
 samples, and the resume rescored that score. The save now reports progress through its
 last 31 minutes, which were silent. See the [run-cost diff review](review_run_cost_session.md).
-**The first real-export run completed (2026-11-05).** `genetics run` on `962d319`, with
+**History was rewritten on 2026-11-05.** Figures and results from the real export were
+removed from every commit and commit message, and the author's personal address was
+replaced with the GitHub noreply address, so every commit has a new hash. Citations in the
+current docs use the new hashes; older versions of these files still cite the old ones. Any
+other clone must be re-cloned. From a real run, record array properties, timings and sizes,
+never its results or per-sample counts (AGENTS.md §1.1).
+**The first real-export run completed (2026-11-05).** `genetics run` on `e30879d`, with
 default options and a fresh imputation, ran and saved in 7 h 49 min:
 - **score references, ingest, ancestry:** 7.4 min, from warm caches;
 - **imputation:** 3 h 31 min, 23 jobs (22 autosomes and X non-PAR);
@@ -817,7 +823,7 @@ M10.5 remains the separate once-per-section prescribing-tool framing item.
 
 ### M10.1 entry contract (implemented; retained for review)
 
-Historical contract from `3f8c189`, before M10.1 source fetching. The accepted
+Historical contract from `bb37486`, before M10.1 source fetching. The accepted
 state and M10.2 instructions above supersede this checkpoint's local conditions.
 
 M10.1 builds public reference ingestion and offline allele-definition/phenotype
@@ -1093,7 +1099,7 @@ the completed native jobs; private artifacts stay outside Git.
 
 ## M9.5–M9.6 review and M9.7 entry contract
 
-The [diff review](review_m96_session.md) of `b2bde81..317c825` fixed three defects, each
+The [diff review](review_m96_session.md) of `857abe4..de6a4d1` fixed three defects, each
 reproduced by a regression first:
 
 - **A score missing from the fetched metadata aborted the whole run.** It now leaves only
@@ -1990,7 +1996,7 @@ default-on; `--no-impute` is an explicit, recorded escape hatch. Rare-call relia
 must remain frequency-gated after imputation. M8.5–M8.7 remain upcoming.
 
 ## Prior checkpoint
-M7.5 checkpoint: `537e3c5`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
+M7.5 checkpoint: `aa75287`, with [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 The [M7.5 diff-driven review](review_m75_session.md) records outcome-calibration,
 saved-record validation, marker-detail and lint-denominator fixes. The earlier
 [M7.1–M7.4 review](review_m7_session.md) remains historical context.

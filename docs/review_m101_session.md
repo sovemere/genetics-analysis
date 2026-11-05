@@ -1,6 +1,6 @@
 # M10.1 session diff review
 
-Scope: implementation commit `1065ae9` against `3f8c189`, including source
+Scope: implementation commit `fa5f5f3` against `bb37486`, including source
 declarations/licences, PGx ingestion/inspection, the shared publication helper,
 tests and next-step documentation. This review uses public reference data and
 fabricated fixtures. No consumer export was read.

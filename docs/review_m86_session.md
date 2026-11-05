@@ -1,6 +1,6 @@
 # Session diff review: M8.6
 
-Reviewed `54eb85d..f49433d` on 2026-10-07, following the changed code into its
+Reviewed `8af9532..5d3b25a` on 2026-10-07, following the changed code into its
 readers and callers: full dosage/provenance publication, format-16 validation,
 shared saved iterators, CLI/dashboard views, deletion recognition, historical
 fixtures, privacy ignores and CI hygiene. No personal export was opened. New

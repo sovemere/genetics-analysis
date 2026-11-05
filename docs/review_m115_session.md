@@ -1,6 +1,6 @@
 # M11.5 session diff review
 
-Scope: `1d1dbb5..be0ab35`, M11.5's carrier status cards: the schema-7 `carrier`
+Scope: `9804ea4..54e3e0f`, M11.5's carrier status cards: the schema-7 `carrier`
 declaration, the new `genetics.engine.carrier` module, evidence assembly, bundle format 24,
 the `genetics cards carriers` command, `runs show`, the dashboard face and detail views,
 fifteen reproductive cards plus the HFE C282Y declaration, tests and documentation. The

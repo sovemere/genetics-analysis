@@ -1,6 +1,6 @@
 # M7 session diff review — 2026-10-05
 
-Reviewed implementation range **`1a0eadb..4d537f0`**: the M7.1 ClinVar lookup and
+Reviewed implementation range **`e6b8459..3622cee`**: the M7.1 ClinVar lookup and
 download-resume change, M7.2 frequency calibration, M7.3 benchmark presentation, and
 M7.4 ACMG surfacing. The review follows the changed code and its callers, readers,
 templates, tests and documentation; it is not a new source-license audit or clinical

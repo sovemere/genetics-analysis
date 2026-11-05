@@ -1,6 +1,6 @@
 # M8 overview review and M9.1 handoff
 
-Reviewed M8.1–M8.7 from `f1c492a` on 2026-10-08. The pass follows reference
+Reviewed M8.1–M8.7 from `624c130` on 2026-10-08. The pass follows reference
 preparation, native Beagle execution/reuse, target harmonization and ploidy,
 dosage/quality propagation, default-on analysis, full snapshot publication/readers,
 CLI/dashboard views and the effect-allele interface for M9. Inputs are generated or

@@ -1,7 +1,7 @@
 # M9.7–M9.8 session diff review
 
 Independent sub-agent review on 2026-10-11 covered the complete working-tree
-diff from `0a72d6c`, including staged, unstaged and untracked source, tests,
+diff from `7d7bd51`, including staged, unstaged and untracked source, tests,
 knowledge records, manifests and documentation. The user requested this review
 after both milestones' native/public-stand-in acceptance. No branch, PR, commit
 or push was created by the reviewer.

@@ -292,7 +292,7 @@ M8.3 native acceptance checks independent male/female targets across autosomal a
 jobs, including phase-filled no-calls, multiallelic/indel predictions and verified reuse.
 The [session review](docs/review_m8_session.md) records fixes to output identity/region
 checks, cleanup, runtime drift, build metadata and reference-catalog validation/recovery.
-The M7.5 implementation checkpoint is `537e3c5`, with
+The M7.5 implementation checkpoint is `aa75287`, with
 [all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
 The [M7.5 session review](docs/review_m75_session.md) records the preceding fixes;
 the [coverage guide](docs/clinvar_coverage.md) describes M7.6's counting and saved contract.
