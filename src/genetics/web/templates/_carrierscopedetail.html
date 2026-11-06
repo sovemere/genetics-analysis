@@ -1,0 +1,97 @@
+{% set scope = card.computation.result %}
+<section class="detailblock" aria-label="Carrier-screening scope">
+  <h3>Scope and its limits</h3>
+  <p>{{ card.computation.reliability.reason }}</p>
+  {% if not scope %}
+    <p>{{ card.computation.reason }}</p>
+  {% else %}
+    {% if scope.run %}
+      <table>
+        <caption>This run's {{ scope.run.markers }} typed marker(s)</caption>
+        <tbody>
+          <tr><th scope="row">No copy of the typed allele</th><td>{{ scope.run.no_copy }}</td></tr>
+          <tr><th scope="row">One copy of the typed allele</th><td>{{ scope.run.one_copy }}</td></tr>
+          <tr><th scope="row">Two copies of the typed allele</th><td>{{ scope.run.two_copies }}</td></tr>
+          <tr><th scope="row">Not determined</th><td>{{ scope.run.not_determined }}</td></tr>
+          {% for status, count in scope.run.not_determined_by_status | dictsort %}
+            <tr><th scope="row">Not determined: {{ status.replace("_", " ") }}</th><td>{{ count }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <p class="caution">Not determined is not a no-copy result, and a no-copy result is not a negative screen.</p>
+    {% endif %}
+
+    <h4>{{ scope.declaration.reference.name }}: {{ scope.counts.reference_genes }} genes</h4>
+    <table>
+      <caption>Genes with a typed marker in this report ({{ scope.counts.typed }}). A typed marker reads one named allele.</caption>
+      <thead><tr><th scope="col">Gene</th><th scope="col">Condition</th><th scope="col">Typed markers</th></tr></thead>
+      <tbody>
+        {% for gene in scope.genes.typed %}
+          <tr><th scope="row">{{ gene.gene }}{% if "listed_as" in gene %} (listed as {{ gene.listed_as }}){% endif %}</th>
+            <td>{{ gene.condition }}</td><td>{{ gene.markers }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% if scope.genes.typed_outside_reference %}
+      <p>Also typed here, not on this list: {{ scope.genes.typed_outside_reference | join(", ") }}.</p>
+    {% endif %}
+
+    <table>
+      <caption>Assay limits ({{ scope.counts.assay_limited }}): the cause lies largely outside what genotype calls can show.</caption>
+      <thead><tr><th scope="col">Gene</th><th scope="col">Condition</th><th scope="col">Why</th></tr></thead>
+      <tbody>
+        {% for gene in scope.genes.assay_limited %}
+          <tr><th scope="row">{{ gene.gene }}</th><td>{{ gene.condition }}</td><td>{{ gene.statement }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <details>
+      <summary>No card in this report: {{ scope.counts.no_card }} genes. A gap in this report, not a measured limit of the array.</summary>
+      {% for number, caption in scope.declaration.reference.tables | dictsort %}
+        {% set rows = scope.genes.no_card | selectattr("table", "equalto", number | int) | list %}
+        {% if rows %}
+          <table>
+            <caption>Table {{ number }}: {{ caption }}</caption>
+            <tbody>
+              {% for gene in rows %}
+                <tr><th scope="row">{{ gene.gene }}</th><td>{{ gene.condition }}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      {% endfor %}
+    </details>
+
+    <details>
+      <summary>Alleles checked and left out</summary>
+      {% for name, label in [
+        ("indel", "Assay limit: an indel on this array, with no sequence recorded"),
+        ("not_on_array", "Chip limit: the allele is not on this array"),
+        ("failed_criterion", "Typed, but failing a criterion for a card"),
+        ("not_authored", "Gap in this report: passes the measured criteria, and no card was written"),
+      ] %}
+        <table>
+          <caption>{{ label }} ({{ scope.excluded_alleles[name] }})</caption>
+          <tbody>
+            {% for allele in scope.declaration.excluded_alleles if allele["class"] == name %}
+              <tr><th scope="row">{{ allele.gene }} {{ allele.variant }}</th><td>{{ allele.rsid }}</td><td>{{ allele.reason }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% endfor %}
+    </details>
+
+    <details>
+      <summary>The {{ scope.panel.markers }} typed markers</summary>
+      <table>
+        <thead><tr><th scope="col">Condition</th><th scope="col">Typed allele</th><th scope="col">Marker</th></tr></thead>
+        <tbody>
+          {% for entry in scope.panel.entries %}
+            <tr><th scope="row">{{ entry.condition }}</th><td>{{ entry.variant }}</td><td>{{ entry.rsid }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </details>
+  {% endif %}
+</section>

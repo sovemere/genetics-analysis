@@ -204,12 +204,18 @@ cystic fibrosis (six CFTR SNVs), phenylketonuria (three PAH variants), MCAD defi
 Gaucher, Tay-Sachs, Canavan and Fanconi anaemia group C, and HFE C282Y joins the same panel
 from physical health. The state is derived from the call, never authored; a card that did
 not match is "not determined", never non-carrier, and A/T or C/G homozygotes stay
-strand-ambiguous. `genetics cards carriers` lists the panel as data for M11.6. Bundle format
+strand-ambiguous. `genetics cards carriers` lists the panel as data. Bundle format
 24 saves and re-derives each carrier record. See [carrier status](docs/carrier_status.md).
 The [M11.5 diff review](docs/review_m115_session.md) tightens five card statements against
 their sources and refuses saved carrier records on a non-autosome.
-[M11.6 carrier-screening incompleteness](docs/handoff.md#next-open-step-m116-carrier-screening-incompleteness)
-is next.
+**M11.6 carrier-screening scope is implemented.** A computed card states that the reproductive
+section is not a carrier screen and counts what it leaves out: 16 typed markers over 9
+conditions against ACMG Tier 3's 113 genes (8 typed, 7 assay limits, 98 with no card, which is
+a gap in this report rather than a limit of the array), plus how many markers gave a result in
+this run. Knowledge schema 8 and bundle format 27; `genetics cards carrier-scope` gives the
+comparison from the pack alone. See
+[carrier status](docs/carrier_status.md#section-level-scope-m116).
+[M11.7 reproductive traits](docs/handoff.md#next-open-step-m117-reproductive-traits) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

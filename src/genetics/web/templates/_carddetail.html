@@ -236,6 +236,8 @@
       {% include "_sexchromdetail.html" %}
     {% elif card.computation.source == "clinvar_coverage" %}
       {% include "_coveragedetail.html" %}
+    {% elif card.computation.source == "carrier_screening_scope" %}
+      {% include "_carrierscopedetail.html" %}
     {% else %}
       {% include "_archaicdetail.html" %}
     {% endif %}

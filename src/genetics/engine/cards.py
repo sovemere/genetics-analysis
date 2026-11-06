@@ -60,13 +60,13 @@ from typing import Any, Final
 import yaml
 
 from genetics.engine import sections
-from genetics.engine.citations import Citation, CitationError
+from genetics.engine.citations import Citation, CitationError, CitationType
 from genetics.engine.sections import Section, UnknownSectionError
 from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 7
+SCHEMA_VERSION: Final[int] = 8
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -1159,6 +1159,7 @@ _CARD_KEYS: Final[frozenset[str]] = frozenset(
         "decile_outcomes",
         "hla",
         "carrier",
+        "screening_scope",
     }
 )
 
@@ -1552,6 +1553,9 @@ class Card:
     # Carrier status (single-marker interpretation cards, M11.5).
     carrier: CarrierDeclaration | None = None
 
+    # The section-level carrier statement's declaration (computed card, M11.6).
+    screening_scope: Mapping[str, Any] | None = None
+
     @property
     def variant_key(self) -> VariantKey | None:
         return self.match.variant.key if self.match and len(self.match.variants) == 1 else None
@@ -1630,13 +1634,13 @@ class Card:
                     "denisovan_f4",
                     "sex_chromosome_profile",
                     "clinvar_coverage",
+                    "carrier_screening_scope",
                 }
                 or section
-                is not (
-                    Section.PHYSICAL_HEALTH
-                    if data.get("computation") == "clinvar_coverage"
-                    else Section.GENOME_STRUCTURE
-                )
+                is not {
+                    "clinvar_coverage": Section.PHYSICAL_HEALTH,
+                    "carrier_screening_scope": Section.REPRODUCTIVE,
+                }.get(data["computation"], Section.GENOME_STRUCTURE)
             ):
                 raise CardError(
                     f"{where}: unsupported computation or section; "
@@ -1649,6 +1653,20 @@ class Card:
                 raise CardError(f"{where}: summary and detail must be text")
             _check_template(summary, where, frozenset())
             _check_template(detail, where, frozenset())
+            scope = None
+            if data["computation"] == "carrier_screening_scope":
+                from genetics.engine.carrier_scope import parse_declaration
+
+                scope = parse_declaration(
+                    _require(data, "screening_scope", where), f"{where}.screening_scope"
+                )
+                if not any(
+                    c.type is CitationType.DOI and c.id == scope["reference"]["citation"]
+                    for c in citations
+                ):
+                    raise CardError(f"{where}: the reference list must be one of its citations")
+            elif "screening_scope" in data:
+                raise CardError(f"{where}: screening_scope belongs to the carrier scope card")
             return cls(
                 id=card_id,
                 section=section,
@@ -1660,8 +1678,9 @@ class Card:
                 detail=detail,
                 computation=str(data["computation"]),
                 method_evidence=dict(method),
+                screening_scope=scope,
             )
-        for name in ("computation", "method_evidence"):
+        for name in ("computation", "method_evidence", "screening_scope"):
             if name in data:
                 raise CardError(f"{where}: {name} belongs to a computed card")
         if kind is CardKind.HLA:
@@ -1979,7 +1998,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -1999,6 +2018,12 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 8 and any(
+        isinstance(entry, Mapping)
+        and ("screening_scope" in entry or entry.get("computation") == "carrier_screening_scope")
+        for entry in entries
+    ):
+        raise CardError(f"{where}: carrier screening scope requires schema_version 8")
     if version < 7 and any(isinstance(entry, Mapping) and "carrier" in entry for entry in entries):
         raise CardError(f"{where}: carrier declarations require schema_version 7")
     if version < 6 and any(
@@ -2096,6 +2121,9 @@ class KnowledgePack:
                 origin[card.id] = path
                 cards.append(card)
 
+        from genetics.engine.carrier_scope import check_pack
+
+        check_pack(cards, str(root))
         return cls(cards=tuple(cards), source_dir=root)
 
 

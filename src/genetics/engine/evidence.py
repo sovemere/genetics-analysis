@@ -372,6 +372,10 @@ def assemble_card(
             from genetics.health.coverage import assemble_coverage_card
 
             return assemble_coverage_card(card, None, reason=match.reason)
+        if card.computation == "carrier_screening_scope":
+            from genetics.engine.carrier_scope import assemble_scope_card
+
+            return assemble_scope_card(card, None, reason=match.reason)
         if card.computation == "sex_chromosome_profile":
             from genetics.structure.sex_interpretation import assemble_sex_chromosome_card
 

@@ -16,9 +16,16 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.6 carrier-screening incompleteness is next.** M0–M10 and M11.1–M11.5 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m116-carrier-screening-incompleteness)
-records what the section-level card must say and the panel it reads.
+**M11.7 reproductive traits is next.** M0–M10 and M11.1–M11.6 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m117-reproductive-traits) records what it
+inherits.
+
+M11.6 adds one computed card stating that the reproductive section is not a carrier screen, and
+counting what it leaves out: 16 typed markers over 9 conditions against ACMG Tier 3's 113 genes
+(8 typed, 7 assay limits, 98 with no card, a gap in this report and not a limit of the array),
+plus how many markers gave a result in this run. Knowledge schema 8 and bundle format 27 rebuild
+it from the bundle's own carrier records. See
+[section-level scope](docs/carrier_status.md#section-level-scope-m116).
 
 M11.5 adds knowledge schema 7's `carrier` declaration and 15 reproductive carrier cards over
 eight conditions; HFE C282Y joins the panel from physical health, making nine. Every marker was measured
@@ -27,7 +34,7 @@ conflicting classifications and unsourced candidates are recorded as excluded ra
 dropped. The carrier state is derived from the call and re-derived from the saved match in
 bundle format 24; an unmatched card is "not determined", never non-carrier, and A/T or C/G
 homozygotes stay strand-ambiguous while heterozygous carriers are still reported.
-`genetics cards carriers --json` is the panel M11.6 reads. See
+`genetics cards carriers --json` is the panel. See
 [carrier status](docs/carrier_status.md). The
 [M11.5 diff review](docs/review_m115_session.md) tightens five card statements against
 their sources, refuses saved carrier records on a non-autosome and records that most panel
@@ -2901,9 +2908,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       HFE C282Y; panel schema 1 (`genetics cards carriers`); bundle format 24 re-derives
       each saved state. Measured candidate audit with every exclusion recorded. See
       [carrier status](docs/carrier_status.md).
-- [ ] **M11.6** **Carrier-screening incompleteness card**: CNV-based conditions (SMN1/SMA,
+- [x] **M11.6** **Carrier-screening incompleteness card**: CNV-based conditions (SMN1/SMA,
       alpha-thalassemia) are invisible to this data. State it, or the section implies a
-      completeness it does not have.
+      completeness it does not have. Computed card `carrier_screening_scope` against Gregg
+      2021's 113 genes; knowledge schema 8, bundle format 27,
+      `genetics cards carrier-scope`. See
+      [section-level scope](docs/carrier_status.md#section-level-scope-m116).
       - **The two per-gene cards shipped in [M3.7](#m3--card-engine--knowledge-pack)**
         (`smn1_copy_number`, `alpha_globin_deletions`), each carrying the "no result is not
         a negative result" caveat this box exists for. What is left is the *section-level*
@@ -3033,6 +3043,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-06 | M11.6 | One computed card, `carrier_screening_scope`, states that the reproductive section is not a carrier screen and counts 16 typed markers over 9 conditions against ACMG Tier 3's 113 genes: 8 typed, 7 assay limits (SMN1, HBA1, HBA2, DMD, FMR1, FXN, F8), 98 with no card. Knowledge schema 8 `screening_scope`; bundle format 27. **Decisions.** (1) *A computed card*, because a static one cannot state counts. (2) *Gregg 2021's tables as data*, read row by row; the stated 86, 97 and 16 match, and the correction (PMC8776567) changes wording only. No frequency or population is claimed. (3) *A gap is not a limit*: a gene or allele with no card is worded as a gap in this report, and the 20 `not_authored` alleles were re-checked as having a ClinVar P/LP record and a gnomAD PASS record. (4) *Not determined stays apart from no copy* in the run tally. (5) *The statement survives filters and tier grouping*, and a run without the record still states the limit; nothing is written into it. **Not measured:** whether the array could support a card for each of the 98. Validation: 3,817 native tests with nine skips (five Windows, four published-classifier HIBAG); full dbSNP lint 101 cards, 508 renders, 54/54 marker keys; four strict type targets (241 files), ruff, format and fixtures pass. |
 | 2026-11-06 | Read-path diff review | Reviewed `3463902..209c2a9`. **One defect, reproduced first:** a record read the engine's source when the checks ended, so source edited during them was recorded as having passed. The digest is now read once per process, at import. `checks.passed` no longer raises on a source file it cannot read, and a new test renders every page twice against the shared copy. All four guards were mutation-checked. `genetics ci-local` passes 29 of 29 steps. The engine's source changed, so each saved imputed run's first read repeats its checks once; `runs list --verify` was not rerun. See [the review](docs/review_read_path_session.md). |
 | 2026-11-06 | Opening saved runs | **Accepted.** `run/checks.py` records that a bundle's exact manifest passed its deep checks under this exact engine; the save writes the record, and later reads check every digest and skip the doses, score records, PGx-against-every-dose and ClinVar checks. A read of the real run took **12.8 s against 54 min**, holding 2.4 GB (peak 2.8 GB). The dashboard keeps one opened copy, read again if any file's size or modified time changes. `runs list --verify` always repeats the checks and replaces the record; an engine change makes the next read repeat them once. All 12 guards were mutation-checked; one mutation changed nothing, because `UnsafeDataDirError` is a `ValueError`, so the redundant clause was removed. `genetics ci-local` passes 29 of 29 steps. **On the real run:** `runs list --verify` passed all four saved runs in 58 min, peaking at 11.9 GB with at least 6.2 GB free; `store.load_run` then took 13.4 s, seven CLI reads exited 0 in 14–26 s each, and all 114 dashboard pages returned 200, at 12.3 s for the first and 15 s in all, with output discarded unread. See [the handoff](docs/handoff.md). |
 | 2026-11-05 | History rewrite | Figures and results from the real export were removed from every commit and commit message, and the author's personal address was replaced with the GitHub noreply address. Every commit has a new hash; citations in the current docs use the new ones, and older versions of these files still cite the old ones. Source comments changed, so the engine digest did too: saved runs stay readable, and no saved parts existed to invalidate. See [the handoff](docs/handoff.md). |

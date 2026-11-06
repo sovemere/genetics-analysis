@@ -29,9 +29,10 @@ M7.5 adds cited common health associations under `health/`, with outcome-specifi
 `risk_context` on the card face and in CLI output. M10.4 adds eight declarative
 guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards under
 `immunogenetics/` and `pharmacogenomics/hla.yaml`. M11.5 adds 15 carrier cards under
-`reproductive/` and a carrier declaration on HFE C282Y. The current pack has 100 cards:
+`reproductive/` and a carrier declaration on HFE C282Y. M11.6 adds one computed card,
+`reproductive/scope.yaml`. The current pack has 101 cards:
 52 single-variant interpretations (16 of them carrier cards), one two-marker
-interpretation, 12 assay-limit cards, five computed cards, 14 polygenic cards, eight
+interpretation, 12 assay-limit cards, six computed cards, 14 polygenic cards, eight
 guideline cards and eight HLA cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
@@ -355,3 +356,23 @@ two pathogenic copies must each map to their own outcome, and every outcome need
 the carrier state from the call and saves it; a card that did not match is "not
 determined", never non-carrier. `genetics cards carriers` lists the resulting panel. See
 [carrier status](../docs/carrier_status.md).
+
+### Carrier-screening scope (schema 8)
+
+`reproductive/scope.yaml` holds the one card with `computation: carrier_screening_scope`, which
+must sit in the reproductive section and carry a `screening_scope` block:
+
+- `reference`: the list's `name`, its `citation` (a DOI among the card's own citations), a
+  caption per source table, and `genes`, each with `gene`, `table` and `condition`, plus
+  `listed_as` where the source's symbol differs from the panel's;
+- `assay_limits`: `gene`, `mechanism` (`copy_number`, `repeat_expansion` or `inversion`), a
+  sourced `statement` and optionally the impossibility `card` it relates to;
+- `excluded_alleles`: `class` (`indel`, `not_on_array`, `failed_criterion`, `not_authored`),
+  `gene`, `variant`, `rsid` and `reason`;
+- `dbsnp_multiallelic`: the panel markers listing another base in dbSNP.
+
+The loader refuses an excluded allele or assay-limit gene that is also in the panel. Keep
+`not_authored` for a gap in this report and an assay limit for a property of the data; the
+card's text depends on the difference. Adding a carrier card moves its gene to "typed" and
+needs its allele removed from `excluded_alleles`. See
+[section-level scope](../docs/carrier_status.md#section-level-scope-m116).

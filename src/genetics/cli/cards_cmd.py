@@ -100,6 +100,62 @@ def lint(
         raise typer.Exit(code=1)
 
 
+@cards_app.command("carrier-scope")
+def carrier_scope(
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Compare the carrier panel with a published screening gene list (M11.6).
+
+    A property of the knowledge pack, not of a run: no genotype is read.
+    """
+
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.engine.carrier_scope import ALLELE_CLASSES, MECHANISMS, pack_scope, scope_summary
+
+    try:
+        scope = pack_scope(KnowledgePack.load(knowledge))
+    except CardError as exc:
+        typer.secho(f"error: {exc}", fg=typer.colors.RED, err=True)
+        raise typer.Exit(code=1) from None
+    if scope is None:
+        typer.secho(
+            "error: this pack has no carrier-screening scope card", fg=typer.colors.RED, err=True
+        )
+        raise typer.Exit(code=1)
+
+    if as_json:
+        typer.echo(json.dumps(scope, indent=2))
+        return
+    typer.echo(scope_summary(scope))
+    typer.echo("")
+    typer.secho("Typed", bold=True)
+    for gene in scope["genes"]["typed"]:
+        typer.echo(f"  {gene['gene']:<9} {gene['markers']} marker(s)  {gene['condition']}")
+    if scope["genes"]["typed_outside_reference"]:
+        names = ", ".join(scope["genes"]["typed_outside_reference"])
+        typer.echo(f"  Also typed, not on this list: {names}")
+    typer.secho("Assay limits", bold=True)
+    for gene in scope["genes"]["assay_limited"]:
+        typer.echo(f"  {gene['gene']:<9} {MECHANISMS[gene['mechanism']]}: {gene['statement']}")
+    typer.secho("No card in this report", bold=True)
+    typer.echo("  " + ", ".join(gene["gene"] for gene in scope["genes"]["no_card"]))
+    typer.secho("Excluded alleles", bold=True)
+    for name, label in ALLELE_CLASSES.items():
+        typer.echo(f"  {label}: {scope['excluded_alleles'][name]}")
+        for allele in scope["declaration"]["excluded_alleles"]:
+            if allele["class"] == name:
+                typer.echo(f"    {allele['gene']:<9} {allele['variant']} ({allele['rsid']})")
+
+
 @cards_app.command("carriers")
 def carriers(
     knowledge: Annotated[
@@ -148,5 +204,6 @@ def carriers(
                 )
     typer.echo(
         "Each card types only the marker listed. Copy-number, structural and indel alleles, "
-        "and every untyped variant in these genes, are outside this panel."
+        "and every untyped variant in these genes, are outside this panel. "
+        "`genetics cards carrier-scope` sets it against a published screening list."
     )

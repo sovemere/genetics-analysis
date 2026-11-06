@@ -1833,6 +1833,8 @@ class Shell(NoGenotypeRepr):
     """Current section context, separate from frozen sample and card evidence."""
     pgx_limitation: Mapping[str, Any] | None = None
     """Frozen CYP2D6 limitation, shown independently of knowledge-card filters."""
+    carrier_scope: Mapping[str, str] | None = None
+    """The reproductive section's scope statement, shown whatever the filters hide (M11.6)."""
 
 
 def shell_for(
@@ -1854,6 +1856,7 @@ def shell_for(
     # Resolved once and used for the shell URL, for every card URL, and for the selector's
     # notion of which run is current, because those three disagreeing is exactly what a
     # renamed bundle directory used to cause.
+    from genetics.engine.carrier_scope import section_notice
     from genetics.pgx.presentation import cyp2d6_limitation, section_framing
 
     selected = selected_id if bundle is None else bundle.path.name
@@ -1889,6 +1892,7 @@ def shell_for(
         format_version=None if bundle is None else bundle.format_version,
         pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
+        carrier_scope=None if bundle is None else section_notice(bundle.cards),
         grid=grid_for(cards, query or GridQuery()),
         problem=problem,
     )

@@ -36,6 +36,12 @@
   </p>
 {% endif %}
 
+{% if shell.carrier_scope and shell.grid.query.group == "tier" %}
+  {# Grouped by tier the reproductive panel does not exist, and a carrier card must not lose
+     the statement that this is not a screen. #}
+  {% include "_carrierscopenotice.html" %}
+{% endif %}
+
 {% for group in shell.grid.groups %}
   <section class="panel"
            id="section-{{ group.key }}"
@@ -51,6 +57,9 @@
     {% endif %}
     {% if group.key == "pharmacogenomics" and shell.has_selection %}
       {% include "_pgxfaces.html" %}
+    {% endif %}
+    {% if group.key == "reproductive" and shell.carrier_scope %}
+      {% include "_carrierscopenotice.html" %}
     {% endif %}
 
     {% if group.empty_reason and not (group.key == "pharmacogenomics" and shell.pgx) %}

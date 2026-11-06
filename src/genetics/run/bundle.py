@@ -85,8 +85,14 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 26
+BUNDLE_FORMAT_VERSION: Final[int] = 27
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 27 (M11.6) adds the ``carrier_screening_scope`` computed card: the section-level
+statement of what carrier screening from this array leaves out. A previous reader refuses the
+new source. The record holds its frozen declaration, the panel and a tally of this run's
+carrier states, and is rebuilt from the bundle's own carrier records on write and on read.
+Formats 1-26 hold no such card and are read unchanged.
 
 Version 26 saves each PGx guideline card's ``computation.result`` as a reference: its display
 schema, ``derived_from: pgx.run.json`` and the sha256 of the result. The result is a pure
@@ -286,6 +292,9 @@ SCORE_FILES_FORMAT_VERSION: Final[int] = 25
 
 GUIDELINE_REFERENCE_FORMAT_VERSION: Final[int] = 26
 """The first format saving guideline results by reference to :data:`PGX_NAME`."""
+
+CARRIER_SCOPE_FORMAT_VERSION: Final[int] = 27
+"""The first format that may hold the carrier-screening scope card (M11.6)."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
@@ -1325,6 +1334,8 @@ def _check_hla_ancestry(hla: Mapping[str, Any], ancestry: Mapping[str, Any] | No
 def _check_carriers(entries: Sequence[Any], version: int) -> None:
     """Each carrier record must follow from its own card's saved call (format 24+)."""
     from genetics.engine.carrier import CarrierRecordError, validate_record
+    from genetics.engine.carrier_scope import SOURCE as SCOPE_SOURCE
+    from genetics.engine.carrier_scope import ScopeError, validate_saved
 
     for entry in entries:
         if not isinstance(entry, Mapping) or entry.get("carrier") is None:
@@ -1335,6 +1346,24 @@ def _check_carriers(entries: Sequence[Any], version: int) -> None:
             validate_record(entry)
         except CarrierRecordError as exc:
             raise BundleError(f"Saved carrier card is inconsistent: {exc}") from exc
+    scopes = [
+        entry
+        for entry in entries
+        if isinstance(entry, Mapping)
+        and isinstance(entry.get("computation"), Mapping)
+        and entry["computation"].get("source") == SCOPE_SOURCE
+    ]
+    if scopes and version < CARRIER_SCOPE_FORMAT_VERSION:
+        raise BundleError(
+            f"Carrier-screening scope requires bundle format {CARRIER_SCOPE_FORMAT_VERSION}"
+        )
+    if len(scopes) > 1:
+        raise BundleError("A bundle may hold one carrier-screening scope card")
+    for entry in scopes:
+        try:
+            validate_saved(entry, entries)
+        except (ScopeError, KeyError, TypeError, AttributeError) as exc:
+            raise BundleError(f"Saved carrier-screening scope is inconsistent: {exc}") from exc
 
 
 def _check_hla_cards(
@@ -1425,6 +1454,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
                 "denisovan_f4",
                 "sex_chromosome_profile",
                 "clinvar_coverage",
+                "carrier_screening_scope",
             }
         ):
             raise BundleError(f"{where}: invalid computed-card source or kind")
@@ -1438,11 +1468,10 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     elif computation_map is not None:
         if (
             data.get("section")
-            != (
-                "physical_health"
-                if computation_map["source"] == "clinvar_coverage"
-                else "genome_structure"
-            )
+            != {
+                "clinvar_coverage": "physical_health",
+                "carrier_screening_scope": "reproductive",
+            }.get(computation_map["source"], "genome_structure")
             or any(
                 data.get(k) is not None
                 for k in (
@@ -1499,6 +1528,16 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
             expected_status = "not_run" if measured["status"] == "not_run" else "computed"
             if data["status"] != expected_status or reliability != coverage_reliability(measured):
                 raise BundleError(f"{where}: inconsistent coverage status or reliability")
+        elif computation_map["source"] == "carrier_screening_scope":
+            from genetics.engine.carrier_scope import scope_reliability
+
+            # The record itself is rebuilt by _check_carriers, which has every card.
+            if (
+                data["status"] != "computed"
+                or computation_map["reason"] is not None
+                or reliability != scope_reliability(_mapping(measured, where))
+            ):
+                raise BundleError(f"{where}: inconsistent carrier-scope status or reliability")
         elif computation_map["source"] == "sex_chromosome_profile":
             from genetics.structure.sex_chromosomes import SexChromosomeError
             from genetics.structure.sex_chromosomes import validate_result as validate_sex_result

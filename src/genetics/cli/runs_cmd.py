@@ -452,6 +452,10 @@ def runs_show(
         typer.echo(json.dumps(_bundle_payload(bundle), indent=2, ensure_ascii=False))
         return
 
+    from genetics.engine.carrier_scope import SOURCE as SCOPE_SOURCE
+    from genetics.engine.carrier_scope import section_notice
+
+    scope = section_notice(bundle.cards)
     typer.secho(f"run {bundle.run_id}", bold=True)
     typer.echo(f"  saved       {bundle.created_at}")
     typer.echo(f"  format      {bundle.format_version}")
@@ -482,6 +486,8 @@ def runs_show(
                 f"{card.carrier['variant']}; {card.carrier['condition']}, autosomal recessive"
             )
             typer.echo(f"    {card.carrier['typed_scope']}")
+        if card.computation is not None and card.computation.get("source") == SCOPE_SOURCE:
+            typer.echo(f"    {card.summary}")
         if card.risk_context is not None:
             typer.echo(f"    {card.summary}")
             typer.echo(f"    {card.risk_context}")
@@ -504,6 +510,8 @@ def runs_show(
             typer.echo(f"    {CLINICAL_NOTICE}")
 
     typer.echo("")
+    if scope["status"] == "not-recorded" and any(card.carrier for card in bundle.cards):
+        typer.echo(f"  {scope['text']}")
     typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")
 
 

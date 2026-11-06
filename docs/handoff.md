@@ -1,6 +1,6 @@
-# Handoff: M11.6 carrier-screening incompleteness
+# Handoff: M11.7 reproductive traits
 
-As of 2026-11-06, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
+As of 2026-11-06, **M0-M10 and M11.1–M11.6 are implemented; M11.7 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,11 +31,15 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.5 carrier status is implemented; M11.6 is next.** Knowledge schema 7 adds a
+**M11.6 carrier-screening scope is implemented; M11.7 is next.** One computed card states
+that the reproductive section is not a carrier screen and counts what it leaves out; see
+[the M11.6 record](#accepted-m116-carrier-screening-scope) and
+[the M11.7 entry contract](#next-open-step-m117-reproductive-traits).
+**M11.5 carrier status is implemented.** Knowledge schema 7 adds a
 `carrier` declaration to single-marker interpretation cards. Fifteen reproductive cards
 cover eight conditions and HFE C282Y joins the panel from physical health, making nine;
 bundle format 24 saves each card's derived carrier state and re-derives it from the saved
-match. See [carrier status](carrier_status.md) and [the M11.6 entry contract](#next-open-step-m116-carrier-screening-incompleteness).
+match. See [carrier status](carrier_status.md).
 The [M11.5 diff review](review_m115_session.md) found no defect in state derivation or
 the bundle checks. It tightens five card statements against their sources (Gregg 2021's
 gnomAD maximum, Scott 2010's carrier-couple pregnancies, the MCAD scope), refuses a saved
@@ -493,9 +497,60 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m117-reproductive-traits"></a>
+
+## Next open step: M11.7 reproductive traits
+
+M11.7 is the reproductive section beyond carrier status: age at menarche, age at menopause and
+related traits. Nothing has been selected or verified yet: score, source population, licence
+and 23andMe exposure all need checking per score, as M9.7–M9.12 did.
+
+What it inherits:
+
+- **The schema refuses both card forms today.** `POLYGENIC_SECTIONS` excludes reproductive, and
+  a reproductive interpretation card must declare `carrier` (both in `engine/cards.py`). M11.7
+  has to widen one of them deliberately, not declare a false carrier block.
+- **The section statement.** `carrier_screening_scope` and its notice say the section is not a
+  carrier screen and do not count non-carrier cards. Its tally reads only `carrier` records, so
+  a trait card leaves it unchanged. Check the notice still reads correctly beside trait cards.
+- **Polygenic cards need what M9.6 requires**: ancestry portability, within-family attenuation
+  where it applies, coverage, and decile rates where published.
+
+<a id="accepted-m116-carrier-screening-scope"></a>
+
+## Accepted M11.6 carrier-screening scope
+
+Implemented on 2026-11-06 under the contract in
+[carrier status](carrier_status.md#section-level-scope-m116). One computed card,
+`carrier_screening_scope`, states that the section is not a screen and counts 16 typed markers
+over 9 conditions against ACMG Tier 3's 113 genes: 8 typed, 7 assay limits, 98 with no card.
+The last is worded as a gap in this report, never as an assay limit. Knowledge schema 8 holds
+its declaration: the source tables' rows, sourced gene-level limits, the M11.5 audit's 38
+excluded alleles and the 12 dbSNP-multiallelic markers. Bundle format 27 rebuilds the record
+from its frozen declaration and the bundle's own carrier records on write and read; formats 1–26
+are read unchanged, and a run without the record still states the limit in the dashboard and
+`runs show`. `genetics cards carrier-scope` gives the comparison from the pack alone.
+
+Two checks shaped it. All 113 rows were read from the source, and the paper's stated totals (86,
+97, 16) match them; its correction changes wording only. And the audit's classes were re-checked
+against the pinned ClinVar, gnomAD and dbSNP indexes: every `not_authored` allele has a P/LP
+record and a PASS frequency, so the "gap in this report" wording is measured.
+
+Validation on 2026-11-06, Windows, Python 3.13, Java 17 and the pinned PLINK/Beagle tools
+configured: the full native suite passes **3,817 tests with nine
+skips**: the five existing Windows skips and the four published-classifier HIBAG tests, which need
+a separate reference root and do not touch carrier code. The native reference checks of the
+excluded alleles ran against the fetched indexes. Full dbSNP card lint passes **101 cards, 508
+renders, 54/54 marker keys**; all four strict Windows/Linux × Python 3.11/3.13 type targets
+(241 files), ruff, format and fixture reproduction pass. No personal export was opened.
+
 <a id="next-open-step-m116-carrier-screening-incompleteness"></a>
 
-## Next open step: M11.6 carrier-screening incompleteness
+## M11.6 entry contract (implemented; retained for review)
+
+The open questions below were settled as follows: a computed card; Gregg 2021's Tables 1–6 as
+the reference set, with no population claimed; limits stated rather than X-linked panel
+members; the per-gene cards unchanged. The entry text follows.
 
 M11.6 is the reproductive section's **section-level** statement: carrier screening from a
 genotyping array is incomplete as a category, not only for the two conditions with

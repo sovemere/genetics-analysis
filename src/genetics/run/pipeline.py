@@ -30,6 +30,8 @@ from typing import Any, ClassVar
 
 from genetics.ancestry.context import AncestryContext, AncestryStage, infer_ancestry
 from genetics.engine.cards import CardKind, KnowledgePack
+from genetics.engine.carrier_scope import SOURCE as CARRIER_SCOPE_SOURCE
+from genetics.engine.carrier_scope import assemble_scope_card
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import (
     AssembledCard,
@@ -374,6 +376,12 @@ def analyse(
         if c.card.computation == "clinvar_coverage"
         else c
         for c in cards
+    )
+    # M11.6: counted from the carrier cards just assembled, whichever section they are in.
+    assembled = cards
+    cards = tuple(
+        assemble_scope_card(c.card, assembled) if c.card.computation == CARRIER_SCOPE_SOURCE else c
+        for c in assembled
     )
     cards = infer_roh_cards(cards, result.table, progress=progress)
     cards = infer_archaic_cards(cards, result.table, progress=progress)

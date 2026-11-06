@@ -438,7 +438,7 @@ def test_save_read_cli_and_dashboard_parity(
 ) -> None:
     path, cards = saved
     bundle = read_bundle(path)
-    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 26
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 27
     assert [c.carrier for c in bundle.cards] == [c.carrier for c in cards]
     states = [None if c.carrier is None else c.carrier["state"] for c in bundle.cards]
     assert states == ["carrier", "carrier", None]

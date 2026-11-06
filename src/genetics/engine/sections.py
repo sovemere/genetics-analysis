@@ -109,7 +109,7 @@ _INFO: tuple[SectionInfo, ...] = (
         Section.REPRODUCTIVE,
         "Reproductive & carrier status",
         "About offspring rather than self. Incomplete by construction -- see 3.2.",
-        "M11.6",
+        "M11",
     ),
     SectionInfo(
         Section.GENOME_STRUCTURE,

@@ -1,0 +1,283 @@
+schema_version: 8
+# M11.6: the reproductive section's section-level statement. A computed card, because its
+# counts come from the carrier panel and from this run's saved carrier records; everything
+# it compares them with is declared here so the comparison is reviewable as a diff.
+#
+# reference.genes is Gregg 2021's Tables 1-6, read row by row from the PMC author manuscript
+# (PMC8488021). The published correction (PMC8776567) changes wording only: no gene, row,
+# frequency or count. Condition names are as those tables print them, without MIM numbers,
+# except AFF2's dated OMIM title. Docs: docs/carrier_status.md.
+cards:
+  - id: carrier_screening_scope
+    section: reproductive
+    kind: computed
+    computation: carrier_screening_scope
+    title: Why this section is not a carrier screen
+    summary: This report's typed carrier markers, set against a published carrier-screening gene list.
+    detail: >-
+      A comprehensive clinical carrier screen assesses each gene's full coding region with
+      its splice junctions, and uses methods such as MLPA for copy number (Gregg 2021). This
+      report reads one position at each marker on a short list. Different things keep a gene
+      or allele off that list, and they do not mean the same thing. An assay limit is a
+      property of the data: copy number, repeat length and inversions leave no genotype call
+      to read, and an indel on this array records no sequence. An allele missing from the
+      array is a property of this chip. A gene or allele with no card is a gap in this
+      report: no card was written, which says nothing about whether the array could support
+      one, and that has not been measured gene by gene. ACMG's narrowest tier is cystic
+      fibrosis and spinal muscular atrophy, and neither is screened here: F508del, about 72%
+      of non-Hispanic white CF chromosomes (Watson 2004), is an indel on this array, and
+      spinal muscular atrophy carrier status is a copy count. A one-copy result is not
+      established by this report either, because rare chip calls are often false positives
+      (Weedon 2021); each carrier card carries its own reliability tier. No detection rate
+      or residual carrier risk is computed. Gregg 2021 gives residual risk as population
+      carrier frequency multiplied by one minus the detection rate, and this marker set has
+      no measured detection rate. G6PD is reported as a pharmacogenomic call and HFE as a
+      physical-health card; neither gene is on the ACMG list.
+    method_evidence:
+      tier: descriptive comparison of typed markers with a published gene list; no clinical sensitivity estimate
+      replication: >-
+        Counting is deterministic under the recorded declaration. Weedon supports the
+        chip-call limitation, not validation of these counts as a clinical screen.
+      populations: ["Weedon 2021: UK Biobank participants with chip and sequencing data"]
+      sample_sizes: [49908]
+      measure: typed markers, conditions, ACMG Tier 3 genes by status, and this run's carrier results
+      units: counts
+      effect_size: No detection rate, residual carrier risk or offspring risk is estimated.
+    screening_scope:
+      reference:
+        name: ACMG Tier 3 carrier screening
+        citation: 10.1038/s41436-021-01203-z
+        tables:
+          1: "Autosomal recessive genes for screening with carrier frequency ≥1/50."
+          2: "Autosomal recessive genes for screening with carrier frequency <1/50 to ≥1/100."
+          3: "Autosomal recessive genes for screening with carrier frequency <1/100 to ≥1/150."
+          4: "Autosomal recessive genes for screening with carrier frequency <1/150 to ≥1/200."
+          5: "Genes that were ascertained for screening outside of the gnomAD criteria."
+          6: "X-linked genes recommended for carrier screening."
+        genes:
+          - {gene: HBB, table: 1, condition: "Sickle cell anemia; β-thalassemia"}
+          - {gene: XPC, table: 1, condition: "Xeroderma pigmentosum"}
+          - {gene: TYR, table: 1, condition: "Oculocutaneous albinism type 1A and 1B"}
+          - {gene: CYP21A2, table: 1, condition: "Congenital adrenal hyperplasia due to 21-hydroxylase deficiency"}
+          - {gene: PAH, table: 1, condition: "Phenylketonuria"}
+          - {gene: CFTR, table: 1, condition: "Cystic fibrosis"}
+          - {gene: TNXB, table: 1, condition: "Ehlers–Danlos-like syndrome due to tenascin-X deficiency"}
+          - {gene: HEXA, table: 1, condition: "Tay–Sachs disease"}
+          - {gene: GJB2, table: 1, condition: "Nonsyndromic hearing loss recessive 1A; Nonsyndromic hearing loss dominant 3A"}
+          - {gene: DHCR7, table: 1, condition: "Smith–Lemli–Opitz syndrome"}
+          - {gene: ATP7B, table: 1, condition: "Wilson disease"}
+          - {gene: ASPA, table: 1, condition: "Canavan disease"}
+          - {gene: ACADM, table: 1, condition: "Medium-chain acyl-coenzyme A dehydrogenase deficiency"}
+          - {gene: NPHS1, table: 1, condition: "Finnish congenital nephrotic syndrome"}
+          - {gene: PMM2, table: 1, condition: "Carbohydrate-deficient glycoprotein syndrome type Ia"}
+          - {gene: FKTN, table: 1, condition: "Cardiomyopathy, dilated, 1X; Walker–Warburg congenital muscular dystrophy"}
+          - {gene: SLC26A4, table: 1, condition: "Deafness autosomal recessive 4; Pendred syndrome"}
+          - {gene: ERCC2, table: 1, condition: "Cerebrooculofacioskeletal syndrome 2; Trichothiodystrophy 1, photosensitive"}
+          - {gene: DYNC2H1, table: 1, condition: "Short-rib thoracic dysplasia 3 with or without polydactyly"}
+          - {gene: CEP290, table: 2, condition: "Joubert syndrome 5; Leber congenital amaurosis 10"}
+          - {gene: GBE1, table: 2, condition: "Glycogen storage disease, type IV; GBE1-related disorders"}
+          - {gene: GAA, table: 2, condition: "Glycogen storage disease, type II (Pompe disease)"}
+          - {gene: CHRNE, table: 2, condition: "Myasthenic syndrome, congenital, 4A slow-channel; 4B fast-channel"}
+          - {gene: G6PC, table: 2, condition: "Glycogen storage disease type IA"}
+          - {gene: OCA2, table: 2, condition: "Oculocutaneous albinism brown and type II"}
+          - {gene: COL7A1, table: 2, condition: "Recessive dystrophic epidermolysis bullosa"}
+          - {gene: ABCC8, table: 2, condition: "Diabetes mellitus, permanent neonatal 3"}
+          - {gene: ALDOB, table: 2, condition: "Hereditary fructosuria"}
+          - {gene: FANCC, table: 2, condition: "Fanconi anemia, complementation group C"}
+          - {gene: GRIP1, table: 2, condition: "Fraser syndrome"}
+          - {gene: BCKDHB, table: 2, condition: "Maple syrup urine disease"}
+          - {gene: ANO10, table: 2, condition: "Spinocerebellar ataxia 10"}
+          - {gene: NAGA, table: 2, condition: "Schindler disease, type 1; Schindler disease, type 3"}
+          - {gene: SMPD1, table: 2, condition: "Niemann–Pick disease, type A; type B"}
+          - {gene: USH2A, table: 2, condition: "Usher syndrome, type 2A"}
+          - {gene: MMUT, table: 2, condition: "Methylmalonic aciduria–methylmalonyl–CoA mutase deficiency"}
+          - {gene: CPT2, table: 2, condition: "Carnitine palmitoyltransferase II deficiency, infantile; lethal neonatal"}
+          - {gene: AHI1, table: 2, condition: "Joubert syndrome 3"}
+          - {gene: DHDDS, table: 3, condition: "Congenital disorder of glycosylation type 1; Retinitis pigmentosa 59"}
+          - {gene: SLC19A3, table: 3, condition: "Basal ganglia disease, biotin-responsive"}
+          - {gene: GALT, table: 3, condition: "Galactosemia"}
+          - {gene: CYP11A1, table: 3, condition: "Adrenal insufficiency, congenital, with 46,XY sex reversal, partial or complete"}
+          - {gene: TF, table: 3, condition: "Atransferrinemia"}
+          - {gene: MMACHC, table: 3, condition: "Methylmalonic aciduria with homocystinuria cblC type"}
+          - {gene: ABCA3, table: 3, condition: "Surfactant metabolism dysfunction, pulmonary 3"}
+          - {gene: GBA1, listed_as: GBA, table: 3, condition: "Gaucher disease, type I; Gaucher disease, type II"}
+          - {gene: MCOLN1, table: 3, condition: "Mucolipidosis type IV"}
+          - {gene: GNPTAB, table: 3, condition: "Mucolipidosis type II alpha/beta; Mucolipidosis type III alpha/beta"}
+          - {gene: AGA, table: 3, condition: "Aspartylglucosaminuria"}
+          - {gene: PCDH15, table: 3, condition: "Deafness, autosomal recessive 23; Usher syndrome, type 1F"}
+          - {gene: FAH, table: 3, condition: "Tyrosinemia type I"}
+          - {gene: AIRE, table: 3, condition: "Autoimmune polyendocrinopathy syndrome type I"}
+          - {gene: BBS2, table: 3, condition: "Bardet–Biedl syndrome 2; Retinitis pigmentosa 74"}
+          - {gene: CYP27A1, table: 3, condition: "Cerebrotendinous xanthomatosis"}
+          - {gene: CCDC88C, table: 3, condition: "Congenital hydrocephalus 1"}
+          - {gene: FMO3, table: 3, condition: "Trimethylaminuria"}
+          - {gene: TMEM216, table: 3, condition: "Joubert syndrome 2; Meckel syndrome 2"}
+          - {gene: CNGB3, table: 3, condition: "Achromatopsia 3"}
+          - {gene: MCPH1, table: 3, condition: "Primary microcephaly 1, recessive"}
+          - {gene: SLC37A4, table: 3, condition: "Glycogen storage disease Ib and Ic"}
+          - {gene: PRF1, table: 3, condition: "Hemophagocytic lymphohistiocytosis, familial, 2"}
+          - {gene: SCO2, table: 3, condition: "Mitochondrial complex IV deficiency, nuclear type 2"}
+          - {gene: AGXT, table: 3, condition: "Hyperoxaluria, primary type I"}
+          - {gene: ACADVL, table: 4, condition: "Very long chain acyl-CoA dehydrogenase deficiency"}
+          - {gene: ASL, table: 4, condition: "Argininosuccinate aciduria"}
+          - {gene: EVC2, table: 4, condition: "Chondroectodermal dysplasia"}
+          - {gene: ARSA, table: 4, condition: "Metachromatic leukodystrophy"}
+          - {gene: MVK, table: 4, condition: "Hyper-IgD syndrome; Mevalonic aciduria"}
+          - {gene: PKHD1, table: 4, condition: "Autosomal recessive polycystic kidney disease"}
+          - {gene: BTD, table: 4, condition: "Biotinidase deficiency"}
+          - {gene: ALPL, table: 4, condition: "Hypophosphatasia, adult; childhood and infantile"}
+          - {gene: BBS1, table: 4, condition: "Bardet–Biedl syndrome 1"}
+          - {gene: CLCN1, table: 4, condition: "Congenital myotonia, autosomal recessive form"}
+          - {gene: CYP27B1, table: 4, condition: "Vitamin D–dependent rickets, type 1"}
+          - {gene: POLG, table: 4, condition: "Mitochondrial DNA depletion syndrome 4A; 4B"}
+          - {gene: MCCC2, table: 4, condition: "3-methylcrotonyl CoA carboxylase 2 deficiency"}
+          - {gene: MLC1, table: 4, condition: "Megalencephalic leukoencephalopathy with subcortical cysts"}
+          - {gene: ACAT1, table: 4, condition: "α-Methylacetoacetic aciduria"}
+          - {gene: CC2D2A, table: 4, condition: "Joubert syndrome 9; Meckel syndrome 6"}
+          - {gene: SLC26A2, table: 4, condition: "Epiphyseal dysplasia, multiple, 4; Achondrogenesis Ib"}
+          - {gene: CBS, table: 4, condition: "Homocystinuria, B6 responsive and nonresponsive"}
+          - {gene: LRP2, table: 4, condition: "Donnai–Barrow syndrome"}
+          - {gene: IDUA, table: 4, condition: "Mucopolysaccharidosis Ih (Hurler S); Ih/s (Hurler–Scheie S)"}
+          - {gene: FKRP, table: 4, condition: "Muscular dystrophy–dystroglycanopathy, types A and B, 5"}
+          - {gene: RNASEH2B, table: 4, condition: "Aicardi Goutieres syndrome 2"}
+          - {gene: RARS2, table: 4, condition: "Pontocerebellar hypoplasia type 6"}
+          - {gene: HBA1, table: 5, condition: "α-Thalassemia"}
+          - {gene: HBA2, table: 5, condition: "α-Thalassemia"}
+          - {gene: SMN1, table: 5, condition: "Spinal muscular atrophy types I, II, III, IV"}
+          - {gene: HPS1, table: 5, condition: "Hermansky Pudlak syndrome 1"}
+          - {gene: HPS3, table: 5, condition: "Hermansky Pudlak syndrome 3"}
+          - {gene: ELP1, table: 5, condition: "Familial dysautonomia"}
+          - {gene: FXN, table: 5, condition: "Friedreich ataxia"}
+          - {gene: DLD, table: 5, condition: "Dihydrolipoamide dehydrogenase deficiency"}
+          - {gene: NEB, table: 5, condition: "Nemaline myopathy 2"}
+          - {gene: CLRN1, table: 5, condition: "Usher syndrome 3a"}
+          - {gene: BLM, table: 5, condition: "Bloom syndrome"}
+          - {gene: ABCD1, table: 6, condition: "Adrenoleukodystrophy"}
+          - {gene: AFF2, table: 6, condition: "X-linked intellectual disability associated with fragile site FRAXE"}
+          - {gene: ARX, table: 6, condition: "Developmental and epileptic encephalopathy 1"}
+          - {gene: DMD, table: 6, condition: "Muscular dystrophy, Becker type; Muscular dystrophy, Duchenne type"}
+          - {gene: F8, table: 6, condition: "Hemophilia A"}
+          - {gene: F9, table: 6, condition: "Hemophilia B"}
+          - {gene: FMR1, table: 6, condition: "Fragile X syndrome"}
+          - {gene: GLA, table: 6, condition: "Fabry disease"}
+          - {gene: L1CAM, table: 6, condition: "Hydrocephalus due to congenital stenosis of aqueduct of Sylvius"}
+          - {gene: MID1, table: 6, condition: "Opitz GBBB syndrome, type I"}
+          - {gene: NR0B1, table: 6, condition: "Adrenal hypoplasia, congenital"}
+          - {gene: OTC, table: 6, condition: "Ornithine transcarbamylase deficiency"}
+          - {gene: PLP1, table: 6, condition: "Spastic paraplegia 2, X-linked"}
+          - {gene: RPGR, table: 6, condition: "Retinitis pigmentosa 3"}
+          - {gene: RS1, table: 6, condition: "Retinoschisis 1, X-linked, juvenile"}
+          - {gene: SLC6A8, table: 6, condition: "Cerebral creatine deficiency syndrome 1"}
+      # Sourced gene-level limits only. A gene absent here is not thereby tractable: it has
+      # no card, and whether it could have one has not been measured.
+      assay_limits:
+        - gene: SMN1
+          mechanism: copy_number
+          card: smn1_copy_number
+          statement: Carrier status for spinal muscular atrophy is a copy count, which genotype calls do not carry.
+        - gene: HBA1
+          mechanism: copy_number
+          card: alpha_globin_deletions
+          statement: "Gregg 2021: most cases of alpha-thalassemia result from deletions of one or more alpha-globin genes."
+        - gene: HBA2
+          mechanism: copy_number
+          card: alpha_globin_deletions
+          statement: "Gregg 2021: most cases of alpha-thalassemia result from deletions of one or more alpha-globin genes."
+        - gene: DMD
+          mechanism: copy_number
+          statement: "Bladen 2015: 5,682 of 7,149 recorded Duchenne mutations (80%) were deletions or duplications of at least one exon. Copy number is not in a genotype call."
+        - gene: FMR1
+          mechanism: repeat_expansion
+          statement: "Verkerk 1991: fragile X chromosomes show length variation in the FMR1 fragment holding a CGG repeat. A genotype call does not measure repeat length."
+        - gene: FXN
+          mechanism: repeat_expansion
+          statement: "Gregg 2021: Friedreich ataxia is associated with a GAA expansion in intron 1 of FXN. A genotype call does not measure repeat length."
+        - gene: F8
+          mechanism: inversion
+          statement: "Antonarakis 1995: 880 of 2,093 patients with severe haemophilia A (42%) had a factor VIII inversion. An inversion is defined by breakpoints, which fall between the positions an array types."
+      # The M11.5 candidate audit (docs/carrier_status.md), as data. Copy-number states are in
+      # assay_limits instead, because they are genes rather than alleles.
+      excluded_alleles:
+        - {class: indel, gene: CFTR, variant: F508del, rsid: rs113993960, reason: "Coded I/D on the array with no sequence recorded. About 72% of non-Hispanic white CF chromosomes (Watson 2004)."}
+        - {class: indel, gene: GJB2, variant: 35delG, rsid: rs80338939, reason: "Coded I/D on the array with no sequence recorded."}
+        - {class: indel, gene: GJB2, variant: 167delT, rsid: rs80338943, reason: "Coded I/D on the array with no sequence recorded."}
+        - {class: indel, gene: HEXA, variant: 1278insTATC, rsid: rs387906309, reason: "Coded I/D on the array with no sequence recorded. The common Ashkenazi Tay-Sachs allele."}
+        - {class: indel, gene: SMPD1, variant: fsP330, rsid: rs120074118, reason: "Coded I/D on the array with no sequence recorded."}
+        - {class: not_on_array, gene: HBB, variant: HbC, rsid: rs33930165, reason: "Not on this array."}
+        - {class: not_on_array, gene: HBB, variant: HbE, rsid: rs33950507, reason: "Not on this array."}
+        - {class: not_on_array, gene: HBB, variant: IVS-I-1, rsid: rs33971440, reason: "Not on this array."}
+        - {class: not_on_array, gene: GBA1, variant: L444P, rsid: rs421016, reason: "Not on this array."}
+        - {class: not_on_array, gene: HEXA, variant: G269S, rsid: rs121907954, reason: "Not on this array."}
+        - {class: not_on_array, gene: DHCR7, variant: IVS8-1G>C, rsid: rs138659167, reason: "Not on this array."}
+        - {class: not_on_array, gene: ELP1, variant: IVS20+6T>C, rsid: rs111033171, reason: "Not on this array."}
+        - {class: not_on_array, gene: CFTR, variant: 3849+10kbC>T, rsid: rs75039782, reason: "Not on this array."}
+        - {class: not_on_array, gene: CBS, variant: I278T, rsid: rs5742905, reason: "Not on this array."}
+        - {class: failed_criterion, gene: GALT, variant: Q188R, rsid: rs75391579, reason: "ClinVar aggregate is conflicting classifications."}
+        - {class: failed_criterion, gene: BTD, variant: D444H, rsid: rs13078881, reason: "ClinVar G>C aggregate is conflicting."}
+        - {class: failed_criterion, gene: HFE, variant: H63D, rsid: rs1799945, reason: "ClinVar aggregate is conflicting."}
+        - {class: failed_criterion, gene: HBB, variant: "-29A>G", rsid: rs34598529, reason: "No gnomAD r2.1.1 exomes record (a promoter variant)."}
+        - {class: not_authored, gene: HBB, variant: codon 39, rsid: rs11549407, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: HBB, variant: IVS-I-110, rsid: rs35004220, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: HBB, variant: IVS-I-5, rsid: rs33915217, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: CFTR, variant: R1162X, rsid: rs74767530, reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
+        - {class: not_authored, gene: CFTR, variant: R347P, rsid: rs77932196, reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
+        - {class: not_authored, gene: CFTR, variant: 1717-1G>A, rsid: rs76713772, reason: "Below 0.5% of non-Hispanic white CF chromosomes; Watson 2004 prints it as 1717-1G>T, so its row was not used."}
+        - {class: not_authored, gene: CFTR, variant: R117H, rsid: rs78655421, reason: "Consequence depends on the cis poly-T tract, which the array does not type."}
+        - {class: not_authored, gene: PAH, variant: IVS12+1G>A, rsid: rs5030861, reason: "Its allele share is only in Hillert 2020's supplementary table, which was not read."}
+        - {class: not_authored, gene: ASPA, variant: Y231X, rsid: rs28940574, reason: "Second Ashkenazi Canavan allele; deferred with the other secondary alleles."}
+        - {class: not_authored, gene: SERPINA1, variant: PiZ, rsid: rs28929474, reason: "Placement undecided: PiZZ is a self-health claim with adult lung and liver risk."}
+        - {class: not_authored, gene: SERPINA1, variant: PiS, rsid: rs17580, reason: "Placement undecided: ClinVar classifies it pathogenic with low penetrance."}
+        - {class: not_authored, gene: ATP7B, variant: H1069Q, rsid: rs76151636, reason: "No per-variant source verified."}
+        - {class: not_authored, gene: MEFV, variant: M694V, rsid: rs61752717, reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
+        - {class: not_authored, gene: MEFV, variant: V726A, rsid: rs28940579, reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
+        - {class: not_authored, gene: GJB2, variant: V37I, rsid: rs72474224, reason: "Mild or debated penetrance; not authored without a penetrance source."}
+        - {class: not_authored, gene: GJB2, variant: M34T, rsid: rs35887622, reason: "Mild or debated penetrance; not authored without a penetrance source."}
+        - {class: not_authored, gene: ABCA4, variant: G1961E, rsid: rs1800553, reason: "Reported as a mild allele; not authored without a penetrance source."}
+        - {class: not_authored, gene: MUTYH, variant: Y179C, rsid: rs34612342, reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
+        - {class: not_authored, gene: MUTYH, variant: G396D, rsid: rs36053993, reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
+        - {class: not_authored, gene: HEXA, variant: IVS9+1G>A, rsid: rs76173977, reason: "Rare (0/1,015 Ashkenazi carriers in Scott 2010)."}
+      # Measured against dbSNP b157: these panel markers list a third or fourth base. Re-checked
+      # by tests/engine/test_carrier_references.py where the index is fetched.
+      dbsnp_multiallelic:
+        - rs113993959
+        - rs147324677
+        - rs1800562
+        - rs334
+        - rs5030849
+        - rs74597325
+        - rs75527207
+        - rs76763715
+        - rs77010898
+        - rs77931234
+        - rs78756941
+        - rs80034486
+    citations:
+      - type: doi
+        id: 10.1038/s41436-021-01203-z
+        title: "Screening for autosomal recessive and X-linked conditions during pregnancy and preconception: a practice resource of the American College of Medical Genetics and Genomics (ACMG)"
+        note: "Tables 1-6: the Tier 3 gene list (97 autosomal recessive, 16 X-linked). Also the tier definitions, methods and residual-risk formula. Corrected for wording only (PMC8776567)."
+      - type: doi
+        id: 10.1097/01.GIM.0000139506.11694.7C
+        title: "Cystic fibrosis population carrier screening: 2004 revision of American College of Medical Genetics mutation panel"
+        note: "Table 1: F508del's share of non-Hispanic white CF patient chromosomes."
+      - type: doi
+        id: 10.1136/bmj.n214
+        title: Use of SNP chips to detect rare pathogenic variants
+        note: "Chip calls for rare variants compared with sequencing in 49,908 UK Biobank participants."
+      - type: doi
+        id: 10.1002/humu.22758
+        title: "The TREAT-NMD DMD Global Database: analysis of more than 7,000 Duchenne muscular dystrophy mutations"
+        note: "Abstract: 5,682 large mutations among 7,149 recorded."
+      - type: doi
+        id: 10.1016/0092-8674(91)90397-H
+        title: Identification of a gene (FMR-1) containing a CGG repeat coincident with a breakpoint cluster region exhibiting length variation in fragile X syndrome
+        note: "Abstract: the CGG repeat, and length variation in the fragment holding it, in fragile X chromosomes."
+      - type: doi
+        id: 10.1182/blood.V86.6.2206.bloodjournal8662206
+        title: "Factor VIII gene inversions in severe hemophilia A: results of an international consortium study"
+        note: "Abstract: 740 type 1 and 140 type 2 inversions among 2,093 patients with severe haemophilia A."
+    caveats:
+      - "The ACMG list is one published reference set, chosen because it states a frequency threshold. It does not bound what could be screened: its own Tier 4 has no lower limit."
+      - "Gene status does not measure coverage within a gene. A typed gene's other pathogenic alleles remain unread."
+      - "The excluded alleles are what the M11.5 audit checked, not every allele this report leaves out."
+      - "Gene-level assay limits name only causes with a cited source. Another gene with no card may have the same limit."

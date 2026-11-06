@@ -5,7 +5,7 @@ M11.5 adds carrier cards for recessive conditions this array can actually type, 
 cover eight conditions; the existing HFE C282Y card in physical health joins the same
 panel without being written twice, making nine. The set of typed markers is recorded as data —
 **the carrier panel** — so M11.6's section-level incompleteness statement can say exactly
-what it excludes.
+what it excludes; M11.6 [adds that statement](#section-level-scope-m116).
 
 No personal export was read for this milestone. The array's marker list was measured
 from the export's first three columns (rsID, chromosome, position) only; no genotype
@@ -253,6 +253,113 @@ typed:
 - **No penetrance is assigned to two-copy outcomes.** Each says what the genotype is
   associated with and that an unexpected two-copy call is more often a genotyping error.
 
+## Section-level scope (M11.6)
+
+Each carrier card says what it does not type. Only a section-level record can say what the
+whole set does not, so M11.6 adds one computed card, `carrier_screening_scope`, in
+`knowledge/reproductive/scope.yaml`. Knowledge schema 8 adds its `screening_scope`
+declaration. Bundle format 27 saves its record; formats 1–26 hold no such card and are read
+unchanged. No new private file type is added: the record lives in the existing gitignored
+`cards.run.json`. No personal export was read for this milestone.
+
+### Why a computed card
+
+An impossibility card is static, so it cannot state how many markers this pack types or how
+many gave a result for this person. The two per-gene cards (`smn1_copy_number`,
+`alpha_globin_deletions`) stay as they are; this card names them and does not repeat them.
+
+### What it states
+
+```text
+This is not a carrier screen. This report types 16 markers for 9 conditions. ACMG Tier 3
+carrier screening names 113 genes (97 autosomal recessive, 16 X-linked). Of those, 8 have a
+typed marker here, and a typed marker reads one named allele rather than the gene; 7 depend
+largely on copy number, repeat length or inversion, which genotype calls cannot show; and 98
+have no card, a gap in this report and not a measured limit of the array. In this run N of 16
+typed markers gave a result and M were not determined. A no-copy result at every typed marker
+would still not be a negative screen.
+```
+
+Computed caveats add that 12 of the 16 markers list another base in dbSNP b157 while the
+array's probe alleles are unpublished, that 4 are A/T or C/G sites whose homozygous direct
+calls cannot be oriented, and that no detection rate, residual carrier risk or offspring risk
+is computed. The card's tier is `limited`: these are counts under a recorded declaration, with
+no calibrated detection rate.
+
+### The reference list
+
+Gregg 2021 (ACMG practice resource, doi:10.1038/s41436-021-01203-z) recommends Tier 3 carrier
+screening: 86 autosomal recessive genes from gnomAD criteria (Tables 1–4), 11 ascertained
+outside them (Table 5), for 97, plus 16 X-linked genes (Table 6). The paper states 86, 97 and
+16; 113 is their sum. All 113 rows were read from the PMC author manuscript (PMC8488021) and
+are declared in the card, with each table's caption. The published correction (PMC8776567)
+changes wording only: no gene, row, frequency or count. It also updated the supplement, which
+was not read. Condition names are as the tables print them, without MIM numbers (AGENTS.md
+§4.8), except AFF2's dated title. The card keeps no carrier frequencies, because the tables do
+not name the population each maximum comes from.
+
+The panel joins the list on gene symbol. GBA1 is declared `listed_as: GBA`, the table's symbol.
+HFE is typed and not on the list, and is reported as such. G6PD is not on the list either
+(G6PC is), and stays a pharmacogenomic call.
+
+### Three reasons, worded apart
+
+Each of the 113 genes has exactly one status:
+
+| Status | Genes | Means |
+|---|---:|---|
+| Typed | 8 | At least one panel marker. CFTR has six, PAH three, the others one. |
+| Assay limit | 7 | SMN1, HBA1, HBA2, DMD (copy number); FMR1, FXN (repeat expansion); F8 (inversion). Each carries a sourced sentence. |
+| No card | 98 | No card was written. A gap in this report, not a measured limit of the array. |
+
+The M11.5 audit's alleles are declared too, by class, and none may also be in the panel:
+5 indels and 9 alleles absent from the array (limits of the data and the chip), 4 typed but
+failing a criterion, and 20 that pass the measured criteria and have no card. The wording keeps
+the last class apart from an assay limit, as the M11.5 contract required. Copy-number states are
+in the gene-level limits rather than here, because they are genes rather than alleles.
+
+`tests/engine/test_carrier_references.py` re-checks this against the pinned references where
+fetched: the 12 multiallelic markers against dbSNP, each `not_authored` allele's ClinVar P/LP
+record and gnomAD PASS record, and each `failed_criterion` reason. A test also requires the
+audit tables below and the declaration to list the same rsIDs.
+
+### One run's tally
+
+The record counts this bundle's own carrier records: no copy, one copy, two copies and not
+determined, with the last broken down by match status. A marker with no saved state is **not
+determined and never a no-copy result**. The count is taken from each card's derived state and
+needs no genotype. It stays in the run bundle.
+
+### Saved and shown
+
+On write and on read, the bundle rebuilds the record from its frozen declaration and its own
+carrier records, and refuses any difference, including a changed summary or caveat. The current
+knowledge pack is never consulted, so a saved run keeps the statement it was written with.
+
+The dashboard shows the statement at the top of the reproductive section, and at the top of the
+grid when grouped by tier, whatever the filters hide. The card's detail view lists the counts,
+genes and excluded alleles. `genetics runs show` prints it, `--json` holds the full record, and
+`genetics cards carrier-scope [--json]` gives the comparison from the pack alone, reading no
+run. A run without the record, such as any format-26 run, still gets a plain statement in the
+dashboard and in `runs show` that its carrier cards are not a screen; nothing is written into
+that run.
+
+### Limits of this statement
+
+- **The 98 no-card genes were not measured.** Whether the array could support a card for each
+  is unknown. Some may share an assay limit: only limits with a cited source are declared, and
+  the card says so.
+- **The list is one reference set.** It is a published recommendation with a stated threshold.
+  Its own Tier 4 has no lower limit, so it does not bound what could be screened.
+- **Gene status is not coverage within a gene.** A typed gene's other pathogenic alleles remain
+  unread.
+- **The limit sources describe patients, not carriers.** Bladen 2015 is a Duchenne mutation
+  database (5,682 of 7,149 mutations were at least one exon), and Antonarakis 1995 covers
+  severe haemophilia A only (880 of 2,093). They support "depend largely on", no more.
+- **No detection rate is computed.** Gregg 2021's residual risk needs one, and it also calls a
+  precise residual risk impractical for panels of many rare variants.
+
 ## Validation
 
-Recorded in [the handoff](handoff.md#accepted-m115-carrier-status).
+Recorded in the handoff: [M11.5](handoff.md#accepted-m115-carrier-status) and
+[M11.6](handoff.md#accepted-m116-carrier-screening-scope).
