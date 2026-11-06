@@ -137,9 +137,9 @@ the machine or memory pressure; the cause is not established.
 The reopen passed in 54 min. From that one opened copy, all 114 dashboard pages returned
 200 and seven CLI reads exited 0, each in under 10 s, with their output discarded unread.
 The largest page is a 47 MB guideline card, and `runs show --json` prints 1 GB.
-**Three things this run leaves open:**
-1. **Reading a saved imputed run cost about 54 min per read. The fix is built and not yet
-   accepted.** [`run/checks.py`](../src/genetics/run/checks.py) records that a bundle's exact
+**Three things this run left open; the first is now fixed:**
+1. **Reading a saved imputed run cost about 54 min per read. Fixed and accepted on
+   2026-11-06.** [`run/checks.py`](../src/genetics/run/checks.py) records that a bundle's exact
    manifest passed its deep checks under this exact engine. The save writes the record, and
    later reads still check every digest but skip the four deep checks: the doses, the score
    records, PGx against every dose, and the ClinVar lookup. That read took 12.8 s on the
@@ -148,9 +148,12 @@ The largest page is a 47 MB guideline card, and `runs show --json` prints 1 GB.
    `genetics runs list --verify` always repeats the checks and replaces the record. Any change
    to the engine's source makes the next read repeat them, once, with progress on stderr.
    A save's record covers the payloads it checked, not what a reader parses back from them;
-   `--verify` checks the stored bytes. `genetics ci-local` passes 29 of 29 steps. **Not yet
-   finished:** `genetics runs list --verify` (about 54 min), which gives the real run its
-   record. Until then, its first read pays that cost instead.
+   `--verify` checks the stored bytes. **Acceptance on the real run:** `runs list --verify`
+   passed all four saved runs in 58 min, running alongside `ci-local` for the first 19, and
+   peaked at 11.9 GB with at least 6.2 GB free. With that record, `store.load_run` took
+   13.4 s, seven CLI reads exited 0 in 14–26 s each, and all 114 dashboard pages returned
+   200: 12.3 s for the first, at most 0.47 s for each later one, 15 s in all. Output was
+   discarded unread. `ci-local` itself peaked at about 0.5 GB of Python, sampled every 5 s.
 2. **HLA did not run.** The four HIBAG classifiers are not fetched, because their model terms
    are unspecified and fetching needs the owner's explicit opt-in; the HLA cards record
    that they did not run. Adding it is
