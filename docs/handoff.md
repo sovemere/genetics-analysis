@@ -1,6 +1,6 @@
 # Handoff: M11.6 carrier-screening incompleteness
 
-As of 2026-11-05, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
+As of 2026-11-06, **M0-M10 and M11.1–M11.5 are implemented; M11.6 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -154,6 +154,13 @@ The largest page is a 47 MB guideline card, and `runs show --json` prints 1 GB.
    13.4 s, seven CLI reads exited 0 in 14–26 s each, and all 114 dashboard pages returned
    200: 12.3 s for the first, at most 0.47 s for each later one, 15 s in all. Output was
    discarded unread. `ci-local` itself peaked at about 0.5 GB of Python, sampled every 5 s.
+   The [read-path review](review_read_path_session.md) then fixed which engine a record
+   names, so the first read of each saved imputed run repeats its checks once more.
+   **What source changes cost:** nothing until a saved run is opened, and several changes
+   cost one repeat, not one each. The dashboard's first page pays that repeat, so after a
+   source change run `genetics runs list --verify` first. A saved run never gains a section
+   added later: seeing one on real data takes a new run, about 8 h, since parts saved by
+   other code are not reused. That run's save writes its own record.
 2. **HLA did not run.** The four HIBAG classifiers are not fetched, because their model terms
    are unspecified and fetching needs the owner's explicit opt-in; the HLA cards record
    that they did not run. Adding it is

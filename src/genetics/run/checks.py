@@ -10,10 +10,11 @@ bound to the digest of the engine:
 - a rewritten manifest has no record, so it gets the deep checks;
 - a changed engine does not match the record, so the next read repeats them, once.
 
-The same bytes and the same code give the same verdict, so this loses no accuracy
-(AGENTS.md 0.1C). The record is kept outside the bundle because a bundle is immutable. It
-holds digests only, and deleting it costs one repeat of the checks, so failing to read or
-write it never fails a read or a save.
+Both digests are taken before the checks start, so a record can only ever name the bytes they
+saw and the code that ran them. The same bytes and the same code give the same verdict, so this
+loses no accuracy (AGENTS.md 0.1C). The record is kept outside the bundle because a bundle is
+immutable. It holds digests only, and deleting it costs one repeat of the checks, so failing to
+read or write it never fails a read or a save.
 
 Reads that skip the checks trust a record, and a record of a save trusts the save: that
 checked the payloads it was about to write, not what a reader parses back from them. That is
@@ -23,6 +24,7 @@ why ``genetics runs list --verify`` always repeats the checks on the stored byte
 from __future__ import annotations
 
 import contextlib
+import functools
 import hashlib
 import json
 import os
@@ -36,9 +38,15 @@ from genetics.run.bundle import MANIFEST_NAME
 SCHEMA_VERSION = 1
 
 
+@functools.cache
 def engine_sha256() -> str:
-    """The engine's source, by content. ``__version__`` has said 0.1.0 from the start, so
-    a part saved by other code would otherwise be reused as if this code had made it."""
+    """The engine's source, by content, as this process found it when it started.
+
+    ``__version__`` has said 0.1.0 from the start, so a part saved by other code would
+    otherwise be reused as if this code had made it. Read once because the checks can outlast
+    an edit: they take an hour, a run takes eight and a dashboard stays up for days, and source
+    edited meanwhile did not run them. Reading it afresh would hand that edit their verdict.
+    """
     root = Path(genetics.__file__).resolve().parent
     rolled = hashlib.sha256()
     for path in sorted(root.rglob("*.py")):
@@ -77,9 +85,9 @@ def passed(manifest_sha256: str | None) -> bool:
         return False
     try:
         raw = json.loads(_path(manifest_sha256).read_text(encoding="ascii"))
+        return bool(raw == _record(manifest_sha256))
     except (OSError, ValueError):  # UnsafeDataDirError is a ValueError
         return False
-    return bool(raw == _record(manifest_sha256))
 
 
 def record(manifest_sha256: str | None) -> None:
@@ -105,3 +113,9 @@ def forget(manifest_sha256: str | None) -> None:
         return
     with contextlib.suppress(OSError, UnsafeDataDirError):
         _path(manifest_sha256).unlink(missing_ok=True)
+
+
+# At import, before any check can start: see engine_sha256. A file that cannot be read just
+# now is retried at first use, and failing then costs a repeat of the checks, not the read.
+with contextlib.suppress(OSError):
+    engine_sha256()

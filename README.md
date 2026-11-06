@@ -346,8 +346,10 @@ An imputed run of a real export took 7 h 49 min and peaked at 14.7 GB
 [public stand-in](docs/review_run_cost_session.md)). Its deep checks run when it is saved,
 and later reads skip them: opening that run takes about 13 seconds. They repeat once, about
 54 minutes, the first time a run is read after the engine's source changes, and always under
-`genetics runs list --verify`. The dashboard keeps one opened run in memory, about 2.4 GB for
-that run. `genetics run` saves its long parts as they finish: the
+`genetics runs list --verify`. The dashboard's first page pays that repeat too, so run that
+command first after changing the source. The dashboard keeps one opened run in memory, about
+2.4 GB for that run. A saved run never gains a section added later; that takes a new run.
+`genetics run` saves its long parts as they finish: the
 imputation, one read of the imputed doses, each polygenic score, and the PGx and HLA
 calls. Rerunning an interrupted run of the same export resumes after the last saved
 part. The parts are private and stay outside the checkout; they are removed once the run

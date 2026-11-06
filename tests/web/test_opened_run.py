@@ -15,7 +15,7 @@ from genetics.ancestry.context import AncestryContext
 from genetics.engine.cards import KnowledgePack
 from genetics.qc.report import QCReport
 from genetics.run import store
-from genetics.run.bundle import QC_NAME, RunBundle, write_bundle
+from genetics.run.bundle import QC_NAME, RunBundle, read_bundle, write_bundle
 from genetics.web import WebConfig, create_app
 
 LOCAL_BASE_URL = "http://127.0.0.1"
@@ -77,6 +77,31 @@ def test_pages_share_one_opened_copy(
     for _ in range(3):
         assert client.get(f"/runs/{FIRST}").status_code == 200
     assert opens == [FIRST]
+
+
+def test_pages_leave_the_shared_copy_as_they_found_it(
+    client: TestClient, saved: tuple[Path, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A page that changed what it was given would now change every later page."""
+    first, _ = saved
+    kept: list[RunBundle] = []
+    real = store.load_run
+
+    def spy(run_id: str, runs_root: Path | None = None, **kwargs: Any) -> RunBundle:
+        kept.append(real(run_id, runs_root, **kwargs))
+        return kept[-1]
+
+    monkeypatch.setattr(store, "load_run", spy)
+    base = f"/runs/{FIRST}"
+    pages = [base, f"{base}/clinvar", f"{base}/secondary-findings", f"{base}/hla", f"{base}/pgx"]
+    assert client.get(base).status_code == 200
+    pages += [f"{base}/cards/{card.card_id}" for card in kept[0].cards]
+
+    responses = [client.get(page) for page in pages]
+    assert [response.status_code for response in responses] == [200] * len(pages)
+    assert [client.get(page).text for page in pages] == [r.text for r in responses]
+    assert len(kept) == 1
+    assert kept[0] == read_bundle(first)
 
 
 def test_the_index_uses_the_copy_its_run_already_has(

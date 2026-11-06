@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -240,13 +242,67 @@ def test_the_record_holds_digests_and_nothing_else(saved: Path, runs_root: Path)
     assert not list(record.parent.glob(".pending-*"))
 
 
-def test_the_engine_digest_follows_the_source(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "__init__.py").write_text("", encoding="utf-8")
-    (tmp_path / "module.py").write_text("# one\n", encoding="utf-8")
-    monkeypatch.setattr("genetics.__file__", str(tmp_path / "__init__.py"))
-    before = checks.engine_sha256()
+@pytest.fixture
+def source(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Path]:
+    """A file of an engine a test can edit. Clearing the cache stands in for a new process."""
+    root = tmp_path / "engine"
+    root.mkdir()
+    (root / "__init__.py").write_text("", encoding="utf-8")
+    module = root / "module.py"
+    module.write_text("# one\n", encoding="utf-8")
+    monkeypatch.setattr("genetics.__file__", str(root / "__init__.py"))
+    checks.engine_sha256.cache_clear()
+    yield module
+    checks.engine_sha256.cache_clear()
 
-    (tmp_path / "module.py").write_text("# two\n", encoding="utf-8")
+
+def test_the_engine_digest_follows_the_source(source: Path) -> None:
+    before = checks.engine_sha256()
+    source.write_text("# two\n", encoding="utf-8")
+    assert checks.engine_sha256() == before, "this process is still running the code it started"
+
+    checks.engine_sha256.cache_clear()
     assert checks.engine_sha256() != before
+
+
+def test_source_edited_during_the_checks_does_not_inherit_their_verdict(
+    saved: Path, runs_root: Path, source: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """An hour-long check, a dashboard left up: the record names the code that ran them."""
+    from genetics.run import bundle
+
+    checks.engine_sha256()
+    real = bundle._check_polygenic
+
+    def edited_meanwhile(*args: Any, **kwargs: Any) -> None:
+        source.write_text("# edited while the checks ran\n", encoding="utf-8")
+        real(*args, **kwargs)
+
+    monkeypatch.setattr(bundle, "_check_polygenic", edited_meanwhile)
+    store.load_run(saved.name, runs_root)
+    assert checks.passed(checks.key(saved)), "the code that ran them may still skip them"
+
+    checks.engine_sha256.cache_clear()
+    assert not checks.passed(checks.key(saved)), "the edited source never ran them"
+
+
+def test_the_engine_is_read_before_any_check_can_start() -> None:
+    spec = importlib.util.spec_from_file_location("a_fresh_checks", checks.__file__)
+    assert spec is not None and spec.loader is not None
+    fresh = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(fresh)
+    assert fresh.engine_sha256.cache_info().currsize == 1
+
+
+def test_source_that_cannot_be_read_only_costs_a_repeat(
+    saved: Path, runs_root: Path, deep_reads: list[int], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    store.load_run(saved.name, runs_root)
+
+    def locked() -> str:
+        raise PermissionError("held by another program")
+
+    monkeypatch.setattr(checks, "engine_sha256", locked)
+    assert not checks.passed(checks.key(saved))
+    assert store.load_run(saved.name, runs_root).run_id == saved.name
+    assert len(deep_reads) == 2
