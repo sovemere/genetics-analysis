@@ -49,6 +49,7 @@ from genetics.pgs.engine import DosageIndex
 from genetics.pgs.records import is_score_file_name, score_file_name
 from genetics.privacy import NoGenotypeRepr
 from genetics.run.bundle import _tool_provenance, knowledge_provenance
+from genetics.run.checks import engine_sha256
 
 __all__ = [
     "SCHEMA_VERSION",
@@ -88,17 +89,6 @@ def _file_sha256(path: Path) -> str:
         for block in iter(lambda: handle.read(1 << 20), b""):
             digest.update(block)
     return digest.hexdigest()
-
-
-def engine_sha256() -> str:
-    """The engine's source, by content. ``__version__`` has said 0.1.0 from the start, so
-    a part saved by other code would otherwise be reused as if this code had made it."""
-    root = Path(genetics.__file__).resolve().parent
-    rolled = hashlib.sha256()
-    for path in sorted(root.rglob("*.py")):
-        rolled.update(path.relative_to(root).as_posix().encode("utf-8") + b"\0")
-        rolled.update(hashlib.sha256(path.read_bytes()).digest())
-    return rolled.hexdigest()
 
 
 def contract(

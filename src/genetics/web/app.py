@@ -33,6 +33,7 @@ to rot quietly.
 
 from __future__ import annotations
 
+import threading
 from collections.abc import Awaitable, Callable, Mapping
 from pathlib import Path
 from typing import Any
@@ -141,6 +142,34 @@ header that describes the URL is worth nothing if only one of the answers carrie
 _ALLOWED_HOSTS_KEY = "genetics_allowed_hosts"
 
 
+class _OpenedRun:
+    """The one saved run this dashboard process keeps open.
+
+    Opening a saved imputed run takes time even after its deep checks have passed, and every
+    page needs it. Bundles are immutable, so one opened copy can serve them all, for as long
+    as the files on disk still match it. About 2.4 GB on a real imputed run.
+
+    One copy, dropped before the next is opened, so two runs are never held together. The
+    lock makes pages that arrive during a slow open wait for it rather than open it again.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._held: tuple[tuple[str, tuple[tuple[str, int, int], ...]], RunBundle] | None = None
+
+    def load(self, run_id: str, runs_root: Path | None) -> RunBundle:
+        path = store.resolve_run(run_id, runs_root)
+        with self._lock:
+            # Taken before opening: files changed during a slow open force another read.
+            signature = store.run_signature(path)
+            if self._held is not None and self._held[0] == signature:
+                return self._held[1]
+            self._held = None
+            bundle = store.load_run(run_id, runs_root, progress=store.report_to_console)
+            self._held = (signature, bundle)
+            return bundle
+
+
 def _host_name(raw: str) -> str:
     """The host part of a ``Host`` header, port removed, IPv6 brackets kept.
 
@@ -170,6 +199,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
     # a module-level environment would work and would also be shared state that a test
     # cannot vary -- the same reason `create_app` is a factory at all.
     environment = _environment()
+    opened = _OpenedRun()
 
     app = FastAPI(
         title="genetics",
@@ -395,7 +425,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             run_id = readable[0].run_id
 
         try:
-            bundle: RunBundle = store.load_run(run_id, settings.runs_root)
+            bundle: RunBundle = opened.load(run_id, settings.runs_root)
         except RunNotFoundError:
             return views.shell_for(
                 listing,

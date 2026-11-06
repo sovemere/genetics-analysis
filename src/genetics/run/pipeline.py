@@ -63,6 +63,7 @@ from genetics.pgs.runner import PolygenicStage
 from genetics.pgx.calling import CallingStage
 from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import QCReport
+from genetics.run import checks
 from genetics.run.bundle import write_bundle
 from genetics.run.parts import RunParts, contract
 from genetics.structure.archaic import infer_archaic_cards
@@ -525,6 +526,8 @@ def save(
         lock_path=lock_path,
         tools_root=tools_root,
     )
+    # The save just ran the deep checks, so the first read need not repeat them.
+    checks.record(checks.key(path))
     if analysis.parts is not None:
         analysis.parts.discard()
     return path

@@ -142,6 +142,26 @@ def test_reruns_never_overwrite_a_saved_run(export: Path, store_root: Path) -> N
     assert len(list(store_root.iterdir())) == 2
 
 
+def test_a_saved_run_opens_without_repeating_the_save_checks(
+    export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from genetics.run import bundle, checks
+
+    result = runner.invoke(app, ["run", "--no-impute", "--input", str(export), "--json"])
+    assert result.exit_code == 0, result.output
+
+    (saved,) = list(store_root.iterdir())
+    assert checks.passed(checks.key(saved))
+
+    def explode(*args: object, **kwargs: object) -> None:
+        raise AssertionError("the save's checks were repeated")
+
+    monkeypatch.setattr(bundle, "_check_polygenic", explode)
+    shown = runner.invoke(app, ["runs", "show", saved.name, "--json"])
+    assert shown.exit_code == 0, shown.output
+    assert json.loads(shown.stdout)["run_id"] == saved.name
+
+
 def test_the_default_knowledge_pack_is_the_committed_one(export: Path, store_root: Path) -> None:
     """Without ``--knowledge`` the run uses ``knowledge/``, not the test fixtures.
 

@@ -343,9 +343,11 @@ visible in the saved run and cards; it is never selected automatically.
 
 An imputed run of a real export took 7 h 49 min and peaked at 14.7 GB
 ([measurements](docs/handoff.md); about 5½ hours and 10.9 GB on a
-[public stand-in](docs/review_run_cost_session.md)). Each read of a saved imputed run
-currently takes about 54 minutes, because it repeats the save's checks. `genetics run` saves
-its long parts as they finish: the
+[public stand-in](docs/review_run_cost_session.md)). Its deep checks run when it is saved,
+and later reads skip them: opening that run takes about 13 seconds. They repeat once, about
+54 minutes, the first time a run is read after the engine's source changes, and always under
+`genetics runs list --verify`. The dashboard keeps one opened run in memory, about 2.4 GB for
+that run. `genetics run` saves its long parts as they finish: the
 imputation, one read of the imputed doses, each polygenic score, and the PGx and HLA
 calls. Rerunning an interrupted run of the same export resumes after the last saved
 part. The parts are private and stay outside the checkout; they are removed once the run

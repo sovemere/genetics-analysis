@@ -138,14 +138,19 @@ The reopen passed in 54 min. From that one opened copy, all 114 dashboard pages 
 200 and seven CLI reads exited 0, each in under 10 s, with their output discarded unread.
 The largest page is a 47 MB guideline card, and `runs show --json` prints 1 GB.
 **Three things this run leaves open:**
-1. **Reading a saved imputed run costs about 54 min per read. Decide this before more
-   imputed runs are read.** Every `genetics runs show`, `pgx calls` and dashboard page calls
-   `read_bundle`, which repeats the save's checks, so each page load pays it again. The
-   figure is `read_bundle`'s; the render check above shared one opened copy so as not to
-   pay it 121 times. Options, for the owner: keep one opened copy in the dashboard process,
-   or record that a run passed its deep checks and repeat only the digests until
-   `runs list --verify` asks for more. Folding the PGx check into the dose validation's
-   pass saves only about 19 min.
+1. **Reading a saved imputed run cost about 54 min per read. The fix is built and not yet
+   accepted.** [`run/checks.py`](../src/genetics/run/checks.py) records that a bundle's exact
+   manifest passed its deep checks under this exact engine. The save writes the record, and
+   later reads still check every digest but skip the four deep checks: the doses, the score
+   records, PGx against every dose, and the ClinVar lookup. That read took 12.8 s on the
+   real run, against 54 min in full, and holds 2.4 GB (peak 2.8 GB). The dashboard keeps one
+   opened copy and reads again if any file's size or modified time changes.
+   `genetics runs list --verify` always repeats the checks and replaces the record. Any change
+   to the engine's source makes the next read repeat them, once, with progress on stderr.
+   A save's record covers the payloads it checked, not what a reader parses back from them;
+   `--verify` checks the stored bytes. `genetics ci-local` passes 29 of 29 steps. **Not yet
+   finished:** `genetics runs list --verify` (about 54 min), which gives the real run its
+   record. Until then, its first read pays that cost instead.
 2. **HLA did not run.** The four HIBAG classifiers are not fetched, because their model terms
    are unspecified and fetching needs the owner's explicit opt-in; the HLA cards record
    that they did not run. Adding it is

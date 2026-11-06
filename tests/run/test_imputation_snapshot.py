@@ -232,6 +232,44 @@ def test_a_long_pass_over_saved_doses_reports_its_count(
     assert events == ["Reading saved imputed doses: 100,000 records"]
 
 
+def test_a_read_reports_the_deep_checks_of_an_imputed_run(
+    prepared: tuple[pipeline.Analysis, ImputationResult], tmp_path: Path
+) -> None:
+    """Without this, a read whose checks must be repeated is silent for about an hour."""
+    analysis, _ = prepared
+    path = pipeline.save(
+        analysis, tools_root=tmp_path / "missing-tools", lock_path=tmp_path / "missing.lock"
+    )
+    events: list[str] = []
+    read_bundle(path, progress=events.append)
+    assert any("deep checks" in event for event in events)
+    assert "Validating saved imputation dosage evidence" in events
+    assert "Checking the PGx calls against every saved imputed dose" in events
+    assert_no_genotype("\n".join(events))
+
+    skipped: list[str] = []
+    read_bundle(path, deep=False, progress=skipped.append)
+    assert skipped == []
+
+
+def test_a_saved_imputed_run_opens_without_reading_its_doses(
+    prepared: tuple[pipeline.Analysis, ImputationResult],
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The save checked them, so the first read need not: that is the hour this saves."""
+    analysis, _ = prepared
+    path = pipeline.save(
+        analysis, tools_root=tmp_path / "missing-tools", lock_path=tmp_path / "missing.lock"
+    )
+
+    def explode(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("the doses were read")
+
+    monkeypatch.setattr(snapshot, "iter_records", explode)
+    assert store.open_run(path).imputation_provenance is not None
+
+
 def test_disabled_run_records_no_execution_or_dosages(
     prepared: tuple[pipeline.Analysis, ImputationResult],
     tmp_path: Path,

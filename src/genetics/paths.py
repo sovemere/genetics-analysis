@@ -86,6 +86,14 @@ def run_parts_dir() -> Path:
     return cache_dir() / "run-parts"
 
 
+def run_checks_dir() -> Path:
+    """Which saved runs passed their deep checks (:mod:`genetics.run.checks`).
+
+    Digests only, and safe to delete: the next read of a run just repeats its checks.
+    """
+    return cache_dir() / "run-checks"
+
+
 def tools_dir() -> Path:
     """Third-party binaries fetched at setup (PLINK 2, Beagle)."""
     return user_data_dir() / "tools"
@@ -152,6 +160,7 @@ def app_write_paths() -> tuple[tuple[str, Path, bool], ...]:
         ("runs_dir", runs_dir(), True),
         ("cache_dir", cache_dir(), True),
         ("run_parts_dir", run_parts_dir(), True),
+        ("run_checks_dir", run_checks_dir(), True),
         ("tools_dir", tools_dir(), True),
         ("ci_dir", ci_dir(), True),
         ("references_dir", references_dir(), True),

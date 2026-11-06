@@ -13,7 +13,7 @@ from genetics.pgs.engine import ScoreResult, score, validate_mode_flags
 from genetics.pgs.reference import attach_reference, prepare_reference
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
-from genetics.run.bundle import read_bundle
+from genetics.run.store import open_run
 
 
 def score_export(
@@ -81,7 +81,7 @@ def score_saved(
         raise PgsError(str(exc)) from exc
     scoring.inspect()
     prepared = prepare_reference(scoring, enabled=reference, progress=progress)
-    bundle = read_bundle(run_path)
+    bundle = open_run(run_path, progress=progress)
     if (
         bundle.imputation_provenance is None
         or bundle.imputation_provenance.get("status") != "recorded"

@@ -30,7 +30,7 @@ def calls(
     from genetics.run.bundle import BundleError
 
     try:
-        result = saved_report(store.load_run(run_id), gene)
+        result = saved_report(store.load_run(run_id, progress=store.report_to_console), gene)
     except (CallingError, BundleError, OSError, ValueError) as exc:
         _error(exc, as_json)
     else:

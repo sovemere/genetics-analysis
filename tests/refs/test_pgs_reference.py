@@ -714,7 +714,7 @@ def test_review_tampered_panel_fails_before_personal_input(
         pytest.fail("the public panel must be verified before personal input is read")
 
     monkeypatch.setattr(workflow, "ingest", untouched)
-    monkeypatch.setattr(workflow, "read_bundle", untouched)
+    monkeypatch.setattr(workflow, "open_run", untouched)
     scoring = definition(tmp_path / "def", [weight(101)])
     with pytest.raises(PgsError, match="lock digest"):
         workflow.score_export(scoring, tmp_path / "absent-export.txt", no_impute=True)

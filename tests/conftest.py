@@ -102,8 +102,14 @@ def _run_parts_outside_the_user_cache(
     def isolated() -> Path:
         return paths.run_parts_dir() if os.environ.get("GENETICS_DATA_DIR") else fallback
 
+    checks_fallback = tmp_path_factory.mktemp("run-checks")
+
+    def isolated_checks() -> Path:
+        return paths.run_checks_dir() if os.environ.get("GENETICS_DATA_DIR") else checks_fallback
+
     with pytest.MonkeyPatch.context() as patch:
         patch.setattr("genetics.run.parts.run_parts_dir", isolated)
+        patch.setattr("genetics.run.checks.run_checks_dir", isolated_checks)
         yield
 
 

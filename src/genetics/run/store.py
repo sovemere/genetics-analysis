@@ -14,7 +14,8 @@ listing is precisely the command someone runs *because* something is wrong. So d
 becomes a row with a status, the way ``genetics doctor`` reports a missing tool rather than
 exiting red on a fresh checkout. ``--verify`` is available for when the question really is
 "is my saved data intact", and :attr:`RunListing.verified` records which question was asked,
-so ``readable`` can never be mistaken for ``verified``.
+so ``readable`` can never be mistaken for ``verified``. Opening a run for reading is a
+separate question again: see :func:`open_run` and :mod:`genetics.run.checks`.
 
 **A staging directory is skipped as a run and reported as itself.** ``write_bundle`` cleans
 up after any exception, but a process killed outright (or a machine losing power) leaves
@@ -37,9 +38,11 @@ leave the user a run they can neither read nor remove.
 
 from __future__ import annotations
 
+import os
 import shutil
 import stat
-from collections.abc import Mapping
+import sys
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path
@@ -48,6 +51,7 @@ from typing import Any, ClassVar
 from genetics.imputation.snapshot import CATALOG_NAMES, is_dosage_name
 from genetics.pgs.records import is_score_file_name
 from genetics.privacy import NoGenotypeRepr
+from genetics.run import checks
 from genetics.run.bundle import (
     BUNDLE_FORMAT_VERSION,
     INCOMING_PREFIX,
@@ -366,8 +370,11 @@ def summarise_run(directory: Path) -> RunSummary:
     return RunSummary(**common, status=RunStatus.READABLE, detail=renamed)
 
 
-def _verify(summary: RunSummary) -> RunSummary:
-    """Re-read a readable-looking bundle in full, digests included.
+def _verify(summary: RunSummary, progress: Callable[[str], None] | None = None) -> RunSummary:
+    """Re-read a readable-looking bundle in full, digests and deep checks included.
+
+    Always deep, whatever :mod:`genetics.run.checks` remembers, because this is the command
+    that asks the question afresh. Its answer replaces what was remembered.
 
     ``OSError`` is caught alongside ``BundleError``, and that is the whole point rather than
     defensive padding. ``read_bundle`` digests each payload, which means it *opens* files --
@@ -384,10 +391,13 @@ def _verify(summary: RunSummary) -> RunSummary:
     """
     if summary.status is not RunStatus.READABLE:
         return summary
+    manifest = checks.key(summary.path)
     try:
-        read_bundle(summary.path)
+        read_bundle(summary.path, progress=progress)
     except (BundleError, OSError) as exc:
+        checks.forget(manifest)
         return replace(summary, status=RunStatus.DAMAGED, detail=str(exc))
+    checks.record(manifest)
     return summary
 
 
@@ -402,7 +412,12 @@ def _sort_key(summary: RunSummary) -> tuple[str, str]:
     return (summary.created_at or "", summary.run_id)
 
 
-def list_runs(runs_root: Path | None = None, *, verify: bool = False) -> RunListing:
+def list_runs(
+    runs_root: Path | None = None,
+    *,
+    verify: bool = False,
+    progress: Callable[[str], None] | None = None,
+) -> RunListing:
     """Every saved run under ``runs_root``, newest first.
 
     A missing runs directory is an empty listing, not an error: no run has been saved yet
@@ -437,7 +452,7 @@ def list_runs(runs_root: Path | None = None, *, verify: bool = False) -> RunList
         summaries.append(summarise_run(entry))
 
     if verify:
-        summaries = [_verify(summary) for summary in summaries]
+        summaries = [_verify(summary, progress) for summary in summaries]
 
     return RunListing(
         root=root,
@@ -494,9 +509,51 @@ def resolve_run(run_id: str, runs_root: Path | None = None) -> Path:
     return target
 
 
-def load_run(run_id: str, runs_root: Path | None = None) -> RunBundle:
-    """Read one saved run by id. Digests are checked; see :func:`read_bundle`."""
-    return read_bundle(resolve_run(run_id, runs_root))
+def report_to_console(message: str) -> None:
+    """A progress line for a person, on stderr so ``--json`` output stays one document."""
+    print(f"  {message}", file=sys.stderr, flush=True)
+
+
+def open_run(path: Path, *, progress: Callable[[str], None] | None = None) -> RunBundle:
+    """Read a saved run, running its deep checks only if they have not already passed.
+
+    Digests are checked on every read, so this returns only bytes the record covers, or
+    raises. A run with no matching record pays for the deep checks once and earns one. The
+    manifest is digested before the checks start, so a record can only ever describe the
+    bytes they saw.
+    """
+    manifest = checks.key(path)
+    if checks.passed(manifest):
+        return read_bundle(path, deep=False)
+    bundle = read_bundle(path, progress=progress)
+    checks.record(manifest)
+    return bundle
+
+
+def load_run(
+    run_id: str,
+    runs_root: Path | None = None,
+    *,
+    progress: Callable[[str], None] | None = None,
+) -> RunBundle:
+    """Read one saved run by id; see :func:`open_run`."""
+    return open_run(resolve_run(run_id, runs_root), progress=progress)
+
+
+def run_signature(path: Path) -> tuple[str, tuple[tuple[str, int, int], ...]]:
+    """What a held copy of a run is compared against: each file's name, size and mtime.
+
+    Cheap enough for every page, where re-digesting a 2 GB bundle is not. An edit that keeps
+    a file's size and modified time goes unnoticed until the next real read, which is outside
+    a threat model of accidental damage (see :mod:`genetics.run.bundle`).
+    """
+    with os.scandir(path) as entries:
+        files = [
+            (entry.name, info.st_size, info.st_mtime_ns)
+            for entry in entries
+            for info in (entry.stat(),)
+        ]
+    return str(path), tuple(sorted(files))
 
 
 # ---------------------------------------------------------------------------
@@ -564,7 +621,9 @@ def delete_run(run_id: str, runs_root: Path | None = None) -> Path:
                 "yourself if that is genuinely what you meant."
             )
 
+    manifest = checks.key(target)
     shutil.rmtree(target)
+    checks.forget(manifest)
     return target
 
 

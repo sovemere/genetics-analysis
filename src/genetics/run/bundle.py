@@ -1657,13 +1657,25 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
     )
 
 
-def read_bundle(path: Path) -> RunBundle:
+def read_bundle(
+    path: Path,
+    *,
+    deep: bool = True,
+    progress: Callable[[str], None] | None = None,
+) -> RunBundle:
     """Read a bundle, checking its format version and its payload digests.
 
     The version is checked *before* anything else is parsed. A bundle from a future
     format would otherwise fail on whichever field happened to change first, and M4.2
     requires "this was written by a newer version" to be distinguishable from "this file
     is damaged" -- they have completely different remedies.
+
+    ``deep=False`` skips the four checks that dominate the cost of opening an imputed run:
+    the saved doses, the score records, the PGx calls against every dose, and the ClinVar
+    lookup. Those verdicts depend only on the payload bytes and the engine, so only a caller
+    holding a record that these exact bytes passed under this exact engine may skip them;
+    see :mod:`genetics.run.checks`. Everything else still runs, digests included.
+    ``progress`` hears the deep checks, which take about an hour on an imputed run.
     """
     directory = Path(path)
     if not directory.is_dir():
@@ -1797,12 +1809,18 @@ def read_bundle(path: Path) -> RunBundle:
     if declared >= 16:
         assert imputation is not None
         imputation_provenance = _load_json(directory / IMPUTATION_PROVENANCE_NAME)
-        try:
-            imputation_snapshot.validate_snapshot(
-                directory, imputation_provenance, imputation, entries, recorded
-            )
-        except ImputationError as exc:
-            raise BundleError(str(exc)) from exc
+        if deep:
+            if progress and imputation_provenance.get("status") == "recorded":
+                progress(
+                    "Running this imputed run's deep checks, about an hour. Reads skip them "
+                    "once they pass, until the engine changes."
+                )
+            try:
+                imputation_snapshot.validate_snapshot(
+                    directory, imputation_provenance, imputation, entries, recorded, progress
+                )
+            except ImputationError as exc:
+                raise BundleError(str(exc)) from exc
     elif any(
         name in {IMPUTATION_PROVENANCE_NAME, *imputation_snapshot.CATALOG_NAMES}
         or imputation_snapshot.is_dosage_name(name)
@@ -1832,10 +1850,11 @@ def read_bundle(path: Path) -> RunBundle:
             raise BundleError("ClinVar PPV presentation requires bundle format 9")
         if declared < 10 and clinvar.get("schema_version") == 4:
             raise BundleError("ClinVar ACMG surfacing requires bundle format 10")
-        try:
-            validate_lookup(clinvar)
-        except ClinVarError as exc:
-            raise BundleError(str(exc)) from exc
+        if deep:
+            try:
+                validate_lookup(clinvar)
+            except ClinVarError as exc:
+                raise BundleError(str(exc)) from exc
 
     polygenic: Mapping[str, Mapping[str, Any]] | None = None
     score_names = {name for name in recorded if is_score_file_name(name)}
@@ -1845,7 +1864,8 @@ def read_bundle(path: Path) -> RunBundle:
         )
     if declared >= SCORE_FILES_FORMAT_VERSION:
         polygenic = _read_score_files(directory, score_names)
-        _check_polygenic(entries, polygenic, ancestry, declared)
+        if deep:
+            _check_polygenic(entries, polygenic, ancestry, declared, progress)
     elif declared >= PGS_FORMAT_VERSION:
         stored = _load_json(directory / PGS_NAME)
         _reject_unknown(stored, frozenset({"schema_version", "scores"}), PGS_NAME)
@@ -1855,7 +1875,8 @@ def read_bundle(path: Path) -> RunBundle:
         polygenic = {
             str(key): _mapping(value, f"{PGS_NAME}.scores.{key}") for key, value in scores.items()
         }
-        _check_polygenic(entries, polygenic, ancestry, declared)
+        if deep:
+            _check_polygenic(entries, polygenic, ancestry, declared, progress)
     elif any(isinstance(e, Mapping) and e.get("kind") == "polygenic" for e in entries):
         raise BundleError(f"Polygenic cards require bundle format {PGS_FORMAT_VERSION}")
 
@@ -1870,17 +1891,23 @@ def read_bundle(path: Path) -> RunBundle:
         from genetics.pgx.calling import CallingError, validate_execution
 
         pgx = _load_json(directory / PGX_NAME)
-        try:
-            validate_execution(
-                pgx,
-                sex=_load_json(directory / QC_NAME)["sex"]["inferred"],
-                imputation_mode=(imputation or {}).get("mode", "not_recorded"),
-                native_dosages=None
-                if (imputation_provenance or {}).get("status") != "recorded"
-                else imputation_snapshot.iter_saved(directory, imputation_provenance),
-            )
-        except (CallingError, ImputationError, KeyError, TypeError) as exc:
-            raise BundleError("Saved PGx record is inconsistent with its run.") from exc
+        if deep:
+            saved_doses = (imputation_provenance or {}).get("status") == "recorded"
+            if progress and saved_doses:
+                progress("Checking the PGx calls against every saved imputed dose")
+            try:
+                validate_execution(
+                    pgx,
+                    sex=_load_json(directory / QC_NAME)["sex"]["inferred"],
+                    imputation_mode=(imputation or {}).get("mode", "not_recorded"),
+                    native_dosages=imputation_snapshot.iter_saved(
+                        directory, imputation_provenance, progress
+                    )
+                    if saved_doses and imputation_provenance is not None
+                    else None,
+                )
+            except (CallingError, ImputationError, KeyError, TypeError) as exc:
+                raise BundleError("Saved PGx record is inconsistent with its run.") from exc
 
     hla = None
     if declared >= HLA_FORMAT_VERSION:

@@ -68,6 +68,9 @@ rehashed count/model/quality changes, card/full-dosage disagreement and symbolic
 fail explicitly. These are integrity checks, not cryptographic protection against an
 owner rewriting a complete record. Listing remains a manifest/presence check by default;
 `runs list --verify` performs full validation. Reading full dosages can take time.
+Once these checks pass, a later read under the same engine checks digests and skips the
+slowest of them, because the same bytes and code give the same verdict; rehashed changes
+produce a new manifest, which has no such record ([`run/checks.py`](../src/genetics/run/checks.py)).
 
 ## Shared CLI/library/dashboard interface
 

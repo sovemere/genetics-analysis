@@ -24,7 +24,7 @@ def calls(
     from genetics.run.bundle import HLA_CARD_FORMAT_VERSION, BundleError
 
     try:
-        bundle = store.load_run(run_id)
+        bundle = store.load_run(run_id, progress=store.report_to_console)
         data = report(bundle.hla)
     except (BundleError, HLAError, OSError, ValueError):
         _fail(as_json)

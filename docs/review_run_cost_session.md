@@ -182,7 +182,8 @@ alongside; it repeats the save's checks.
 - **Saving and opening an imputed run each read the 81 million saved dose records twice:**
   the snapshot validation and the PGx check. Together with the score-record checks, that
   is the 54-minute save and the 52-minute reopen. Folding the PGx check into the snapshot validation's pass would
-  save about 19 minutes on each.
+  save about 19 minutes on each. *Reads now skip these checks once they have passed; see
+  [the handoff](handoff.md).*
 - **This run is a stand-in.** It has 290,285 autosomal markers where the array has 677,436,
   and no X, Y or MT markers. Chromosome X imputation, sex inference and G6PD calling, and
   HLA on real MHC markers have not yet run at full scale. The first run on a real export

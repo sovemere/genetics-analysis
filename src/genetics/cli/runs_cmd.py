@@ -114,8 +114,9 @@ def runs_list(
         typer.Option(
             "--verify",
             help=(
-                "Re-read every bundle and check its payload digests. Slower; the default "
-                "reads manifests only."
+                "Re-read every bundle, checking its digests and repeating its deep checks. "
+                "About an hour for an imputed run, which later reads then skip until the "
+                "engine changes. The default reads manifests only."
             ),
         ),
     ] = False,
@@ -130,7 +131,7 @@ def runs_list(
     Without ``--verify``, ``readable`` means the manifest parsed and the payload files it
     names are present. It does not mean they are intact.
     """
-    listing = store.list_runs(verify=verify)
+    listing = store.list_runs(verify=verify, progress=store.report_to_console)
 
     if as_json:
         text = json.dumps(listing.to_dict(), indent=2)
@@ -289,7 +290,7 @@ def runs_imputation(
     from genetics.imputation.target import ImputationError
 
     try:
-        bundle = store.load_run(run_id)
+        bundle = store.load_run(run_id, progress=store.report_to_console)
         if dosages:
             for dosage in bundle.iter_dosages():
                 typer.echo(json.dumps(dosage.to_dict(), allow_nan=False))
@@ -334,7 +335,7 @@ def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
     from genetics.health.secondary import secondary_view
 
     try:
-        bundle = store.load_run(run_id)
+        bundle = store.load_run(run_id, progress=store.report_to_console)
     except (BundleError, OSError) as exc:
         _fail(exc, as_json=as_json)
     if as_json:
@@ -442,7 +443,7 @@ def runs_show(
     it into a file inside the checkout is the one route the ignore rules cannot fully cover.
     """
     try:
-        bundle = store.load_run(run_id)
+        bundle = store.load_run(run_id, progress=store.report_to_console)
     except (BundleError, OSError) as exc:
         _fail(exc, as_json=as_json)
 

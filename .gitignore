@@ -296,6 +296,9 @@ gnomad_frequencies.sqlite*
 # score records and PGx/HLA calls. Written under the cache directory, outside the checkout;
 # the file names also fall under *.run.json, *.run.json.gz and *.dosages.jsonl.gz.
 run-parts/
+# Which saved runs passed their deep checks: digests only, under the cache directory. The
+# file names also fall under *.run.json.
+run-checks/
 # M8.6 bundles reuse *.dosages.jsonl.gz and *.run.json for full dosage/provenance
 # snapshots, including byte-identical panel/map catalogs. Do not re-include these.
 /knowledge/**/*.imputation-work/
