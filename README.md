@@ -24,7 +24,7 @@ The review corrects outcome-specific evidence and exposes each marker's quality 
 M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
 calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
 Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **20**; formats 1–19 remain readable without reinterpreting saved findings.
+New runs use bundle format **27**; formats 1–26 remain readable without reinterpreting saved findings.
 
 **M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
 reports progress and reuses verified completed jobs. Interrupted jobs restart from
@@ -214,7 +214,10 @@ conditions against ACMG Tier 3's 113 genes (8 typed, 7 assay limits, 98 with no 
 a gap in this report rather than a limit of the array), plus how many markers gave a result in
 this run. Knowledge schema 8 and bundle format 27; `genetics cards carrier-scope` gives the
 comparison from the pack alone. See
-[carrier status](docs/carrier_status.md#section-level-scope-m116).
+[carrier status](docs/carrier_status.md#section-level-scope-m116). The
+[M11.6 diff review](docs/review_m116_session.md) fixes a crash when CLI output is redirected on
+Windows, counts imputed results apart from array reads and binds the audit's re-check to each
+allele; saved format numbers are unchanged.
 [M11.7 reproductive traits](docs/handoff.md#next-open-step-m117-reproductive-traits) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

@@ -12,6 +12,7 @@
           <tr><th scope="row">No copy of the typed allele</th><td>{{ scope.run.no_copy }}</td></tr>
           <tr><th scope="row">One copy of the typed allele</th><td>{{ scope.run.one_copy }}</td></tr>
           <tr><th scope="row">Two copies of the typed allele</th><td>{{ scope.run.two_copies }}</td></tr>
+          <tr><th scope="row">Of those results, imputed rather than read from the array</th><td>{{ scope.run.imputed_results }}</td></tr>
           <tr><th scope="row">Not determined</th><td>{{ scope.run.not_determined }}</td></tr>
           {% for status, count in scope.run.not_determined_by_status | dictsort %}
             <tr><th scope="row">Not determined: {{ status.replace("_", " ") }}</th><td>{{ count }}</td></tr>
@@ -38,10 +39,10 @@
 
     <table>
       <caption>Assay limits ({{ scope.counts.assay_limited }}): the cause lies largely outside what genotype calls can show.</caption>
-      <thead><tr><th scope="col">Gene</th><th scope="col">Condition</th><th scope="col">Why</th></tr></thead>
+      <thead><tr><th scope="col">Gene</th><th scope="col">Condition</th><th scope="col">Mechanism</th><th scope="col">Why</th></tr></thead>
       <tbody>
         {% for gene in scope.genes.assay_limited %}
-          <tr><th scope="row">{{ gene.gene }}</th><td>{{ gene.condition }}</td><td>{{ gene.statement }}</td></tr>
+          <tr><th scope="row">{{ gene.gene }}</th><td>{{ gene.condition }}</td><td>{{ card.scope_mechanisms[gene.mechanism] }}</td><td>{{ gene.statement }}</td></tr>
         {% endfor %}
       </tbody>
     </table>
@@ -65,17 +66,12 @@
 
     <details>
       <summary>Alleles checked and left out</summary>
-      {% for name, label in [
-        ("indel", "Assay limit: an indel on this array, with no sequence recorded"),
-        ("not_on_array", "Chip limit: the allele is not on this array"),
-        ("failed_criterion", "Typed, but failing a criterion for a card"),
-        ("not_authored", "Gap in this report: passes the measured criteria, and no card was written"),
-      ] %}
+      {% for name, label in card.scope_allele_classes %}
         <table>
-          <caption>{{ label }} ({{ scope.excluded_alleles[name] }})</caption>
+          <caption>{{ label }} ({{ scope.excluded_alleles.get(name, 0) }})</caption>
           <tbody>
             {% for allele in scope.declaration.excluded_alleles if allele["class"] == name %}
-              <tr><th scope="row">{{ allele.gene }} {{ allele.variant }}</th><td>{{ allele.rsid }}</td><td>{{ allele.reason }}</td></tr>
+              <tr><th scope="row">{{ allele.gene }} {{ allele.variant }}</th><td>{{ allele.rsid }}{% if "allele" in allele %} {{ allele.allele }}{% endif %}</td><td>{{ allele.reason }}</td></tr>
             {% endfor %}
           </tbody>
         </table>

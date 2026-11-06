@@ -56,8 +56,15 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import TYPE_CHECKING, Any, ClassVar, Final
 
 from genetics import __version__ as ENGINE_VERSION
+from genetics.engine.cards import (
+    COMPUTATION_SECTIONS,
+    Card,
+    CardError,
+    Evidence,
+    KnowledgePack,
+    parse_method_evidence,
+)
 from genetics.engine.cards import SCHEMA_VERSION as CARD_SCHEMA_VERSION
-from genetics.engine.cards import Card, CardError, Evidence, KnowledgePack, parse_method_evidence
 from genetics.engine.citations import Citation
 from genetics.engine.evidence import AssembledCard
 from genetics.engine.observation_snapshot import validate_imputation_snapshot
@@ -1447,15 +1454,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         elif (
             data.get("kind") != "computed"
             or not isinstance(computation_map.get("source"), str)
-            or computation_map.get("source")
-            not in {
-                "long_roh",
-                "neanderthal_f4",
-                "denisovan_f4",
-                "sex_chromosome_profile",
-                "clinvar_coverage",
-                "carrier_screening_scope",
-            }
+            or computation_map.get("source") not in COMPUTATION_SECTIONS
         ):
             raise BundleError(f"{where}: invalid computed-card source or kind")
         if computation_map.get("status") != data.get("status"):
@@ -1467,11 +1466,7 @@ def _stored_card(raw: Any, where: str) -> StoredCard:
         pass
     elif computation_map is not None:
         if (
-            data.get("section")
-            != {
-                "clinvar_coverage": "physical_health",
-                "carrier_screening_scope": "reproductive",
-            }.get(computation_map["source"], "genome_structure")
+            data.get("section") != COMPUTATION_SECTIONS[computation_map["source"]].value
             or any(
                 data.get(k) is not None
                 for k in (

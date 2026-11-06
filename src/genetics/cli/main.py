@@ -6,7 +6,9 @@ agent interface, not a convenience wrapper (AGENTS.md section 3).
 
 from __future__ import annotations
 
+import io
 import json
+import sys
 from pathlib import Path
 from typing import Annotated, Any
 
@@ -20,6 +22,16 @@ app = typer.Typer(
     no_args_is_help=True,
     add_completion=False,
 )
+
+
+@app.callback()
+def _utf8_stdout() -> None:
+    # Redirected or piped stdout on Windows defaults to the ANSI code page, which has no beta
+    # or alpha. Saved runs and the agent's JSON hold such text, so `genetics runs show --json
+    # > file` must not crash on it. A console is already UTF-8 and is left alone.
+    stream = sys.stdout
+    if isinstance(stream, io.TextIOWrapper) and stream.encoding.lower() not in {"utf-8", "utf8"}:
+        stream.reconfigure(encoding="utf-8")
 
 
 def _add_refs_commands() -> None:

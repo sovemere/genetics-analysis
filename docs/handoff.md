@@ -34,7 +34,10 @@ strict type targets, full card lint, fixtures and style passing.
 **M11.6 carrier-screening scope is implemented; M11.7 is next.** One computed card states
 that the reproductive section is not a carrier screen and counts what it leaves out; see
 [the M11.6 record](#accepted-m116-carrier-screening-scope) and
-[the M11.7 entry contract](#next-open-step-m117-reproductive-traits).
+[the M11.7 entry contract](#next-open-step-m117-reproductive-traits). The
+[M11.6 diff review](review_m116_session.md) fixes a crash when CLI output is redirected on
+Windows, counts imputed results apart from array reads and binds the audit's re-check to each
+allele.
 **M11.5 carrier status is implemented.** Knowledge schema 7 adds a
 `carrier` declaration to single-marker interpretation cards. Fifteen reproductive cards
 cover eight conditions and HFE C282Y joins the panel from physical health, making nine;
@@ -513,6 +516,9 @@ What it inherits:
 - **The section statement.** `carrier_screening_scope` and its notice say the section is not a
   carrier screen and do not count non-carrier cards. Its tally reads only `carrier` records, so
   a trait card leaves it unchanged. Check the notice still reads correctly beside trait cards.
+  Its saved wording is pinned, so changing it needs the record's schema bumped.
+- **Non-ASCII card text is now safe in CLI output**, but `CliRunner` cannot show that: it
+  substitutes a UTF-8 stream. Test a redirect in a subprocess with `PYTHONIOENCODING=cp1252`.
 - **Polygenic cards need what M9.6 requires**: ancestry portability, within-family attenuation
   where it applies, coverage, and decile rates where published.
 
@@ -528,13 +534,15 @@ The last is worded as a gap in this report, never as an assay limit. Knowledge s
 its declaration: the source tables' rows, sourced gene-level limits, the M11.5 audit's 38
 excluded alleles and the 12 dbSNP-multiallelic markers. Bundle format 27 rebuilds the record
 from its frozen declaration and the bundle's own carrier records on write and read; formats 1–26
-are read unchanged, and a run without the record still states the limit in the dashboard and
-`runs show`. `genetics cards carrier-scope` gives the comparison from the pack alone.
+are read unchanged, and a run with carrier cards but no record still states the limit in the
+dashboard and `runs show`. `genetics cards carrier-scope` gives the comparison from the pack alone.
 
 Two checks shaped it. All 113 rows were read from the source, and the paper's stated totals (86,
 97, 16) match them; its correction changes wording only. And the audit's classes were re-checked
-against the pinned ClinVar, gnomAD and dbSNP indexes: every `not_authored` allele has a P/LP
-record and a PASS frequency, so the "gap in this report" wording is measured.
+against the pinned ClinVar, gnomAD and dbSNP indexes, per declared allele: every `not_authored`
+allele has a P/LP record and a PASS frequency, so the "gap in this report" wording is measured.
+**The saved face's wording is part of the record's schema**, so a later edit needs a schema bump
+and the old text retained; a test pins it.
 
 Validation on 2026-11-06, Windows, Python 3.13, Java 17 and the pinned PLINK/Beagle tools
 configured: the full native suite passes **3,817 tests with nine
@@ -543,6 +551,7 @@ a separate reference root and do not touch carrier code. The native reference ch
 excluded alleles ran against the fetched indexes. Full dbSNP card lint passes **101 cards, 508
 renders, 54/54 marker keys**; all four strict Windows/Linux × Python 3.11/3.13 type targets
 (241 files), ruff, format and fixture reproduction pass. No personal export was opened.
+The [session diff review](review_m116_session.md) records its own validation.
 
 <a id="next-open-step-m116-carrier-screening-incompleteness"></a>
 

@@ -1088,6 +1088,19 @@ class CardView(NoGenotypeRepr):
         )
 
     @property
+    def scope_allele_classes(self) -> tuple[tuple[str, str], ...]:
+        """The carrier scope's allele classes and their wording, from the engine."""
+        from genetics.engine.carrier_scope import ALLELE_CLASSES
+
+        return tuple(ALLELE_CLASSES.items())
+
+    @property
+    def scope_mechanisms(self) -> Mapping[str, str]:
+        from genetics.engine.carrier_scope import MECHANISMS
+
+        return MECHANISMS
+
+    @property
     def frequency_absence(self) -> str | None:
         """Why no allele frequency is shown, or ``None`` when one is, or when saying so
         would be false.

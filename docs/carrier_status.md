@@ -276,15 +276,16 @@ carrier screening names 113 genes (97 autosomal recessive, 16 X-linked). Of thos
 typed marker here, and a typed marker reads one named allele rather than the gene; 7 depend
 largely on copy number, repeat length or inversion, which genotype calls cannot show; and 98
 have no card, a gap in this report and not a measured limit of the array. In this run N of 16
-typed markers gave a result and M were not determined. A no-copy result at every typed marker
-would still not be a negative screen.
+typed markers gave a result (K imputed, not read from the array) and M were not determined. A
+no-copy result at every typed marker would still not be a negative screen.
 ```
 
-Computed caveats add that 12 of the 16 markers list another base in dbSNP b157 while the
-array's probe alleles are unpublished, that 4 are A/T or C/G sites whose homozygous direct
-calls cannot be oriented, and that no detection rate, residual carrier risk or offspring risk
-is computed. The card's tier is `limited`: these are counts under a recorded declaration, with
-no calibrated detection rate.
+The parenthesis appears only when K is not zero. Computed caveats add that 12 of the 16 markers
+list another base in dbSNP b157 while the array's probe alleles are unpublished, that 4 are A/T
+or C/G sites whose homozygous direct calls cannot be oriented, that no detection rate, residual
+carrier risk or offspring risk is computed, and, when K is not zero, that imputation does not
+make a rare call reliable. The card's tier is `limited`: these are counts under a recorded
+declaration, with no calibrated detection rate.
 
 ### The reference list
 
@@ -319,30 +320,38 @@ the last class apart from an assay limit, as the M11.5 contract required. Copy-n
 in the gene-level limits rather than here, because they are genes rather than alleles.
 
 `tests/engine/test_carrier_references.py` re-checks this against the pinned references where
-fetched: the 12 multiallelic markers against dbSNP, each `not_authored` allele's ClinVar P/LP
-record and gnomAD PASS record, and each `failed_criterion` reason. A test also requires the
-audit tables below and the declaration to list the same rsIDs.
+fetched: the 12 multiallelic markers against dbSNP, and each `not_authored` and
+`failed_criterion` row against the ClinVar and gnomAD records of its own declared
+forward-strand `allele`, not merely its site. A test also requires the audit tables above and
+the declaration to list the same rsIDs.
 
 ### One run's tally
 
 The record counts this bundle's own carrier records: no copy, one copy, two copies and not
 determined, with the last broken down by match status. A marker with no saved state is **not
-determined and never a no-copy result**. The count is taken from each card's derived state and
-needs no genotype. It stays in the run bundle.
+determined and never a no-copy result**. Results filled by imputation are counted apart as well,
+because a no-call can be filled and an imputed homozygote at an A/T or C/G marker is
+reference-oriented, so it has a state where a direct call has none. The count is taken from each
+card's derived state and saved call source, and needs no genotype. It stays in the run bundle.
 
 ### Saved and shown
 
 On write and on read, the bundle rebuilds the record from its frozen declaration and its own
 carrier records, and refuses any difference, including a changed summary or caveat. The current
-knowledge pack is never consulted, so a saved run keeps the statement it was written with.
+knowledge pack is never consulted, so a saved run keeps the statement it was written with. **The
+face's wording is therefore part of the record's schema:** editing it means bumping the record's
+schema version and keeping the old text for the runs that hold it, and a test pins it so the edit
+cannot pass unnoticed.
 
 The dashboard shows the statement at the top of the reproductive section, and at the top of the
 grid when grouped by tier, whatever the filters hide. The card's detail view lists the counts,
 genes and excluded alleles. `genetics runs show` prints it, `--json` holds the full record, and
 `genetics cards carrier-scope [--json]` gives the comparison from the pack alone, reading no
-run. A run without the record, such as any format-26 run, still gets a plain statement in the
-dashboard and in `runs show` that its carrier cards are not a screen; nothing is written into
-that run.
+run. A run with carrier cards and no record, such as a format-26 run, still gets a plain statement
+in the dashboard and in `runs show` that its carrier cards are not a screen; nothing is written
+into that run. `runs show --json` stays the frozen record and does not add it, so an agent reads
+the same limit from `genetics cards carrier-scope --json`. A run with no carrier card gets no
+statement.
 
 ### Limits of this statement
 

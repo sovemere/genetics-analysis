@@ -79,7 +79,7 @@ EXPECTED_PANEL = {
 }
 """Pinned rather than derived from the pack, so a card silently dropped from the panel --
 or a pathogenic allele flipped to the reference base -- fails here instead of shrinking
-what M11.6 will say the report covers."""
+what M11.6's scope card says the report covers."""
 
 
 @pytest.fixture(scope="module")

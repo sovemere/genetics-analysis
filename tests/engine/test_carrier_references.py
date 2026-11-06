@@ -17,7 +17,7 @@ import pytest
 
 from genetics.engine.cards import KnowledgePack
 from genetics.engine.carrier import CarrierEntry, carrier_panel
-from genetics.engine.carrier_scope import pack_scope
+from genetics.engine.carrier_scope import MEASURED_CLASSES, pack_scope
 
 ROOT = Path(__file__).parents[2]
 CLINVAR = ROOT / "data/references/clinvar_grch37/clinvar_lookup.sqlite"
@@ -26,12 +26,14 @@ DBSNP = ROOT / "data/references/dbsnp_b157_grch37/dbsnp_variants.parquet"
 PATHOGENIC = {"Pathogenic", "Likely_pathogenic", "Pathogenic,_low_penetrance"}
 
 
-def _records(index: Path, entry: CarrierEntry) -> list[dict[str, Any]]:
+def _site_records(index: Path, chrom: str, pos: int) -> list[dict[str, Any]]:
     with closing(sqlite3.connect(f"{index.as_uri()}?mode=ro", uri=True)) as db:
-        rows = db.execute(
-            "SELECT record FROM variants WHERE chrom=? AND pos=?", (entry.chrom, entry.pos_grch37)
-        ).fetchall()
-    return [json.loads(row[0]) for row in rows]
+        rows = db.execute("SELECT record FROM variants WHERE chrom=? AND pos=?", (chrom, pos))
+        return [json.loads(row[0]) for row in rows.fetchall()]
+
+
+def _records(index: Path, entry: CarrierEntry) -> list[dict[str, Any]]:
+    return _site_records(index, entry.chrom, entry.pos_grch37)
 
 
 def _entries() -> list[CarrierEntry]:
@@ -68,12 +70,6 @@ def test_the_pathogenic_allele_has_a_usable_gnomad_frequency(entry: CarrierEntry
     assert any(c["an"] and c["ac"][0] for c in counts.values()), entry.card_id
 
 
-def _site_records(index: Path, chrom: str, pos: int) -> list[dict[str, Any]]:
-    with closing(sqlite3.connect(f"{index.as_uri()}?mode=ro", uri=True)) as db:
-        rows = db.execute("SELECT record FROM variants WHERE chrom=? AND pos=?", (chrom, pos))
-        return [json.loads(row[0]) for row in rows.fetchall()]
-
-
 def _scope() -> dict[str, Any]:
     scope = pack_scope(KnowledgePack.load(ROOT / "knowledge"))
     assert scope is not None
@@ -107,19 +103,30 @@ def test_every_excluded_allele_names_a_real_marker() -> None:
 def test_excluded_alleles_stand_where_the_audit_put_them() -> None:
     declared = _scope()["declaration"]["excluded_alleles"]
     sites = _dbsnp([a["rsid"] for a in declared])
-    for allele in declared:
+    for allele in (a for a in declared if a["class"] in MEASURED_CLASSES):
         site = sites[allele["rsid"]]
-        clinvar = _site_records(CLINVAR, site["chrom"], site["pos_grch37"])
-        gnomad = _site_records(GNOMAD, site["chrom"], site["pos_grch37"])
-        significance = [str(r["info"].get("CLNSIG", "")) for r in clinvar]
+        ref, alt = allele["allele"].split(">")
         where = (allele["gene"], allele["variant"])
+        # Bound to the declared allele: at a multiallelic site, another alternate's record
+        # must not be able to stand in for this one.
+        (clinvar,) = [
+            r
+            for r in _site_records(CLINVAR, site["chrom"], site["pos_grch37"])
+            if r["ref"] == ref and r["alts"] == [alt]
+        ]
+        gnomad = [
+            r
+            for r in _site_records(GNOMAD, site["chrom"], site["pos_grch37"])
+            if r["ref"] == ref and alt in r["alts"] and r["filter"] == "PASS"
+        ]
+        significance = str(clinvar["info"]["CLNSIG"])
+        assert allele["gene"] in str(clinvar["info"]["GENEINFO"]), where
         if allele["class"] == "not_authored":
             # Passes the measured criteria, so this is a gap in the report and not the data.
-            assert any(set(s.split("|")[0].split("/")) <= PATHOGENIC for s in significance), where
-            assert any(r["filter"] == "PASS" for r in gnomad), where
-            assert any(allele["gene"] in str(r["info"].get("GENEINFO")) for r in clinvar), where
-        elif allele["class"] == "failed_criterion":
-            if "conflicting" in allele["reason"].lower():
-                assert any("Conflicting" in s for s in significance), where
-            else:
-                assert not gnomad, where
+            assert set(significance.split("|")[0].split("/")) <= PATHOGENIC, where
+            assert "CLNSIGCONF" not in clinvar["info"], where
+            assert gnomad, where
+        elif "conflicting" in allele["reason"].lower():
+            assert "Conflicting" in significance, where
+        else:
+            assert not gnomad, where

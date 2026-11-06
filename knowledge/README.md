@@ -246,7 +246,7 @@ agent and the dashboard read the same result without consulting today's knowledg
 Each `method_evidence` population must be nonempty text with one corresponding positive
 integer sample size; booleans and coerced non-text values are rejected. The saved reader
 enforces the same metadata contract and refuses SNP observations or phenotype evidence
-attached to a computed card. New runs use bundle format 18; formats 1–17 remain readable.
+attached to a computed card. Older bundle formats remain readable.
 M7.1 stores ClinVar reference lookups in a separate private payload, rather than
 turning uncalibrated source classifications into authored interpretation cards.
 M7.2 adds a separate allele-frequency reliability screen and supplies usable gnomAD
@@ -368,10 +368,12 @@ must sit in the reproductive section and carry a `screening_scope` block:
 - `assay_limits`: `gene`, `mechanism` (`copy_number`, `repeat_expansion` or `inversion`), a
   sourced `statement` and optionally the impossibility `card` it relates to;
 - `excluded_alleles`: `class` (`indel`, `not_on_array`, `failed_criterion`, `not_authored`),
-  `gene`, `variant`, `rsid` and `reason`;
+  `gene`, `variant`, `rsid` and `reason`, plus the forward-strand `allele` (`REF>ALT`) for the
+  last two classes, whose claims are re-checked per allele;
 - `dbsnp_multiallelic`: the panel markers listing another base in dbSNP.
 
-The loader refuses an excluded allele or assay-limit gene that is also in the panel. Keep
+The loader refuses a second scope card, and an excluded allele or assay-limit gene that is also
+in the panel. Keep
 `not_authored` for a gap in this report and an assay limit for a property of the data; the
 card's text depends on the difference. Adding a carrier card moves its gene to "typed" and
 needs its allele removed from `excluded_alleles`. See

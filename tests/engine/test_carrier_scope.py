@@ -10,7 +10,10 @@ import copy
 import hashlib
 import html
 import json
+import os
 import re
+import subprocess
+import sys
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from pathlib import Path
@@ -30,6 +33,7 @@ from genetics.engine.carrier_scope import (
     ALLELE_CLASSES,
     NOT_RECORDED,
     SOURCE,
+    _build,
     assemble_scope_card,
     check_pack,
     pack_scope,
@@ -38,10 +42,11 @@ from genetics.engine.carrier_scope import (
     scope_summary,
     section_notice,
 )
-from genetics.engine.evidence import AssembledCard, assemble_card
+from genetics.engine.confidence import CallSource
+from genetics.engine.evidence import AssembledCard, ObservationEvidence, assemble_card
 from genetics.engine.matcher import MatchStatus, match_pack
 from genetics.engine.sections import Section
-from genetics.ingest.keys import MergeTable
+from genetics.ingest.keys import LocusKey, MergeTable
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.privacy import assert_no_genotype
 from genetics.qc.report import QCReport
@@ -249,6 +254,47 @@ def test_the_face_says_what_the_section_is_not(scope: dict[str, Any]) -> None:
     assert "No detection rate, residual carrier risk or offspring risk is computed" in caveats
 
 
+def test_the_saved_wording_is_pinned(pack: KnowledgePack) -> None:
+    """A saved face is rebuilt and compared on read, so editing the text breaks old runs.
+
+    If this fails on purpose: bump RESULT_SCHEMA_VERSION and keep the old wording for the
+    records that hold it. Updating the expected text alone makes those runs unreadable.
+    """
+    built = assemble_scope_card(_scope_card(pack), _run_cards(pack))
+    assert built.computation is not None
+    assert built.computation["result"]["schema_version"] == 1
+    assert built.summary == (
+        "This is not a carrier screen. This report types 16 markers for 9 conditions. "
+        "ACMG Tier 3 carrier screening names 113 genes (97 autosomal recessive, 16 X-linked). "
+        "Of those, 8 have a typed marker here, and a typed marker reads one named allele rather "
+        "than the gene; 7 depend largely on copy number, repeat length or inversion, which "
+        "genotype calls cannot show; and 98 have no card, a gap in this report and not a "
+        "measured limit of the array. In this run 10 of 16 typed markers gave a result and 6 "
+        "were not determined. A no-copy result at every typed marker would still not be a "
+        "negative screen."
+    )
+    assert built.computed_caveats == (
+        "A result here covers named alleles only. No detection rate, residual carrier risk or "
+        "offspring risk is computed. Only clinical sequencing can establish or exclude a "
+        "variant.",
+        "12 of the 16 typed markers list another base in dbSNP b157, and the array's probe "
+        "alleles are unpublished, so a homozygous reference call cannot show that the probe "
+        "tested the card's allele.",
+        "4 of the 16 typed markers are A/T or C/G sites, where a homozygous direct call cannot "
+        "be oriented: no copy and two copies look the same, so that call is reported as not "
+        "determined. An imputed call there is reference-oriented and can give a result.",
+    )
+
+
+def test_an_old_record_does_not_need_a_class_added_later(scope: dict[str, Any]) -> None:
+    assert set(scope["excluded_alleles"]) <= set(ALLELE_CLASSES)
+    trimmed = copy.deepcopy(scope["declaration"])
+    trimmed["excluded_alleles"] = [
+        a for a in trimmed["excluded_alleles"] if a["class"] != "not_authored"
+    ]
+    assert "not_authored" not in _build(trimmed, [], None)["excluded_alleles"]
+
+
 def test_the_card_makes_a_different_claim_from_the_per_gene_cards(pack: KnowledgePack) -> None:
     scope_card = _scope_card(pack)
     assert scope_card.section is Section.REPRODUCTIVE
@@ -280,6 +326,7 @@ def test_a_run_counts_results_and_keeps_missing_apart_from_no_copy(pack: Knowled
     assert run == {
         "markers": 16,
         "with_result": 10,
+        "imputed_results": 0,
         "no_copy": 8,
         "one_copy": 1,
         "two_copies": 1,
@@ -305,6 +352,49 @@ def test_all_no_copy_is_still_not_a_negative_screen(pack: KnowledgePack) -> None
     assert "negative screen" not in built.summary.replace(
         "A no-copy result at every typed marker would still not be a negative screen.", ""
     )
+
+
+def _imputed(card: Card, pair: str) -> AssembledCard:
+    """A call imputation filled: reference-oriented, with its quality recorded."""
+    assert card.match is not None
+    key = card.match.variant.key
+    single = KnowledgePack((card,), Path("synthetic-memory"))
+    match = match_pack(
+        single,
+        _table(card, pair),
+        merges=MergeTable.empty(),
+        reference_forward_loci=frozenset({LocusKey(key.chrom, key.pos_grch37)}),
+    )[0]
+    return assemble_card(
+        card, match, ObservationEvidence(CallSource.IMPUTED, imputation_quality=0.95)
+    )
+
+
+def test_an_imputed_result_is_counted_and_never_reads_as_an_array_call(
+    pack: KnowledgePack,
+) -> None:
+    hbs = pack.by_id("hbb_hbs_carrier")
+    assert hbs is not None
+    direct = _assemble(hbs, _pair(hbs, 0))
+    assert direct.carrier is not None and direct.carrier["state"] is None
+    # The same homozygote at an A/T marker is oriented when it came from imputation.
+    filled = _imputed(hbs, _pair(hbs, 0))
+    assert filled.carrier is not None and filled.carrier["state"] == "non_carrier"
+
+    built = assemble_scope_card(_scope_card(pack), (filled,))
+    assert built.computation is not None
+    assert built.computation["result"]["run"]["imputed_results"] == 1
+    assert "(1 imputed, not read from the array)" in built.summary
+    caveats = " ".join(built.computed_caveats)
+    assert "An imputed call there is reference-oriented" in caveats
+    assert "1 result here came from imputation" in caveats
+    assert "does not make a rare call reliable" in caveats
+
+    payloads = [json.loads(json.dumps(_card_payload(c))) for c in (filled, built)]
+    _check_carriers(payloads, BUNDLE_FORMAT_VERSION)
+    payloads[0]["observation"]["call_source"] = "direct"
+    with pytest.raises(BundleError, match="does not follow"):
+        _check_carriers(payloads, BUNDLE_FORMAT_VERSION)
 
 
 def test_without_a_run_the_card_is_not_run_and_carries_no_tier(pack: KnowledgePack) -> None:
@@ -389,6 +479,11 @@ def _block(data: dict[str, Any]) -> dict[str, Any]:
         (lambda d: _block(d)["reference"]["genes"][0].update(table=9), "no caption"),
         (lambda d: _block(d)["reference"]["tables"].update({9: "Extra"}), None),
         (lambda d: _block(d)["assay_limits"][0].update(mechanism="vibes"), "mechanism"),
+        (lambda d: _block(d)["assay_limits"][0].update(mechanism=["copy_number"]), "mechanism"),
+        (lambda d: _block(d)["excluded_alleles"][0].update({"class": ["indel"]}), "class"),
+        (lambda d: _block(d)["excluded_alleles"][0].update(allele="G>A"), "typed classes"),
+        (lambda d: _block(d)["excluded_alleles"][-1].pop("allele"), "typed classes"),
+        (lambda d: _block(d)["excluded_alleles"][-1].update(allele="GA"), "REF>ALT"),
         (lambda d: _block(d)["assay_limits"][0].update(gene="BRCA1"), "not in the reference"),
         (lambda d: _block(d)["excluded_alleles"][0].update({"class": "other"}), "class"),
         (lambda d: _block(d)["excluded_alleles"][0].update(rsid="i1234"), "not an rsID"),
@@ -456,6 +551,12 @@ def test_the_pack_refuses_a_declaration_that_contradicts_the_panel(
 # ---------------------------------------------------------------------------
 
 
+def test_a_pack_with_two_scope_cards_is_refused_at_load(pack: KnowledgePack) -> None:
+    card = _scope_card(pack)
+    with pytest.raises(CardError, match="one carrier-screening scope card"):
+        check_pack([*pack.cards, replace(card, id="second_scope")], "synthetic")
+
+
 def _write(pack: KnowledgePack, cards: Sequence[AssembledCard], qc: QCReport, root: Path) -> Path:
     return write_bundle(
         qc=qc,
@@ -489,13 +590,17 @@ def test_save_read_cli_and_dashboard_parity(
     assert saved.computation is not None
     assert saved.computation["source"] == SOURCE
     assert saved.confidence_tier == "limited"
-    assert section_notice(bundle.cards)["text"] == saved.summary
+    notice = section_notice(bundle.cards)
+    assert notice is not None and notice["text"] == saved.summary
 
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
     shown = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert shown.exit_code == 0, shown.output
-    record = next(c for c in json.loads(shown.stdout)["cards"] if c["card_id"] == CARD_ID)
+    payload = json.loads(shown.stdout)
+    record = next(c for c in payload["cards"] if c["card_id"] == CARD_ID)
     assert record["computation"]["result"] == saved.computation["result"]
+    # The frozen inspection interface holds no current context (docs/pgx_framing.md).
+    assert "current_context" not in payload
     text = CliRunner().invoke(app, ["runs", "show", path.name])
     assert text.exit_code == 0
     assert saved.summary in text.stdout
@@ -538,6 +643,25 @@ def test_a_run_saved_without_the_record_still_states_the_limit(
     text = CliRunner().invoke(app, ["runs", "show", path.name])
     assert text.exit_code == 0
     assert NOT_RECORDED in text.stdout
+
+
+def test_a_run_with_no_carrier_card_gets_no_statement(
+    pack: KnowledgePack, sample_qc: QCReport, tmp_path: Path
+) -> None:
+    other = pack.by_id("smn1_copy_number")
+    assert other is not None
+    match = match_pack(
+        KnowledgePack((other,), Path("synthetic-memory")),
+        _table(_carriers(pack)[0], None, absent=True),
+        merges=MergeTable.empty(),
+    )[0]
+    path = _write(pack, (assemble_card(other, match),), sample_qc, tmp_path / "runs")
+    assert section_notice(read_bundle(path).cards) is None
+    with TestClient(
+        create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1:8765"
+    ) as client:
+        by_tier = html.unescape(client.get(f"/runs/{path.name}?group=tier").text)
+    assert NOT_RECORDED not in by_tier
 
 
 Mutation = Callable[[dict[str, Any]], None]
@@ -649,6 +773,40 @@ def test_cli_lists_the_comparison_from_the_pack_alone(scope: dict[str, Any]) -> 
     assert "Also typed, not on this list: HFE" in text.stdout
     assert "Gap in this report" in text.stdout
     assert_no_genotype(text.stdout, context="carrier scope")
+
+
+def _redirected(arguments: list[str], data_dir: Path) -> subprocess.CompletedProcess[bytes]:
+    """The real entry point with stdout going to a pipe, as on Windows: a legacy code page.
+
+    ``CliRunner`` substitutes a UTF-8 stream, so it cannot see this. cp1252 has no beta or
+    alpha, which the reference list's condition names use.
+    """
+    environment = {**os.environ, "PYTHONIOENCODING": "cp1252", "GENETICS_DATA_DIR": str(data_dir)}
+    return subprocess.run(
+        [sys.executable, "-m", "genetics.cli.main", *arguments],
+        capture_output=True,
+        env=environment,
+        check=False,
+    )
+
+
+def test_the_pack_comparison_survives_a_legacy_code_page(tmp_path: Path) -> None:
+    text = _redirected(["cards", "carrier-scope"], tmp_path)
+    assert text.returncode == 0, text.stderr.decode("utf-8", "replace")
+    assert "β-thalassemia" in text.stdout.decode("utf-8")
+
+
+def test_a_saved_run_as_json_survives_a_legacy_code_page(
+    pack: KnowledgePack,
+    run: tuple[AssembledCard, ...],
+    sample_qc: QCReport,
+    tmp_path: Path,
+) -> None:
+    path = _write(pack, run, sample_qc, tmp_path / "runs")
+    saved = _redirected(["runs", "show", path.name, "--json"], tmp_path)
+    assert saved.returncode == 0, saved.stderr.decode("utf-8", "replace")
+    record = next(c for c in json.loads(saved.stdout)["cards"] if c["card_id"] == CARD_ID)
+    assert "β-thalassemia" in json.dumps(record, ensure_ascii=False)
 
 
 def test_cli_fails_loudly_on_a_pack_without_the_card(tmp_path: Path) -> None:

@@ -212,30 +212,30 @@ cards:
         - {class: not_on_array, gene: ELP1, variant: IVS20+6T>C, rsid: rs111033171, reason: "Not on this array."}
         - {class: not_on_array, gene: CFTR, variant: 3849+10kbC>T, rsid: rs75039782, reason: "Not on this array."}
         - {class: not_on_array, gene: CBS, variant: I278T, rsid: rs5742905, reason: "Not on this array."}
-        - {class: failed_criterion, gene: GALT, variant: Q188R, rsid: rs75391579, reason: "ClinVar aggregate is conflicting classifications."}
-        - {class: failed_criterion, gene: BTD, variant: D444H, rsid: rs13078881, reason: "ClinVar G>C aggregate is conflicting."}
-        - {class: failed_criterion, gene: HFE, variant: H63D, rsid: rs1799945, reason: "ClinVar aggregate is conflicting."}
-        - {class: failed_criterion, gene: HBB, variant: "-29A>G", rsid: rs34598529, reason: "No gnomAD r2.1.1 exomes record (a promoter variant)."}
-        - {class: not_authored, gene: HBB, variant: codon 39, rsid: rs11549407, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
-        - {class: not_authored, gene: HBB, variant: IVS-I-110, rsid: rs35004220, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
-        - {class: not_authored, gene: HBB, variant: IVS-I-5, rsid: rs33915217, reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
-        - {class: not_authored, gene: CFTR, variant: R1162X, rsid: rs74767530, reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
-        - {class: not_authored, gene: CFTR, variant: R347P, rsid: rs77932196, reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
-        - {class: not_authored, gene: CFTR, variant: 1717-1G>A, rsid: rs76713772, reason: "Below 0.5% of non-Hispanic white CF chromosomes; Watson 2004 prints it as 1717-1G>T, so its row was not used."}
-        - {class: not_authored, gene: CFTR, variant: R117H, rsid: rs78655421, reason: "Consequence depends on the cis poly-T tract, which the array does not type."}
-        - {class: not_authored, gene: PAH, variant: IVS12+1G>A, rsid: rs5030861, reason: "Its allele share is only in Hillert 2020's supplementary table, which was not read."}
-        - {class: not_authored, gene: ASPA, variant: Y231X, rsid: rs28940574, reason: "Second Ashkenazi Canavan allele; deferred with the other secondary alleles."}
-        - {class: not_authored, gene: SERPINA1, variant: PiZ, rsid: rs28929474, reason: "Placement undecided: PiZZ is a self-health claim with adult lung and liver risk."}
-        - {class: not_authored, gene: SERPINA1, variant: PiS, rsid: rs17580, reason: "Placement undecided: ClinVar classifies it pathogenic with low penetrance."}
-        - {class: not_authored, gene: ATP7B, variant: H1069Q, rsid: rs76151636, reason: "No per-variant source verified."}
-        - {class: not_authored, gene: MEFV, variant: M694V, rsid: rs61752717, reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
-        - {class: not_authored, gene: MEFV, variant: V726A, rsid: rs28940579, reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
-        - {class: not_authored, gene: GJB2, variant: V37I, rsid: rs72474224, reason: "Mild or debated penetrance; not authored without a penetrance source."}
-        - {class: not_authored, gene: GJB2, variant: M34T, rsid: rs35887622, reason: "Mild or debated penetrance; not authored without a penetrance source."}
-        - {class: not_authored, gene: ABCA4, variant: G1961E, rsid: rs1800553, reason: "Reported as a mild allele; not authored without a penetrance source."}
-        - {class: not_authored, gene: MUTYH, variant: Y179C, rsid: rs34612342, reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
-        - {class: not_authored, gene: MUTYH, variant: G396D, rsid: rs36053993, reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
-        - {class: not_authored, gene: HEXA, variant: IVS9+1G>A, rsid: rs76173977, reason: "Rare (0/1,015 Ashkenazi carriers in Scott 2010)."}
+        - {class: failed_criterion, gene: GALT, variant: Q188R, rsid: rs75391579, allele: "A>G", reason: "ClinVar aggregate is conflicting classifications."}
+        - {class: failed_criterion, gene: BTD, variant: D444H, rsid: rs13078881, allele: "G>C", reason: "ClinVar G>C aggregate is conflicting."}
+        - {class: failed_criterion, gene: HFE, variant: H63D, rsid: rs1799945, allele: "C>G", reason: "ClinVar aggregate is conflicting."}
+        - {class: failed_criterion, gene: HBB, variant: "-29A>G", rsid: rs34598529, allele: "T>C", reason: "No gnomAD r2.1.1 exomes record (a promoter variant)."}
+        - {class: not_authored, gene: HBB, variant: codon 39, rsid: rs11549407, allele: "G>A", reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: HBB, variant: IVS-I-110, rsid: rs35004220, allele: "C>T", reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: HBB, variant: IVS-I-5, rsid: rs33915217, allele: "C>G", reason: "No per-variant beta-thalassaemia allele share or carrier prevalence was verified."}
+        - {class: not_authored, gene: CFTR, variant: R1162X, rsid: rs74767530, allele: "C>T", reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
+        - {class: not_authored, gene: CFTR, variant: R347P, rsid: rs77932196, allele: "G>C", reason: "Below 0.5% of non-Hispanic white CF chromosomes."}
+        - {class: not_authored, gene: CFTR, variant: 1717-1G>A, rsid: rs76713772, allele: "G>A", reason: "Below 0.5% of non-Hispanic white CF chromosomes; Watson 2004 prints it as 1717-1G>T, so its row was not used."}
+        - {class: not_authored, gene: CFTR, variant: R117H, rsid: rs78655421, allele: "G>A", reason: "Consequence depends on the cis poly-T tract, which the array does not type."}
+        - {class: not_authored, gene: PAH, variant: IVS12+1G>A, rsid: rs5030861, allele: "C>T", reason: "Its allele share is only in Hillert 2020's supplementary table, which was not read."}
+        - {class: not_authored, gene: ASPA, variant: Y231X, rsid: rs28940574, allele: "C>A", reason: "Second Ashkenazi Canavan allele; deferred with the other secondary alleles."}
+        - {class: not_authored, gene: SERPINA1, variant: PiZ, rsid: rs28929474, allele: "C>T", reason: "Placement undecided: PiZZ is a self-health claim with adult lung and liver risk."}
+        - {class: not_authored, gene: SERPINA1, variant: PiS, rsid: rs17580, allele: "T>A", reason: "Placement undecided: ClinVar classifies it pathogenic with low penetrance."}
+        - {class: not_authored, gene: ATP7B, variant: H1069Q, rsid: rs76151636, allele: "G>T", reason: "No per-variant source verified."}
+        - {class: not_authored, gene: MEFV, variant: M694V, rsid: rs61752717, allele: "T>C", reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
+        - {class: not_authored, gene: MEFV, variant: V726A, rsid: rs28940579, allele: "A>G", reason: "ClinVar names both dominant and recessive familial Mediterranean fever; the inheritance a card would state is unsettled."}
+        - {class: not_authored, gene: GJB2, variant: V37I, rsid: rs72474224, allele: "C>T", reason: "Mild or debated penetrance; not authored without a penetrance source."}
+        - {class: not_authored, gene: GJB2, variant: M34T, rsid: rs35887622, allele: "A>G", reason: "Mild or debated penetrance; not authored without a penetrance source."}
+        - {class: not_authored, gene: ABCA4, variant: G1961E, rsid: rs1800553, allele: "C>T", reason: "Reported as a mild allele; not authored without a penetrance source."}
+        - {class: not_authored, gene: MUTYH, variant: Y179C, rsid: rs34612342, allele: "T>C", reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
+        - {class: not_authored, gene: MUTYH, variant: G396D, rsid: rs36053993, allele: "C>T", reason: "ACMG secondary-finding gene, already surfaced by the ClinVar lookup."}
+        - {class: not_authored, gene: HEXA, variant: IVS9+1G>A, rsid: rs76173977, allele: "C>T", reason: "Rare (0/1,015 Ashkenazi carriers in Scott 2010)."}
       # Measured against dbSNP b157: these panel markers list a third or fourth base. Re-checked
       # by tests/engine/test_carrier_references.py where the index is fetched.
       dbsnp_multiallelic:

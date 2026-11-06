@@ -510,7 +510,7 @@ def runs_show(
             typer.echo(f"    {CLINICAL_NOTICE}")
 
     typer.echo("")
-    if scope["status"] == "not-recorded" and any(card.carrier for card in bundle.cards):
+    if scope is not None and scope["status"] == "not-recorded":
         typer.echo(f"  {scope['text']}")
     typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")
 

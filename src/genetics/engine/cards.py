@@ -1185,6 +1185,15 @@ _POLYGENIC_KEYS: Final[frozenset[str]] = frozenset(
         "caveats",
     }
 )
+COMPUTATION_SECTIONS: Final[dict[str, Section]] = {
+    "long_roh": Section.GENOME_STRUCTURE,
+    "neanderthal_f4": Section.GENOME_STRUCTURE,
+    "denisovan_f4": Section.GENOME_STRUCTURE,
+    "sex_chromosome_profile": Section.GENOME_STRUCTURE,
+    "clinvar_coverage": Section.PHYSICAL_HEALTH,
+    "carrier_screening_scope": Section.REPRODUCTIVE,
+}
+"""Every computed measurement and its one section, for authored and saved cards alike."""
 _DECILE_KEYS: Final[frozenset[str]] = frozenset(
     {"measure", "population", "sample_size", "source", "base_rate", "rates", "context"}
 )
@@ -1625,22 +1634,10 @@ class Card:
             for forbidden in ("match", "outcomes", "evidence", "impossibility_reason", "gene"):
                 if forbidden in data:
                     raise CardError(f"{where}: computed cards cannot carry {forbidden!r}")
+            computation = data.get("computation")
             if (
-                not isinstance(data.get("computation"), str)
-                or data.get("computation")
-                not in {
-                    "long_roh",
-                    "neanderthal_f4",
-                    "denisovan_f4",
-                    "sex_chromosome_profile",
-                    "clinvar_coverage",
-                    "carrier_screening_scope",
-                }
-                or section
-                is not {
-                    "clinvar_coverage": Section.PHYSICAL_HEALTH,
-                    "carrier_screening_scope": Section.REPRODUCTIVE,
-                }.get(data["computation"], Section.GENOME_STRUCTURE)
+                not isinstance(computation, str)
+                or COMPUTATION_SECTIONS.get(computation) is not section
             ):
                 raise CardError(
                     f"{where}: unsupported computation or section; "

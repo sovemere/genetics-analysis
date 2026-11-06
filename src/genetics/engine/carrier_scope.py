@@ -29,6 +29,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from typing import TYPE_CHECKING, Any, Final
 
 from genetics.engine.cards import Card, CardError, CardKind
+from genetics.engine.confidence import CallSource
 from genetics.engine.matcher import MatchResult, MatchStatus, is_strand_ambiguous
 
 if TYPE_CHECKING:
@@ -57,6 +58,9 @@ ALLELE_CLASSES: Final[dict[str, str]] = {
 """Three classes of reason, and the wording keeps them apart. The last is about this report
 and not about the array, so it must never read as an assay limit."""
 
+# The saved face below is rebuilt and compared on every read, so its wording is part of the
+# record's schema. Changing it means bumping RESULT_SCHEMA_VERSION and keeping the old text
+# for the runs that hold it; test_the_saved_wording_is_pinned fails until that is decided.
 NOTICE: Final[str] = (
     "A result here covers named alleles only. No detection rate, residual carrier risk or "
     "offspring risk is computed. Only clinical sequencing can establish or exclude a variant."
@@ -66,6 +70,10 @@ NOT_RECORDED: Final[str] = (
     "alleles only, and no result in this section is a negative carrier screen."
 )
 
+MEASURED_CLASSES: Final[frozenset[str]] = frozenset({"failed_criterion", "not_authored"})
+"""The classes whose claim is about one typed allele, re-checked against the references."""
+
+_ALLELE_RE: Final[re.Pattern[str]] = re.compile(r"^[ACGT]>[ACGT]$")
 _RSID_RE: Final[re.Pattern[str]] = re.compile(r"^rs[1-9][0-9]*$")
 _GENE_RE: Final[re.Pattern[str]] = re.compile(r"^[A-Z][A-Z0-9]*$")
 _RESULT_KEYS: Final[frozenset[str]] = frozenset(
@@ -119,6 +127,13 @@ def _unique(values: Iterable[str], what: str, where: str) -> None:
     repeated = sorted(name for name, n in Counter(values).items() if n > 1)
     if repeated:
         raise CardError(f"{where}: {what} listed twice: {', '.join(repeated)}")
+
+
+def _choice(data: Mapping[str, Any], key: str, allowed: Iterable[str], where: str) -> str:
+    value = data[key]
+    if not isinstance(value, str) or value not in allowed:
+        raise CardError(f"{where}.{key}: expected one of {sorted(allowed)}")
+    return value
 
 
 def _list(raw: Any, where: str) -> list[Any]:
@@ -184,11 +199,9 @@ def parse_declaration(raw: Any, where: str) -> dict[str, Any]:
         gene = _gene(entry, "gene", at)
         if gene not in known:
             raise CardError(f"{at}.gene: {gene} is not in the reference list")
-        if entry["mechanism"] not in MECHANISMS:
-            raise CardError(f"{at}.mechanism: expected one of {sorted(MECHANISMS)}")
         limit = {
             "gene": gene,
-            "mechanism": entry["mechanism"],
+            "mechanism": _choice(entry, "mechanism", MECHANISMS, at),
             "statement": _text(entry, "statement", at),
         }
         if "card" in entry:
@@ -199,18 +212,22 @@ def parse_declaration(raw: Any, where: str) -> dict[str, Any]:
     keys = {"class", "gene", "variant", "rsid", "reason"}
     for i, row in enumerate(_list(data["excluded_alleles"], f"{where}.excluded_alleles")):
         at = f"{where}.excluded_alleles[{i}]"
-        entry = _keys(row, keys, keys, at)
-        if entry["class"] not in ALLELE_CLASSES:
-            raise CardError(f"{at}.class: expected one of {sorted(ALLELE_CLASSES)}")
-        alleles.append(
-            {
-                "class": entry["class"],
-                "gene": _gene(entry, "gene", at),
-                "variant": _text(entry, "variant", at),
-                "rsid": _rsid(entry["rsid"], f"{at}.rsid"),
-                "reason": _text(entry, "reason", at),
-            }
-        )
+        entry = _keys(row, {*keys, "allele"}, keys, at)
+        kind = _choice(entry, "class", ALLELE_CLASSES, at)
+        allele = {
+            "class": kind,
+            "gene": _gene(entry, "gene", at),
+            "variant": _text(entry, "variant", at),
+            "rsid": _rsid(entry["rsid"], f"{at}.rsid"),
+            "reason": _text(entry, "reason", at),
+        }
+        if (kind in MEASURED_CLASSES) != ("allele" in entry):
+            raise CardError(f"{at}: exactly the typed classes name the forward-strand allele")
+        if "allele" in entry:
+            if not isinstance(entry["allele"], str) or not _ALLELE_RE.fullmatch(entry["allele"]):
+                raise CardError(f"{at}.allele: expected REF>ALT single bases")
+            allele["allele"] = entry["allele"]
+        alleles.append(allele)
     _unique((allele["rsid"] for allele in alleles), "rsID", f"{where}.excluded_alleles")
     multiallelic = [
         _rsid(rsid, f"{where}.dbsnp_multiallelic[{i}]")
@@ -234,6 +251,9 @@ def check_pack(cards: Sequence[Card], where: str) -> None:
     panel = {c.match.variant.rsid: c for c in cards if c.carrier is not None and c.match}
     genes = {c.gene for c in panel.values()}
     ids = {c.id: c for c in cards}
+    scopes = sorted(c.id for c in cards if c.screening_scope is not None)
+    if len(scopes) > 1:
+        raise CardError(f"{where}: one carrier-screening scope card, got {', '.join(scopes)}")
     for card in cards:
         if card.screening_scope is None:
             continue
@@ -266,13 +286,19 @@ def _marker(
     }
 
 
-def _tally(results: Sequence[tuple[str, str | None]]) -> dict[str, Any]:
-    """How many markers gave a result. ``state`` is ``None`` for anything but a match."""
-    states = Counter(state for _, state in results)
-    undetermined = Counter(status for status, state in results if state is None)
+def _tally(results: Sequence[tuple[str, str | None, bool]]) -> dict[str, Any]:
+    """How many markers gave a result, from ``(status, state, imputed)`` per marker.
+
+    ``state`` is ``None`` for anything but a match. A result filled by imputation is counted
+    too, because it is one, and apart, because AGENTS.md 4.1 does not let it read as a chip
+    call: imputation fixes neither the rarity problem nor the card's reliability tier.
+    """
+    states = Counter(state for _, state, _ in results)
+    undetermined = Counter(status for status, state, _ in results if state is None)
     return {
         "markers": len(results),
         "with_result": len(results) - states[None],
+        "imputed_results": sum(state is not None and imputed for _, state, imputed in results),
         "no_copy": states["non_carrier"],
         "one_copy": states["carrier"],
         "two_copies": states["two_copies"],
@@ -335,7 +361,8 @@ def _build(
             "assay_limited": len(limited),
             "no_card": len(untouched),
         },
-        "excluded_alleles": {name: classes[name] for name in ALLELE_CLASSES},
+        # Only the classes present: a class added later must not change an old record.
+        "excluded_alleles": dict(sorted(classes.items())),
         "run": None if run is None else dict(run),
     }
 
@@ -361,9 +388,12 @@ def scope_summary(result: Mapping[str, Any]) -> str:
         "the array.",
     ]
     if run is not None:
+        imputed = run["imputed_results"]
         parts.append(
             f"In this run {run['with_result']} of {_plural(run['markers'], 'typed marker')} "
-            f"gave a result and {run['not_determined']} were not determined."
+            "gave a result"
+            + (f" ({imputed} imputed, not read from the array)" if imputed else "")
+            + f" and {run['not_determined']} were not determined."
         )
     parts.append("A no-copy result at every typed marker would still not be a negative screen.")
     return " ".join(parts)
@@ -371,7 +401,8 @@ def scope_summary(result: Mapping[str, Any]) -> str:
 
 def scope_caveats(result: Mapping[str, Any]) -> tuple[str, ...]:
     """Why a no-copy result is weak, counted from the panel."""
-    panel = result["panel"]
+    panel, run = result["panel"], result["run"]
+    imputed = 0 if run is None else run["imputed_results"]
     return (
         NOTICE,
         f"{panel['dbsnp_multiallelic']} of the {_plural(panel['markers'], 'typed marker')} list "
@@ -379,7 +410,17 @@ def scope_caveats(result: Mapping[str, Any]) -> tuple[str, ...]:
         "homozygous reference call cannot show that the probe tested the card's allele.",
         f"{panel['strand_symmetric']} of the {_plural(panel['markers'], 'typed marker')} are "
         "A/T or C/G sites, where a homozygous direct call cannot be oriented: no copy and two "
-        "copies look the same, so that call is reported as not determined.",
+        "copies look the same, so that call is reported as not determined. An imputed call "
+        "there is reference-oriented and can give a result.",
+        *(
+            (
+                f"{_plural(imputed, 'result')} here came from imputation, not the array. "
+                "Imputation does not make a rare call reliable; each carrier card carries its "
+                "own tier.",
+            )
+            if imputed
+            else ()
+        ),
     )
 
 
@@ -430,7 +471,17 @@ def assemble_scope_card(
             markers.append(
                 _marker(c.card_id, c.card.gene, variant.rsid, variant.key.alleles, c.carrier)
             )
-        run = _tally([(c.status.value, c.carrier["state"]) for c in carriers if c.carrier])
+        run = _tally(
+            [
+                (
+                    c.status.value,
+                    c.carrier["state"],
+                    c.observation is not None and c.observation.call_source is CallSource.IMPUTED,
+                )
+                for c in carriers
+                if c.carrier
+            ]
+        )
         result = _build(card.screening_scope, markers, run)
     status = MatchStatus.NOT_RUN if result is None else MatchStatus.COMPUTED
     summary = (
@@ -493,7 +544,15 @@ def validate_saved(entry: Mapping[str, Any], entries: Sequence[Any]) -> None:
                 other["card_id"], other.get("gene"), variant["rsid"], variant["alleles"], carrier
             )
         )
-        states.append((other["status"], carrier["state"]))
+        observation = other.get("observation")
+        states.append(
+            (
+                other["status"],
+                carrier["state"],
+                isinstance(observation, Mapping)
+                and observation.get("call_source") == CallSource.IMPUTED.value,
+            )
+        )
     expected = _build(declaration, markers, _tally(states))
     if dict(result) != expected:
         raise ScopeError("scope record does not follow from this bundle's carrier cards")
@@ -503,11 +562,12 @@ def validate_saved(entry: Mapping[str, Any], entries: Sequence[Any]) -> None:
         raise ScopeError("scope caveats do not follow from its record")
 
 
-def section_notice(cards: Iterable[StoredCard]) -> dict[str, str]:
+def section_notice(cards: Sequence[StoredCard]) -> dict[str, str] | None:
     """The statement a reader sees above the section, whatever the filters hide.
 
     From the run's own frozen card. A run without the record says so and still states the
-    limit, because a carrier section is no more a screen for having been saved earlier.
+    limit, because a carrier section is no more a screen for having been saved earlier. A
+    run with no carrier card has nothing to qualify, and gets no statement.
     """
     title = "Carrier screening scope"
     for card in cards:
@@ -518,4 +578,6 @@ def section_notice(cards: Iterable[StoredCard]) -> dict[str, str]:
             and computation.get("result") is not None
         ):
             return {"status": "recorded", "title": title, "text": card.summary}
+    if not any(card.carrier is not None for card in cards):
+        return None
     return {"status": "not-recorded", "title": title, "text": NOT_RECORDED}
