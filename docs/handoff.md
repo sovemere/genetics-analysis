@@ -530,6 +530,9 @@ What it inherits:
 - **Field codes can reach a published evaluation.** M11.7's menopause R2 looks depressed by UK
   Biobank's negative answer codes. A reported R2 far below the trait's other published figures is
   worth the same arithmetic: standard error × √N against the field's own spread.
+- **Try a long acceptance runner on its smallest model first.** M11.7's first run spent five hours
+  preparing references, then stopped at a check copied from an older runner: `Prepared.reference`
+  now holds the panel, and `_reload` reads the extraction back from its cache.
 
 <a id="accepted-m117-reproductive-traits"></a>
 
@@ -558,8 +561,26 @@ passes **108 cards, 522 renders, 54/54 marker keys**; all four strict Windows/Li
 type targets (241 files), ruff and format pass. No personal export was opened. The renderer is unchanged
 and no browser review is claimed.
 
-Full-model acceptance on public stand-ins runs separately, in the private
-`%LOCALAPPDATA%/genetics-analysis/acceptance/m117` checkpoint.
+Full-model acceptance on public stand-ins passed in the private
+`%LOCALAPPDATA%/genetics-analysis/acceptance/m117` checkpoint: all seven models through the default
+imputed path and through explicit `--no-impute`, 14 computed records, each validated in memory and
+again after being read back from disk. It tests execution, not predictive calibration, and its scores,
+percentiles and coverage stay out of Git.
+
+| Stage | Time | Peak working set |
+|---|---|---:|
+| Cold reference preparation, 16 workers | about 5 h | not recorded |
+| Preparation again, from the caches | 168 s | 4.0 GB |
+| Scoring all seven, default imputed | 90 min | 10.2 GB |
+| Scoring all seven, `--no-impute` | 14 min | 6.6 GB |
+| Reading back one genome-wide record, imputed | 47-49 s | up to 7.2 GB |
+| Reading back one genome-wide record, `--no-impute` | 22-24 s | up to 4.9 GB |
+
+The cold time comes from the cache files' timestamps: 48-56 min for each of the five largest models, 26
+for cycle length and 4 for menopause, with other test runs sharing the machine for part of it. A stale
+check in the private runner stopped that run before it wrote its measurements, which is why the stage
+has no peak. The caches take 1.65 GB, about 298 MB for a 979,739-row model. Compressed records total
+304 MB imputed and 224 MB without imputation; the largest are 63 MB and 49 MB.
 
 <a id="next-open-step-m117-reproductive-traits"></a>
 
