@@ -862,6 +862,151 @@ sources:
         size_bytes: 22268195
         sha256: 64a75133946423d6dc25f76a93ca790ac0c6856af1b2dbc2dc61b3a25cff3b39
 
+  # M11.7 public reproductive models. Digests measured on 2026-11-07. Audit and the choice
+  # between Ding 2023 and Prive 2022 per trait: docs/reproductive_prs.md.
+  - id: pgs003508_grch37
+    name: PGS003508 LDpred2-auto age at menarche, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2026-08-19"
+    homepage: https://www.pgscatalog.org/score/PGS003508/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive age at menarche polygenic card (M11.7)
+    notes: >-
+      Ding et al. doi:10.1038/s41586-023-06079-4, UK Biobank white British LDpred2-auto
+      weights on 979,739 rows. Supplementary Table 1 gives 193,057 women in training. Field
+      2714 by name; higher means later menarche. No 23andMe data. EMBL-EBI default terms
+      verified in authoritative per-score metadata; direct within-family attenuation is unknown.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003508/ScoringFiles/Harmonized/PGS003508_hmPOS_GRCh37.txt.gz
+        filename: PGS003508_hmPOS_GRCh37.txt.gz
+        size_bytes: 18482874
+        sha256: 3e6a3cb1a26bf06a5ac4556a562a014ff47052f58ec070738982eadd07f78ab0
+
+  - id: pgs002821_grch37
+    name: PGS002821 clumped age at menopause, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-11-18"
+    homepage: https://www.pgscatalog.org/score/PGS002821/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive age at menopause polygenic card (M11.7)
+    notes: >-
+      Ma et al. doi:10.1016/j.ajhg.2022.09.001, clumping and thresholding of Day et al.
+      doi:10.1038/ng.3412 (69,360 women, no UK Biobank samples; the published text names no
+      23andMe cohort, and its Supplementary Table 1 was not read). 159 rows, with weights in
+      years per allele rounded to two decimals. PGS002822 holds the same 159 rows. EMBL-EBI
+      default terms verified in authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002821/ScoringFiles/Harmonized/PGS002821_hmPOS_GRCh37.txt.gz
+        filename: PGS002821_hmPOS_GRCh37.txt.gz
+        size_bytes: 2523
+        sha256: eb2900caf76086715dc8219d62ce1edf2366730324cfa0474ac02f3741ccdf66
+
+  - id: pgs003505_grch37
+    name: PGS003505 LDpred2-auto age at first live birth, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2026-08-19"
+    homepage: https://www.pgscatalog.org/score/PGS003505/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive age at first live birth polygenic card (M11.7)
+    notes: >-
+      Ding et al. doi:10.1038/s41586-023-06079-4, UK Biobank white British LDpred2-auto
+      weights on 979,739 rows. Supplementary Table 1 gives 135,106 women in training. Field
+      2754 by name, which UK Biobank collected from women with more than one child. No
+      23andMe data. EMBL-EBI default terms verified in authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003505/ScoringFiles/Harmonized/PGS003505_hmPOS_GRCh37.txt.gz
+        filename: PGS003505_hmPOS_GRCh37.txt.gz
+        size_bytes: 18533722
+        sha256: fd3d75d1490913f9356b85e7dc499d9e5a246622b91d6a0b0ff06296aa3e7095
+
+  - id: pgs002156_grch37
+    name: PGS002156 LDpred2 log age at first sexual intercourse, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002156/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive age at first sexual intercourse polygenic card (M11.7)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only LDpred2-auto HapMap3
+      weights. Northwestern European pool N=391124; phenotype-specific training N=342706.
+      Natural log of field 2139, keeping 10-40 years. PGS002215 carries the same catalogue
+      label but is the binary never-had-sex model. No 23andMe data. EMBL-EBI default terms
+      verified in authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002156/ScoringFiles/Harmonized/PGS002156_hmPOS_GRCh37.txt.gz
+        filename: PGS002156_hmPOS_GRCh37.txt.gz
+        size_bytes: 22155753
+        sha256: 844c759f2681af9edab4967f3ba13454d9851a89766e9d3041d3e257590503f0
+
+  - id: pgs002129_grch37
+    name: PGS002129 LDpred2 menstrual cycle length, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2022-07-28"
+    homepage: https://www.pgscatalog.org/score/PGS002129/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive menstrual cycle length polygenic card (M11.7)
+    notes: >-
+      Prive et al. doi:10.1016/j.ajhg.2021.11.008, UK Biobank-only LDpred2-auto HapMap3
+      weights. Phenotype-specific training N=18570. Field 3710, keeping 15-40 days and
+      dropping the irregular-cycle code. PGS002128 carries the same catalogue label but is
+      the binary irregular-cycle model. No 23andMe data. EMBL-EBI default terms verified in
+      authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002129/ScoringFiles/Harmonized/PGS002129_hmPOS_GRCh37.txt.gz
+        filename: PGS002129_hmPOS_GRCh37.txt.gz
+        size_bytes: 11310041
+        sha256: 092b85c0dadf42dfb9bd8eb793f5f6f10a8078739653cc03ec72bad3a596c20d
+
+  - id: pgs003507_grch37
+    name: PGS003507 LDpred2-auto log testosterone in women, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2026-08-19"
+    homepage: https://www.pgscatalog.org/score/PGS003507/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive female testosterone polygenic card (M11.7)
+    notes: >-
+      Ding et al. doi:10.1038/s41586-023-06079-4, UK Biobank white British LDpred2-auto
+      weights on 979,739 rows. Supplementary Table 1 gives 157,915 women in training. Serum
+      assay, field 30850 by name. No 23andMe data. EMBL-EBI default terms verified in
+      authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003507/ScoringFiles/Harmonized/PGS003507_hmPOS_GRCh37.txt.gz
+        filename: PGS003507_hmPOS_GRCh37.txt.gz
+        size_bytes: 15526947
+        sha256: 4077cec3d7cdac403730e1614157caf9b685aa0716441c288f1361fd7d412506
+
+  - id: pgs003559_grch37
+    name: PGS003559 LDpred2-auto log testosterone in men, GRCh37
+    tier: A
+    required: false
+    version: "HmPOS-2026-08-19"
+    homepage: https://www.pgscatalog.org/score/PGS003559/
+    license: LicenseRef-PGS-Catalog-Per-Score
+    enables:
+      - reproductive male testosterone polygenic card (M11.7)
+    notes: >-
+      Ding et al. doi:10.1038/s41586-023-06079-4, UK Biobank white British LDpred2-auto
+      weights on 979,739 rows. Supplementary Table 1 gives 161,314 men in training. Serum
+      assay, field 30850 by name. No 23andMe data. EMBL-EBI default terms verified in
+      authoritative per-score metadata.
+    files:
+      - url: https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003559/ScoringFiles/Harmonized/PGS003559_hmPOS_GRCh37.txt.gz
+        filename: PGS003559_hmPOS_GRCh37.txt.gz
+        size_bytes: 15728005
+        sha256: e2f53123a3b5f3bb65c8274366ee5067fcf9889ddc541dd8259e79c4db02b4e8
+
   # Pharmacogenomics -- the highest-value section in the app and an entirely free
   # corpus (AGENTS.md 3.1, 5.1).
   # --------------------------------------------------------------------------

@@ -1,6 +1,6 @@
-# Handoff: M11.7 reproductive traits
+# Handoff: M12.1 nutrition and metabolism
 
-As of 2026-11-06, **M0-M10 and M11.1–M11.6 are implemented; M11.7 is next**. Full-reference
+As of 2026-11-07, **M0-M11 are implemented; M12.1 is next**. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,10 +31,14 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.6 carrier-screening scope is implemented; M11.7 is next.** One computed card states
+**M11.7 reproductive traits are implemented; M12.1 is next.** Seven polygenic cards take the
+reproductive section beyond carrier status, on knowledge schema 9 and bundle format 28; see
+[the M11.7 record](#accepted-m117-reproductive-traits),
+[the model audit](reproductive_prs.md) and
+[the M12.1 entry contract](#next-open-step-m121-nutrition-cards).
+**M11.6 carrier-screening scope is implemented.** One computed card states
 that the reproductive section is not a carrier screen and counts what it leaves out; see
-[the M11.6 record](#accepted-m116-carrier-screening-scope) and
-[the M11.7 entry contract](#next-open-step-m117-reproductive-traits). The
+[the M11.6 record](#accepted-m116-carrier-screening-scope). The
 [M11.6 diff review](review_m116_session.md) fixes a crash when CLI output is redirected on
 Windows, counts imputed results apart from array reads and binds the audit's re-check to each
 allele.
@@ -500,9 +504,69 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m121-nutrition-cards"></a>
+
+## Next open step: M12.1 nutrition cards
+
+M12.1 fills the nutrition section, which has no card yet: MCM6 lactase persistence, CYP1A2
+caffeine, ADH1B/ALDH2 alcohol, HFE haemochromatosis, celiac HLA-DQ, FUT2 secretor status, vitamin D
+(GC), B12 and folate. M12.2's MTHFR card follows it. Nothing has been selected or verified.
+
+What it inherits:
+
+- **Three named items already have a card elsewhere.** `mcm6_lactase_persistence` and
+  `aldh2_alcohol_flushing` are in `knowledge/traits/sensory_metabolism.yaml`,
+  `hfe_c282y_iron_overload` is in `knowledge/health/common.yaml`, and `hla_celiac_dq2_dq8` is in
+  `knowledge/immunogenetics/hla.yaml`. A card has one section and there is no cross-listing. M11.5
+  and M11.4 each kept one card per fact, so decide placement deliberately rather than authoring a
+  second card with the same claim: moving one changes where a saved reader expects it.
+- **The rest have no card.** CYP1A2, ADH1B, FUT2, GC, B12 and folate variants need measuring against
+  dbSNP, the array's marker list (first three columns only), ClinVar and gnomAD, as the
+  [M11.5 audit](carrier_status.md#candidate-audit-measured-2026-10-25) did. Indels stay excluded
+  (AGENTS.md §4.2).
+- **Catalogue labels are not endpoints.** [M11.7](reproductive_prs.md) found two labels naming
+  another model's trait. Read the scoring file's `pgs_name` if a polygenic card is wanted. Nutrition
+  is already in `POLYGENIC_SECTIONS`, so no schema change is needed for one.
+- **Field codes can reach a published evaluation.** M11.7's menopause R2 looks depressed by UK
+  Biobank's negative answer codes. A reported R2 far below the trait's other published figures is
+  worth the same arithmetic: standard error × √N against the field's own spread.
+
+<a id="accepted-m117-reproductive-traits"></a>
+
+## Accepted M11.7 reproductive traits
+
+Implemented on 2026-11-07 under [the model audit](reproductive_prs.md). Knowledge schema 9 adds
+`reproductive` to `POLYGENIC_SECTIONS`, and bundle format 28 may hold such a card; formats 1–27 are
+read unchanged. A reproductive interpretation card must still declare `carrier`.
+`carrier_screening_scope` is unchanged: it reads only carrier records, its pinned wording needs no bump,
+and a test confirms its tally is the same beside these cards. The section blurb said "about offspring
+rather than self", which these cards would make false; it and AGENTS.md §3.1 now say which cards are which.
+
+Three findings shaped it. Two catalogue labels name another model's endpoint (PGS002128, PGS002215). Ding
+2023's women-only models beat Prive 2022's for four endpoints, by a stated rule, while Prive stays for two.
+And the menopause model's reported R2 is probably about eight times too low because of UK Biobank's answer
+codes, which the card says on its face without changing the stored number.
+
+Validation on 2026-11-07, Windows, Python 3.13, Java 17 and the pinned PLINK/Beagle tools
+configured: the full native suite passes **3,864 tests with nine skips**: the five existing Windows
+skips and the four published-classifier HIBAG tests, which need a separate reference root and do not
+touch these cards. The new tests bind each card's model, field, test-sample size, effect and direction
+before fabricated inputs replace the scores, with 16 mutation regressions (each reversed direction,
+each mislabelled neighbouring model, borrowed denominators and borrowed effects). Native tests bind each
+fetched file to its own `pgs_name` and the menopause weights to Day 2015's Table 1. Full dbSNP card lint
+passes **108 cards, 522 renders, 54/54 marker keys**; all four strict Windows/Linux x Python 3.11/3.13
+type targets (241 files), ruff and format pass. No personal export was opened. The renderer is unchanged
+and no browser review is claimed.
+
+Full-model acceptance on public stand-ins runs separately, in the private
+`%LOCALAPPDATA%/genetics-analysis/acceptance/m117` checkpoint.
+
 <a id="next-open-step-m117-reproductive-traits"></a>
 
-## Next open step: M11.7 reproductive traits
+## M11.7 entry contract (implemented; retained for review)
+
+The open questions below were settled as follows: polygenic cards only, widening `POLYGENIC_SECTIONS`
+rather than the carrier rule; the section statement left as it was. The entry text follows.
 
 M11.7 is the reproductive section beyond carrier status: age at menarche, age at menopause and
 related traits. Nothing has been selected or verified yet: score, source population, licence

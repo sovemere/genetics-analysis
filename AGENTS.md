@@ -218,7 +218,7 @@ below are in v1 scope by owner decision** — see `phase1_roadmap.md` for build 
 | **Nutrition & metabolism** | Lactase, CYP1A2 caffeine, ADH1B/ALDH2, HFE, celiac HLA-DQ2/DQ8, MTHFR |
 | **Substance use & behavioural propensity** | Distinct from both psychometrics and mental health |
 | **Immunogenetics (HLA)** | A distinct *capability*, not just a topic |
-| **Reproductive & carrier status** | About offspring, not self |
+| **Reproductive & carrier status** | Carrier findings are about offspring, not self; reproductive-timing and sex-hormone scores are about self |
 | **Genome structure** | Properties of the genome rather than trait predictions |
 | **Sleep & circadian** | Chronotype, sleep duration, insomnia, narcolepsy (HLA-linked) |
 | **Fitness & physiology** | ACTN3, ACE, soft-tissue injury, trainability — weak evidence, include and flag |

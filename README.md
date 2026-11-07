@@ -218,7 +218,13 @@ comparison from the pack alone. See
 [M11.6 diff review](docs/review_m116_session.md) fixes a crash when CLI output is redirected on
 Windows, counts imputed results apart from array reads and binds the audit's re-check to each
 allele; saved format numbers are unchanged.
-[M11.7 reproductive traits](docs/handoff.md#next-open-step-m117-reproductive-traits) is next.
+**M11.7 reproductive traits are implemented.** Seven public polygenic cards cover age at
+menarche, age at menopause, age at first live birth, age at first sexual intercourse, menstrual
+cycle length and serum testosterone in women and in men, each with its own endpoint and no age,
+concentration or fertility estimate. The menopause card says on its face that its published R2 is
+probably too low, and why. Knowledge schema 9 and bundle format 28. See the
+[model audit](docs/reproductive_prs.md).
+[M12.1 nutrition and metabolism](docs/handoff.md#next-open-step-m121-nutrition-cards) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

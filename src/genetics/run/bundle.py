@@ -92,8 +92,12 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 27
+BUNDLE_FORMAT_VERSION: Final[int] = 28
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 28 (M11.7) lets a polygenic card sit in the reproductive section. Its record and card
+are otherwise unchanged. A previous reader refuses the format. Formats 1-27 hold no such card,
+and one that claims to is refused.
 
 Version 27 (M11.6) adds the ``carrier_screening_scope`` computed card: the section-level
 statement of what carrier screening from this array leaves out. A previous reader refuses the
@@ -302,6 +306,9 @@ GUIDELINE_REFERENCE_FORMAT_VERSION: Final[int] = 26
 
 CARRIER_SCOPE_FORMAT_VERSION: Final[int] = 27
 """The first format that may hold the carrier-screening scope card (M11.6)."""
+
+REPRODUCTIVE_POLYGENIC_FORMAT_VERSION: Final[int] = 28
+"""The first format that may hold a polygenic card in the reproductive section (M11.7)."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
 """Marks a bundle still being written. Dot-prefixed so listing (M4.2) can skip it by
@@ -1338,6 +1345,23 @@ def _check_hla_ancestry(hla: Mapping[str, Any], ancestry: Mapping[str, Any] | No
         raise BundleError("Saved HLA selection disagrees with the run's ancestry.")
 
 
+def _check_polygenic_section_format(entries: Sequence[Any], version: int) -> None:
+    """A format before 28 cannot hold a reproductive polygenic card (M11.7).
+
+    Apart from :func:`_check_polygenic` because a read that skips the deep checks runs this.
+    """
+    if version < REPRODUCTIVE_POLYGENIC_FORMAT_VERSION and any(
+        isinstance(entry, Mapping)
+        and entry.get("kind") == "polygenic"
+        and entry.get("section") == "reproductive"
+        for entry in entries
+    ):
+        raise BundleError(
+            "A reproductive polygenic card requires bundle format "
+            f"{REPRODUCTIVE_POLYGENIC_FORMAT_VERSION}"
+        )
+
+
 def _check_carriers(entries: Sequence[Any], version: int) -> None:
     """Each carrier record must follow from its own card's saved call (format 24+)."""
     from genetics.engine.carrier import CarrierRecordError, validate_record
@@ -1871,6 +1895,7 @@ def read_bundle(
         for key in sorted(ANCESTRY_KEYS):
             _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
     _check_card_ancestry(entries, ancestry, declared)
+    _check_polygenic_section_format(entries, declared)
     _check_carriers(entries, declared)
     if declared >= 7:
         from genetics.health.clinvar import ClinVarError, validate_lookup

@@ -66,7 +66,7 @@ from genetics.ingest.keys import VariantKey
 from genetics.ingest.schema import INDEL_ALLELES, NO_CALL_TOKEN, Chrom
 from genetics.paths import repo_root
 
-SCHEMA_VERSION: Final[int] = 8
+SCHEMA_VERSION: Final[int] = 9
 """Bumped when a change would make an older reader misinterpret a card file. A reader that
 does not recognise the version refuses rather than guessing -- the same contract
 ``manifest.yaml`` uses, and for the same reason: run bundles record the knowledge-pack
@@ -1207,10 +1207,15 @@ POLYGENIC_SECTIONS: Final[frozenset[Section]] = frozenset(
         Section.SUBSTANCE_USE,
         Section.SLEEP_CIRCADIAN,
         Section.FITNESS,
+        Section.REPRODUCTIVE,
     }
 )
 """Where a polygenic score can be a finding. Not ancestry, genome structure,
-pharmacogenomics, immunogenetics or carrier status, whose claims are not polygenic sums."""
+pharmacogenomics or immunogenetics, whose claims are not polygenic sums.
+
+Reproductive joined at schema 9 (M11.7) for reproductive timing and sex hormones. Its carrier
+claims are still not polygenic sums: an interpretation card there must declare ``carrier``,
+and a carrier card must match one marker."""
 
 
 @dataclass(frozen=True)
@@ -1995,7 +2000,7 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
     _reject_unknown(data, _FILE_KEYS, where)
 
     version = _require(data, "schema_version", where)
-    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6, 7, SCHEMA_VERSION}:
+    if type(version) is not int or version not in {1, 2, 3, 4, 5, 6, 7, 8, SCHEMA_VERSION}:
         raise CardError(
             f"{where}: schema_version {version!r} is not {SCHEMA_VERSION}. A reader that "
             "does not recognise the version refuses rather than guessing at the fields."
@@ -2015,6 +2020,13 @@ def parse_file(text: str, where: str) -> tuple[Card, ...]:
                 raise CardError(f"{where}: multi-marker cards require schema_version 2")
             if isinstance(match, Mapping) and "strand" in match:
                 raise CardError(f"{where}: explicit strand policy requires schema_version 2")
+    if version < 9 and any(
+        isinstance(entry, Mapping)
+        and str(entry.get("kind", "")).strip().lower() == "polygenic"
+        and str(entry.get("section", "")).strip().lower() == Section.REPRODUCTIVE.value
+        for entry in entries
+    ):
+        raise CardError(f"{where}: a reproductive polygenic card requires schema_version 9")
     if version < 8 and any(
         isinstance(entry, Mapping)
         and ("screening_scope" in entry or entry.get("computation") == "carrier_screening_scope")

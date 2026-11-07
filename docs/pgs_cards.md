@@ -14,8 +14,8 @@ A polygenic card lives in `knowledge/` like any other card, in a file with
 schema_version: 4
 cards:
   - id: example_polygenic
-    section: physical_health          # health, mental health, psychometrics, traits,
-    kind: polygenic                   # nutrition, substance use, sleep, fitness
+    section: physical_health          # health, mental health, psychometrics, traits, nutrition,
+    kind: polygenic                   # substance use, sleep, fitness, reproductive (schema 9)
     title: ...
     pgs: {id: PGS000001, source: pgs000001_grch37}   # a reference-manifest entry
     trait: breast cancer

@@ -438,6 +438,37 @@
       "opt_in_required": false,
       "version": "HmPOS-2022-07-28"
     },
+    "pgs002129_grch37": {
+      "files": {
+        "PGS002129_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "092b85c0dadf42dfb9bd8eb793f5f6f10a8078739653cc03ec72bad3a596c20d",
+          "size_bytes": 11310041,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002129/ScoringFiles/Harmonized/PGS002129_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2022-07-28"
+    },
     "pgs002135_grch37": {
       "files": {
         "PGS002135_hmPOS_GRCh37.txt.gz": {
@@ -538,6 +569,37 @@
           "sha256": "c94c52366dc1c03bc92e62c8d03bf1326a6216a409d6e41c3fb63508cd79422e",
           "size_bytes": 21625153,
           "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002152/ScoringFiles/Harmonized/PGS002152_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2022-07-28"
+    },
+    "pgs002156_grch37": {
+      "files": {
+        "PGS002156_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "844c759f2681af9edab4967f3ba13454d9851a89766e9d3041d3e257590503f0",
+          "size_bytes": 22155753,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002156/ScoringFiles/Harmonized/PGS002156_hmPOS_GRCh37.txt.gz"
         }
       },
       "license": {
@@ -685,6 +747,161 @@
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "HmPOS-2022-07-28"
+    },
+    "pgs002821_grch37": {
+      "files": {
+        "PGS002821_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "eb2900caf76086715dc8219d62ce1edf2366730324cfa0474ac02f3741ccdf66",
+          "size_bytes": 2523,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS002821/ScoringFiles/Harmonized/PGS002821_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2022-11-18"
+    },
+    "pgs003505_grch37": {
+      "files": {
+        "PGS003505_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "fd3d75d1490913f9356b85e7dc499d9e5a246622b91d6a0b0ff06296aa3e7095",
+          "size_bytes": 18533722,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003505/ScoringFiles/Harmonized/PGS003505_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2026-08-19"
+    },
+    "pgs003507_grch37": {
+      "files": {
+        "PGS003507_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "4077cec3d7cdac403730e1614157caf9b685aa0716441c288f1361fd7d412506",
+          "size_bytes": 15526947,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003507/ScoringFiles/Harmonized/PGS003507_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2026-08-19"
+    },
+    "pgs003508_grch37": {
+      "files": {
+        "PGS003508_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "3e6a3cb1a26bf06a5ac4556a562a014ff47052f58ec070738982eadd07f78ab0",
+          "size_bytes": 18482874,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003508/ScoringFiles/Harmonized/PGS003508_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2026-08-19"
+    },
+    "pgs003559_grch37": {
+      "files": {
+        "PGS003559_hmPOS_GRCh37.txt.gz": {
+          "first_seen": "2026-11-07",
+          "sha256": "e2f53123a3b5f3bb65c8274366ee5067fcf9889ddc541dd8259e79c4db02b4e8",
+          "size_bytes": 15728005,
+          "url": "https://ftp.ebi.ac.uk/pub/databases/spot/pgs/scores/PGS003559/ScoringFiles/Harmonized/PGS003559_hmPOS_GRCh37.txt.gz"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": false,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "LicenseRef-PGS-Catalog-Per-Score",
+        "name": "PGS Catalog -- licence declared per score",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "per-record",
+        "terms_url": "https://www.pgscatalog.org/about/#license"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "collection licence is not authoritative -- each record carries its own terms"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "HmPOS-2026-08-19"
     },
     "pgs003725_grch37": {
       "files": {

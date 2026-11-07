@@ -57,7 +57,8 @@ The loader refuses a declaration that is not bound to its genotype map:
 - zero, one and two copies of it each map to **their own** outcome;
 - every outcome carries `risk_context`;
 - `typed_scope` is literal (no placeholders);
-- any interpretation card in the reproductive section must declare `carrier`;
+- any interpretation card in the reproductive section must declare `carrier` (polygenic cards
+  may also sit there since schema 9: see [reproductive scores](reproductive_prs.md));
 - `carrier` on any other card kind, or outside reproductive/physical health, is refused.
 
 Outcome names are free text, so the loader cannot see a map that sends a heterozygote to

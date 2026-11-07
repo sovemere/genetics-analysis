@@ -30,10 +30,10 @@ M7.5 adds cited common health associations under `health/`, with outcome-specifi
 guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards under
 `immunogenetics/` and `pharmacogenomics/hla.yaml`. M11.5 adds 15 carrier cards under
 `reproductive/` and a carrier declaration on HFE C282Y. M11.6 adds one computed card,
-`reproductive/scope.yaml`. The current pack has 101 cards:
-52 single-variant interpretations (16 of them carrier cards), one two-marker
-interpretation, 12 assay-limit cards, six computed cards, 14 polygenic cards, eight
-guideline cards and eight HLA cards.
+`reproductive/scope.yaml`. M11.7 adds seven polygenic cards, `reproductive/polygenic.yaml`.
+The current pack has 108 cards: 52 single-variant interpretations (16 of them carrier cards),
+one two-marker interpretation, 12 assay-limit cards, six computed cards, 21 polygenic cards,
+eight guideline cards and eight HLA cards.
 
 Test fixtures live in `tests/fixtures/cards/` and use synthetic rsIDs from `rs900000001`
 up, matching the fixture generator's numbering. They are not knowledge and must never be
@@ -298,6 +298,13 @@ They retain weak/conflicting evidence and explicitly unknown calibration.
 The injury comparator outcomes retain null estimates; all four variants use
 forward-only matching, with no consumer I/D interpretation or inferred ACE
 insertion/deletion state.
+
+The [reproductive model audit](../docs/reproductive_prs.md) distinguishes age at menarche, age
+at menopause, age at first live birth, age at first sexual intercourse, cycle length and
+testosterone in women and in men. None supplies an age, a number of days, a concentration or a
+fertility estimate. A polygenic card in the reproductive section needs schema 9 (M11.7), and
+bundle format 28 to be saved. Two catalogue labels in this area name another model's endpoint,
+so bind a card to the scoring file's own `pgs_name`.
 
 
 M9.13 makes `{ancestry}` available in interpretation outcomes. It supplies a

@@ -1,0 +1,461 @@
+schema_version: 9
+# M11.7: reproductive traits beyond carrier status. Each model was checked against its own
+# release; catalogue labels were not trusted, because two of them name the wrong endpoint.
+# Audit, model choice and the menopause evaluation's reported R2: docs/reproductive_prs.md.
+cards:
+  - id: menarche_age_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Age at menarche polygenic association
+    pgs: {id: PGS003508, source: pgs003508_grch37}
+    trait: later self-reported age at menarche
+    summary: >-
+      Higher values of this released score are associated with a later reported
+      first period. It was trained and tested only in women, and gives no age in
+      years.
+    detail: >-
+      Ding et al.'s public LDpred2-auto model cont-decay-F_menarche was trained on
+      UK Biobank white British women. The paper's Supplementary Table 1 gives 193,057
+      training observations; the catalogue's development row gives 193,808. No 23andMe
+      data contribute. The trait is named F_menarche, "Age when periods started
+      (menarche)", the title of UK Biobank field 2714, a touchscreen question answered
+      from memory by women aged about 40 to 69. The paper does not print its coding;
+      Prive et al.'s phenotype of the same name drops the negative do-not-know and
+      prefer-not-to-answer codes. The PGS Catalog reports partial-R2 0.10 in 10,448
+      held-out white British women, printed to two decimals with no interval, leaving
+      about 90% of residual variance unexplained. In the other test groups it is 0.10
+      in Ashkenazi, 0.08 in Polish and Italian, 0.05 in Iranian, 0.03 in Indian and
+      Caribbean, 0.02 in Chinese and 0.01 in Nigerian women. R-squared carries no sign, so direction
+      comes from the weights, which correlate 0.61 with Prive et al.'s model for this
+      phenotype over 807,244 shared variants, and that model's held-out correlation is
+      positive. No age conversion, matched absolute decile series or model-specific
+      direct effect is available. Howe et al.'s sibling study found limited evidence of
+      within-sibship differences for age at menarche, using GWAS-hit scores, not these
+      weights.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 10
+        context: >-
+          Ding 2023 through the PGS Catalog: partial-R2 0.10, printed to two decimals
+          with no interval, in 10,448 held-out white British women in UK Biobank. Higher
+          score means a later first period. About 90% of residual variance is unexplained.
+          Trained and tested only in women, so for someone who has never menstruated it
+          corresponds to no outcome of their own. This is not an age in years. A separate
+          sibling study (Howe 2022) found limited evidence of within-sibship differences
+          for this trait, using other scores; no estimate exists for these weights.
+      sample_size: 10448
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1038/s41586-023-06079-4
+        title: Polygenic scoring accuracy varies across the genetic ancestry continuum
+      - type: doi
+        id: 10.1038/s41588-022-01062-7
+        title: Within-sibship genome-wide association analyses decrease bias in estimates of direct genetic effects
+      - type: accession
+        database: PGS Catalog
+        id: PGS003508
+        title: Public UK Biobank LDpred2-auto age at menarche model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=2714
+        title: Age when periods started (menarche), touchscreen question
+    caveats:
+      - "The age is recalled decades later by women aged about 40 to 69 at recruitment, so the endpoint includes recall error and describes those birth cohorts."
+      - "Testing is held-out within UK Biobank, not independent-cohort or consumer-array validation."
+      - "The catalogue prints two decimals with no interval, so the true figure could lie anywhere from 9.5% to 10.5% before any sampling error."
+      - "No age in years, matched absolute decile rates or direct within-family estimate is available for these weights."
+
+  - id: menopause_age_clumped
+    section: reproductive
+    kind: polygenic
+    title: Age at menopause polygenic association
+    pgs: {id: PGS002821, source: pgs002821_grch37}
+    trait: later self-reported age at menopause
+    summary: >-
+      Higher values of this released score are associated with a later reported last
+      period. It was evaluated only in women, gives no age in years, and its reported
+      R-squared is probably too low.
+    detail: >-
+      The catalogue holds five models of this trait, all from Ma et al.'s ExPRSweb and
+      all built from Day et al.'s 2015 meta-analysis of up to 69,360 women of European
+      ancestry from 33 studies. UK Biobank is not one of those studies, and the published
+      text names no 23andMe cohort; its Supplementary Table 1 was not read. This is the
+      clumped and thresholded model: 159 variants with weights in years per allele,
+      rounded to two decimals. PGS002822 holds the same 159 rows. It is the best of the
+      five in the same test sample, with R2 0.00316 against 0.00129 for PRS-CS, 0.00118
+      for lassosum and 0.000705 for DBSLMM. Its threshold was tuned on one half of UK
+      Biobank (N=69,822) and tested on the other (N=69,801), on field 3581, which women
+      answered from memory only if their periods had stopped. Day et al. studied natural
+      menopause at 40 to 60, excluding surgical, radiation or chemotherapy causes and
+      earlier hormone therapy; field 3581 does not itself make those exclusions. The
+      reported R2 is probably too low: its beta of
+      0.809 and standard error of 0.0507 imply a phenotype spread near 13.4 years, while
+      UK Biobank's own deciles of 43, 50 and 55 imply about 4.7. Field 3581 stores
+      do-not-know and prefer-not-to-answer as -1 and -3, on 6.5% of baseline answers, and
+      leaving those in as numbers predicts a spread near 13.4. If that is the whole cause,
+      the R2 would be near 2.6%. That figure is an inference from published numbers, not a
+      published result, and it does not enter this card's confidence. Direction is checked
+      against Day et al.'s Table 1: the score's largest weight, +0.88 for A at chromosome 20
+      position 5,948,227, is their rs16991615 estimate. No age conversion, matched absolute
+      decile series or model-specific direct effect is available. Howe et al.'s sibling
+      study found limited evidence of within-sibship differences for age at menopause, using
+      GWAS-hit scores, not these weights.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 0.316
+        context: >-
+          Ma 2022 through the PGS Catalog: R2 0.00316 in 69,801 held-out UK Biobank
+          participants, in a sample independent of the 2015 GWAS behind the weights. Higher
+          score means a later last period. As reported, 99.68% is unexplained, but this R2
+          is probably too low: its standard error implies a 13.4-year phenotype spread,
+          against about 4.7 from UK Biobank's deciles, which is what leaving the -1 and -3
+          answer codes in as ages would produce. Evaluated only in women, so for someone who
+          never menstruated it corresponds to no outcome of their own. This is not an age
+          in years. A separate sibling study (Howe 2022) found limited evidence of
+          within-sibship differences for this trait, using other scores.
+      sample_size: 69801
+      ancestry: [EUR]
+      replication: independent
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2022.09.001
+        title: "ExPRSweb: An online repository with polygenic risk scores for common health-related exposures"
+      - type: doi
+        id: 10.1038/ng.3412
+        title: Large-scale genomic analyses link reproductive aging to hypothalamic signaling, breast cancer susceptibility and BRCA1-mediated DNA repair
+      - type: doi
+        id: 10.1038/s41588-022-01062-7
+        title: Within-sibship genome-wide association analyses decrease bias in estimates of direct genetic effects
+      - type: accession
+        database: PGS Catalog
+        id: PGS002821
+        title: ExPRSweb clumped and thresholded age at menopause model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=3581
+        title: Age at menopause (last menstrual period), touchscreen question
+    caveats:
+      - "The reported R2 is the only published figure for these weights. The correction described in the detail view is an inference and is not used in the confidence calculation."
+      - "Field 3581 asks when periods stopped, among women who said they had, and does not itself record why."
+      - "Weights are rounded to two decimals, and a 159-variant score holds only variants past its threshold. Day et al. attribute 21% of the variance (SE 9.7%) to 29,958 independent SNPs and 6% (SE 1.6%) to their top 54."
+      - "Women still menstruating at recruitment have no answer, so the evaluated sample is limited to those who had reached menopause by then."
+      - "No age in years, matched absolute decile rates or direct within-family estimate is available for these weights."
+
+  - id: first_birth_age_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Age at first live birth polygenic association
+    pgs: {id: PGS003505, source: pgs003505_grch37}
+    trait: later self-reported age at first live birth
+    summary: >-
+      Higher values of this released score are associated with a later reported first
+      birth, among women in UK Biobank with more than one child. It does not measure
+      fertility.
+    detail: >-
+      Ding et al.'s public LDpred2-auto model cont-decay-F_age_first_birth was trained on
+      UK Biobank white British women. The paper's Supplementary Table 1 gives 135,106
+      training observations; the catalogue's development row gives 135,632. No 23andMe data
+      contribute. The trait is named F_age_first_birth, "Age at first live birth", the
+      title of UK Biobank field 2754, which UK Biobank collected from women who had given
+      birth to more than one child. Women with one child, or none, are therefore not in
+      this endpoint. The PGS Catalog reports partial-R2 0.05 in 7,313 held-out white British
+      women, printed to two decimals with no interval, leaving about 95% of residual
+      variance unexplained. In the other test groups it is 0.04 in Polish and Italian, 0.02
+      in Ashkenazi, 0.01 in Iranian, Indian and Chinese, and 0.00 as printed in Caribbean and
+      Nigerian women.
+      Direction comes from the weights, which correlate 0.63 with Prive et al.'s model for
+      this phenotype over 800,685 shared variants, whose held-out correlation is positive.
+      Timing of a first birth depends on partners, contraception, schooling and social
+      setting as well as biology, and a score for it is not a fertility measure. Howe et
+      al.'s sibling study found association estimates for this trait 52% smaller within
+      sibships (95% CI 30-75%), using GWAS-hit scores, not these weights. No matched absolute
+      decile series or model-specific direct effect is available.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 5
+        context: >-
+          Ding 2023 through the PGS Catalog: partial-R2 0.05, printed to two decimals with
+          no interval, in 7,313 held-out white British women in UK Biobank. Higher score
+          means a later first birth. About 95% of residual variance is unexplained. The
+          UK Biobank question reached only women with more than one child. A separate
+          sibling study (Howe 2022) found this trait's association estimates 52% smaller
+          within sibships (95% CI 30-75%), using other scores, so part of a population
+          association like this one is not a direct effect. Not a fertility measure, and not
+          an age in years.
+      sample_size: 7313
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1038/s41586-023-06079-4
+        title: Polygenic scoring accuracy varies across the genetic ancestry continuum
+      - type: doi
+        id: 10.1038/s41588-022-01062-7
+        title: Within-sibship genome-wide association analyses decrease bias in estimates of direct genetic effects
+      - type: accession
+        database: PGS Catalog
+        id: PGS003505
+        title: Public UK Biobank LDpred2-auto age at first live birth model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=2754
+        title: Age at first live birth, collected from women with more than one child
+    caveats:
+      - "Field 2754 excludes women with one child or none, so the endpoint is a selected subset of women."
+      - "The sibling-study shrinkage comes from other scores for this trait. No within-family estimate exists for these weights, so none is applied to them."
+      - "The catalogue prints two decimals with no interval, so the true figure could lie anywhere from 4.5% to 5.5% before any sampling error."
+      - "Women in this cohort were born between about 1937 and 1970; birth timing has changed since, and no calibration to later cohorts exists."
+
+  - id: first_sex_age_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Age at first sexual intercourse polygenic association
+    pgs: {id: PGS002156, source: pgs002156_grch37}
+    trait: later self-reported age at first sexual intercourse
+    summary: >-
+      Higher values of this released score are associated with a later reported first
+      sexual intercourse. The model uses log-transformed reports from women and men, and
+      gives no age in years.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is named
+      log_age_first_sex. Field 2139 asks for age at first sexual intercourse, which the
+      question defines to include vaginal, oral or anal intercourse. The authors keep answers
+      from 10 to 40 and take the natural logarithm, so the do-not-know, prefer-not-to-answer
+      and never-had-sex codes are removed. Their phenotype-info.csv records 342,706 training
+      observations within the 391,124-person Northwestern European pool; no 23andMe data
+      contribute. In 17,510 held-out UK-ancestry participants, released partial-r is 0.2443
+      (95% CI 0.2304-0.2582), about 5.97% of covariate-residual log-age variance, leaving
+      about 94.03% unexplained. Exponentiating the score does not recover an age. PGS002215
+      has the same catalogue label but is the binary never-had-sex model, a different
+      endpoint. No matched absolute decile series or model-specific direct effect is
+      available; Howe et al.'s sibling study did not include this trait.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 5.97
+        ci_low: 5.31
+        ci_high: 6.67
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.2443 (95% CI
+          0.2304-0.2582), N=17,510 held-out UK-ancestry participants, women and men. Derived
+          as 100*r-squared after residualizing score and log age on sex, age, birth date,
+          deprivation index and 16 PCs. Higher score means a later reported first sexual
+          intercourse. About 94.03% is unexplained. Answers outside 10-40 years and
+          never-had-sex answers are excluded. This is not an age in years, a measure of
+          sexual activity, or a statement about any later behaviour.
+      sample_size: 17510
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002156
+        title: Public UK Biobank LDpred2 log age at first sexual intercourse model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=2139
+        title: Age first had sexual intercourse, touchscreen question
+    caveats:
+      - "The answer is recalled decades later, and people choosing not to answer or reporting no intercourse are outside the endpoint."
+      - "The association comes from one cohort recruited at ages about 40 to 69. Social norms around this age have changed, and no calibration to later cohorts exists."
+      - "Testing is held-out within UK Biobank, not independent-cohort or consumer-array validation."
+      - "No age in years, matched absolute decile rates or direct within-family estimate is available for these weights."
+
+  - id: menstrual_cycle_length_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Menstrual cycle length polygenic association
+    pgs: {id: PGS002129, source: pgs002129_grch37}
+    trait: longer self-reported usual menstrual cycle length
+    summary: >-
+      Higher values of this released score are associated with a longer reported usual
+      cycle. It was trained and tested only in women who still had periods, on small
+      samples, and gives no number of days.
+    detail: >-
+      Prive et al.'s public UK Biobank-only LDpred2-auto HapMap3 model is named
+      F_length_menstrual_cycle. Field 3710 asks how many days the usual cycle lasts, and was
+      collected from women whose periods had not stopped. The authors keep answers from 15 to
+      40 days, which removes the irregular-cycle, do-not-know and prefer-not-to-answer codes.
+      Their phenotype-info.csv records 18,570 training observations within the 391,124-person
+      Northwestern European pool; no 23andMe data contribute. In 987 held-out UK-ancestry
+      women, released partial-r is 0.1022 (95% CI 0.0394-0.1641), about 1.04% of
+      covariate-residual variance, leaving about 98.96% unexplained. PGS002128 has the same
+      catalogue label but is the authors' binary irregular-cycle model, a different endpoint.
+      UK Biobank's youngest participants were about 40, so this describes cycles late in
+      reproductive life, not over a lifetime. No matched absolute decile series or
+      model-specific direct effect is available; Howe et al.'s sibling study did not include
+      this trait.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 1.04
+        ci_low: 0.16
+        ci_high: 2.69
+        context: >-
+          Prive 2022, released pred-cor-ldpred2.csv: partial-r 0.1022 (95% CI 0.0394-0.1641),
+          N=987 held-out UK-ancestry women. Derived as 100*r-squared after residualizing score
+          and cycle length on sex, age, birth date, deprivation index and 16 PCs. Higher score
+          means a longer reported cycle. About 98.96% is unexplained, and the interval is wide.
+          Field 3710 reached only women whose periods had not stopped, aged about 40 or older.
+          For someone who has never menstruated it corresponds to no outcome of their own.
+          This is not a number of days or a fertility measure.
+      sample_size: 987
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: doi
+        id: 10.6084/m9.figshare.14074760.v2
+        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+      - type: accession
+        database: PGS Catalog
+        id: PGS002129
+        title: Public UK Biobank LDpred2 menstrual cycle length model
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=3710
+        title: Length of menstrual cycle, collected from women whose periods had not stopped
+    caveats:
+      - "Training used 18,570 women and testing 987: the smallest samples of any score in this section, and this card's interval reflects that."
+      - "Irregular cycles are excluded from this endpoint, so the score says nothing about cycle regularity."
+      - "Testing is held-out within UK Biobank, not independent-cohort or consumer-array validation."
+      - "No number of days, matched absolute decile rates or direct within-family estimate is available for these weights."
+
+  - id: testosterone_female_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Testosterone in women polygenic association
+    pgs: {id: PGS003507, source: pgs003507_grch37}
+    trait: higher log serum testosterone in women
+    summary: >-
+      Higher values of this released score are associated with higher measured serum
+      testosterone in women. It is separate from the model for men, and gives no
+      concentration.
+    detail: >-
+      Ding et al.'s public LDpred2-auto model cont-decay-F_log_testosterone was trained on UK
+      Biobank white British women. The paper's Supplementary Table 1 gives 157,915 training
+      observations; the catalogue's development row gives 158,529. No 23andMe data contribute.
+      The trait is named F_log_testosterone, "Testosterone (female only)". Prive et al.'s
+      phenotype of the same name is the natural log of UK Biobank field 30850, a serum assay
+      measured by one-step competitive analysis on a Beckman Coulter Unicel Dxl 800; Ding et al.
+      do not print their own coding. The PGS Catalog reports partial-R2 0.06 in 8,475 held-out
+      white British women, printed to two decimals with no interval, leaving about 94% of
+      residual variance unexplained. In the other test groups it is 0.06 in Iranian, 0.04 in
+      Polish, Italian and Ashkenazi, 0.03 in Indian, 0.02 in Chinese, and 0.00 as printed in
+      Caribbean and Nigerian women. Direction comes from the weights, which correlate 0.40 with Prive et
+      al.'s model for this phenotype over 616,043 shared variants, whose held-out correlation is
+      positive. That model reports much less: partial-r 0.1633, or about 2.67%, a gap this
+      review could not explain. This is one measurement, of total testosterone. It is not free
+      testosterone, a diagnosis or a statement about symptoms. No concentration, matched
+      absolute decile series or model-specific direct effect is available.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 6
+        context: >-
+          Ding 2023 through the PGS Catalog: partial-R2 0.06, printed to two decimals with no
+          interval, in 8,475 held-out white British women in UK Biobank. Higher score means
+          higher measured serum testosterone. About 94% of residual variance is unexplained. A
+          model of this phenotype from another group reports about 2.67%, a gap not explained
+          here. For total testosterone in women, not free testosterone; not a concentration, a
+          diagnosis or a statement about symptoms. Trained and tested only in women; the
+          card for men uses different weights.
+      sample_size: 8475
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1038/s41586-023-06079-4
+        title: Polygenic scoring accuracy varies across the genetic ancestry continuum
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: accession
+        database: PGS Catalog
+        id: PGS003507
+        title: Public UK Biobank LDpred2-auto testosterone model in women
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30850
+        title: Testosterone, serum assay in UK Biobank
+    caveats:
+      - "Women in UK Biobank were 40 to 69 at the blood draw, many of them past menopause. A score trained on them is not calibrated to younger women."
+      - "Total testosterone depends on binding proteins, and this model does not separate free from bound hormone."
+      - "The catalogue prints two decimals with no interval, and another group's model for this phenotype reports less than half of this figure. Neither is an estimate for a person."
+      - "No concentration, matched absolute decile rates or direct within-family estimate is available for these weights."
+
+  - id: testosterone_male_ldpred2
+    section: reproductive
+    kind: polygenic
+    title: Testosterone in men polygenic association
+    pgs: {id: PGS003559, source: pgs003559_grch37}
+    trait: higher log serum testosterone in men
+    summary: >-
+      Higher values of this released score are associated with higher measured serum
+      testosterone in men. It is separate from the model for women, and gives no
+      concentration.
+    detail: >-
+      Ding et al.'s public LDpred2-auto model cont-decay-M_log_testosterone was trained on UK
+      Biobank white British men. The paper's Supplementary Table 1 gives 161,314 training
+      observations; the catalogue's development row gives 161,936. No 23andMe data contribute.
+      The trait is named M_log_testosterone, "Testosterone (male only)". Prive et al.'s
+      phenotype of the same name is the natural log of UK Biobank field 30850, a serum assay
+      measured by one-step competitive analysis on a Beckman Coulter Unicel Dxl 800; Ding et al.
+      do not print their own coding. The PGS Catalog reports partial-R2 0.09 in 8,753 held-out
+      white British men, printed to two decimals with no interval, leaving about 91% of residual
+      variance unexplained. Other test groups: 0.09 in Polish, 0.08 in Italian, 0.10 in Iranian
+      and Ashkenazi, 0.07 in Indian and Chinese, 0.01 in Caribbean and 0.02 in Nigerian men.
+      Direction comes from the weights, which correlate 0.34 with Prive et al.'s model for this
+      phenotype over 554,494 shared variants, whose held-out correlation is positive. That model
+      reports much less: partial-r 0.1503, or about 2.26%, a gap this review could not explain.
+      This is one measurement, of total testosterone. It is not free testosterone, a diagnosis or
+      a statement about symptoms, fertility or behaviour. No concentration, matched absolute
+      decile series or model-specific direct effect is available.
+    evidence:
+      tier: gwas
+      effect:
+        measure: percent_variance_explained
+        value: 9
+        context: >-
+          Ding 2023 through the PGS Catalog: partial-R2 0.09, printed to two decimals with no
+          interval, in 8,753 held-out white British men in UK Biobank. Higher score means higher
+          measured serum testosterone. About 91% of residual variance is unexplained. A model of
+          this phenotype from another group reports about 2.26%, a gap not explained here. For
+          total testosterone in men, not free testosterone; not a concentration, a diagnosis or a
+          statement about symptoms, fertility or behaviour. Trained and tested only in men; the
+          card for women uses different weights.
+      sample_size: 8753
+      ancestry: [EUR]
+      replication: same_cohort
+    citations:
+      - type: doi
+        id: 10.1038/s41586-023-06079-4
+        title: Polygenic scoring accuracy varies across the genetic ancestry continuum
+      - type: doi
+        id: 10.1016/j.ajhg.2021.11.008
+        title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
+      - type: accession
+        database: PGS Catalog
+        id: PGS003559
+        title: Public UK Biobank LDpred2-auto testosterone model in men
+      - type: url
+        id: https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=30850
+        title: Testosterone, serum assay in UK Biobank
+    caveats:
+      - "Men in UK Biobank were 40 to 69 at the blood draw. A score trained on them is not calibrated to younger men."
+      - "Total testosterone depends on binding proteins, and this model does not separate free from bound hormone."
+      - "The catalogue prints two decimals with no interval, and another group's model for this phenotype reports about a quarter of this figure. Neither is an estimate for a person."
+      - "No concentration, matched absolute decile rates or direct within-family estimate is available for these weights."

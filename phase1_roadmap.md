@@ -16,9 +16,17 @@ the source of truth for build state.
 
 ## Next up
 
-**M11.7 reproductive traits is next.** M0–M10 and M11.1–M11.6 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m117-reproductive-traits) records what it
-inherits.
+**M12.1 nutrition and metabolism is next.** M0–M11 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m121-nutrition-cards) records what it inherits.
+
+M11.7 adds seven public polygenic cards to the reproductive section: age at menarche, age at
+menopause, age at first live birth, age at first sexual intercourse, menstrual cycle length and
+serum testosterone in women and in men. Two catalogue labels name another model's endpoint, so
+each card is bound to its file's own model name. The menopause evaluation's standard error implies
+a 13.4-year phenotype spread where the field's deciles imply about 4.7, which is what leaving UK
+Biobank's -1 and -3 answer codes in as ages would produce, so that card says its published R2 is
+probably too low. Knowledge schema 9 and bundle format 28; the carrier statement is unchanged. See
+the [model audit](docs/reproductive_prs.md).
 
 M11.6 adds one computed card stating that the reproductive section is not a carrier screen, and
 counting what it leaves out: 16 typed markers over 9 conditions against ACMG Tier 3's 113 genes
@@ -2923,8 +2931,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         statement — carrier screening from an array is incomplete as a category, not only
         for the two conditions §3.2 happens to name — which is a different claim and needs
         M11.5's callable set to exist before it can say what it excludes.
-- [ ] **M11.7** Reproductive section beyond carrier status: age at menarche/menopause and
-      related traits.
+- [x] **M11.7** Reproductive section beyond carrier status: age at menarche/menopause and
+      related traits. Seven polygenic cards, each with its own endpoint, on knowledge schema 9
+      and bundle format 28. Models chosen by a stated rule between Ding 2023 and Prive 2022 per
+      trait, and by measured R2 among ExPRSweb's menopause models; number of children and
+      childlessness are recorded as left out, because their phenotype coding could not be read.
+      See the [model audit](docs/reproductive_prs.md).
 
 ---
 

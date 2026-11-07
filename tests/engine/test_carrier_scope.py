@@ -48,6 +48,7 @@ from genetics.engine.matcher import MatchStatus, match_pack
 from genetics.engine.sections import Section
 from genetics.ingest.keys import LocusKey, MergeTable
 from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
+from genetics.pgs.cards import assemble_polygenic_card
 from genetics.privacy import assert_no_genotype
 from genetics.qc.report import QCReport
 from genetics.run.bundle import (
@@ -585,7 +586,7 @@ def test_save_read_cli_and_dashboard_parity(
 ) -> None:
     path = _write(pack, run, sample_qc, tmp_path / "runs")
     bundle = read_bundle(path)
-    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 27
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 28
     saved = next(c for c in bundle.cards if c.card_id == CARD_ID)
     assert saved.computation is not None
     assert saved.computation["source"] == SOURCE
@@ -622,6 +623,55 @@ def test_save_read_cli_and_dashboard_parity(
     for shown_page in (page, hidden, by_tier):
         assert shown_page.count(saved.summary) >= 1
     assert "Carrier screening scope" in hidden and "Carrier screening scope" in by_tier
+
+
+def test_trait_cards_beside_the_carrier_cards_change_neither_the_tally_nor_the_statement(
+    pack: KnowledgePack,
+    run: tuple[AssembledCard, ...],
+    sample_qc: QCReport,
+    tmp_path: Path,
+) -> None:
+    """M11.7: the statement is about carrier screening, and a trait card is not part of one."""
+    traits = tuple(
+        assemble_polygenic_card(card, None, reason="Synthetic not-run reason.")
+        for card in pack.in_section(Section.REPRODUCTIVE)
+        if card.pgs is not None
+    )
+    assert len(traits) == 7
+    alone = next(c for c in run if c.card_id == CARD_ID)
+    beside = assemble_scope_card(_scope_card(pack), [c for c in run if c.card_id != CARD_ID])
+    assert beside.computation == alone.computation and beside.summary == alone.summary
+
+    path = _write(pack, (*run, *traits), sample_qc, tmp_path / "runs")
+    bundle = read_bundle(path)
+    saved = next(c for c in bundle.cards if c.card_id == CARD_ID)
+    assert saved.computation is not None and alone.computation is not None
+    assert saved.computation["result"]["run"] == alone.computation["result"]["run"]
+    notice = section_notice(bundle.cards)
+    assert notice is not None and notice["text"] == saved.summary
+
+    with TestClient(
+        create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = html.unescape(client.get(f"/runs/{path.name}?section=reproductive").text)
+    assert page.count(saved.summary) >= 1
+    assert "Carrier screening scope" in page
+    assert "Carrier findings, about offspring" in page and "about self." in page
+    assert "Synthetic not-run reason." in page
+    # The statement names carrier screening, so it does not read as a limit on these scores.
+    assert "not a carrier screen" in saved.summary and "polygenic" not in saved.summary
+
+
+def test_a_reproductive_interpretation_card_must_still_be_a_carrier_card() -> None:
+    """M11.7 widened polygenic scores, not single-marker cards: no false carrier block."""
+    text = (KNOWLEDGE / "reproductive" / "carrier.yaml").read_text(encoding="utf-8")
+    data = yaml.safe_load(text)
+    card = copy.deepcopy(data["cards"][0])
+    del card["carrier"]
+    with pytest.raises(CardError, match="reproductive interpretation card is a carrier card"):
+        parse_file(
+            yaml.safe_dump({"schema_version": 9, "cards": [card]}, sort_keys=False), "synthetic"
+        )
 
 
 def test_a_run_saved_without_the_record_still_states_the_limit(

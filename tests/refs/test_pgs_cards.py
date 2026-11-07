@@ -68,6 +68,7 @@ from genetics.run.bundle import (
     CARDS_NAME,
     MANIFEST_NAME,
     PGS_NAME,
+    REPRODUCTIVE_POLYGENIC_FORMAT_VERSION,
     SCORE_FILES_FORMAT_VERSION,
     BundleError,
     read_bundle,
@@ -1364,6 +1365,391 @@ def test_fitness_pack_missing_references_stays_visible_with_exact_fetch_commands
         assert page.status_code == 200
         for pgs_id, *_ in FITNESS_MODELS.values():
             assert f"genetics refs fetch --only {pgs_id.lower()}_grch37" in page.text
+
+
+REPRODUCTIVE_AUTHORED = Path(__file__).parents[2] / "knowledge" / "reproductive" / "polygenic.yaml"
+DING = "10.1038/s41586-023-06079-4"
+PRIVE = "10.1016/j.ajhg.2021.11.008"
+PRIVE_RELEASE = "10.6084/m9.figshare.14074760.v2"
+MA = "10.1016/j.ajhg.2022.09.001"
+DAY = "10.1038/ng.3412"
+HOWE = "10.1038/s41588-022-01062-7"
+REPRODUCTIVE_MODELS: dict[str, dict[str, Any]] = {
+    "menarche_age_ldpred2": {
+        "pgs": "PGS003508",
+        "model": "cont-decay-F_menarche",
+        "rows": 979739,
+        "field": "2714",
+        "n": 10448,
+        "effect": (10, None, None),
+        "replication": Replication.SAME_COHORT,
+        "dois": {DING, HOWE},
+        "trait": "later self-reported age at menarche",
+        "face": ["10,448 held-out white British women", "only in women"],
+        "detail": ["193,057", "193,808", "limited evidence", "807,244", "F_menarche"],
+    },
+    "menopause_age_clumped": {
+        "pgs": "PGS002821",
+        "model": "ExPRSweb_AgeAtMenopause_ieu-a-1004_PT_UKB_20211120",
+        "rows": 159,
+        "field": "3581",
+        "n": 69801,
+        "effect": (0.316, None, None),
+        "replication": Replication.INDEPENDENT,
+        "dois": {MA, DAY, HOWE},
+        "trait": "later self-reported age at menopause",
+        "face": ["69,801 held-out", "probably too low", "13.4-year"],
+        "detail": ["69,360", "69,822", "PGS002822", "0.000705", "near 2.6%", "rs16991615"],
+    },
+    "first_birth_age_ldpred2": {
+        "pgs": "PGS003505",
+        "model": "cont-decay-F_age_first_birth",
+        "rows": 979739,
+        "field": "2754",
+        "n": 7313,
+        "effect": (5, None, None),
+        "replication": Replication.SAME_COHORT,
+        "dois": {DING, HOWE},
+        "trait": "later self-reported age at first live birth",
+        "face": ["more than one child", "52% smaller", "30-75%", "Not a fertility measure"],
+        "detail": ["135,106", "135,632", "800,685", "more than one child"],
+    },
+    "first_sex_age_ldpred2": {
+        "pgs": "PGS002156",
+        "model": "portability-ldpred2_log_age_first_sex",
+        "rows": 972919,
+        "field": "2139",
+        "n": 17510,
+        "correlation": (0.2443, 0.2304, 0.2582),
+        "replication": Replication.SAME_COHORT,
+        "dois": {PRIVE, PRIVE_RELEASE},
+        "trait": "later self-reported age at first sexual intercourse",
+        "face": ["17,510 held-out", "94.03%", "never-had-sex"],
+        "detail": ["342,706", "from 10 to 40", "natural logarithm", "PGS002215", "oral or anal"],
+    },
+    "menstrual_cycle_length_ldpred2": {
+        "pgs": "PGS002129",
+        "model": "portability-ldpred2_F_length_menstrual_cycle",
+        "rows": 491888,
+        "field": "3710",
+        "n": 987,
+        "correlation": (0.1022, 0.0394, 0.1641),
+        "replication": Replication.SAME_COHORT,
+        "dois": {PRIVE, PRIVE_RELEASE},
+        "trait": "longer self-reported usual menstrual cycle length",
+        "face": ["N=987", "98.96%", "had not stopped"],
+        "detail": ["18,570", "from 15 to", "PGS002128", "irregular-cycle"],
+    },
+    "testosterone_female_ldpred2": {
+        "pgs": "PGS003507",
+        "model": "cont-decay-F_log_testosterone",
+        "rows": 979739,
+        "field": "30850",
+        "n": 8475,
+        "effect": (6, None, None),
+        "replication": Replication.SAME_COHORT,
+        "dois": {DING, PRIVE},
+        "trait": "higher log serum testosterone in women",
+        "face": ["8,475 held-out", "only in women", "about 2.67%", "not free testosterone"],
+        "detail": ["157,915", "158,529", "616,043", "partial-r 0.1633"],
+    },
+    "testosterone_male_ldpred2": {
+        "pgs": "PGS003559",
+        "model": "cont-decay-M_log_testosterone",
+        "rows": 979739,
+        "field": "30850",
+        "n": 8753,
+        "effect": (9, None, None),
+        "replication": Replication.SAME_COHORT,
+        "dois": {DING, PRIVE},
+        "trait": "higher log serum testosterone in men",
+        "face": ["8,753 held-out", "only in men", "about 2.26%", "not free testosterone"],
+        "detail": ["161,314", "161,936", "554,494", "partial-r 0.1503"],
+    },
+}
+
+
+def _reproductive_effect(model: dict[str, Any]) -> tuple[Any, ...]:
+    """The stored percentage: the catalogue's own, or 100*r-squared of the released partial-r."""
+    if "effect" in model:
+        return tuple(model["effect"])
+    correlation, low, high = model["correlation"]
+    return tuple(round(100 * value**2, 2) for value in (correlation, low, high))
+
+
+def _reproductive_pack(setup: dict[str, Any], *, substitute: bool = True) -> None:
+    text = REPRODUCTIVE_AUTHORED.read_text(encoding="utf-8")
+    definitions = {card.id: card for card in parse_file(text, str(REPRODUCTIVE_AUTHORED))}
+    assert set(definitions) == set(REPRODUCTIVE_MODELS)
+    # Bind published endpoints before replacing IDs with a fabricated five-row score.
+    for card_id, model in REPRODUCTIVE_MODELS.items():
+        definition = definitions[card_id]
+        pgs_id = model["pgs"]
+        assert definition.pgs is not None and definition.evidence is not None
+        assert definition.pgs.pgs_id == pgs_id
+        assert definition.pgs.source == f"{pgs_id.lower()}_grch37"
+        assert definition.section.value == "reproductive"
+        assert definition.trait == model["trait"], f"Wrong displayed direction for {card_id}"
+        assert {(c.type.value, c.id) for c in definition.citations} == {
+            *{("doi", doi) for doi in model["dois"]},
+            ("accession", pgs_id),
+            ("url", f"https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id={model['field']}"),
+        }
+        evidence = definition.evidence
+        assert evidence.sample_size == model["n"]
+        assert evidence.replication is model["replication"]
+        # No model-specific estimate exists: the sibling study's figures stay in the text.
+        assert evidence.within_family_attenuation is None
+        effect = evidence.effect
+        assert effect.measure is EffectMeasure.PERCENT_VARIANCE_EXPLAINED
+        assert (effect.value, effect.ci_low, effect.ci_high) == _reproductive_effect(model)
+        assert definition.decile_outcomes is None
+        if substitute:
+            text = text.replace(pgs_id, "PGS000001").replace(
+                f"{pgs_id.lower()}_grch37", "pgs000001_grch37"
+            )
+    (setup["knowledge"] / "polygenic.yaml").write_text(text, encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("trait: later self-reported age at menarche", "trait: earlier self-reported menarche"),
+        ("trait: later self-reported age at menopause", "trait: earlier reported menopause"),
+        ("trait: later self-reported age at first live", "trait: earlier self-reported first live"),
+        ("trait: later self-reported age at first sex", "trait: earlier self-reported first sex"),
+        ("trait: longer self-reported usual", "trait: shorter self-reported usual"),
+        ("trait: higher log serum testosterone in women", "trait: lower log testosterone in women"),
+        ("trait: higher log serum testosterone in men", "trait: lower log testosterone in men"),
+        # The catalogue labels each of these with its neighbour's trait.
+        ("id: PGS002129,", "id: PGS002128,"),
+        ("id: PGS002156,", "id: PGS002215,"),
+        # The same catalogue file under another row of the same evaluation.
+        ("id: PGS002821,", "id: PGS002824,"),
+        # The card for one sex scoring the other's weights.
+        ("id: PGS003559,", "id: PGS003507,"),
+        # Training counts and another group's result standing in for the test sample's.
+        ("sample_size: 10448", "sample_size: 193057"),
+        ("sample_size: 69801", "sample_size: 69360"),
+        ("value: 0.316", "value: 2.5"),
+        ("value: 6\n", "value: 2.67\n"),
+        ("replication: independent", "replication: meta_analysis"),
+    ],
+)
+def test_reproductive_binding_rejects_reversed_or_borrowed_evidence(
+    setup: dict[str, Any],
+    monkeypatch: pytest.MonkeyPatch,
+    old: str,
+    new: str,
+) -> None:
+    read = Path.read_text
+
+    def mutated(path: Path, *args: Any, **kwargs: Any) -> str:
+        text = read(path, *args, **kwargs)
+        if path == REPRODUCTIVE_AUTHORED:
+            assert old in text
+            return text.replace(old, new, 1)
+        return text
+
+    monkeypatch.setattr(Path, "read_text", mutated)
+    with pytest.raises(AssertionError):
+        _reproductive_pack(setup)
+
+
+def test_reproductive_text_stays_ascii_for_legacy_code_pages() -> None:
+    """CliRunner cannot show a cp1252 crash, and these cards need no character outside ASCII."""
+    assert REPRODUCTIVE_AUTHORED.read_bytes().isascii()
+
+
+@pytest.mark.parametrize("matched", [True, False])
+def test_reproductive_pack_preserves_endpoints_direction_and_exact_evidence(
+    setup: dict[str, Any], fake: MultiPlink, matched: bool
+) -> None:
+    _reproductive_pack(setup)
+    placement = CEU if matched else Placed("KHV", "EAS", [("KHV", 1.0), ("CEU", 9.0)])
+    analysis = run(setup, fake, placement=placement)
+    assert len(analysis.cards) == len(REPRODUCTIVE_MODELS)
+    for card in analysis.cards:
+        assert card.status is MatchStatus.COMPUTED and card.computation is not None
+        assert REPRODUCTIVE_MODELS[card.card_id]["trait"] in card.summary
+        assert "No within-family estimate" in card.summary and NOT_A_RISK in card.summary
+        assert "Original array:" in card.summary
+        assert "After imputation: unavailable (disabled)" in card.summary
+        result = card.computation["result"]
+        assert result["portability"]["judgment"] == ("matched" if matched else "mismatched")
+        assert '"person_sum"' not in json.dumps(result) and '"percentile"' not in json.dumps(result)
+        assert card.computation["reliability"]["tier"] is not None
+        if not matched:
+            assert card.computation["reliability"]["tier"] == "limited"
+    bundle = read_bundle(save(analysis))
+    assert bundle.format_version >= REPRODUCTIVE_POLYGENIC_FORMAT_VERSION
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    cards = json.loads(shown.stdout)["cards"]
+    assert {c["card_id"] for c in cards} == set(REPRODUCTIVE_MODELS)
+    for card in cards:
+        model = REPRODUCTIVE_MODELS[card["card_id"]]
+        assert model["trait"] in card["summary"]
+        assert card["section"] == "reproductive"
+        assert card["carrier"] is None
+        assert card["evidence"]["sample_size"] == model["n"]
+        assert card["evidence"]["replication"] == model["replication"].value
+        assert card["evidence"]["within_family_attenuation"] is None
+        assert any(c["id"].endswith(f"id={model['field']}") for c in card["citations"])
+        stored = next(c for c in bundle.cards if c.card_id == card["card_id"])
+        assert card["computation"] == stored.computation
+        effect = card["evidence"]["effect"]
+        assert effect["measure"] == "percent_variance_explained"
+        assert (effect["value"], effect["ci_low"], effect["ci_high"]) == _reproductive_effect(model)
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=reproductive")
+        assert page.status_code == 200
+        assert page.text.count('class="pgschart pgschart-compact"') == len(REPRODUCTIVE_MODELS)
+        assert page.text.count("Published study association:") == len(REPRODUCTIVE_MODELS)
+        assert "No within-family estimate" in page.text
+        assert "Ancestry portability:" in page.text
+        assert "about self." in page.text and "about offspring" in page.text
+        # No carrier card, so nothing here qualifies a screen that is not on the page.
+        assert "Carrier screening scope" not in page.text
+        for card_id, model in REPRODUCTIVE_MODELS.items():
+            assert model["trait"] in page.text
+            for face in model["face"]:
+                assert face in page.text, f"{card_id} face lacks {face!r}"
+            detail = client.get(f"/runs/{bundle.run_id}/cards/{card_id}")
+            assert detail.status_code == 200 and 'class="pgschart"' in detail.text
+            assert model["trait"] in detail.text
+            assert "Before and after coverage" in detail.text
+            for expected in model["detail"]:
+                assert expected in detail.text, f"{card_id} detail lacks {expected!r}"
+            if card_id != "menopause_age_clumped":
+                assert "23andMe" in detail.text
+
+
+def test_reproductive_pack_keeps_both_phase_coverage_and_imputation_quality(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    _reproductive_pack(setup)
+    original = ingest(EXPORT).table
+    last = ROWS[-1][0]
+    reduced = GenotypeTable(original.frame.filter(pl.col("pos_grch37") != last), vendor="synthetic")
+    prepared = stage(setup, fake)
+    prepared.prepare(KnowledgePack.load(setup["knowledge"]))
+    cards, records = prepared.score(
+        table=reduced,
+        sex=InferredSex.MALE,
+        dosages=lambda: iter([dosage(last, ref="G", quality=(0.2,))]),
+        ancestry=AncestryContext.not_run("synthetic acceptance").to_dict(),
+        imputation_provenance=None,
+    )
+    assert set(cards) == set(REPRODUCTIVE_MODELS)
+    for card_id, card in cards.items():
+        assert card.computation is not None
+        assert records[card_id]["imputation_mode"] == "enabled"
+        assert "Original array: 4/5 variants (80%)" in card.summary
+        assert "After imputation: 5/5 variants (100%)" in card.summary
+        assert card.computation["result"]["quality"]["weighted_quality"] < 1
+
+
+def test_reproductive_pack_missing_references_stays_visible_with_exact_fetch_commands(
+    setup: dict[str, Any], fake: MultiPlink, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _reproductive_pack(setup, substitute=False)
+    monkeypatch.setattr(runner, "locate_scoring_file", locate_scoring_file)
+    analysis = run(setup, fake)
+    assert len(analysis.cards) == len(REPRODUCTIVE_MODELS)
+    bundle = read_bundle(save(analysis))
+    shown = CliRunner().invoke(app, ["runs", "show", bundle.run_id, "--json"])
+    assert shown.exit_code == 0, shown.output
+    for card in json.loads(shown.stdout)["cards"]:
+        pgs_id = REPRODUCTIVE_MODELS[card["card_id"]]["pgs"]
+        assert card["status"] == "not_run"
+        assert f"genetics refs fetch --only {pgs_id.lower()}_grch37" in card["summary"]
+    with TestClient(
+        create_app(WebConfig(runs_root=runs_dir())), base_url="http://127.0.0.1:8765"
+    ) as client:
+        page = client.get(f"/runs/{bundle.run_id}?section=reproductive")
+        assert page.status_code == 200
+        for model in REPRODUCTIVE_MODELS.values():
+            assert f"genetics refs fetch --only {model['pgs'].lower()}_grch37" in page.text
+
+
+def test_a_format_before_28_cannot_hold_a_reproductive_score(
+    setup: dict[str, Any], fake: MultiPlink
+) -> None:
+    _reproductive_pack(setup)
+    path = save(run(setup, fake))
+    manifest = json.loads((path / MANIFEST_NAME).read_text(encoding="utf-8"))
+    manifest["format_version"] = REPRODUCTIVE_POLYGENIC_FORMAT_VERSION - 1
+    (path / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
+    # Refused on the read that skips the deep checks too.
+    for deep in (True, False):
+        with pytest.raises(BundleError, match="format 28"):
+            read_bundle(path, deep=deep)
+
+
+@pytest.mark.parametrize(
+    ("schema", "refused"), [(8, True), (9, False)], ids=["schema_8", "schema_9"]
+)
+def test_a_reproductive_score_requires_schema_9(schema: int, refused: bool) -> None:
+    text = CARD.replace("schema_version: 4", f"schema_version: {schema}").replace(
+        "section: physical_health", "section: reproductive"
+    )
+    assert "section: reproductive" in text
+    if refused:
+        with pytest.raises(CardError, match="requires schema_version 9"):
+            parse_file(text, "polygenic.yaml")
+    else:
+        (card,) = parse_file(text, "polygenic.yaml")
+        assert card.section.value == "reproductive" and card.carrier is None
+
+
+@pytest.mark.parametrize("card_id", sorted(REPRODUCTIVE_MODELS))
+def test_each_fetched_scoring_file_is_the_model_its_card_names(card_id: str) -> None:
+    """Catalogue labels mislead here, so bind each card to the file's own model name."""
+    model = REPRODUCTIVE_MODELS[card_id]
+    path = (
+        Path(__file__).parents[2]
+        / "data"
+        / "references"
+        / f"{model['pgs'].lower()}_grch37"
+        / f"{model['pgs']}_hmPOS_GRCh37.txt.gz"
+    )
+    if not path.is_file():
+        pytest.skip("Scoring file not fetched on this machine")
+    header: dict[str, str] = {}
+    with gzip.open(path, "rt", encoding="utf-8") as stream:
+        for line in stream:
+            if not line.startswith("#"):
+                break
+            if "=" in line:
+                key, _, value = line[1:].rstrip("\n").partition("=")
+                header[key] = value
+    assert header["pgs_id"] == model["pgs"]
+    assert header["pgs_name"] == model["model"]
+    assert int(header["variants_number"]) == model["rows"]
+
+
+def test_the_menopause_weights_carry_the_published_estimates_in_years() -> None:
+    """Direction and units, from Day 2015 Table 1: rs16991615 and rs11668344 in years per allele."""
+    path = (
+        Path(__file__).parents[2] / "data/references/pgs002821_grch37/PGS002821_hmPOS_GRCh37.txt.gz"
+    )
+    if not path.is_file():
+        pytest.skip("Scoring file not fetched on this machine")
+    with gzip.open(path, "rt", encoding="utf-8") as stream:
+        rows = [line.rstrip("\n").split("\t") for line in stream if not line.startswith("#")]
+    index = {name: i for i, name in enumerate(rows[0])}
+    weights = {
+        (row[index["hm_chr"]], row[index["hm_pos"]]): (
+            row[index["effect_allele"]],
+            float(row[index["effect_weight"]]),
+        )
+        for row in rows[1:]
+    }
+    assert weights[("20", "5948227")] == ("A", 0.88)
+    assert weights[("19", "55833664")] == ("G", -0.41)
 
 
 def _card(data: dict[str, Any]) -> dict[str, Any]:

@@ -24,6 +24,13 @@ def test_every_section_has_info() -> None:
         assert info.milestone.strip()
 
 
+def test_the_reproductive_blurb_covers_carrier_and_trait_cards() -> None:
+    """M11.7: "about offspring" alone is false beside scores about the reader."""
+    blurb = SECTIONS[Section.REPRODUCTIVE].blurb
+    assert "about offspring" in blurb and "about self" in blurb
+    assert "incomplete by construction" in blurb
+
+
 def test_order_is_agents_md_order_not_alphabetical() -> None:
     """The order is load-bearing: ancestry feeds PRS confidence, traits demo the product."""
     assert SECTION_ORDER[0] is Section.ANCESTRY
