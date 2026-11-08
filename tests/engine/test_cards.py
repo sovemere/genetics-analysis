@@ -781,11 +781,15 @@ def test_the_committed_m3_6_seed_pack_has_reviewable_traits_coverage() -> None:
     required = {
         "abcc11_earwax_type",
         "tas2r38_prop_ptc_bitterness",
-        "mcm6_lactase_persistence",
         "herc2_oca2_eye_shade",
         "mc1r_r151c_red_hair",
     }
     assert required <= {card.id for card in traits}
+    # M12.1 moved the lactase and ALDH2 cards to nutrition (owner decision, 2026-11-08). A
+    # card renders in one section, so they must not also be here.
+    nutrition = {card.id for card in pack.in_section(Section.NUTRITION)}
+    assert {"mcm6_lactase_persistence", "aldh2_alcohol_flushing"} <= nutrition
+    assert not {"mcm6_lactase_persistence", "aldh2_alcohol_flushing"} & {c.id for c in traits}
 
 
 # ---------------------------------------------------------------------------

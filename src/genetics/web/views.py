@@ -1514,6 +1514,40 @@ def parse_query(params: Mapping[str, Sequence[str]]) -> GridQuery:
 
 
 @dataclass(frozen=True)
+class RelatedLink:
+    """A section's pointer to a card another section holds (M12.1), resolved for one run.
+
+    ``url`` and ``section_title`` come from the run's own card, so the link opens what was
+    saved and names the section it was saved in. A run without the card -- saved before it
+    existed -- gets ``url=None`` and is told so, rather than shown a link that fails.
+    """
+
+    card_id: str
+    title: str
+    section_title: str | None
+    url: str | None
+
+
+def related_links(section: str, cards: Sequence[CardView]) -> tuple[RelatedLink, ...]:
+    """The pointers :class:`sections.SectionInfo` declares for ``section``, for this run."""
+    if section not in {s.value for s in Section}:
+        return ()
+    by_id = {card.card_id: card for card in cards}
+    links: list[RelatedLink] = []
+    for related in sections.SECTIONS[Section(section)].related:
+        card = by_id.get(related.card_id)
+        links.append(
+            RelatedLink(
+                card_id=related.card_id,
+                title=related.label if card is None else card.title,
+                section_title=None if card is None else card.section_title,
+                url=None if card is None else card.url,
+            )
+        )
+    return tuple(links)
+
+
+@dataclass(frozen=True)
 class CardGroup(NoGenotypeRepr):
     """One panel of the grid: a section, or a confidence tier."""
 
@@ -1528,6 +1562,9 @@ class CardGroup(NoGenotypeRepr):
 
     interpreted: int
     milestone: str | None
+    related: tuple[RelatedLink, ...] = ()
+    """Cards held by other sections that this one points to. Never counted in ``total``:
+    they are this run's cards, rendered once, in their own section."""
 
     @property
     def hidden(self) -> int:
@@ -1659,6 +1696,7 @@ def _section_groups(cards: Sequence[CardView], query: GridQuery) -> tuple[CardGr
                 total=len(here),
                 interpreted=sum(1 for card in here if card.is_interpreted),
                 milestone=info.milestone if info is not None else None,
+                related=related_links(name, cards),
             )
         )
     return tuple(groups)

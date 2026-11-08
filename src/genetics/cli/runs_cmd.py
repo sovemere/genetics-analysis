@@ -28,7 +28,7 @@ That is a decision in both directions, not an oversight in one:
 from __future__ import annotations
 
 import json
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Annotated, Any, NoReturn
 
 import typer
@@ -40,6 +40,7 @@ from genetics.run.bundle import (
     BundleIntegrityError,
     BundleVersionError,
     RunBundle,
+    StoredCard,
 )
 from genetics.run.store import RunNotFoundError, RunStatus
 
@@ -512,7 +513,36 @@ def runs_show(
     typer.echo("")
     if scope is not None and scope["status"] == "not-recorded":
         typer.echo(f"  {scope['text']}")
+    for line in _related_lines(bundle.cards):
+        typer.echo(f"  {line}")
     typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")
+
+
+def _related_lines(cards: Sequence[StoredCard]) -> list[str]:
+    """The sections' pointers to cards other sections hold (M12.1), as the dashboard shows them.
+
+    A card is listed once, in its own section; a pointer only names it. Resolved against this
+    run's cards, so a run saved before the card existed says so instead of naming a card id
+    the run cannot show.
+    """
+    from genetics.engine import sections
+
+    by_id = {card.card_id: card for card in cards}
+    lines: list[str] = []
+    for section in sections.SECTION_ORDER:
+        info = sections.SECTIONS[section]
+        if not info.related:
+            continue
+        names = []
+        for related in info.related:
+            card = by_id.get(related.card_id)
+            names.append(
+                f"{related.label} (not in this run)"
+                if card is None
+                else f"{card.card_id} ({card.section})"
+            )
+        lines.append(f"{info.title} also points to: {'; '.join(names)}")
+    return lines
 
 
 def _ancestry_line(record: Mapping[str, Any] | None) -> str:

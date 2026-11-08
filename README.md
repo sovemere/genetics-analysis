@@ -224,7 +224,12 @@ cycle length and serum testosterone in women and in men, each with its own endpo
 concentration or fertility estimate. The menopause card says on its face that its published R2 is
 probably too low, and why. Knowledge schema 9 and bundle format 28. See the
 [model audit](docs/reproductive_prs.md).
-[M12.1 nutrition and metabolism](docs/handoff.md#next-open-step-m121-nutrition-cards) is next.
+**M12.1 nutrition cards are implemented.** Nine cards fill the nutrition section: coffee intake,
+the CYP1A2 "slow metaboliser" marker with its actual (candidate-gene) evidence, ADH1B alcohol
+intake, FUT2 secretor status and vitamin B12, GC vitamin D, FOLR3 folate, and the lactase and ALDH2
+cards moved from traits. HFE and celiac stay in their own sections, and the nutrition section links
+to them. See the [nutrition audit](docs/nutrition.md).
+[M12.2, the MTHFR calibration card](docs/handoff.md#next-open-step-m122-mthfr) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

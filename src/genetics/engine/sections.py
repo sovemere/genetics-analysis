@@ -36,6 +36,26 @@ class Section(StrEnum):
 
 
 @dataclass(frozen=True)
+class RelatedCard:
+    """A card another section holds that a reader of this one should be pointed to (M12.1).
+
+    A card renders in exactly one section: a second copy would be a second card with the
+    same claim, two confidence results to keep in step, and a count that double-counts.
+    Some topics still belong to two sections. HFE iron overload and celiac HLA-DQ are
+    nutrition topics, but HFE carries a carrier declaration that only physical health and
+    reproductive accept, and an HLA card can only sit in immunogenetics or
+    pharmacogenomics. A pointer names such a card without moving or copying it.
+
+    ``label`` is shown only when the run does not hold the card -- a run saved before the
+    card existed -- so a reader is told it is absent rather than shown a dead link. A test
+    checks that every pointer names a card the pack holds in another section.
+    """
+
+    card_id: str
+    label: str
+
+
+@dataclass(frozen=True)
 class SectionInfo:
     """Display metadata and the roadmap milestone that fills the section.
 
@@ -48,6 +68,7 @@ class SectionInfo:
     title: str
     blurb: str
     milestone: str
+    related: tuple[RelatedCard, ...] = ()
 
 
 _INFO: tuple[SectionInfo, ...] = (
@@ -90,8 +111,13 @@ _INFO: tuple[SectionInfo, ...] = (
     SectionInfo(
         Section.NUTRITION,
         "Nutrition & metabolism",
-        "Lactase persistence, caffeine, alcohol, iron, folate.",
+        "Lactase persistence, caffeine, alcohol metabolism, vitamin B12, vitamin D and "
+        "folate. Iron overload and celiac HLA-DQ have cards in their own sections.",
         "M12",
+        related=(
+            RelatedCard("hfe_c282y_iron_overload", "HFE C282Y and iron overload"),
+            RelatedCard("hla_celiac_dq2_dq8", "HLA-DQ2.5 and DQ8 and celiac disease"),
+        ),
     ),
     SectionInfo(
         Section.SUBSTANCE_USE,

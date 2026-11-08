@@ -31,7 +31,9 @@ guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards
 `immunogenetics/` and `pharmacogenomics/hla.yaml`. M11.5 adds 15 carrier cards under
 `reproductive/` and a carrier declaration on HFE C282Y. M11.6 adds one computed card,
 `reproductive/scope.yaml`. M11.7 adds seven polygenic cards, `reproductive/polygenic.yaml`.
-The current pack has 108 cards: 52 single-variant interpretations (16 of them carrier cards),
+M12.1 adds seven nutrition cards, `nutrition/variants.yaml`, and moves the lactase and ALDH2
+cards from traits to `nutrition/lactase_alcohol.yaml` with only their `section` changed.
+The current pack has 115 cards: 59 single-variant interpretations (16 of them carrier cards),
 one two-marker interpretation, 12 assay-limit cards, six computed cards, 21 polygenic cards,
 eight guideline cards and eight HLA cards.
 
@@ -298,6 +300,13 @@ They retain weak/conflicting evidence and explicitly unknown calibration.
 The injury comparator outcomes retain null estimates; all four variants use
 forward-only matching, with no consumer I/D interpretation or inferred ACE
 insertion/deletion state.
+
+The [nutrition audit](../docs/nutrition.md) covers coffee intake and the CYP1A2 "slow
+metaboliser" marker, ADH1B alcohol intake, FUT2 secretor status and vitamin B12, GC vitamin D
+and FOLR3 folate. Each card names the forward-strand base its paper's allele corresponds to,
+and how that was established. A card renders in one section; `SectionInfo.related` in
+`engine/sections.py` lets a section point to a card another section holds, which is how
+nutrition reaches HFE (physical health) and celiac HLA-DQ (immunogenetics).
 
 The [reproductive model audit](../docs/reproductive_prs.md) distinguishes age at menarche, age
 at menopause, age at first live birth, age at first sexual intercourse, cycle length and

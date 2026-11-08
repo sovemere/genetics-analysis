@@ -55,6 +55,16 @@
     {% if group.blurb %}
       <p class="muted">{{ group.blurb }}</p>
     {% endif %}
+    {% if group.related %}
+      {# M12.1: a card renders in one section; these are pointers to cards another section
+         holds, not copies, and are not counted in this panel. #}
+      <p class="muted related">
+        Also relevant here, shown in their own sections:
+        {% for link in group.related %}
+          {% if link.url %}<a href="{{ link.url }}{{ shell.grid.query.query_string }}">{{ link.title }}</a> ({{ link.section_title }}){% else %}{{ link.title }} (not in this run){% endif %}{% if not loop.last %}; {% endif %}
+        {% endfor %}
+      </p>
+    {% endif %}
     {% if group.key == "pharmacogenomics" and shell.has_selection %}
       {% include "_pgxfaces.html" %}
     {% endif %}

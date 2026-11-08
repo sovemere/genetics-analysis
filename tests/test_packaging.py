@@ -29,6 +29,7 @@ def test_wheel_configuration_includes_the_reviewed_knowledge_corpus() -> None:
         "traits/pigmentation.yaml",
         "traits/sensory_metabolism.yaml",
         "traits/morphology_circadian.yaml",
+        "nutrition/variants.yaml",
         "impossibilities/assay_limits.yaml",
         "impossibilities/structural_variants.yaml",
         "impossibilities/ancestry_limits.yaml",

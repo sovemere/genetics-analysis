@@ -1,6 +1,8 @@
-# Handoff: M12.1 nutrition and metabolism
+# Handoff: M12.2 MTHFR calibration card
 
-As of 2026-11-07, **M0-M11 are implemented; M12.1 is next**. Full-reference
+As of 2026-11-08, **M0-M11 and M12.1 are implemented; M12.2 is next**. See
+[the M12.2 entry contract](#next-open-step-m122-mthfr) and
+[the M12.1 record](#accepted-m121-nutrition-cards). Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -31,7 +33,11 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M11.7 reproductive traits are implemented; M12.1 is next.** Seven polygenic cards take the
+**M12.1 nutrition cards are implemented; M12.2 is next.** Nine cards fill the nutrition section,
+seven of them new, and a section pointer reaches HFE and celiac in their own sections; no schema
+or bundle-format change. See [the M12.1 record](#accepted-m121-nutrition-cards) and
+[the nutrition audit](nutrition.md).
+**M11.7 reproductive traits are implemented.** Seven polygenic cards take the
 reproductive section beyond carrier status, on knowledge schema 9 and bundle format 28; see
 [the M11.7 record](#accepted-m117-reproductive-traits),
 [the model audit](reproductive_prs.md) and
@@ -504,9 +510,85 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m122-mthfr"></a>
+
+## Next open step: M12.2 MTHFR
+
+M12.2 is the MTHFR card, which the roadmap calls **a deliberate calibration test case**. MTHFR
+is heavily overhyped in wellness marketing. The card should state the actual evidence and let
+the confidence calculator land where it lands. It is the reference example for how the
+project handles popular claims with thin support. Nothing has been selected or verified
+beyond what is listed here.
+
+What M12.1 hands over:
+
+- **The marker is measured.** C677T is rs1801133, chr1:11856378 GRCh37, on the array. dbSNP
+  b157 lists G>A,C,T, so use `strand: forward_only`. ClinVar VariationID 3520 names it
+  `NM_005957.5(MTHFR):c.665C>T (p.Ala222Val)`. MTHFR is on the reverse strand, so 677T/Val222
+  is **forward A** (gnomAD exomes: 31.5% of all alleles). A1298C is rs1801131 (forward T>G,
+  ClinVar 3521, benign/likely benign), also on the array. ClinVar classes neither as
+  pathogenic, so the §4.1 frequency gate does not apply.
+- **A folate estimate is already read.** Grarup 2013 Table 2 (doi:10.1371/journal.pgen.1003530):
+  effect allele G (677C) raises serum folate by 0.096 quantile-normalised units in Iceland,
+  and by 0.18 in each of Inter99 and Health2006. Combined n 37,337, P 9.5e-53, I2 62%
+  (P 0.005). The FOLR3 card's text says "the main genetic influence on folate, MTHFR, is a
+  separate card". So M12.2 must put the card in nutrition, or that sentence becomes false.
+- **The calibration needs sources for the popular claims, not only the folate one.**
+  Candidates to verify, none read yet: the thermolabile enzyme (Frosst 1995, Nat Genet),
+  homocysteine meta-analyses, and the ACMG practice guideline on the lack of evidence for
+  MTHFR polymorphism testing (Hickey 2013, Genet Med). Wellness claims (depression,
+  miscarriage, "methylation") need their own primary evidence or an explicit statement that
+  there is none. Do not borrow the folate estimate for them.
+- **Outcome-specific evidence fits.** Schema 3 lets each genotype carry its own estimate, or
+  `evidence: null` where a group is only a comparator. M12.1's rs762551 card is the nearest
+  model: two outcomes with different studies, both candidate-gene, and replication recorded
+  as `none` with the audit's scope stated.
+- **Bind strand twice.** Every M12.1 card fixed its forward base from a ClinVar HGVS name
+  and from population frequency. Star-allele and coding-strand labels disagree between
+  papers (the CYP1A2 *1F trap in [the audit](nutrition.md#the-cyp1a2-label-trap)).
+- **Read a denominator from the analysis that produced the estimate.** Two M12.1 numbers
+  had to come from a forest plot and from a per-genotype table, because the headline figure
+  had no matching n.
+
+<a id="accepted-m121-nutrition-cards"></a>
+
+## Accepted M12.1 nutrition cards
+
+Implemented on 2026-11-08 under [the nutrition audit](nutrition.md). The owner settled four
+questions first, each with the recommended option. Lactase and ALDH2 move from traits. HFE and
+celiac stay in place and are linked by a section pointer. Folate goes to M12.2's MTHFR card
+unless another locus met the bar; one did, FOLR3. Both CYP1A2 markers get a card.
+
+- **Seven new schema-3 cards** in `knowledge/nutrition/variants.yaml`:
+  `cyp1a2_coffee_intake`, `cyp1a2_rs762551_caffeine`, `adh1b_alcohol_intake`,
+  `fut2_secretor_status`, `fut2_vitamin_b12`, `gc_vitamin_d` and `folr3_serum_folate`.
+  `knowledge/nutrition/lactase_alcohol.yaml` holds the two moved cards, changed only in
+  `section`. Knowledge schema stays at 9 and bundle format at 28. Saved bundles record each
+  card's section, so earlier runs still show lactase and ALDH2 under traits.
+- **`SectionInfo.related`** (`engine/sections.py`) names cards another section holds. The
+  dashboard's section panel links to each card in its own section, and `genetics runs show`
+  prints the same line. A run without the card says "not in this run". The pointer is not
+  counted and is not shown when the grid is grouped by tier.
+- **FOLR3 rs652197 is off the array.** A `--no-impute` run reports it as absent, like the
+  cilantro and APOE cards before it.
+
+Validation on 2026-11-08, Windows, Python 3.13, Java 17 and the pinned PLINK/Beagle tools
+configured: the full native suite passes **3,928 tests with nine skips** in 712 s. The skips
+are the five existing Windows skips and the four published-classifier HIBAG tests, which need
+a separate reference root and do not touch these cards. Card wording was tightened after that
+run started, so all 880 engine, web, `runs` CLI and packaging tests were run again and pass.
+The 64 nutrition tests include the native gnomAD and ClinVar strand checks. Full dbSNP card
+lint passes **115 cards, 564 renders, 61/61 marker keys**. All four strict Windows/Linux x
+Python 3.11/3.13 type targets (243 files), ruff and format pass. No personal export was
+opened for any result; the array's marker list was read for rsID and position only. No
+browser review is claimed: the pointer is checked through the test client's HTML.
+
 <a id="next-open-step-m121-nutrition-cards"></a>
 
-## Next open step: M12.1 nutrition cards
+## M12.1 entry contract (implemented; retained for review)
+
+The open questions below were settled as recorded in
+[the M12.1 record](#accepted-m121-nutrition-cards). The entry text follows.
 
 M12.1 fills the nutrition section, which has no card yet: MCM6 lactase persistence, CYP1A2
 caffeine, ADH1B/ALDH2 alcohol, HFE haemochromatosis, celiac HLA-DQ, FUT2 secretor status, vitamin D

@@ -215,7 +215,7 @@ below are in v1 scope by owner decision** — see `phase1_roadmap.md` for build 
 | **Psychometrics** | Cognitive + personality. Weakest evidence base (§4.5) |
 | **Pharmacogenomics** | *Highest actionable value.* See below |
 | **Traits, morphology & sensory** | *Highest confidence in the app.* See below |
-| **Nutrition & metabolism** | Lactase, CYP1A2 caffeine, ADH1B/ALDH2, HFE, celiac HLA-DQ2/DQ8, MTHFR |
+| **Nutrition & metabolism** | Lactase, CYP1A2 caffeine, ADH1B/ALDH2, HFE, celiac HLA-DQ2/DQ8, MTHFR. HFE and celiac render in physical health and immunogenetics; this section links to them (M12.1) |
 | **Substance use & behavioural propensity** | Distinct from both psychometrics and mental health |
 | **Immunogenetics (HLA)** | A distinct *capability*, not just a topic |
 | **Reproductive & carrier status** | Carrier findings are about offspring, not self; reproductive-timing and sex-hormone scores are about self |
@@ -236,8 +236,8 @@ CYP2C9, VKORC1, SLCO1B1, TPMT, DPYD, NUDT15, G6PD) and render CYP2D6 as an expli
 **most reliable section in the app**. Large-effect common variants — HERC2/OCA2 eye
 colour, ABCC11 earwax and body odour, TAS2R38 bitter taste, ALDH2 alcohol flush, MCM6
 lactase persistence, asparagus anosmia, photic sneeze, cilantro aversion — are precisely
-what arrays genotype well. This is the exact inverse of §4.1: common + large effect =
-high confidence. It is also where the "obscure and unflattering" mandate (§0.1B) mostly
+what arrays genotype well (the lactase and ALDH2 cards render under nutrition since M12.1).
+This is the exact inverse of §4.1: common + large effect = high confidence. It is also where the "obscure and unflattering" mandate (§0.1B) mostly
 lives. Lead with it; it demonstrates the product.
 
 **Immunogenetics** is listed as a capability because HLA types are not directly on the

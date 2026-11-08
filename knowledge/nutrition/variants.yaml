@@ -1,0 +1,600 @@
+# M12.1 nutrition and metabolism cards. Every marker was measured against the pinned dbSNP
+# b157 index, the array's marker list (rsID and position only), ClinVar and gnomAD r2.1.1
+# exomes, and every figure below against its paper. See docs/nutrition.md for the audit,
+# the strand reasoning behind each allele and what was considered and left out.
+schema_version: 3
+cards:
+  - id: cyp1a2_coffee_intake
+    section: nutrition
+    kind: interpretation
+    title: Coffee intake at the CYP1A1-CYP1A2 locus
+    gene: CYP1A1-CYP1A2
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs2472297, chrom: "15", pos_grch37: 75027880, alleles: [C, T]}
+      genotypes: {CC: no_t, CT: one_t, TT: two_t}
+    outcomes:
+      no_t:
+        summary: >-
+          No copy of the rs2472297 T allele. Among coffee drinkers of European ancestry,
+          each T copy was associated with 0.11 more cups a day; CC is the comparison group.
+        detail: >-
+          rs2472297 lies between CYP1A1 and CYP1A2, whose enzyme clears most caffeine.
+          In the Coffee and Caffeine Genetics Consortium meta-analysis each T allele went
+          with 0.11 more cups a day (SE 0.01) in up to 30,062 European-ancestry
+          replication participants, 0.15 in up to 91,462 discovery participants and 0.19
+          in up to 7,964 African Americans. CC does not mean you drink less coffee, and
+          this marker does not measure how fast you clear caffeine.
+      one_t:
+        summary: >-
+          One copy of the rs2472297 T allele, associated with 0.11 more cups of coffee a
+          day among coffee drinkers of European ancestry.
+        detail: >-
+          The T allele was found in Icelandic, Dutch, Sorb, US and Danish coffee
+          drinkers (about 0.2 cups a day per allele, 0.55% of the variance in coffee
+          drunk) and replicated in the consortium's 0.11 cups a day per allele. The
+          association was present in smokers and non-smokers. Sulem et al. suggest the
+          allele may allow more coffee through faster caffeine clearance, but state that
+          this remains to be proven experimentally.
+      two_t:
+        summary: >-
+          Two copies of the rs2472297 T allele, each associated with 0.11 more cups of
+          coffee a day among coffee drinkers of European ancestry.
+        detail: >-
+          Under the study's additive model, two copies correspond to about 0.22 more cups
+          a day than CC, a small shift against the spread of how much people drink. Most
+          of the variation in coffee drinking is cultural and personal; this locus
+          explained 0.55% of it in the first study.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 30062
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.11
+        ci_low: 0.09
+        ci_high: 0.13
+        units: cups of coffee per day per T allele, among coffee drinkers
+        context: >-
+          Coffee and Caffeine Genetics Consortium 2015, Table 1, stage 2 European-ancestry
+          replication (n up to 30,062): beta 0.11, SE 0.01. The interval is 0.11 plus or
+          minus 1.96 SE, computed here from the printed SE. Stage 1 gave 0.15 (n up to
+          91,462) and the random-effects estimate over all stages 0.14 (n 116,272).
+    citations:
+      - type: doi
+        id: 10.1038/mp.2014.107
+        title: Genome-wide meta-analysis identifies six novel loci associated with habitual coffee consumption
+        note: "Table 1: rs2472297 T, 0.15 (0.01) stage 1 EUR, 0.11 (0.01) stage 2 EUR, 0.19 (0.05) African American, cups/day per allele."
+      - type: doi
+        id: 10.1093/hmg/ddr086
+        title: Sequence variants at CYP1A1-CYP1A2 and AHR associate with coffee consumption
+        note: "Discovery and follow-up in 10,661 coffee drinkers; about 0.2 cups/day per T allele; 0.55% of variance."
+      - type: accession
+        id: rs2472297
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs2472297
+        note: GRCh37 forward-strand coordinate; the T allele is the papers' T.
+    caveats:
+      - >-
+        The estimates are among people who drink coffee and come from questionnaires.
+        They describe average consumption, not caffeine sensitivity, sleep or health.
+      - >-
+        The T allele is absent from 1000 Genomes East Asian samples and uncommon in South
+        Asian and African samples, so most people outside Europe carry CC whatever their
+        caffeine habits.
+      - >-
+        rs2472297 is intergenic. It is not the CYP1A2 -163C>A marker (rs762551) that
+        consumer reports call "slow metaboliser"; that marker has its own card.
+
+  - id: cyp1a2_rs762551_caffeine
+    section: nutrition
+    kind: interpretation
+    title: CYP1A2 -163C>A, the "slow caffeine metaboliser" marker
+    gene: CYP1A2
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs762551, chrom: "15", pos_grch37: 75041917, alleles: [A, C]}
+      genotypes: {AA: aa, AC: c_carrier, CC: c_carrier}
+    outcomes:
+      aa:
+        summary: >-
+          AA at CYP1A2 -163, often labelled a "fast" caffeine metaboliser. Candidate-gene
+          evidence: AA differed only in 51 smokers; 185 non-smokers showed no difference.
+        detail: >-
+          Sachse et al. gave 100 mg caffeine to 185 Caucasian non-smokers and 51 smokers
+          in Berlin. In non-smokers the urinary caffeine metabolic ratio did not differ
+          between genotypes. In smokers the 5-hour plasma paraxanthine/caffeine ratio was
+          1.37 for AA, 0.88 for AC and 0.82 for CC; AA minus AC was 0.48 (95% CI
+          0.15-0.81). The authors read AA as a possible high-inducibility genotype, since
+          smoking induces CYP1A2. Speed of clearance is not established for non-smokers.
+      c_carrier:
+        evidence:
+          tier: candidate_gene
+          replication: none
+          sample_size: 2196
+          ancestry: [AMR]
+          effect:
+            measure: odds_ratio
+            value: 1.64
+            ci_low: 1.14
+            ci_high: 2.34
+        summary: >-
+          At least one C allele at CYP1A2 -163, labelled "slow" in a Costa Rican study
+          where four or more cups of coffee a day went with nonfatal heart attack only in
+          C carriers (OR 1.64, 95% CI 1.14-2.34). Candidate-gene, unreplicated here.
+        detail: >-
+          Cornelis et al. compared 2,014 first nonfatal myocardial infarction cases with
+          2,014 matched controls in Costa Rica (1994-2004). Among the 1,114 cases and
+          1,082 controls carrying C, odds rose with coffee: 0.99, 1.36 and 1.64 for 1, 2-3
+          and 4 or more cups against under 1. Among AA they were 0.75, 0.78 and 0.99
+          (interaction P = 0.04). A case-control study gives no absolute risk. Among 51
+          smokers in Berlin AA metabolised caffeine faster; among 185 non-smokers no
+          genotype differed.
+    evidence:
+      tier: candidate_gene
+      replication: none
+      sample_size: 51
+      ancestry: [EUR]
+      effect:
+        measure: mean_difference
+        value: 0.48
+        ci_low: 0.15
+        ci_high: 0.81
+        units: 5-hour plasma paraxanthine/caffeine ratio, AA minus AC, smokers
+        context: >-
+          Sachse 1999: 51 smokers; the 185 non-smokers in the same study showed no
+          difference in the urinary metabolic ratio between genotypes.
+    citations:
+      - type: doi
+        id: 10.1046/j.1365-2125.1999.00898.x
+        title: Functional significance of a C→A polymorphism in intron 1 of the cytochrome P450 CYP1A2 gene tested with caffeine
+        note: "185 non-smokers: no genotype difference. 51 smokers: AA minus CA 0.48 (95% CI 0.15-0.81). 46% AA, 44% CA, 10% CC."
+      - type: doi
+        id: 10.1001/jama.295.10.1135
+        title: Coffee, CYP1A2 genotype, and risk of myocardial infarction
+        note: "2,014 cases and 2,014 controls, Costa Rica; >=4 cups/day OR 1.64 (1.14-2.34) in *1F carriers, 0.99 (0.66-1.48) in *1A/*1A; interaction P = .04."
+      - type: doi
+        id: 10.1093/hmg/ddr086
+        title: Sequence variants at CYP1A1-CYP1A2 and AHR associate with coffee consumption
+        note: "rs762551's nominal coffee-intake association (P = 0.0080) was not significant after adjusting for rs2472297 (P = 0.21)."
+      - type: accession
+        id: rs762551
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs762551
+        note: GRCh37 forward-strand coordinate; CYP1A2 is on the forward strand, so -163C>A is forward C>A.
+      - type: accession
+        database: ClinVar
+        id: VCV000511079
+        title: NM_000761.5(CYP1A2):c.-9-154C>A
+    caveats:
+      - >-
+        The star-allele label is used for opposite alleles. Cornelis et al. call C
+        carriers "*1F" and slow; their 55% of cases and 54% of controls carrying it
+        matches the C allele, not A. Sulem et al. use *1F for the allele suggested to
+        raise CYP1A2 activity in smokers, which is A in Sachse's data. This card names
+        forward-strand bases only.
+      - >-
+        In a genome-wide study this marker's nominal association with coffee intake
+        disappeared after adjusting for rs2472297, the replicated CYP1A1-CYP1A2 signal
+        (see that card). No independent replication of either estimate here was verified
+        in this audit, so both are recorded as unreplicated.
+      - >-
+        The heart-attack association is from one Hispanic case-control population and
+        concerns nonfatal events; it is not a measured risk for you and gives no absolute
+        rate.
+
+  - id: adh1b_alcohol_intake
+    section: nutrition
+    kind: interpretation
+    title: ADH1B Arg48His and alcohol intake
+    gene: ADH1B
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1229984, chrom: "4", pos_grch37: 100239319, alleles: [C, T]}
+      genotypes: {CC: non_carrier, CT: carrier, TT: two_copies}
+    outcomes:
+      non_carrier:
+        summary: >-
+          No copy of ADH1B His48. In 218,969 people of European descent, carriers of His48
+          drank 17.2% fewer alcohol units a week than non-carriers like you.
+        detail: >-
+          Two forward-strand C alleles encode Arg48, the common form in Europe. Your
+          genotype is the comparison group of Holmes et al.'s Mendelian randomisation
+          study, in which about 7% of participants carried His48. It does not mean you
+          drink more than anyone, and it says nothing about ALDH2, the other main alcohol
+          enzyme variant, which has its own card.
+      carrier:
+        summary: >-
+          One copy of ADH1B His48. In 218,969 people of European descent, carriers drank
+          17.2% fewer alcohol units a week than non-carriers and had 0.78 times the odds
+          of binge drinking.
+        detail: >-
+          The forward-strand T allele is the papers' rs1229984 A allele, ADH1B His48
+          (ADH1B*2). Holmes et al. pooled 56 studies: carriers drank 17.2% fewer units a
+          week (95% CI 15.6-18.9%), had binge-drinking OR 0.78 (0.73-0.84) and abstention
+          OR 1.27 (1.21-1.34). The paper describes the variant as also associated with
+          flushing after alcohol and a lower risk of alcohol dependence.
+      two_copies:
+        summary: >-
+          Two copies of ADH1B His48. Carriers of one or two copies drank 17.2% fewer
+          alcohol units a week than non-carriers in 218,969 people of European descent;
+          two copies were not analysed separately.
+        detail: >-
+          Holmes et al. used a dominant model because His48 is uncommon in Europe, so
+          people with one and two copies were pooled; no separate estimate exists for two
+          copies here. His48 is the majority allele in East Asian samples, which the
+          study did not include.
+    evidence:
+      tier: gwas
+      replication: meta_analysis
+      sample_size: 218969
+      ancestry: [EUR]
+      effect:
+        measure: mean_difference
+        value: -17.22
+        ci_low: -18.86
+        ci_high: -15.55
+        units: percent difference in self-reported alcohol units per week, His48 carriers versus non-carriers
+        context: >-
+          Holmes 2014 Table 1, 46 studies with intake data, 218,969 participants of
+          European descent, fixed-effect meta-analysis, P = 5.5e-76.
+    citations:
+      - type: doi
+        id: 10.1136/bmj.g4164
+        title: "Association between alcohol and cardiovascular disease: Mendelian randomisation analysis based on individual participant data"
+        note: "Table 1: intake volume -17.22% (-18.86 to -15.55), 218,969 participants; binge OR 0.78 (0.73-0.84); abstention OR 1.27 (1.21-1.34)."
+      - type: accession
+        id: rs1229984
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs1229984
+        note: GRCh37 forward strand carries T, the His48 allele, as its reference base.
+      - type: accession
+        database: ClinVar
+        id: VCV000018182
+        title: NM_000668.5(ADH1B):c.143A= (p.His48=)
+    caveats:
+      - >-
+        ADH1B is on the reverse strand. Papers name the His48 allele A; on the GRCh37
+        forward strand used here it is T, which is also the reference genome's base. The
+        frequencies agree: T is 3.8% of European exome alleles in gnomAD and 74% of East
+        Asian ones.
+      - >-
+        The 17.2% is an average difference in self-reported drinking. It does not set how
+        much any one person drinks, and drinking little is not evidence that alcohol is
+        harmless for you.
+      - >-
+        ADH1B Arg370Cys (rs2066702), the variant with the corresponding role in many
+        people of African ancestry, is not on this array and is not read here.
+
+  - id: fut2_secretor_status
+    section: nutrition
+    kind: interpretation
+    title: FUT2 secretor status and norovirus susceptibility
+    gene: FUT2
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs601338, chrom: "19", pos_grch37: 49206674, alleles: [A, G]}
+      genotypes: {AA: non_secretor, AG: secretor, GG: secretor}
+    outcomes:
+      non_secretor:
+        summary: >-
+          Two copies of the FUT2 nonsense allele, the usual European cause of being a
+          non-secretor. Secretors had 9.9 times the odds of GII.4 norovirus infection of
+          non-secretors (95% CI 3.9-24.8).
+        detail: >-
+          Two forward-strand A alleles carry the stop codon the original papers call
+          Trp143Ter (Trp154Ter in current RefSeq numbering), so FUT2 makes no enzyme and
+          ABH blood-group antigens are not secreted into saliva and the gut.
+          Kelly et al. found about 20% of randomly chosen people homozygous for it and all
+          six unrelated non-secretors they tested. Across 12 GII.4 studies in a
+          meta-analysis, 7 of 469 infected people were non-secretors. Non-secretors are
+          not protected against all norovirus strains.
+      secretor:
+        summary: >-
+          At least one working FUT2 copy, so most likely a secretor. Secretors had 9.9
+          times the odds of GII.4 norovirus infection of non-secretors (95% CI 3.9-24.8).
+        detail: >-
+          One forward-strand G allele encodes the full-length enzyme, and one working copy
+          is enough to secrete ABH antigens. Norovirus GII.4, the strain behind most
+          outbreaks, binds those antigens. In Thorven et al.'s Swedish outbreaks, all 53
+          people with symptomatic norovirus were secretors, against 20% non-secretors
+          among 104 blood donors. Other FUT2 null alleles can still make a G carrier a
+          non-secretor.
+    evidence:
+      tier: functional
+      replication: meta_analysis
+      sample_size: 2268
+      ancestry: [MULTI]
+      effect:
+        measure: odds_ratio
+        value: 9.89
+        ci_low: 3.94
+        ci_high: 24.84
+        context: >-
+          Kambhampati 2016, Figure 2, GII.4 subgroup: 12 studies, 2,268 participants
+          (counts read from the figure), random-effects OR for infection in secretors
+          versus non-secretors. Non-secretors include carriers of any FUT2 null allele.
+    citations:
+      - type: doi
+        id: 10.1093/cid/civ873
+        title: "Host Genetic Susceptibility to Enteric Viruses: A Systematic Review and Metaanalysis"
+        note: "GII.4 OR 9.89 (3.94-24.84), 12 studies; all norovirus OR 4.2 (2.3-7.9), 18 studies, I2 73%, publication bias P < .001; GI not significant."
+      - type: doi
+        id: 10.1074/jbc.270.9.4640
+        title: "Sequence and expression of a candidate for the human Secretor blood group alpha(1,2)fucosyltransferase gene (FUT2). Homozygosity for an enzyme-inactivating nonsense mutation commonly correlates with the non-secretor phenotype"
+        note: "About 20% of randomly selected individuals homozygous for Trp143-->ter; each of six unrelated non-secretors homozygous."
+      - type: doi
+        id: 10.1128/JVI.79.24.15351-15355.2005
+        title: A Homozygous Nonsense Mutation (428G→A) in the Human Secretor (FUT2) Gene Provides Resistance to Symptomatic Norovirus (GGII) Infections
+        note: "0 of 53 symptomatic patients were non-secretors, against 20% of 104 Swedish blood donors (P < 0.0002)."
+      - type: accession
+        id: rs601338
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs601338
+        note: "GRCh37 forward G>A; ClinVar annotates the A allele as nonsense."
+      - type: accession
+        database: ClinVar
+        id: VCV000012945
+        title: NM_000511.6(FUT2):c.461G>A (p.Trp154Ter)
+    caveats:
+      - >-
+        This marker types the nonsense allele common in Europeans, Africans and South
+        Asians. East Asian non-secretor and weak-secretor alleles (such as 385A>T) are not
+        read here, so a G carrier may still be a non-secretor or weak secretor.
+      - >-
+        The protection is strain-specific: in the meta-analysis secretor status did not
+        significantly change the odds of GI norovirus, and the study-level evidence showed
+        publication bias. It is a difference in odds of infection, not immunity.
+      - >-
+        Secretor status also shapes gut glycans, breast-milk oligosaccharides and
+        vitamin B12 levels (see the FUT2 B12 card); this card makes no claim about those.
+
+  - id: fut2_vitamin_b12
+    section: nutrition
+    kind: interpretation
+    title: FUT2 and blood vitamin B12 levels
+    gene: FUT2
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs602662, chrom: "19", pos_grch37: 49206985, alleles: [A, G]}
+      genotypes: {AA: two_a, AG: one_a, GG: no_a}
+    outcomes:
+      two_a:
+        summary: >-
+          Two copies of the FUT2 Ser258 allele linked to higher blood vitamin B12. In US
+          women, AA averaged 488 pg/ml against about 413 for AG and GG.
+        detail: >-
+          In 37,283 Icelanders each forward-strand A allele raised serum B12 by 0.16
+          quantile-normalised units, replicated in two Danish cohorts. In Hazra et al.'s
+          Nurses' Health Study women the geometric means were 487.7 pg/ml for AA, 413.4 for
+          AG and 413.5 for GG, which looks recessive rather than additive. The A allele
+          travels with the FUT2 non-secretor allele (r2 0.76), the likely cause.
+      one_a:
+        summary: >-
+          One copy of the FUT2 Ser258 allele. Each copy raised serum B12 by 0.16
+          quantile-normalised units in Iceland, but US women with AG averaged the same as
+          GG (413 pg/ml).
+        detail: >-
+          The large Icelandic and Danish analyses fitted an additive model; the smaller
+          Nurses' Health Study found the difference confined to AA. Either way, one copy
+          shifts the average by much less than the spread of B12 levels in the population,
+          which diet, absorption, age and medicines dominate.
+      no_a:
+        summary: >-
+          No copy of the FUT2 Ser258 allele linked to higher blood vitamin B12. US women
+          with GG averaged 413 pg/ml, against 488 for AA.
+        detail: >-
+          GG is the comparison group: it is the secretor-associated end of this marker. It
+          does not mean B12 deficiency. The authors suggest secretors may absorb less B12
+          through Helicobacter pylori-related gastritis, a hypothesis they did not test.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 37283
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.16
+        units: quantile-normalised serum B12 units per A allele, Icelandic sample
+        context: >-
+          Grarup 2013 Table 1: 0.16 in Icelanders (P 4.1e-96), 0.19 in Inter99 and 0.23 in
+          Health2006 (Danish); combined n 45,568, P 2.4e-139. No standard error is printed.
+          Hazra 2008 first reported the locus in women of the Nurses' Health Study.
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1003530
+        title: Genetic Architecture of Vitamin B12 and Folate Levels Uncovered Applying Deeply Sequenced Large Datasets
+        note: "Table 1: FUT2 rs602662 effect allele A, 0.16 (Iceland), 0.19 and 0.23 (Denmark), combined N 45,568, P 2.4e-139."
+      - type: doi
+        id: 10.1038/ng.210
+        title: Common variants of FUT2 are associated with plasma vitamin B12 levels
+        note: "Table 1: rs602662 Ser/Ser 487.72, Ser/Gly 413.35, Gly/Gly 413.52 pg/ml (GWAS and replication combined); r2 0.76 with W143X."
+      - type: accession
+        id: rs602662
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs602662
+        note: "GRCh37 forward G>A; A encodes Ser258."
+      - type: accession
+        database: ClinVar
+        id: VCV000996599
+        title: NM_000511.6(FUT2):c.772G>A (p.Gly258Ser)
+    caveats:
+      - >-
+        Serum B12 concentration is not B12 status: it does not diagnose deficiency, and
+        the study did not show that the higher-B12 genotype changes any health outcome.
+      - >-
+        The estimates come from Icelandic, Danish and US women of European ancestry. The A
+        allele is almost absent from gnomAD East Asian exomes, where other FUT2 alleles
+        set secretor status.
+      - >-
+        Grarup et al. found 11 B12 loci; together their lead and secondary variants
+        explained 6.3% of B12 variance. One locus is a small part of the picture.
+
+  - id: gc_vitamin_d
+    section: nutrition
+    kind: interpretation
+    title: GC (vitamin D binding protein) and blood vitamin D
+    gene: GC
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs2282679, chrom: "4", pos_grch37: 72608383, alleles: [G, T]}
+      genotypes: {GG: two_g, GT: one_g, TT: no_g}
+    outcomes:
+      two_g:
+        summary: >-
+          Two copies of the GC allele linked to lower blood vitamin D. In the Framingham
+          Heart Study GG averaged 64.6 nmol/L of 25-hydroxyvitamin D against 82.6 for TT.
+        detail: >-
+          rs2282679 was the strongest of all loci in a genome-wide study of about 30,000
+          people of European descent (P = 1.9e-109). Each copy of this minor allele raised
+          the odds of 25-hydroxyvitamin D below 75 nmol/L by 1.63 times (95% CI
+          1.53-1.73). The 18 nmol/L gap is about half the Framingham winter-to-summer
+          difference (61.6 to 95.8).
+      one_g:
+        evidence:
+          tier: gwas
+          replication: independent
+          sample_size: 5656
+          ancestry: [EUR]
+          effect:
+            measure: mean_difference
+            value: -7.8
+            ci_low: -9.9
+            ci_high: -5.7
+            units: nmol/L of serum 25-hydroxyvitamin D, GT minus TT, Framingham Heart Study
+            context: >-
+              Wang 2010 Table 2: 74.8 (SE 0.81) for GT against 82.6 (SE 0.73) for TT,
+              n 5,656. The interval is computed here from the two printed standard errors.
+        summary: >-
+          One copy of the GC allele linked to lower blood vitamin D. In the Framingham
+          Heart Study GT averaged 74.8 nmol/L of 25-hydroxyvitamin D against 82.6 for TT.
+        detail: >-
+          Each copy of this minor allele raised the odds of 25-hydroxyvitamin D below 75
+          nmol/L by 1.63 times (95% CI 1.53-1.73) in the genome-wide study. A 7.8 nmol/L
+          difference is smaller than the season-to-season swing and the change with
+          supplementation in the same cohort (83.4 against 74.7 nmol/L).
+      no_g:
+        summary: >-
+          No copy of the GC allele linked to lower blood vitamin D. In the Framingham
+          Heart Study TT had the highest average, 82.6 nmol/L of 25-hydroxyvitamin D,
+          against 64.6 for GG.
+        detail: >-
+          TT is the comparison group. It does not mean your vitamin D is adequate: season,
+          sunlight, skin, diet, body weight and supplements move 25-hydroxyvitamin D far
+          more than this marker, and only a blood test measures it.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 5656
+      ancestry: [EUR]
+      effect:
+        measure: mean_difference
+        value: -18.0
+        ci_low: -21.8
+        ci_high: -14.2
+        units: nmol/L of serum 25-hydroxyvitamin D, GG minus TT, Framingham Heart Study
+        context: >-
+          Wang 2010 Table 2: 64.6 (SE 1.79) for GG against 82.6 (SE 0.73) for TT, n 5,656.
+          The interval is computed here from the two printed standard errors. Per allele,
+          the odds of 25-hydroxyvitamin D below 75 nmol/L were 1.63 (1.53-1.73) in Table 3.
+    citations:
+      - type: doi
+        id: 10.1016/S0140-6736(10)60588-0
+        title: "Common genetic determinants of vitamin D insufficiency: a genome-wide association study"
+        note: "Table 1: rs2282679 MAF 0.29, overall P 1.9e-109. Table 2: Framingham GC genotype means 82.6/74.8/64.6 nmol/L. Table 3: OR 1.63 (1.53-1.73) per risk allele for <75 nmol/L."
+      - type: accession
+        id: rs2282679
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs2282679
+        note: GRCh37 forward T/G; G is the minor allele in 1000 Genomes Europeans (24.7%).
+    caveats:
+      - >-
+        The paper names the alleles only as minor and major. The minor allele is forward G
+        (24.7% of 1000 Genomes European alleles, against the paper's 29%), and the minor
+        homozygotes had the lowest vitamin D.
+      - >-
+        The same allele lowers vitamin D binding protein itself. Lower total
+        25-hydroxyvitamin D with less binding protein may not mean less vitamin D reaches
+        tissues; the authors say this is not well established.
+      - >-
+        Measured in adults of European descent with several assay types. It is not a
+        diagnosis of deficiency and not a reason by itself to take a supplement.
+
+  - id: folr3_serum_folate
+    section: nutrition
+    kind: interpretation
+    title: FOLR3 and blood folate levels
+    gene: FOLR3
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs652197, chrom: "11", pos_grch37: 71849741, alleles: [C, T]}
+      genotypes: {CC: two_c, CT: one_c, TT: no_c}
+    outcomes:
+      two_c:
+        summary: >-
+          Two copies of the FOLR3 C allele linked to slightly higher serum folate: 0.069
+          quantile-normalised units per copy in 28,913 Icelanders, a small effect.
+        detail: >-
+          rs652197 is intronic in FOLR3. Grarup et al. found it in Iceland and confirmed it
+          in two Danish cohorts (0.066 and 0.071 per copy). A 2-base frameshift in FOLR3,
+          which this array cannot read, associated more strongly and is the likelier
+          cause. This marker is not on the array; it is read only from imputation.
+      one_c:
+        summary: >-
+          One copy of the FOLR3 C allele linked to slightly higher serum folate: 0.069
+          quantile-normalised units per copy in 28,913 Icelanders, a small effect.
+        detail: >-
+          Both folate loci found by Grarup et al., FOLR3 and MTHFR, explained 1.0% of
+          serum folate variance together. Diet, fortification and supplements set folate
+          levels; serum folate also reflects recent intake rather than stores.
+      no_c:
+        summary: >-
+          No copy of the FOLR3 C allele linked to slightly higher serum folate. TT is the
+          common genotype in Europe and the comparison group.
+        detail: >-
+          TT does not mean low folate. The per-copy difference is small against the spread
+          of serum folate, and the main genetic influence on folate, MTHFR, is a separate
+          card.
+    evidence:
+      tier: gwas
+      replication: independent
+      sample_size: 28913
+      ancestry: [EUR]
+      effect:
+        measure: beta
+        value: 0.069
+        units: quantile-normalised serum folate units per C allele, Icelandic sample
+        context: >-
+          Grarup 2013 Table 2: 0.069 in Icelanders (P 2.5e-10); 0.066 (P 0.011) in Inter99
+          and 0.071 (P 0.043) in Health2006; combined n 37,465, P 1.4e-12. No standard
+          error is printed. 28,913 is the paper's Icelandic folate sample.
+    citations:
+      - type: doi
+        id: 10.1371/journal.pgen.1003530
+        title: Genetic Architecture of Vitamin B12 and Folate Levels Uncovered Applying Deeply Sequenced Large Datasets
+        note: "Table 2: FOLR3 rs652197 effect allele C, EAF 0.179, 0.069/0.066/0.071; combined N 37,465, P 1.4e-12. FOLR3 2-bp insertion rs139130389: effect 0.087 SD, r2 0.51 with rs652197."
+      - type: accession
+        id: rs652197
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs652197
+        note: GRCh37 forward C/T; C is the minor allele in 1000 Genomes Europeans (13.5%).
+    caveats:
+      - >-
+        Not on the AncestryDNA V2.0 array. A run without imputation reports this marker
+        as absent; with imputation the call carries its imputation quality into
+        confidence.
+      - >-
+        The likely causal variant is a FOLR3 frameshift that this pipeline cannot match
+        (indels are excluded, AGENTS.md 4.2); rs652197 tags it only partly (r2 0.51 in
+        Iceland).
+      - >-
+        Estimated in Icelanders and Danes. The C allele is the majority allele in 1000
+        Genomes African samples (58%), where its association has not been measured.

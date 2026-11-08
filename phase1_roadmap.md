@@ -16,8 +16,18 @@ the source of truth for build state.
 
 ## Next up
 
-**M12.1 nutrition and metabolism is next.** M0–M11 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m121-nutrition-cards) records what it inherits.
+**M12.2, the MTHFR calibration card, is next.** M0–M11 and M12.1 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m122-mthfr) records what it inherits.
+
+M12.1 fills the nutrition section with nine cards. Seven are new: coffee intake at the
+CYP1A1–CYP1A2 locus, the CYP1A2 −163C>A "slow metaboliser" marker (candidate-gene,
+unreplicated, landing at moderate at best), ADH1B intake, FUT2 secretor status and norovirus,
+FUT2 vitamin B12, GC vitamin D and FOLR3 folate (off-array, imputed only). The lactase and ALDH2
+cards move from traits, unchanged apart from their section. HFE and celiac stay in their own
+sections, and a new `SectionInfo.related` pointer links to them from the dashboard and
+`runs show`. No schema or bundle-format change. Each card's forward-strand allele is bound to
+its paper by two independent checks, and one CYP1A2 star-allele label names opposite bases in
+two cited papers. See [the nutrition audit](docs/nutrition.md).
 
 M11.7 adds seven public polygenic cards to the reproductive section: age at menarche, age at
 menopause, age at first live birth, age at first sexual intercourse, menstrual cycle length and
@@ -2942,9 +2952,12 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 
 ## M12 — Nutrition & metabolism
 
-- [ ] **M12.1** Cards: MCM6 lactase persistence, CYP1A2 caffeine, ADH1B/ALDH2 alcohol,
+- [x] **M12.1** Cards: MCM6 lactase persistence, CYP1A2 caffeine, ADH1B/ALDH2 alcohol,
       HFE hemochromatosis, celiac HLA-DQ (reuse M11), FUT2 secretor status, vitamin D
-      (GC), B12, folate.
+      (GC), B12, folate. Seven new schema-3 cards, with lactase and ALDH2 moved from traits.
+      HFE and celiac are reached by a section pointer rather than moved or copied. Folate is
+      FOLR3 rs652197, the one non-MTHFR genome-wide locus found, read from imputation. MTHFR
+      stays with M12.2. See [the nutrition audit](docs/nutrition.md).
 - [ ] **M12.2** **MTHFR card as a deliberate calibration test case.** Heavily overhyped in
       wellness marketing. Include it, state the actual evidence, and let the confidence
       calculator land where it lands. This card is the reference example for how the
@@ -3058,6 +3071,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-08 | M12.1 | Nine nutrition cards: seven new schema-3 interpretation cards plus lactase and ALDH2 moved from traits (text unchanged; saved runs keep them in traits). **Owner decisions, all the recommended option:** move lactase/ALDH2; point to HFE and celiac rather than move them, because HFE's carrier block and the celiac `kind: hla` card are section-restricted; folate to M12.2's MTHFR card unless another locus met the bar; a card for each CYP1A2 marker. **Folate found a second locus.** Grarup 2013 reports FOLR3 rs652197 (combined P 1.4e-12). It is off the array, but cards already read off-array markers from imputation, so it became the folate card. **Every forward-strand allele is bound twice.** Papers name these alleles on the coding strand, or only as minor and major. ADH1B His48 is forward T (ClinVar `c.143A=` on a reverse-strand gene; gnomAD 3.8% in Europeans against Holmes's 7% carriage). FUT2 follows ClinVar's nonsense annotation where Hazra's Table 1 labels rs601338's A as Trp. GC's minor allele is forward G, by 1000 Genomes frequency. **A label trap:** Cornelis 2006's "slow" *1F is the C allele (its 55% carriage is impossible for A), while Sulem 2011 uses *1F for the higher-activity A. **Denominators kept with their estimates:** Kambhampati's GII.4 subgroup size, 2,268, was summed from its forest plot, because the text gives only the 4,584 across all publications. Wang 2010's per-allele OR is quoted, not used, because its four-cohort N is not in the main text; the card uses Table 2's Framingham means (n 5,656) with intervals computed from the printed SEs. **Confidence lands where it lands:** rs762551 reaches moderate at best on synthetic inputs, and the 0.11 cups/day coffee estimate is well established because the association is certain, not because the effect is large. The cards say both. Full dbSNP card lint 115 cards, 564 renders, 61/61 keys. See [the nutrition audit](docs/nutrition.md). |
 | 2026-11-06 | M11.6 diff review | Reviewed `64dc863..99f4998`. **P1, reproduced first:** `genetics runs show --json` and `cards carrier-scope` crashed when redirected on Windows, because `scope.yaml` is the only knowledge file with characters outside cp1252 and `CliRunner` substitutes UTF-8, so no test, CI job or `ci-local` run could see it. The CLI now switches a non-UTF-8 stdout to UTF-8 at its entry point. **P2:** imputed results read as array calls and the strand caveat was false for them; they are now counted and stated apart. **P3:** the `not_authored` re-check was per site and is now per declared allele (all 24 pass); a second scope card failed only at save and is now refused at load. P4 hardening: `COMPUTATION_SECTIONS` replaces duplicated literals. No format-27 run existed, so schema 8, record schema 1 and format 27 keep their numbers. Recorded: the saved face's wording is part of the record's schema, now pinned by a test; `runs show --json` stays the frozen record, so a proposed notice there was reverted. Validation: 3,829 native tests with nine skips; full dbSNP lint 101 cards, 508 renders, 54/54 marker keys; four strict type targets, ruff, format and fixtures pass. See [the review](docs/review_m116_session.md). |
 | 2026-11-06 | M11.6 | One computed card, `carrier_screening_scope`, states that the reproductive section is not a carrier screen and counts 16 typed markers over 9 conditions against ACMG Tier 3's 113 genes: 8 typed, 7 assay limits (SMN1, HBA1, HBA2, DMD, FMR1, FXN, F8), 98 with no card. Knowledge schema 8 `screening_scope`; bundle format 27. **Decisions.** (1) *A computed card*, because a static one cannot state counts. (2) *Gregg 2021's tables as data*, read row by row; the stated 86, 97 and 16 match, and the correction (PMC8776567) changes wording only. No frequency or population is claimed. (3) *A gap is not a limit*: a gene or allele with no card is worded as a gap in this report, and the 20 `not_authored` alleles were re-checked as having a ClinVar P/LP record and a gnomAD PASS record. (4) *Not determined stays apart from no copy* in the run tally. (5) *The statement survives filters and tier grouping*, and a run without the record still states the limit; nothing is written into it. **Not measured:** whether the array could support a card for each of the 98. Validation: 3,817 native tests with nine skips (five Windows, four published-classifier HIBAG); full dbSNP lint 101 cards, 508 renders, 54/54 marker keys; four strict type targets (241 files), ruff, format and fixtures pass. |
 | 2026-11-06 | Read-path diff review | Reviewed `3463902..209c2a9`. **One defect, reproduced first:** a record read the engine's source when the checks ended, so source edited during them was recorded as having passed. The digest is now read once per process, at import. `checks.passed` no longer raises on a source file it cannot read, and a new test renders every page twice against the shared copy. All four guards were mutation-checked. `genetics ci-local` passes 29 of 29 steps. The engine's source changed, so each saved imputed run's first read repeats its checks once; `runs list --verify` was not rerun. See [the review](docs/review_read_path_session.md). |
