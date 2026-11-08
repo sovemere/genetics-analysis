@@ -346,6 +346,11 @@ genetics runs secondary <run-id> --json
 genetics serve
 ```
 
+On Windows, `scripts\windows\build_launcher.ps1` builds `GeneticsDashboard.exe` at the
+checkout root (gitignored) with the C# compiler that ships with Windows. Double-clicking it
+runs `genetics serve` through `uv` (or the checkout's `.venv`), opens the dashboard in the
+default browser, and stops the server when its window closes.
+
 Runs default to the OS user-data directory outside this checkout. Missing structure
 prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions
 fail explicitly. Standalone `genetics roh` exposes the same ROH engine with custom
