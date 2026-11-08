@@ -35,13 +35,14 @@ PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
 **M12.1 nutrition cards are implemented; M12.2 is next.** Nine cards fill the nutrition section,
 seven of them new, and a section pointer reaches HFE and celiac in their own sections; no schema
-or bundle-format change. See [the M12.1 record](#accepted-m121-nutrition-cards) and
-[the nutrition audit](nutrition.md).
+or bundle-format change. See [the M12.1 record](#accepted-m121-nutrition-cards),
+[the nutrition audit](nutrition.md) and [the session diff review](review_m121_session.md), which
+removed unsourced card sentences and sourced two allele names.
 **M11.7 reproductive traits are implemented.** Seven polygenic cards take the
 reproductive section beyond carrier status, on knowledge schema 9 and bundle format 28; see
 [the M11.7 record](#accepted-m117-reproductive-traits),
 [the model audit](reproductive_prs.md) and
-[the M12.1 entry contract](#next-open-step-m121-nutrition-cards).
+[the M12.1 entry contract](#next-open-step-m121-nutrition-cards), now implemented.
 **M11.6 carrier-screening scope is implemented.** One computed card states
 that the reproductive section is not a carrier screen and counts what it leaves out; see
 [the M11.6 record](#accepted-m116-carrier-screening-scope). The
@@ -582,6 +583,22 @@ lint passes **115 cards, 564 renders, 61/61 marker keys**. All four strict Windo
 Python 3.11/3.13 type targets (243 files), ruff and format pass. No personal export was
 opened for any result; the array's marker list was read for rsID and position only. No
 browser review is claimed: the pointer is checked through the test client's HTML.
+
+The [session diff review](review_m121_session.md) (`243aa3e..9f3d6ab`) found no defect in
+matching, saved evidence or the pointer code. It replaced four card sentences no cited paper
+supported with figures from the cards' own sources. It corrected the FOLR3 card, which said
+the array "cannot read" the frameshift and called it causal. And it sourced Sachse's site and
+"ADH1B*2" to their PharmGKB variant records, which also show CYP1A2*1F is retired. One review
+fix repeated the original mistake: it inferred that variation was mostly non-genetic from a
+sibling-pair heritability that the same paper's twin estimates contradict. It was caught and
+reworded. After the review, the full native suite passes **3,928 tests with the same nine
+skips** in 703 s. Full dbSNP card lint (115 cards, 564 renders, 61/61 keys), all four strict
+type targets, ruff and format pass.
+
+**Saved runs repeat their deep checks once.** This session changed Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify` before opening the dashboard on it. A saved run never gains
+these cards: seeing them on real data needs a new run, about 8 hours.
 
 <a id="next-open-step-m121-nutrition-cards"></a>
 

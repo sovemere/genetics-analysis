@@ -228,7 +228,9 @@ probably too low, and why. Knowledge schema 9 and bundle format 28. See the
 the CYP1A2 "slow metaboliser" marker with its actual (candidate-gene) evidence, ADH1B alcohol
 intake, FUT2 secretor status and vitamin B12, GC vitamin D, FOLR3 folate, and the lactase and ALDH2
 cards moved from traits. HFE and celiac stay in their own sections, and the nutrition section links
-to them. See the [nutrition audit](docs/nutrition.md).
+to them. See the [nutrition audit](docs/nutrition.md). The
+[M12.1 diff review](docs/review_m121_session.md) replaces four card sentences no cited paper
+supported and sources two allele names to their PharmGKB records.
 [M12.2, the MTHFR calibration card](docs/handoff.md#next-open-step-m122-mthfr) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

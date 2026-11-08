@@ -129,8 +129,9 @@ refused.
 
 Disease cards live in **immunogenetics**: §3.1 names HLA as the capability that unlocks
 them and the roadmap groups them under M11. Narcolepsy is also listed under sleep and
-celiac under nutrition; a card has one section, M12.1 reuses the celiac card rather than
-writing a second, and the HLA page links every HLA-linked card wherever it lives.
+celiac under nutrition; a card has one section. M12.1 reuses the celiac card rather than
+writing a second: the nutrition section points to it through `SectionInfo.related`
+([nutrition](nutrition.md)), and the HLA page links every HLA-linked card wherever it lives.
 
 Drug cards live in **pharmacogenomics**, where the M10.5 framing already appears once.
 There is one card per allele and one engine: the HLA card engine resolves its own gene's

@@ -215,7 +215,8 @@ def _pairs(alleles: tuple[str, str]) -> list[str]:
     return ["".join(p) for p in itertools.combinations_with_replacement(alleles, 2)]
 
 
-def test_exact_bindings_of_locus_alleles_estimate_and_population() -> None:
+def assert_bindings() -> None:
+    """Every card's locus, estimate and population, and each outcome's own evidence."""
     for card in nutrition_pack().cards:
         rsid, chrom, pos, alleles, n, value, _, tier, replication, ancestry = BINDINGS[card.id]
         assert card.match is not None and card.evidence is not None
@@ -248,6 +249,10 @@ def test_exact_bindings_of_locus_alleles_estimate_and_population() -> None:
                 evidence.tier.value,
                 evidence.replication,
             ) == expected
+
+
+def test_exact_bindings_of_locus_alleles_estimate_and_population() -> None:
+    assert_bindings()
 
 
 def test_intervals_computed_from_printed_standard_errors_reproduce() -> None:
@@ -342,7 +347,7 @@ def test_outcome_evidence_rejects_borrowed_denominators_and_effects(
 
     monkeypatch.setattr(Path, "read_text", mutated)
     with pytest.raises(AssertionError):
-        test_exact_bindings_of_locus_alleles_estimate_and_population()
+        assert_bindings()
 
 
 @pytest.mark.parametrize("card_id", BINDINGS)
@@ -545,6 +550,13 @@ def test_the_pointer_is_shown_only_on_its_own_section(
         assert "Also relevant here" not in by_tier.text
         page = client.get(f"/runs/{bundle.run_id}")
         assert page.text.count("Also relevant here, shown in their own sections:") == 1
+        # A filter that hides the target card does not hide the pointer: it resolves against
+        # the whole run, and the detail page it opens is not filtered.
+        filtered = client.get(f"/runs/{bundle.run_id}?section=nutrition")
+        assert "hfe_c282y_iron_overload" not in filtered.text.split("Also relevant here")[0]
+        assert f"/runs/{bundle.run_id}/cards/hfe_c282y_iron_overload" in filtered.text
+        detail = client.get(f"/runs/{bundle.run_id}/cards/hfe_c282y_iron_overload")
+        assert detail.status_code == 200
 
 
 # ---------------------------------------------------------------------------

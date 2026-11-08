@@ -77,7 +77,8 @@ repeat them:
 - **ADH1B (reverse strand).** Holmes et al. call His48 the "A allele" and report about 7%
   carriage in Europeans. ClinVar's record for the reference base is `c.143A= (p.His48=)`.
   The forward reference base is T, so His48 is forward T. gnomAD agrees: T is 3.8% of
-  European exome alleles, about 7.5% carriage. A native test re-checks this.
+  European exome alleles, about 7.5% carriage. A native test re-checks this. PharmGKB's
+  record for rs1229984 (PA166156507) lists ADH1B*2 as a synonym.
 - **FUT2 (forward strand).** ClinVar annotates forward G>A at rs601338 as nonsense
   (Trp154Ter in current RefSeq numbering, Trp143Ter in Kelly 1995 and Hazra 2008), and
   forward G>A at rs602662 as Gly258Ser. Hazra's Table 1 labels G as Gly, which matches.
@@ -85,7 +86,11 @@ repeat them:
   annotation. This card follows ClinVar.
 - **CYP1A2 (forward strand).** ClinVar's `c.-9-154C>A` is forward C>A, and Sachse's C/A
   naming is the same, since a reverse-strand gene would read G/T. Sachse's 46% AA matches
-  1000 Genomes' 68% A in Europeans.
+  1000 Genomes' 68% A in Europeans. Sachse names the site by its position in intron 1 (734
+  bases after the first transcribed base). It is rs762551 because PharmGKB's record for
+  rs762551 (PA166154850) lists the intron 1 change `c.-9-154C>A` and the retired name
+  CYP1A2*1F. The legacy "−163" counts from the start codon: 9 bases of exon 2 plus 154 of
+  intron 1.
 - **rs2472297.** The papers' T is forward T: 21.5% in 1000 Genomes Europeans, against 24%
   in the consortium and 27–29% in Iceland and the Netherlands.
 - **GC rs2282679.** Wang 2010 names only "minor" (MAF 0.29) and "major". The minor allele
@@ -101,8 +106,8 @@ carrying the allele matches the C allele: Sachse found 54% C carriers in Germany
 Genomes gives about 42% in its American samples. It cannot be A, which about 94% would
 carry. Sulem 2011 uses *1F for the allele "suggested to correlate with increased CYP1A2
 enzymatic activity in smokers", which is A in Sachse's data. The same star allele therefore
-names opposite bases in two cited papers. The card uses forward-strand bases only and says
-so.
+names opposite bases in two cited papers, and PharmGKB now lists CYP1A2*1F as retired.
+The card uses forward-strand bases only and says so.
 
 ## Evidence, card by card
 
@@ -132,7 +137,8 @@ replication exists anywhere.
 **ADH1B, rs1229984.** Holmes 2014, Table 1: His48 carriers drank 17.22% fewer units a week
 (95% CI 15.55–18.86) in 218,969 people of European descent from 46 studies. Binge drinking
 OR 0.78, abstention OR 1.27. The study used a dominant model, so the two-copy outcome says
-that no separate estimate exists. The tier is GWAS: P = 5.5e-76 in a 56-study meta-analysis.
+that no separate estimate exists. The tier is GWAS: P = 5.5e-76 across the 46 of its 56
+studies that recorded intake.
 ADH1B Arg370Cys (rs2066702), the variant with that role in many people of African ancestry,
 is not on the array.
 
@@ -220,4 +226,5 @@ it is. For example, a 0.11 cups-a-day effect can rest on very strong evidence.
   ClinVar consequences of the card alleles against ClinVar. Both skip where the indexes are
   absent, as on CI.
 
-The validation record for the milestone is in the [handoff](handoff.md#accepted-m121-nutrition-cards).
+The validation record for the milestone is in the [handoff](handoff.md#accepted-m121-nutrition-cards),
+and the [session diff review](review_m121_session.md) records what a second read changed.

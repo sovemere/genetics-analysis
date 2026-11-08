@@ -43,9 +43,9 @@ cards:
           coffee a day among coffee drinkers of European ancestry.
         detail: >-
           Under the study's additive model, two copies correspond to about 0.22 more cups
-          a day than CC, a small shift against the spread of how much people drink. Most
-          of the variation in coffee drinking is cultural and personal; this locus
-          explained 0.55% of it in the first study.
+          a day than CC. This locus explained 0.55% of the variance in coffee drunk in
+          the first study, and the consortium notes strong cultural influences on how much
+          people drink.
     evidence:
       tier: gwas
       replication: independent
@@ -124,7 +124,8 @@ cards:
         summary: >-
           At least one C allele at CYP1A2 -163, labelled "slow" in a Costa Rican study
           where four or more cups of coffee a day went with nonfatal heart attack only in
-          C carriers (OR 1.64, 95% CI 1.14-2.34). Candidate-gene, unreplicated here.
+          C carriers (OR 1.64, 95% CI 1.14-2.34). Candidate-gene evidence; no replication
+          was verified.
         detail: >-
           Cornelis et al. compared 2,014 first nonfatal myocardial infarction cases with
           2,014 matched controls in Costa Rica (1994-2004). Among the 1,114 cases and
@@ -166,13 +167,18 @@ cards:
         title: NCBI dbSNP Reference SNP record for rs762551
         note: GRCh37 forward-strand coordinate; CYP1A2 is on the forward strand, so -163C>A is forward C>A.
       - type: accession
+        database: PharmGKB
+        id: PA166154850
+        title: PharmGKB variant record for rs762551
+        note: "Synonyms include CYP1A2*1F (retired) and NM_000761.4:c.-9-154C>A, the intron 1 position Sachse et al. call 734."
+      - type: accession
         database: ClinVar
         id: VCV000511079
         title: NM_000761.5(CYP1A2):c.-9-154C>A
     caveats:
       - >-
-        The star-allele label is used for opposite alleles. Cornelis et al. call C
-        carriers "*1F" and slow; their 55% of cases and 54% of controls carrying it
+        The star-allele label is used for opposite alleles, and PharmGKB now lists
+        CYP1A2*1F as retired. Cornelis et al. call C carriers "*1F" and slow; their 55% of cases and 54% of controls carrying it
         matches the C allele, not A. Sulem et al. use *1F for the allele suggested to
         raise CYP1A2 activity in smokers, which is A in Sachse's data. This card names
         forward-strand bases only.
@@ -252,6 +258,11 @@ cards:
         database: dbSNP
         title: NCBI dbSNP Reference SNP record for rs1229984
         note: GRCh37 forward strand carries T, the His48 allele, as its reference base.
+      - type: accession
+        database: PharmGKB
+        id: PA166156507
+        title: PharmGKB variant record for rs1229984
+        note: Synonyms include ADH1B*2.
       - type: accession
         database: ClinVar
         id: VCV000018182
@@ -383,8 +394,9 @@ cards:
         detail: >-
           The large Icelandic and Danish analyses fitted an additive model; the smaller
           Nurses' Health Study found the difference confined to AA. Either way, one copy
-          shifts the average by much less than the spread of B12 levels in the population,
-          which diet, absorption, age and medicines dominate.
+          is a small shift. Grarup et al.'s 11 B12 loci together explained 6.3% of B12
+          variance, against a heritability of 27% from Icelandic sibling pairs (59% in
+          earlier twin studies).
       no_a:
         summary: >-
           No copy of the FUT2 Ser258 allele linked to higher blood vitamin B12. US women
@@ -486,9 +498,9 @@ cards:
           Heart Study TT had the highest average, 82.6 nmol/L of 25-hydroxyvitamin D,
           against 64.6 for GG.
         detail: >-
-          TT is the comparison group. It does not mean your vitamin D is adequate: season,
-          sunlight, skin, diet, body weight and supplements move 25-hydroxyvitamin D far
-          more than this marker, and only a blood test measures it.
+          TT is the comparison group. It does not mean your vitamin D is adequate. In the
+          same cohort, summer and winter averages differed by 34.2 nmol/L and supplement
+          users averaged 8.7 nmol/L more than non-users. Only a blood test measures it.
     evidence:
       tier: gwas
       replication: independent
@@ -544,17 +556,18 @@ cards:
           quantile-normalised units per copy in 28,913 Icelanders, a small effect.
         detail: >-
           rs652197 is intronic in FOLR3. Grarup et al. found it in Iceland and confirmed it
-          in two Danish cohorts (0.066 and 0.071 per copy). A 2-base frameshift in FOLR3,
-          which this array cannot read, associated more strongly and is the likelier
-          cause. This marker is not on the array; it is read only from imputation.
+          in two Danish cohorts (0.066 and 0.071 per copy). A 2-base frameshift in FOLR3
+          associated more strongly, and the authors treat it as the locus's lead signal;
+          indels are not matched here. This marker is not on the array; it is read only
+          from imputation.
       one_c:
         summary: >-
           One copy of the FOLR3 C allele linked to slightly higher serum folate: 0.069
           quantile-normalised units per copy in 28,913 Icelanders, a small effect.
         detail: >-
           Both folate loci found by Grarup et al., FOLR3 and MTHFR, explained 1.0% of
-          serum folate variance together. Diet, fortification and supplements set folate
-          levels; serum folate also reflects recent intake rather than stores.
+          serum folate variance together, against a heritability of 17% from Icelandic
+          sibling pairs (56% in earlier twin studies).
       no_c:
         summary: >-
           No copy of the FOLR3 C allele linked to slightly higher serum folate. TT is the
@@ -592,9 +605,9 @@ cards:
         as absent; with imputation the call carries its imputation quality into
         confidence.
       - >-
-        The likely causal variant is a FOLR3 frameshift that this pipeline cannot match
-        (indels are excluded, AGENTS.md 4.2); rs652197 tags it only partly (r2 0.51 in
-        Iceland).
+        The authors' lead signal at this locus is a FOLR3 frameshift, which this pipeline
+        does not match (indels are excluded, AGENTS.md 4.2); rs652197 tags it only partly
+        (r2 0.51 in Iceland).
       - >-
         Estimated in Icelanders and Danes. The C allele is the majority allele in 1000
         Genomes African samples (58%), where its association has not been measured.
