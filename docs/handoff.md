@@ -582,6 +582,12 @@ check in the private runner stopped that run before it wrote its measurements, w
 has no peak. The caches take 1.65 GB, about 298 MB for a 979,739-row model. Compressed records total
 304 MB imputed and 224 MB without imputation; the largest are 63 MB and 49 MB.
 
+On 2026-11-08 a synthetic `genetics run --no-impute` saved a real-size format-28 bundle with all 21
+polygenic cards: 54.7 min with warm reference caches, 786 MB. `genetics runs show` reopened it in 9 s
+on the check record written at save, and a full deep read took 8.1 min. Nineteen scores were computed.
+The 159-row menopause model and PGS000007 share no usable marker with the 12,003-marker synthetic
+export, so they render `not_run` with that reason. The synthetic run was then deleted.
+
 <a id="next-open-step-m117-reproductive-traits"></a>
 
 ## M11.7 entry contract (implemented; retained for review)
