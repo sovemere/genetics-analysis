@@ -4,6 +4,9 @@
 //
 // It adds nothing to what `uv run genetics serve` does: the server binds loopback only,
 // logs no request URLs, and stops when this window is closed or Ctrl+C is pressed.
+// With --verify it first runs `genetics runs list --verify`, so the deep checks a saved run
+// repeats after a source change happen here, with progress shown, rather than on the first
+// dashboard page. build_launcher.ps1 also makes a shortcut that passes it.
 // Written for the C# 5 compiler that ships with Windows (.NET Framework 4).
 
 using System;
@@ -22,6 +25,7 @@ internal static class GeneticsDashboard
     {
         Console.Title = "Genetics dashboard";
         bool openBrowser = Array.IndexOf(args, "--no-browser") < 0;
+        bool verifyFirst = Array.IndexOf(args, "--verify") >= 0;
 
         string root = FindRepositoryRoot(AppDomain.CurrentDomain.BaseDirectory);
         if (root == null)
@@ -33,32 +37,54 @@ internal static class GeneticsDashboard
             );
         }
 
-        // A fixed port keeps bookmarked run URLs working; if it is taken, let the OS choose.
-        string port = PortIsFree(PreferredPort) ? PreferredPort.ToString() : "0";
-        ProcessStartInfo info = ServeCommand(root, "serve --port " + port + " --json");
-        if (info == null)
-        {
-            return Fail(
-                "Neither uv nor "
-                    + Path.Combine(root, @".venv\Scripts\genetics.exe")
-                    + " was found. Install uv, or run `uv sync` in the repository."
-            );
-        }
-        info.WorkingDirectory = root;
-        info.UseShellExecute = false;
-        info.RedirectStandardOutput = true;
-        info.StandardOutputEncoding = Encoding.UTF8;
-        info.EnvironmentVariables["PYTHONUTF8"] = "1";
-
-        Console.WriteLine("Starting the dashboard from " + root);
-        Console.WriteLine("Close this window or press Ctrl+C to stop it.");
-        Console.WriteLine();
-
-        // Ctrl+C reaches the server through the shared console; wait for it to finish.
+        // Ctrl+C reaches the child through the shared console; wait for it to finish.
         Console.CancelKeyPress += delegate(object sender, ConsoleCancelEventArgs e)
         {
             e.Cancel = true;
         };
+
+        if (verifyFirst)
+        {
+            ProcessStartInfo check = GeneticsCommand(root, "runs list --verify");
+            if (check == null)
+            {
+                return MissingRunner(root);
+            }
+            Console.WriteLine("Checking every saved run before starting the dashboard.");
+            Console.WriteLine(
+                "This repeats each run's deep checks: about an hour for an imputed run."
+            );
+            Console.WriteLine("Press Ctrl+C to stop; the dashboard will not start.");
+            Console.WriteLine();
+            // Output is not redirected, so the listing and its progress lines appear here.
+            using (Process verify = Process.Start(check))
+            {
+                verify.WaitForExit();
+                if (verify.ExitCode != 0)
+                {
+                    return Fail(
+                        "Checking the saved runs stopped (exit code "
+                            + verify.ExitCode
+                            + "). The dashboard was not started."
+                    );
+                }
+            }
+            Console.WriteLine();
+        }
+
+        // A fixed port keeps bookmarked run URLs working; if it is taken, let the OS choose.
+        string port = PortIsFree(PreferredPort) ? PreferredPort.ToString() : "0";
+        ProcessStartInfo info = GeneticsCommand(root, "serve --port " + port + " --json");
+        if (info == null)
+        {
+            return MissingRunner(root);
+        }
+        info.RedirectStandardOutput = true;
+        info.StandardOutputEncoding = Encoding.UTF8;
+
+        Console.WriteLine("Starting the dashboard from " + root);
+        Console.WriteLine("Close this window or press Ctrl+C to stop it.");
+        Console.WriteLine();
 
         using (Process server = Process.Start(info))
         {
@@ -69,13 +95,25 @@ internal static class GeneticsDashboard
                 return Fail("The dashboard did not start (exit code " + server.ExitCode + ").");
             }
             Console.WriteLine("Dashboard: " + url);
-            Console.WriteLine(
-                "The first page opens the most recent run. After the source has changed, its first"
-            );
-            Console.WriteLine(
-                "read repeats the run's deep checks (about 54 min for an imputed run); run"
-            );
-            Console.WriteLine("`uv run genetics runs list --verify` beforehand to pay that up front.");
+            if (verifyFirst)
+            {
+                Console.WriteLine(
+                    "Saved runs were checked above; a run that failed is listed with its status."
+                );
+            }
+            else
+            {
+                Console.WriteLine(
+                    "The first page opens the most recent run. After the source has changed, its"
+                );
+                Console.WriteLine(
+                    "first read repeats the run's deep checks (about 54 min for an imputed run)."
+                );
+                Console.WriteLine(
+                    "Start the launcher with --verify (or its \"verify first\" shortcut) to pay"
+                );
+                Console.WriteLine("that up front, with progress shown.");
+            }
             if (openBrowser)
             {
                 Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
@@ -114,15 +152,36 @@ internal static class GeneticsDashboard
     }
 
     /// <summary>`uv run genetics ...` when uv is on PATH, else the checkout's own venv.</summary>
-    private static ProcessStartInfo ServeCommand(string root, string arguments)
+    private static ProcessStartInfo GeneticsCommand(string root, string arguments)
     {
         string uv = FindOnPath("uv.exe");
+        string venv = Path.Combine(root, @".venv\Scripts\genetics.exe");
+        ProcessStartInfo info;
         if (uv != null)
         {
-            return new ProcessStartInfo(uv, "run genetics " + arguments);
+            info = new ProcessStartInfo(uv, "run genetics " + arguments);
         }
-        string venv = Path.Combine(root, @".venv\Scripts\genetics.exe");
-        return File.Exists(venv) ? new ProcessStartInfo(venv, arguments) : null;
+        else if (File.Exists(venv))
+        {
+            info = new ProcessStartInfo(venv, arguments);
+        }
+        else
+        {
+            return null;
+        }
+        info.WorkingDirectory = root;
+        info.UseShellExecute = false;
+        info.EnvironmentVariables["PYTHONUTF8"] = "1";
+        return info;
+    }
+
+    private static int MissingRunner(string root)
+    {
+        return Fail(
+            "Neither uv nor "
+                + Path.Combine(root, @".venv\Scripts\genetics.exe")
+                + " was found. Install uv, or run `uv sync` in the repository."
+        );
     }
 
     private static string FindOnPath(string name)

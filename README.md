@@ -361,7 +361,11 @@ genetics serve
 On Windows, `scripts\windows\build_launcher.ps1` builds `GeneticsDashboard.exe` at the
 checkout root (gitignored) with the C# compiler that ships with Windows. Double-clicking it
 runs `genetics serve` through `uv` (or the checkout's `.venv`), opens the dashboard in the
-default browser, and stops the server when its window closes.
+default browser, and stops the server when its window closes. The script also makes
+`GeneticsDashboard (verify first).lnk`, which starts the launcher with `--verify`. That runs
+`genetics runs list --verify` first, so after a source change each saved run's deep checks
+(about an hour for an imputed run) happen up front with progress shown, not on the first
+dashboard page. If the check stops with an error, the dashboard is not started.
 
 Runs default to the OS user-data directory outside this checkout. Missing structure
 prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions

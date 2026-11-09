@@ -254,6 +254,8 @@ gnomad_frequencies.sqlite*
 
 # Third-party binaries pulled in by the fetcher (plink2, beagle, bcftools)
 *.exe
+# The dashboard launcher's verify-first shortcut (scripts/windows/build_launcher.ps1)
+GeneticsDashboard*.lnk
 *.dll
 *.so
 *.dylib
