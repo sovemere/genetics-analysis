@@ -30,8 +30,11 @@ cards:
           67 datasets of people without cardiovascular disease, TT exceeded CC by 2.10
           micromol/L (1.71-2.50), with high heterogeneity (I2 83.5%): 3.12 (2.23-4.01) in
           Asia, without folic acid fortification, against 0.13 (-0.85 to 1.11) in fortified
-          America, Australia and New Zealand. Among women aged 12 to 49, serum and plasma
-          folate was 13% (7-18%) lower in TT than in CC by microbiological assay. ACMG says a
+          America, Australia and New Zealand. In relative terms, TT averaged 18% (99% CI
+          17-19%) more homocysteine than CC across 70 general-population studies (68,369
+          people): 25% in Asia, 7% in the US, Australia and New Zealand after fortification.
+          Among women aged 12 to 49, serum and plasma folate was 13% (7-18%) lower in TT than
+          in CC by microbiological assay. ACMG says a
           fasting homocysteine test may be ordered for TT; it measures what this card can
           only estimate on average. The heart disease, venous thrombosis and depression
           claims each have their own card, rated on the studies that tested them.
@@ -100,6 +103,10 @@ cards:
         title: Genetic Architecture of Vitamin B12 and Folate Levels Uncovered Applying Deeply Sequenced Large Datasets
         note: "Table 2: MTHFR rs1801133 effect allele G, EAF 0.668, 0.096 (Iceland), 0.18 and 0.18 (Denmark); combined N 37,337, P 9.5e-53, I2 62%."
       - type: doi
+        id: 10.1371/journal.pmed.1001177
+        title: "Homocysteine and coronary heart disease: meta-analysis of MTHFR case-control studies, avoiding publication bias"
+        note: "Table 1: TT versus CC homocysteine 18% higher (99% CI 17-19) in 70 studies, 68,369 people; Asia 25% (21-30); US and ANZ after supplementation 7% (2-13)."
+      - type: doi
         id: 10.3945/ajcn.114.099994
         title: "Assessing the association between the methylenetetrahydrofolate reductase (MTHFR) 677C>T polymorphism and blood folate concentrations: a systematic review and meta-analysis of trials and observational studies"
         note: "Women aged 12-49, microbiological assay: serum/plasma folate CC > TT 13% (7-18%), CC > CT 7% (1-12%); RBC folate CC > TT 16% (12-20%)."
@@ -110,7 +117,7 @@ cards:
       - type: doi
         id: 10.1038/gim.2012.165
         title: "ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
-        note: "Box 1: do not order MTHFR genotyping for thrombophilia or recurrent pregnancy loss; MTHFR status does not change the standard folic acid recommendation. The 677 heterozygote, 1298 homozygote and compound heterozygote appear unlikely to be of clinical significance."
+        note: "Box 1: do not order MTHFR genotyping for thrombophilia or recurrent pregnancy loss; MTHFR status does not change the standard folic acid recommendation. Main text: the 677 heterozygote, 1298 homozygote and compound heterozygote appear unlikely to be of clinical significance."
       - type: doi
         id: 10.1038/s41436-020-0843-0
         title: "Addendum: ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
@@ -151,7 +158,7 @@ cards:
         exome alleles, 34% in European, 50% in Latino and 11% in African samples.
       - >-
         ACMG's guidance, reaffirmed in 2020, is that MTHFR status does not change the
-        standard folic acid recommendation for women who may become pregnant. In a trial of
+        standard folic acid recommendation for women of childbearing age. In a trial of
         932 Chinese women, TT had lower blood folate than CC at every folic acid dose, and
         genotype did not significantly change the response to dose. Mothers with TT appear
         to have about twice the odds of a pregnancy affected by spina bifida (pooled OR 2.0,
@@ -306,8 +313,8 @@ cards:
           Klerk et al.'s 2002 meta-analysis found TT had 16% higher odds of coronary heart
           disease (OR 1.16, 1.05-1.28) and read it as support for homocysteine causing heart
           disease. Clarke et al. then set 86 published studies (OR 1.15, 1.09-1.21) against
-          19 datasets in which MTHFR had been genotyped incidentally and never published (OR
-          1.02, 0.98-1.07). The two disagreed (P = 0.001), which the authors attribute to
+          19 datasets in which MTHFR had been genotyped incidentally and its results not yet
+          published (OR 1.02, 0.98-1.07). The two disagreed (P = 0.001), which the authors attribute to
           publication bias or methodological problems. In low-folate unsupplemented
           populations, where TT raises homocysteine more, the unpublished estimate was 1.01
           (0.95-1.07). A genome-wide score of 13 homocysteine loci was not associated with
@@ -414,7 +421,8 @@ cards:
           European ancestry. For rs1801133 the smallest P value across eight main-effect
           models was 0.034, against a preregistered threshold of 0.003 that the authors call
           liberal. As a set, the candidate genes were no more associated with depression
-          than other genes.
+          than other genes. Both studies give odds ratios or P values, not rates, so no
+          absolute risk is assigned.
       ct:
         evidence: null
         summary: >-
@@ -423,8 +431,9 @@ cards:
           found no association.
         detail: >-
           Gilbody et al.'s primary comparison was homozygotes against the common genotype.
-          Border et al. tested rs1801133 additively, which covers one copy, and found no
-          association at their preregistered threshold.
+          Border et al. tested rs1801133's main effect on eight depression outcomes and found
+          no association at their preregistered threshold. How they coded one copy is not
+          stated in the paper's main text.
       cc:
         evidence: null
         summary: >-

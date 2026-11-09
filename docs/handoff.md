@@ -37,7 +37,10 @@ strict type targets, full card lint, fixtures and style passing.
 on its own claim: homocysteine and folate in nutrition (well-established), and the venous
 thrombosis, coronary heart disease and depression claims in physical and mental health (each
 limited, because replication conflicts). No schema or bundle-format change. See
-[the M12.2 record](#accepted-m122-mthfr) and [the calibration audit](mthfr.md).
+[the M12.2 record](#accepted-m122-mthfr) and [the calibration audit](mthfr.md). The
+[session diff review](review_m122_session.md) removed one unsourced sentence on the depression
+card, added a relative homocysteine figure and an absolute-risk statement, and made the
+dashboard launcher say when its new verify-first shortcut is worth using.
 **M12.1 nutrition cards are implemented.** Nine cards fill the nutrition section,
 seven of them new, and a section pointer reaches HFE and celiac in their own sections; no schema
 or bundle-format change. See [the M12.1 record](#accepted-m121-nutrition-cards),
@@ -584,10 +587,29 @@ personal export was opened for any result; the array's marker list was read for 
 position only. No browser review is claimed: the pointers are checked through the test client's
 HTML.
 
+The [session diff review](review_m122_session.md) (`d1a26d4..f8eebb0`) found no defect in
+matching, confidence, saved evidence, the pointers or the launcher's control flow. It
+replaced the depression card's claim that Border et al. coded genotypes additively, which the
+paper does not say. It added Clarke 2012's relative figure to the homocysteine card: TT
+averages 18% (99% CI 17-19%) more than CC. It also added an absolute-risk statement to the
+depression card and corrected four wordings that went beyond their sources. A new test pins
+each claim card's caveat on what a limited tier means. After the review, on 2026-11-10, the
+full native suite passes **3,993 tests with the same nine skips** in 698 s, with nothing
+edited during the run. Full dbSNP card lint (119 cards, 594 renders, 65/65 keys), all four
+strict type targets, ruff and format pass. The rebuilt launcher was run with `--verify`
+against an empty temporary data directory.
+
+**The dashboard launcher can verify first (2026-11-09).** `GeneticsDashboard.exe --verify` runs
+`genetics runs list --verify` before starting the server. `build_launcher.ps1` also makes
+`GeneticsDashboard (verify first).lnk`, a gitignored shortcut that passes the flag. If the
+check exits with an error, the dashboard does not start. The check repeats deep checks even
+when they are current, so use it only after the code changes.
+
 **Saved runs repeat their deep checks once.** This session changed Python source, so the first
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
-Run `genetics runs list --verify` before opening the dashboard on it. A saved run never gains
-these cards: seeing them on real data needs a new run, about 8 hours.
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, before opening
+the dashboard on it. A saved run never gains these cards: seeing them on real data needs a
+new run, about 8 hours.
 
 <a id="next-open-step-m122-mthfr"></a>
 

@@ -48,8 +48,8 @@ value:
   disproven by recent meta-analyses.
 - **Coronary heart disease.** Klerk 2002 found TT OR 1.16 (1.05-1.28) in 40 studies and read
   it as support for homocysteine as a cause. Clarke 2012 set 86 published studies (OR 1.15,
-  1.09-1.21) against 19 datasets where MTHFR had been genotyped incidentally and never
-  published (OR 1.02, 0.98-1.07). The difference was significant (P = 0.001), and the authors
+  1.09-1.21) against 19 datasets where MTHFR had been genotyped incidentally and its results
+  not yet published (OR 1.02, 0.98-1.07). The difference was significant (P = 0.001), and the authors
   attribute it to publication bias or methodological problems.
 - **Depression.** Gilbody 2007 pooled 1,280 cases and 10,429 controls: TT OR 1.36
   (1.11-1.67). Border 2019 tested rs1801133 among 18 historical candidate genes in samples of
@@ -117,7 +117,10 @@ Both come from the 67 datasets and 53,643 participants without cardiovascular di
 59,995 is the total with homocysteine data, and a test rejects it as the denominator. The
 effect depends on folate. It was 3.12 (2.23-4.01) in Asia without fortification and 0.13
 (-0.85 to 1.11) in fortified America, Australia and New Zealand, which is the face's "3.1 in
-Asia, 0.1 where food is fortified". Ancestry is recorded as MULTI.
+Asia, 0.1 where food is fortified". Ancestry is recorded as MULTI. The relative figure on the
+TT detail is Clarke 2012's Table 1: TT averaged 18% (99% CI 17-19%) more homocysteine than CC
+across 70 general-population studies (68,369 people), from 25% in Asia to 7% in the US,
+Australia and New Zealand after fortification.
 
 The tier is functional because Frosst 1995 showed the mechanism. The 677T enzyme is
 thermolabile with reduced activity in lymphocyte extracts, and in vitro expression of the
@@ -136,9 +139,9 @@ The folate figures come from three sources:
 earlier MEGA report: a population-based case-control study at anticoagulation clinics in the
 Netherlands (Blom 2005). Ancestry is EUR.
 
-**Coronary heart disease.** Clarke 2012's unpublished datasets came from C4D, CARDIoGRAM,
-ISIS, INTERHEART and Japanese genotyping studies, and include the South Asian LOLIPOP and
-PROMIS studies. Ancestry is MULTI. The unsupplemented low-folate estimate was 1.01
+**Coronary heart disease.** Clarke 2012's unpublished datasets include C4D, CARDIoGRAM,
+ISIS, INTERHEART and Japanese genotyping studies, and the South Asian LOLIPOP and PROMIS
+studies. Ancestry is MULTI. The unsupplemented low-folate estimate was 1.01
 (0.95-1.07), where TT raises homocysteine more than elsewhere.
 
 The paper gives no CT estimate in its text: it says adding CT "does not materially alter"
@@ -179,7 +182,7 @@ These are stated with their sources, not scored:
 | A1298C (rs1801131) | Owner decision. On the array, ClinVar benign/likely benign in the pinned release. Van der Put 1998 found reduced enzyme activity but no rise in homocysteine or fall in folate on its own; its full text is PDF-only in PMC and was not retrieved, so no per-genotype estimate with a denominator was verified. ACMG lists the 1298 homozygote and the 677/1298 compound heterozygote as unlikely to be of clinical significance. A compound-heterozygote call needs both markers, and the multi-marker engine reports a double heterozygote as phase-ambiguous. The nutrition card's caveat covers it. |
 | Pregnancy loss card | A reproductive interpretation card must be a carrier card (schema 7). Stated on the nutrition card. |
 | "Methylation" card | One study of 292 people, unreplicated, with no health outcome. Stated on the nutrition card. |
-| Stroke | Holmes 2011 found TT stroke OR 1.68 (1.44-1.97) in Asia against 1.03 (0.84-1.25) in fortified regions. It also found strong small-study bias in Asia (Egger P = 0.002) and an OR of 1.28 (1.11-1.48) in studies with 400 or more stroke events. A card would need the folate-region split on its face and a decision on which estimate stands. Not authored; the heart-disease card says it does not assess stroke. |
+| Stroke | Holmes 2011 found TT stroke OR 1.68 (1.44-1.97) in Asia against 1.03 (0.84-1.25) in fortified regions. In Asia it also found evidence of small-study bias (Egger P = 0.002), and an OR of 1.28 (1.11-1.48) when restricted to studies with 400 or more stroke events. A card would need the folate-region split on its face and a decision on which estimate stands. Not authored; the heart-disease card says it does not assess stroke. |
 | Schizophrenia, bipolar disorder | Gilbody 2007 reports TT OR 1.44 and 1.82, but this audit verified no large replication test for either. The depression card names them and assesses neither. |
 | Neural tube defects card | A real association (Botto and Yang), but the risk concerns a pregnancy, and the reproductive section accepts only carrier cards. Stated on the nutrition card. |
 
@@ -199,7 +202,7 @@ These are stated with their sources, not scored:
   - a comparator inheriting the TT odds ratio.
 - **Landings.** Every card and genotype lands at the tier in the table above. Across
   frequencies and ancestry matches, no claim card outranks the nutrition card or rises above
-  limited.
+  limited. Each claim card's first caveat says what its limited tier means.
 - **Matching.** Every genotype is matched. Missing and I/D inputs stay unresolved, all
   three complemented pairs are mismatches, and rarity still forces `likely-artifact`.
 - **Saved interfaces.** A saved bundle, `runs show` (JSON and text) and the dashboard keep

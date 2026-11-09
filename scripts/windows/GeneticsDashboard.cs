@@ -54,6 +54,9 @@ internal static class GeneticsDashboard
             Console.WriteLine(
                 "This repeats each run's deep checks: about an hour for an imputed run."
             );
+            Console.WriteLine(
+                "It repeats them even when they are current, so use it after the code changes."
+            );
             Console.WriteLine("Press Ctrl+C to stop; the dashboard will not start.");
             Console.WriteLine();
             // Output is not redirected, so the listing and its progress lines appear here.

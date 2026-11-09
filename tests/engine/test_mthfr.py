@@ -116,6 +116,7 @@ DOIS = {
         "10.1073/pnas.062066299",
         "10.1086/301825",
         "10.3945/ajcn.112.044545",
+        "10.1371/journal.pmed.1001177",
     },
     "mthfr_c677t_venous_thrombosis": {
         "10.1001/archinte.167.5.497",
@@ -275,6 +276,22 @@ def test_physical_health_outcomes_state_that_no_absolute_risk_is_assigned() -> N
         for name, outcome in card.outcomes.items():
             assert outcome.risk_context is not None, (card.id, name)
             assert "No absolute" in outcome.risk_context, (card.id, name)
+
+
+def test_each_claim_card_says_what_its_limited_tier_means() -> None:
+    """A limited tier on a null result reads as "unsure there is no effect" unless explained.
+
+    The calibration depends on this sentence: the tier rates support for the claim, and the
+    claim cards' estimates are precise nulls. Each claim card states it in its first caveat.
+    """
+    for card in mthfr_pack().cards:
+        if card.id == "mthfr_c677t_homocysteine":
+            continue
+        first = " ".join(card.caveats[0].split())
+        assert first.startswith("This card's confidence tier rates the support for the claimed"), (
+            card.id
+        )
+        assert "not because" in first, card.id
 
 
 @pytest.mark.parametrize(

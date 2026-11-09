@@ -235,7 +235,9 @@ supported and sources two allele names to their PharmGKB records.
 card states what the variant does: TT averages 2.1 micromol/L more homocysteine than CC, less where
 food is fortified, and it lands well-established. Three cards state the health claims made for it,
 venous thrombosis, coronary heart disease and depression, each with the studies that tested them,
-and the calculator lands each at limited. See the [calibration audit](docs/mthfr.md).
+and the calculator lands each at limited. See the [calibration audit](docs/mthfr.md). The
+[M12.2 diff review](docs/review_m122_session.md) removes one unsourced sentence, adds a relative
+homocysteine figure and an absolute-risk statement, and corrects four wordings.
 [M13.1, the rest of the agent CLI](docs/handoff.md#next-open-step-m131-agent-cli) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
@@ -365,7 +367,8 @@ default browser, and stops the server when its window closes. The script also ma
 `GeneticsDashboard (verify first).lnk`, which starts the launcher with `--verify`. That runs
 `genetics runs list --verify` first, so after a source change each saved run's deep checks
 (about an hour for an imputed run) happen up front with progress shown, not on the first
-dashboard page. If the check stops with an error, the dashboard is not started.
+dashboard page. It repeats them even when they are current, so it is worth using only after
+the code changes. If the check stops with an error, the dashboard is not started.
 
 Runs default to the OS user-data directory outside this checkout. Missing structure
 prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions
