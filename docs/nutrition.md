@@ -3,7 +3,7 @@
 M12.1 fills the nutrition section. It has nine cards: seven new interpretation cards and two
 moved from traits. It also points to two cards that stay in their own sections. All the new
 cards use knowledge schema 3, and none needs an engine, schema or bundle-format change.
-M12.2's MTHFR card is next.
+M12.2's MTHFR cards followed; see [the calibration audit](mthfr.md).
 
 | Card | Marker | Claim | Evidence on the card |
 | --- | --- | --- | --- |
@@ -187,7 +187,7 @@ absent, and an imputed run carries its imputation quality into confidence.
 | --- | --- |
 | ADH1B Arg370Cys (rs2066702) | Not on the array. |
 | FOLR3 c.318_319insTA (rs139130389) | Indel (§4.2); not in the dbSNP b157 index. |
-| MTHFR C677T (rs1801133) | M12.2. |
+| MTHFR C677T (rs1801133) | M12.2: four cards, see [the calibration audit](mthfr.md). |
 | FUT2 385A>T (rs1047781), East Asian weak secretor | On the array, ClinVar benign, gnomAD PASS. No per-genotype secretor or infection estimate was verified this session. Tractable, not authored; the secretor card's caveat names it. |
 | FUT2 rs492602 | Hazra's proxy for rs601338. rs602662 is reported directly by both B12 studies. |
 | TCN1 rs34324219, CUBN rs1801222, CD320 rs2336573, CLYBL rs41281112 | B12 loci on the array with Grarup 2013 Table 1 estimates. Tractable, not authored: M12.1 has one B12 card. |

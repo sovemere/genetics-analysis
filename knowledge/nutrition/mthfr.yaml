@@ -1,0 +1,478 @@
+# M12.2: MTHFR C677T, the calibration case for popular claims with thin support. One marker,
+# four cards, each scored by the confidence calculator on the evidence for its own claim.
+# The nutrition card states what the variant measurably does: homocysteine and folate. The
+# other three state the health claims most often made for it, with the studies that tested
+# them. Venous thrombosis and coronary heart disease render in physical health and depression
+# in mental health; section pointers link the four (engine/sections.py). Every figure was read
+# from its source. docs/mthfr.md records the audit, the strand binding, where each card's tier
+# lands and why, and what was considered and left out.
+schema_version: 3
+cards:
+  - id: mthfr_c677t_homocysteine
+    section: nutrition
+    kind: interpretation
+    title: MTHFR C677T, homocysteine and folate
+    gene: MTHFR
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1801133, chrom: "1", pos_grch37: 11856378, alleles: [A, G]}
+      genotypes: {AA: tt, AG: ct, GG: cc}
+    outcomes:
+      tt:
+        summary: >-
+          Two copies of MTHFR 677T, the heat-labile enzyme variant. Across 53,643 people TT
+          averaged 2.1 micromol/L (95% CI 1.7-2.5) more blood homocysteine than CC: 3.1 in
+          Asia, 0.1 where food is fortified with folic acid.
+        detail: >-
+          Frosst et al. found that 677T makes the MTHFR enzyme heat-labile with reduced
+          activity, and that TT homozygotes had higher plasma homocysteine. In Holmes et al.'s
+          67 datasets of people without cardiovascular disease, TT exceeded CC by 2.10
+          micromol/L (1.71-2.50), with high heterogeneity (I2 83.5%): 3.12 (2.23-4.01) in
+          Asia, without folic acid fortification, against 0.13 (-0.85 to 1.11) in fortified
+          America, Australia and New Zealand. Among women aged 12 to 49, serum and plasma
+          folate was 13% (7-18%) lower in TT than in CC by microbiological assay. ACMG says a
+          fasting homocysteine test may be ordered for TT; it measures what this card can
+          only estimate on average. The heart disease, venous thrombosis and depression
+          claims each have their own card, rated on the studies that tested them.
+      ct:
+        evidence:
+          tier: functional
+          replication: meta_analysis
+          sample_size: 53643
+          ancestry: [MULTI]
+          effect:
+            measure: mean_difference
+            value: 0.42
+            ci_low: 0.30
+            ci_high: 0.54
+            units: micromol/L plasma total homocysteine, CT minus CC, people without cardiovascular disease
+            context: >-
+              Holmes 2011: heterozygotes against CC in 67 datasets, 53,643 participants
+              without cardiovascular disease, I2 49.3%. TT against CC was 2.10 (1.71-2.50).
+        summary: >-
+          One copy of MTHFR 677T. Across 53,643 people CT averaged 0.42 micromol/L (95% CI
+          0.30-0.54) more blood homocysteine than CC. ACMG lists this genotype as unlikely to
+          be of clinical significance.
+        detail: >-
+          Holmes et al. found the heterozygote difference followed the same pattern across
+          folate settings as TT's, smaller. Each 677C allele raised serum folate by 0.096
+          quantile-normalised units in Iceland and by 0.18 in each of two Danish cohorts
+          (37,337 people in all, P 9.5e-53). Among women aged 12 to 49, serum and plasma
+          folate was 7% (1-12%) lower in CT than in CC by microbiological assay.
+      cc:
+        summary: >-
+          No copy of MTHFR 677T. CC is the comparison group: across 53,643 people TT averaged
+          2.1 micromol/L and CT 0.42 micromol/L more blood homocysteine than CC.
+        detail: >-
+          Two forward-strand G alleles encode 677C (Ala222). 677T is 34% of European and 11%
+          of African alleles in gnomAD exomes, and half of Latino ones. TT ranges from 1% or
+          less among Black people in Africa and the US to 20% or more among Italians and US
+          Hispanics. CC does not mean low homocysteine: in a genome-wide study, 13 loci
+          including MTHFR together explained 5.9% of its variation.
+    evidence:
+      tier: functional
+      replication: meta_analysis
+      sample_size: 53643
+      ancestry: [MULTI]
+      effect:
+        measure: mean_difference
+        value: 2.10
+        ci_low: 1.71
+        ci_high: 2.50
+        units: micromol/L plasma total homocysteine, TT minus CC, people without cardiovascular disease
+        context: >-
+          Holmes 2011: 67 datasets, 53,643 participants without cardiovascular disease,
+          I2 83.5%. By probable folate status, Asia 3.12 (2.23-4.01); America, Australia and
+          New Zealand with fortification 0.13 (-0.85 to 1.11). CT against CC was 0.42
+          (0.30-0.54).
+    citations:
+      - type: doi
+        id: 10.1038/ng0595-111
+        title: "A candidate genetic risk factor for vascular disease: a common mutation in methylenetetrahydrofolate reductase"
+        note: "About 38% of unselected chromosomes; reduced activity and thermolability in lymphocyte extracts, confirmed by in vitro expression; TT had significantly raised plasma homocysteine."
+      - type: doi
+        id: 10.1016/S0140-6736(11)60872-6
+        title: "Effect modification by population dietary folate on the association between MTHFR genotype, homocysteine, and stroke risk: a meta-analysis of genetic studies and randomised trials"
+        note: "Homocysteine, 67 datasets, 53,643 without cardiovascular disease: TT-CC 2.10 (1.71-2.50), I2 83.5%; CT-CC 0.42 (0.30-0.54), I2 49.3%; Asia 3.12 (2.23-4.01); AANZ high 0.13 (-0.85 to 1.11)."
+      - type: doi
+        id: 10.1371/journal.pgen.1003530
+        title: Genetic Architecture of Vitamin B12 and Folate Levels Uncovered Applying Deeply Sequenced Large Datasets
+        note: "Table 2: MTHFR rs1801133 effect allele G, EAF 0.668, 0.096 (Iceland), 0.18 and 0.18 (Denmark); combined N 37,337, P 9.5e-53, I2 62%."
+      - type: doi
+        id: 10.3945/ajcn.114.099994
+        title: "Assessing the association between the methylenetetrahydrofolate reductase (MTHFR) 677C>T polymorphism and blood folate concentrations: a systematic review and meta-analysis of trials and observational studies"
+        note: "Women aged 12-49, microbiological assay: serum/plasma folate CC > TT 13% (7-18%), CC > CT 7% (1-12%); RBC folate CC > TT 16% (12-20%)."
+      - type: doi
+        id: 10.3945/ajcn.110.004671
+        title: MTHFR 677C->T genotype is associated with folate and homocysteine concentrations in a large, population-based, double-blind trial of folic acid supplementation
+        note: "932 northern Chinese women; TT had lower folate at every dose; no significant genotype-by-dose interaction."
+      - type: doi
+        id: 10.1038/gim.2012.165
+        title: "ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
+        note: "Box 1: do not order MTHFR genotyping for thrombophilia or recurrent pregnancy loss; MTHFR status does not change the standard folic acid recommendation. The 677 heterozygote, 1298 homozygote and compound heterozygote appear unlikely to be of clinical significance."
+      - type: doi
+        id: 10.1038/s41436-020-0843-0
+        title: "Addendum: ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
+        note: Reaffirmed by the ACMG Board on 27 April 2020 and reclassified as a Clinical Practice Resource.
+      - type: doi
+        id: 10.1093/oxfordjournals.aje.a010290
+        title: "5,10-Methylenetetrahydrofolate reductase gene variants and congenital anomalies: a HuGE review"
+        note: "TT 1% or less among Blacks from Africa and the US to 20% or more among Italians and US Hispanics; spina bifida pooled OR 1.8 (1.4-2.2) infant TT, 2.0 (1.5-2.8) maternal TT."
+      - type: doi
+        id: 10.1016/S0140-6736(03)12771-7
+        title: "Thrombophilic disorders and fetal loss: a meta-analysis"
+        note: "31 studies; MTHFR mutation not significantly associated with fetal loss."
+      - type: doi
+        id: 10.1073/pnas.062066299
+        title: A common mutation in the 5,10-methylenetetrahydrofolate reductase gene affects genomic DNA methylation through an interaction with folate status
+        note: "105 TT, 187 CC: 32.23 against 62.24 ng 5-methylcytosine/microgram DNA (P < 0.0001), accounted for only by TT with low folate."
+      - type: doi
+        id: 10.1086/301825
+        title: "A second common mutation in the methylenetetrahydrofolate reductase gene: an additional risk factor for neural-tube defects?"
+        note: "1298A>C lowered MTHFR activity; neither genotype had higher homocysteine or lower folate; 677/1298 compound heterozygotes resembled 677TT."
+      - type: doi
+        id: 10.3945/ajcn.112.044545
+        title: Common genetic loci influencing plasma homocysteine concentrations and their effect on risk of coronary artery disease
+        note: "44,147 people of European descent; 13 loci explained 5.9% of homocysteine variation."
+      - type: accession
+        id: rs1801133
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs1801133
+        note: GRCh37 forward G, with A, C and T alternates; MTHFR is on the reverse strand, so 677T is forward A.
+      - type: accession
+        database: ClinVar
+        id: VCV000003520
+        title: NM_005957.5(MTHFR):c.665C>T (p.Ala222Val)
+    caveats:
+      - >-
+        MTHFR is on the reverse strand. The coding change, 677C>T (c.665C>T, p.Ala222Val in
+        current numbering), is forward G>A on GRCh37, so 677T is forward A: 31.5% of gnomAD
+        exome alleles, 34% in European, 50% in Latino and 11% in African samples.
+      - >-
+        ACMG's guidance, reaffirmed in 2020, is that MTHFR status does not change the
+        standard folic acid recommendation for women who may become pregnant. In a trial of
+        932 Chinese women, TT had lower blood folate than CC at every folic acid dose, and
+        genotype did not significantly change the response to dose. Mothers with TT appear
+        to have about twice the odds of a pregnancy affected by spina bifida (pooled OR 2.0,
+        95% CI 1.5-2.8); neither source gives an absolute rate.
+      - >-
+        ACMG says MTHFR genotyping should not be ordered to evaluate thrombophilia or
+        recurrent pregnancy loss, and that a TT homozygote with normal homocysteine has no
+        evidence of increased risk of either from MTHFR status. A meta-analysis of 31
+        studies found no significant association between MTHFR and fetal loss.
+      - >-
+        On "methylation": in one study of 105 TT and 187 CC people, genomic DNA methylation
+        in blood cells was about half as high in TT (32.23 against 62.24 ng
+        5-methylcytosine per microgram of DNA), all of it among TT with low folate. This
+        audit verified no replication and no health outcome.
+      - >-
+        A1298C (rs1801131), the other MTHFR variant consumer reports name, is on the array
+        but is not interpreted here. Alone it lowered enzyme activity without raising
+        homocysteine or lowering folate, and 677/1298 compound heterozygotes resembled 677TT
+        (van der Put et al.). ACMG lists the 1298 homozygote and the compound heterozygote
+        as unlikely to be of clinical significance.
+
+  - id: mthfr_c677t_venous_thrombosis
+    section: physical_health
+    kind: interpretation
+    title: MTHFR C677T and venous thrombosis
+    gene: MTHFR
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1801133, chrom: "1", pos_grch37: 11856378, alleles: [A, G]}
+      genotypes: {AA: tt, AG: ct, GG: cc}
+    outcomes:
+      tt:
+        summary: >-
+          Two copies of MTHFR 677T. In the MEGA study (4,375 patients, 4,856 controls) TT's
+          odds of a first venous thrombosis did not differ from CC's: OR 0.94 (95% CI
+          0.81-1.08).
+        detail: >-
+          MTHFR testing was often ordered as part of a thrombophilia work-up, on the theory
+          that raised homocysteine causes clots. Bezemer et al. note that earlier
+          meta-analyses found a weak effect of TT that is sensitive to selective publication
+          of positive results. Their single population-based case-control study found no
+          association overall or in any risk-factor subgroup, and they conclude that the
+          narrow interval excludes even a small effect. ACMG describes the association as
+          disproven by recent meta-analyses.
+        risk_context: >-
+          No absolute risk is assigned. MEGA is a case-control study, which gives odds
+          ratios, not rates, and its TT estimate is consistent with no difference from CC.
+          ACMG: a TT homozygote with normal homocysteine has no evidence of increased venous
+          thromboembolism risk from MTHFR status.
+      ct:
+        evidence:
+          tier: candidate_gene
+          replication: conflicting
+          sample_size: 9231
+          ancestry: [EUR]
+          effect:
+            measure: odds_ratio
+            value: 0.99
+            ci_low: 0.91
+            ci_high: 1.08
+            context: >-
+              Bezemer 2007, MEGA: first deep vein thrombosis of the leg or pulmonary embolism,
+              CT against CC; 4,375 patients and 4,856 controls, the Netherlands.
+        summary: >-
+          One copy of MTHFR 677T. In the MEGA study (4,375 patients, 4,856 controls) CT's
+          odds of a first venous thrombosis did not differ from CC's: OR 0.99 (95% CI
+          0.91-1.08).
+        detail: >-
+          Bezemer et al. found no association for either genotype, overall or in any
+          risk-factor subgroup. Their conclusion is that mildly raised homocysteine from
+          MTHFR 677TT does not seem to cause venous thrombosis, and that there is no rationale
+          for measuring the variant for clinical purposes.
+        risk_context: >-
+          No absolute risk is assigned. MEGA gives odds ratios, not rates, and its CT
+          estimate is consistent with no difference from CC.
+      cc:
+        evidence: null
+        summary: >-
+          No copy of MTHFR 677T: the comparison group. In the MEGA study neither CT nor TT had
+          higher odds of a first venous thrombosis than CC.
+        detail: >-
+          CC is the reference the MEGA estimates are measured against, so no estimate
+          applies to it. It says nothing about clot risk from other causes, including
+          factor V Leiden, which has its own card.
+        risk_context: >-
+          No absolute rate is assigned: MEGA is a case-control study and gives no baseline
+          incidence. A CC result is not zero risk.
+    evidence:
+      tier: candidate_gene
+      replication: conflicting
+      sample_size: 9231
+      ancestry: [EUR]
+      effect:
+        measure: odds_ratio
+        value: 0.94
+        ci_low: 0.81
+        ci_high: 1.08
+        context: >-
+          Bezemer 2007, MEGA: first deep vein thrombosis of the leg or pulmonary embolism, TT
+          against CC; 4,375 patients and 4,856 controls in a population-based case-control
+          study in the Netherlands. Replication is recorded as conflicting because earlier
+          meta-analyses had reported a weak effect.
+    citations:
+      - type: doi
+        id: 10.1001/archinte.167.5.497
+        title: "No association between the common MTHFR 677C->T polymorphism and venous thrombosis: results from the MEGA study"
+        note: "4,375 patients, 4,856 controls; CT OR 0.99 (0.91-1.08), TT OR 0.94 (0.81-1.08); no association in any risk-factor stratum."
+      - type: doi
+        id: 10.1001/jama.293.6.715
+        title: Malignancies, prothrombotic mutations, and the risk of venous thrombosis
+        note: "An earlier MEGA report: a population-based case-control study of patients with a first deep venous thrombosis of the leg or pulmonary embolism at anticoagulation clinics in the Netherlands."
+      - type: doi
+        id: 10.1038/gim.2012.165
+        title: "ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
+        note: "Meta-analyses have disproven an association between MTHFR status and venous thromboembolism; TT with normal homocysteine has no evidence of increased risk; MTHFR status does not alter risk in known thrombophilia in most studies."
+      - type: accession
+        id: rs1801133
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs1801133
+        note: GRCh37 forward G, with A, C and T alternates; MTHFR is on the reverse strand, so 677T is forward A.
+    caveats:
+      - >-
+        This card's confidence tier rates the support for the claimed association between
+        MTHFR and clots. It is low because a large study contradicted the published
+        association, not because the study's null result is imprecise.
+      - >-
+        ACMG notes that in people with a known thrombophilia such as factor V Leiden, most
+        studies find MTHFR status does not change thrombotic risk to a clinically
+        significant degree.
+      - >-
+        The estimates come from one population-based case-control study in the
+        Netherlands, of a first deep vein thrombosis of the leg or pulmonary embolism.
+
+  - id: mthfr_c677t_coronary_heart_disease
+    section: physical_health
+    kind: interpretation
+    title: MTHFR C677T and coronary heart disease
+    gene: MTHFR
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1801133, chrom: "1", pos_grch37: 11856378, alleles: [A, G]}
+      genotypes: {AA: tt, AG: ct, GG: cc}
+    outcomes:
+      tt:
+        summary: >-
+          Two copies of MTHFR 677T. In 19 unpublished datasets (48,175 cases, 67,961
+          controls) TT's odds of coronary heart disease did not differ from CC's: OR 1.02
+          (95% CI 0.98-1.07). Published studies gave 1.15.
+        detail: >-
+          Klerk et al.'s 2002 meta-analysis found TT had 16% higher odds of coronary heart
+          disease (OR 1.16, 1.05-1.28) and read it as support for homocysteine causing heart
+          disease. Clarke et al. then set 86 published studies (OR 1.15, 1.09-1.21) against
+          19 datasets in which MTHFR had been genotyped incidentally and never published (OR
+          1.02, 0.98-1.07). The two disagreed (P = 0.001), which the authors attribute to
+          publication bias or methodological problems. In low-folate unsupplemented
+          populations, where TT raises homocysteine more, the unpublished estimate was 1.01
+          (0.95-1.07). A genome-wide score of 13 homocysteine loci was not associated with
+          coronary disease either (OR 1.01, 0.98-1.04; 31,400 cases).
+        risk_context: >-
+          No absolute risk is assigned. These are case-control odds ratios, not rates, and
+          the estimate free of publication bias is consistent with no difference between TT
+          and CC. ACMG: there is no evidence of an association between TT and mortality,
+          from cardiovascular disease or otherwise.
+      ct:
+        evidence: null
+        summary: >-
+          One copy of MTHFR 677T. No heterozygote estimate is assigned: CT raises homocysteine
+          about a quarter as much as TT, and including CT did not change the null TT result.
+        detail: >-
+          Clarke et al.'s primary comparison was TT against CC, the genotypes with the
+          largest homocysteine difference. They report that adding the CT results does not
+          materially alter the finding of little or no hazard.
+        risk_context: >-
+          No absolute risk or heterozygote estimate is assigned. The study gives case-control
+          odds ratios, not rates.
+      cc:
+        evidence: null
+        summary: >-
+          No copy of MTHFR 677T: the comparison group. In 19 unpublished datasets TT did not
+          have higher odds of coronary heart disease than CC (OR 1.02, 95% CI 0.98-1.07).
+        detail: >-
+          CC is the reference the estimates are measured against, so no estimate applies to
+          it. It says nothing about coronary risk from other causes.
+        risk_context: >-
+          No absolute rate is assigned: the studies are case-control and give no baseline
+          incidence. A CC result is not zero risk.
+    evidence:
+      tier: candidate_gene
+      replication: conflicting
+      sample_size: 116136
+      ancestry: [MULTI]
+      effect:
+        measure: odds_ratio
+        value: 1.02
+        ci_low: 0.98
+        ci_high: 1.07
+        context: >-
+          Clarke 2012: 19 unpublished datasets, 48,175 cases and 67,961 controls, including
+          European, Japanese and South Asian studies; TT against CC, P = 0.28. The 86
+          published studies (28,617 cases, 41,857 controls) gave 1.15 (1.09-1.21), discrepant
+          at P = 0.001, so replication is recorded as conflicting.
+    citations:
+      - type: doi
+        id: 10.1371/journal.pmed.1001177
+        title: "Homocysteine and coronary heart disease: meta-analysis of MTHFR case-control studies, avoiding publication bias"
+        note: "Unpublished: 48,175 cases, 67,961 controls, TT vs CC OR 1.02 (0.98-1.07); low-folate 1.01 (0.95-1.07). Published: 86 studies, OR 1.15 (1.09-1.21); discrepancy P = 0.001."
+      - type: doi
+        id: 10.1001/jama.288.16.2023
+        title: "MTHFR 677C-->T polymorphism and risk of coronary heart disease: a meta-analysis"
+        note: "40 studies, 11,162 cases, 12,758 controls; TT vs CC OR 1.16 (1.05-1.28); Europe 1.14 (1.01-1.28), North America 0.87 (0.73-1.05)."
+      - type: doi
+        id: 10.3945/ajcn.112.044545
+        title: Common genetic loci influencing plasma homocysteine concentrations and their effect on risk of coronary artery disease
+        note: "13-locus homocysteine score and coronary artery disease, 31,400 cases and 92,927 controls: OR 1.01 (0.98-1.04), P = 0.49."
+      - type: doi
+        id: 10.1038/gim.2012.165
+        title: "ACMG Practice Guideline: lack of evidence for MTHFR polymorphism testing"
+        note: "No evidence of an association between TT and mortality, cardiovascular or otherwise."
+      - type: accession
+        id: rs1801133
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs1801133
+        note: GRCh37 forward G, with A, C and T alternates; MTHFR is on the reverse strand, so 677T is forward A.
+    caveats:
+      - >-
+        This card's confidence tier rates the support for the claimed association between
+        MTHFR and heart disease. It is low because the published estimate and the
+        unpublished one disagree and the larger unpublished one is close to no effect, not
+        because the null result is imprecise.
+      - >-
+        Clarke et al. expected homocysteine to be about 20% higher with TT than CC in the
+        populations studied; the datasets themselves did not measure it.
+      - >-
+        The estimates concern coronary heart disease. This card does not assess stroke.
+
+  - id: mthfr_c677t_depression
+    section: mental_health
+    kind: interpretation
+    title: MTHFR C677T and depression
+    gene: MTHFR
+    match:
+      strand: forward_only
+      variants:
+        - {rsid: rs1801133, chrom: "1", pos_grch37: 11856378, alleles: [A, G]}
+      genotypes: {AA: tt, AG: ct, GG: cc}
+    outcomes:
+      tt:
+        summary: >-
+          Two copies of MTHFR 677T. A 2007 meta-analysis found TT more often in depression
+          (OR 1.36, 95% CI 1.11-1.67; 1,280 cases), but a preregistered test in up to 443,264
+          people found no association.
+        detail: >-
+          Gilbody et al. pooled studies of unipolar depression: TT against CC gave a
+          fixed-effects OR of 1.36 (1.11-1.67) with no heterogeneity, from 1,280 cases and
+          10,429 controls, and raised the possibility of folate for treatment and
+          prevention. Border et al. later tested 18 historical depression candidate genes,
+          MTHFR among them, in UK Biobank and Psychiatric Genomics Consortium samples of
+          European ancestry. For rs1801133 the smallest P value across eight main-effect
+          models was 0.034, against a preregistered threshold of 0.003 that the authors call
+          liberal. As a set, the candidate genes were no more associated with depression
+          than other genes.
+      ct:
+        evidence: null
+        summary: >-
+          One copy of MTHFR 677T. No heterozygote estimate is assigned: the 2007
+          meta-analysis compared TT with CC, and a preregistered test in up to 443,264 people
+          found no association.
+        detail: >-
+          Gilbody et al.'s primary comparison was homozygotes against the common genotype.
+          Border et al. tested rs1801133 additively, which covers one copy, and found no
+          association at their preregistered threshold.
+      cc:
+        evidence: null
+        summary: >-
+          No copy of MTHFR 677T: the comparison group. A 2007 meta-analysis found TT more
+          often in depression than CC, but a preregistered test in up to 443,264 people found
+          no association.
+        detail: >-
+          CC is the reference the estimate is measured against, so no estimate applies to it.
+          It says nothing about depression risk from other causes.
+    evidence:
+      tier: candidate_gene
+      replication: conflicting
+      sample_size: 11709
+      ancestry: [UNKNOWN]
+      effect:
+        measure: odds_ratio
+        value: 1.36
+        ci_low: 1.11
+        ci_high: 1.67
+        context: >-
+          Gilbody 2007: unipolar depression, TT against CC, fixed effects, 1,280 cases and
+          10,429 controls, I2 0%. Border 2019 found no association for rs1801133 in samples
+          of 62,138 to 443,264 people of European ancestry, so replication is recorded as
+          conflicting. Only Gilbody's abstract was read, so the pooled studies' populations
+          are recorded as unknown.
+    citations:
+      - type: doi
+        id: 10.1093/aje/kwj347
+        title: "Methylenetetrahydrofolate reductase (MTHFR) genetic polymorphisms and psychiatric disorders: a HuGE review"
+        note: "Unipolar depression, TT vs CC: fixed-effects OR 1.36 (1.11-1.67), I2 0%, 1,280 cases and 10,429 controls."
+      - type: doi
+        id: 10.1176/appi.ajp.2018.18070881
+        title: No Support for Historical Candidate Gene or Candidate Gene-by-Interaction Hypotheses for Major Depression Across Multiple Large Samples
+        note: "Table 2: MTHFR rs1801133, MAF 0.334, minimum P 0.034 across 8 main-effect models; preregistered threshold 0.05/16 = 3.13e-3; n 62,138 to 443,264."
+      - type: accession
+        id: rs1801133
+        database: dbSNP
+        title: NCBI dbSNP Reference SNP record for rs1801133
+        note: GRCh37 forward G, with A, C and T alternates; MTHFR is on the reverse strand, so 677T is forward A.
+    caveats:
+      - >-
+        This card's confidence tier rates the support for the claimed association between
+        MTHFR and depression. It is low because the candidate-gene result did not replicate
+        in samples hundreds of times larger, not because those tests were imprecise.
+      - >-
+        Only the abstract of the 2007 meta-analysis was read. The populations of the studies
+        it pooled were not verified and are recorded as unknown.
+      - >-
+        The same review reported TT associations with schizophrenia (OR 1.44) and bipolar
+        disorder (OR 1.82). Border et al. tested depression only, and this card assesses
+        neither.

@@ -1,8 +1,8 @@
-# Handoff: M12.2 MTHFR calibration card
+# Handoff: M13.1 agent CLI
 
-As of 2026-11-08, **M0-M11 and M12.1 are implemented; M12.2 is next**. See
-[the M12.2 entry contract](#next-open-step-m122-mthfr) and
-[the M12.1 record](#accepted-m121-nutrition-cards). Full-reference
+As of 2026-11-09, **M0-M12 are implemented; M13.1 is next**. See
+[the M13.1 entry contract](#next-open-step-m131-agent-cli) and
+[the M12.2 record](#accepted-m122-mthfr). Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -33,7 +33,12 @@ it closes a reproduced CLI saved-summary/notice-count test gap. Production
 code, source pins and saved schemas remain unchanged. All 516 affected
 PGx/web/doctor tests and four final complete/gene CLI cases pass, with four
 strict type targets, full card lint, fixtures and style passing.
-**M12.1 nutrition cards are implemented; M12.2 is next.** Nine cards fill the nutrition section,
+**M12.2, the MTHFR calibration case, is implemented.** Four cards share rs1801133, each scored
+on its own claim: homocysteine and folate in nutrition (well-established), and the venous
+thrombosis, coronary heart disease and depression claims in physical and mental health (each
+limited, because replication conflicts). No schema or bundle-format change. See
+[the M12.2 record](#accepted-m122-mthfr) and [the calibration audit](mthfr.md).
+**M12.1 nutrition cards are implemented.** Nine cards fill the nutrition section,
 seven of them new, and a section pointer reaches HFE and celiac in their own sections; no schema
 or bundle-format change. See [the M12.1 record](#accepted-m121-nutrition-cards),
 [the nutrition audit](nutrition.md) and [the session diff review](review_m121_session.md), which
@@ -511,9 +516,82 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m131-agent-cli"></a>
+
+## Next open step: M13.1 agent CLI
+
+M13.1 is the rest of the agent interface's read commands. The roadmap lists `--section`
+filtering, `card <run> <card-id>`, `evidence <card-id>` and `qc <run>` as its own command.
+It also leaves open whether these live under `runs` or at the top level. Nothing has been
+selected or verified beyond what is listed here.
+
+What the code already has:
+
+- **`genetics runs list`, `runs show [--json]`, `refs licenses`.** `runs show` has no
+  `--section`. Its text output is a header, one line per card and the sections' pointer
+  lines (M12.1, M12.2). `--json` prints the whole frozen bundle, which is about 1 GB on the
+  real imputed run (recorded above). A per-card read should not have to print that.
+- **Section pointers are not in `runs show --json`.** That command prints the saved record,
+  which holds no current context (the [M11.6 review](review_m116_session.md) and the
+  [M12.1 review](review_m121_session.md)). The pointers live in `engine/sections.py`. The
+  [M12.1 review](review_m121_session.md) left the agent surface to M13. M12.2's four MTHFR
+  cards depend on them: a reader of one claim card is meant to find the other three.
+- **Reading a saved imputed run takes about 13 s** once its check record is current, and
+  about 54 min the first time after a source change. A new command reads through the same
+  `store.load_run`.
+- **AGENTS.md §1.3 and M13.7 apply to every new output.** An agent researches the variant
+  and never the user's genotype at it. Card JSON carries citations so that an agent can
+  verify a claim instead of inventing one (M13.2).
+
+<a id="accepted-m122-mthfr"></a>
+
+## Accepted M12.2 MTHFR
+
+Implemented on 2026-11-09 under [the calibration audit](mthfr.md). Two questions were put to
+the owner after the evidence was read and before any card was written, and each answer was
+the recommended option. First, a biochemistry card plus one card for each well-tested health
+claim, so that the calculator scores each claim instead of reading them only in text. Second,
+A1298C is mentioned but gets no card.
+
+- **Four schema-3 cards** in `knowledge/nutrition/mthfr.yaml`, all on rs1801133, with
+  `strand: forward_only`:
+  - `mthfr_c677t_homocysteine` (nutrition);
+  - `mthfr_c677t_venous_thrombosis` and `mthfr_c677t_coronary_heart_disease` (physical
+    health);
+  - `mthfr_c677t_depression` (mental health).
+
+  Knowledge schema stays at 9 and bundle format at 28.
+- **Landings, as computed.** For a common, directly typed call with an exact ancestry match,
+  the nutrition card lands well-established. Before ancestry is computed it lands strong.
+  The three claim cards land limited for every genotype, because each is `candidate_gene`
+  with `replication: conflicting`. A test pins every landing, and another checks that no
+  claim card outranks the nutrition card under any frequency or ancestry tried.
+- **Section pointers both ways.** Nutrition points to the three claim cards. Physical health
+  and mental health point to the nutrition card. Two section blurbs name the new content.
+- **Recorded, not tuned:** `replication: none` outscores `conflicting`, so a small
+  unreplicated study would land above a refuted claim. That is one reason Friso's
+  methylation study is stated on the nutrition card rather than carded.
+
+Validation on 2026-11-09, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **3,992 tests with nine skips** in 694 s. The skips are
+the five existing Windows skips and the four published-classifier HIBAG tests. An earlier run of
+the suite is not counted: card wording changed while it ran, so `test_mthfr.py` checked the new
+YAML against the old expected text and failed 52 tests. No code, card or test changed between
+the counted run and the commit. The 128 MTHFR and nutrition tests include the native gnomAD and ClinVar strand
+checks. Full dbSNP card lint passes **119 cards, 594 renders, 65/65 marker keys**. All four
+strict Windows/Linux x Python 3.11/3.13 type targets (244 files), ruff and format pass. No
+personal export was opened for any result; the array's marker list was read for rsID and
+position only. No browser review is claimed: the pointers are checked through the test client's
+HTML.
+
+**Saved runs repeat their deep checks once.** This session changed Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify` before opening the dashboard on it. A saved run never gains
+these cards: seeing them on real data needs a new run, about 8 hours.
+
 <a id="next-open-step-m122-mthfr"></a>
 
-## Next open step: M12.2 MTHFR
+## M12.2 entry contract (implemented; retained for review)
 
 M12.2 is the MTHFR card, which the roadmap calls **a deliberate calibration test case**. MTHFR
 is heavily overhyped in wellness marketing. The card should state the actual evidence and let

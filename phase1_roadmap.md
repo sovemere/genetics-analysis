@@ -16,8 +16,20 @@ the source of truth for build state.
 
 ## Next up
 
-**M12.2, the MTHFR calibration card, is next.** M0–M11 and M12.1 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m122-mthfr) records what it inherits.
+**M13.1, the rest of the agent CLI, is next.** M0–M12 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m131-agent-cli) records what it inherits.
+
+M12.2 is the MTHFR C677T calibration case: four cards on one marker, each scored on the evidence
+for its own claim. The nutrition card says what the variant does. TT averages 2.10 micromol/L more
+homocysteine than CC (53,643 people), 3.12 in Asia and 0.13 where food is fortified, and it lands
+well-established. Three cards state the health claims made for it, with the studies that tested
+them: venous thrombosis (MEGA, OR 0.94) and coronary heart disease (Clarke 2012's unpublished
+datasets, OR 1.02, against 1.15 in published studies) in physical health, and depression
+(Gilbody 2007's OR 1.36, not replicated in Border 2019) in mental health. Each lands at limited
+because its replication conflicts. Section pointers link the four. ACMG's advice, pregnancy loss,
+folic acid and "methylation" are stated on the nutrition card with their sources. A1298C is
+mentioned, not carded. No schema or bundle-format change. See
+[the calibration audit](docs/mthfr.md).
 
 M12.1 fills the nutrition section with nine cards. Seven are new: coffee intake at the
 CYP1A1–CYP1A2 locus, the CYP1A2 −163C>A "slow metaboliser" marker (candidate-gene,
@@ -2960,10 +2972,14 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       HFE and celiac are reached by a section pointer rather than moved or copied. Folate is
       FOLR3 rs652197, the one non-MTHFR genome-wide locus found, read from imputation. MTHFR
       stays with M12.2. See [the nutrition audit](docs/nutrition.md).
-- [ ] **M12.2** **MTHFR card as a deliberate calibration test case.** Heavily overhyped in
+- [x] **M12.2** **MTHFR card as a deliberate calibration test case.** Heavily overhyped in
       wellness marketing. Include it, state the actual evidence, and let the confidence
       calculator land where it lands. This card is the reference example for how the
       project handles popular claims with thin support.
+      Four cards on rs1801133, by owner decision: homocysteine and folate in nutrition
+      (well-established), and the venous-thrombosis, coronary-heart-disease and depression
+      claims in their own sections (each limited, because replication conflicts). See
+      [the calibration audit](docs/mthfr.md).
 
 ---
 
@@ -3073,6 +3089,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-09 | M12.2 | MTHFR C677T calibration case: four schema-3 cards on rs1801133. **Owner decisions, both the recommended option:** a biochemistry card plus a card for each well-tested health claim, rather than one card with the claims only in its text, so the calculator scores each claim; A1298C mentioned, not carded. **Landings, none tuned:** homocysteine/folate (Holmes 2011, TT-CC 2.10 micromol/L, 1.71-2.50, n 53,643; functional, meta-analysis) lands well-established, or strong while ancestry is uncomputed. Venous thrombosis (MEGA, TT OR 0.94, 0.81-1.08), coronary heart disease (Clarke 2012, 19 unpublished datasets, OR 1.02, 0.98-1.07, against 1.15 published, P = 0.001) and depression (Gilbody 2007, OR 1.36, 1.11-1.67; Border 2019 found no association in up to 443,264) are `candidate_gene` with `replication: conflicting` and land limited for every genotype. Each claim card's best estimate is on its face and the claim's original figure beside it. A caveat says a limited tier rates the claim, not the precision of the null. **Observed, not tuned:** `replication: none` outscores `conflicting`, so an unreplicated small study (Friso's methylation result) would land above the refuted claims; it is stated on the nutrition card rather than carded. **Strand:** 677T is forward A, by ClinVar 3520 (`c.665C>T`, forward G>A) and by frequency (gnomAD 31.5%; Frosst about 38%; Grarup 677C 0.668). dbSNP lists G>A,C,T, so `forward_only`. **Denominators:** Holmes's 53,643 without cardiovascular disease, not the 59,995 with homocysteine data. Gilbody's populations were not verified (abstract only, publisher paywall), so the card says `UNKNOWN`. ACMG 2013 was reaffirmed in 2020 but reclassified as a Clinical Practice Resource, so no card uses the `clinical_guideline` tier on it. Section pointers now also run from physical and mental health to the nutrition card. Full dbSNP card lint: 119 cards, 594 renders, 65/65 keys. See [the calibration audit](docs/mthfr.md). |
 | 2026-11-08 | M12.1 diff review | Reviewed `243aa3e..9f3d6ab`. No defect in matching, saved evidence or the section pointer. **P2: four card details asserted things no cited paper says**: coffee drinking "cultural and personal", B12 dominated by "diet, absorption, age and medicines", serum folate "recent intake rather than stores", and season moving vitamin D "far more" than GC (18 vs 34.2 nmol/L in the cited cohort). Each now quotes its own source's figures. **The first fix repeated the error**: it read Grarup's 27%/17% sibling-pair heritability as "mostly not genetic", which the same paper's 59%/56% twin estimates contradict; both figures are now given without a conclusion. **P2:** the FOLR3 card said the array "cannot read" the frameshift (never checked; the pipeline does not match indels) and called it causal (Grarup: "lead signal"). **P3:** Sachse's "position 734 in intron 1" and "ADH1B*2" were identified by convention; PharmGKB's variant records list both and now back the cards, and show CYP1A2*1F is retired. The audit's "56-study" P value is 46 of 56 studies. Test helper and filtered-pointer test added. See the [review](docs/review_m121_session.md). |
 | 2026-11-08 | M12.1 | Nine nutrition cards: seven new schema-3 interpretation cards plus lactase and ALDH2 moved from traits (text unchanged; saved runs keep them in traits). **Owner decisions, all the recommended option:** move lactase/ALDH2; point to HFE and celiac rather than move them, because HFE's carrier block and the celiac `kind: hla` card are section-restricted; folate to M12.2's MTHFR card unless another locus met the bar; a card for each CYP1A2 marker. **Folate found a second locus.** Grarup 2013 reports FOLR3 rs652197 (combined P 1.4e-12). It is off the array, but cards already read off-array markers from imputation, so it became the folate card. **Every forward-strand allele is bound twice.** Papers name these alleles on the coding strand, or only as minor and major. ADH1B His48 is forward T (ClinVar `c.143A=` on a reverse-strand gene; gnomAD 3.8% in Europeans against Holmes's 7% carriage). FUT2 follows ClinVar's nonsense annotation where Hazra's Table 1 labels rs601338's A as Trp. GC's minor allele is forward G, by 1000 Genomes frequency. **A label trap:** Cornelis 2006's "slow" *1F is the C allele (its 55% carriage is impossible for A), while Sulem 2011 uses *1F for the higher-activity A. **Denominators kept with their estimates:** Kambhampati's GII.4 subgroup size, 2,268, was summed from its forest plot, because the text gives only the 4,584 across all publications. Wang 2010's per-allele OR is quoted, not used, because its four-cohort N is not in the main text; the card uses Table 2's Framingham means (n 5,656) with intervals computed from the printed SEs. **Confidence lands where it lands:** rs762551 reaches moderate at best on synthetic inputs, and the 0.11 cups/day coffee estimate is well established because the association is certain, not because the effect is large. The cards say both. Full dbSNP card lint 115 cards, 564 renders, 61/61 keys. See [the nutrition audit](docs/nutrition.md). |
 | 2026-11-06 | M11.6 diff review | Reviewed `64dc863..99f4998`. **P1, reproduced first:** `genetics runs show --json` and `cards carrier-scope` crashed when redirected on Windows, because `scope.yaml` is the only knowledge file with characters outside cp1252 and `CliRunner` substitutes UTF-8, so no test, CI job or `ci-local` run could see it. The CLI now switches a non-UTF-8 stdout to UTF-8 at its entry point. **P2:** imputed results read as array calls and the strand caveat was false for them; they are now counted and stated apart. **P3:** the `not_authored` re-check was per site and is now per declared allele (all 24 pass); a second scope card failed only at save and is now refused at load. P4 hardening: `COMPUTATION_SECTIONS` replaces duplicated literals. No format-27 run existed, so schema 8, record schema 1 and format 27 keep their numbers. Recorded: the saved face's wording is part of the record's schema, now pinned by a test; `runs show --json` stays the frozen record, so a proposed notice there was reverted. Validation: 3,829 native tests with nine skips; full dbSNP lint 101 cards, 508 renders, 54/54 marker keys; four strict type targets, ruff, format and fixtures pass. See [the review](docs/review_m116_session.md). |

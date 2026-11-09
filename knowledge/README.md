@@ -33,7 +33,11 @@ guideline selectors under `pharmacogenomics/`. M11.4 adds eight HLA-linked cards
 `reproductive/scope.yaml`. M11.7 adds seven polygenic cards, `reproductive/polygenic.yaml`.
 M12.1 adds seven nutrition cards, `nutrition/variants.yaml`, and moves the lactase and ALDH2
 cards from traits to `nutrition/lactase_alcohol.yaml` with only their `section` changed.
-The current pack has 115 cards: 59 single-variant interpretations (16 of them carrier cards),
+M12.2 adds four MTHFR C677T cards on one marker, `nutrition/mthfr.yaml`: what the variant does
+(homocysteine and folate) in nutrition, and three health claims made for it, each scored on
+the studies that tested it, in physical and mental health. See the
+[calibration audit](../docs/mthfr.md).
+The current pack has 119 cards: 63 single-variant interpretations (16 of them carrier cards),
 one two-marker interpretation, 12 assay-limit cards, six computed cards, 21 polygenic cards,
 eight guideline cards and eight HLA cards.
 

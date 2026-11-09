@@ -215,7 +215,7 @@ below are in v1 scope by owner decision** — see `phase1_roadmap.md` for build 
 | **Psychometrics** | Cognitive + personality. Weakest evidence base (§4.5) |
 | **Pharmacogenomics** | *Highest actionable value.* See below |
 | **Traits, morphology & sensory** | *Highest confidence in the app.* See below |
-| **Nutrition & metabolism** | Lactase, CYP1A2 caffeine, ADH1B/ALDH2, HFE, celiac HLA-DQ2/DQ8, MTHFR. HFE and celiac render in physical health and immunogenetics; this section links to them (M12.1) |
+| **Nutrition & metabolism** | Lactase, CYP1A2 caffeine, ADH1B/ALDH2, HFE, celiac HLA-DQ2/DQ8, MTHFR. HFE and celiac render in physical health and immunogenetics; this section links to them (M12.1). MTHFR's clot, heart-disease and depression claims are scored in physical and mental health (M12.2) |
 | **Substance use & behavioural propensity** | Distinct from both psychometrics and mental health |
 | **Immunogenetics (HLA)** | A distinct *capability*, not just a topic |
 | **Reproductive & carrier status** | Carrier findings are about offspring, not self; reproductive-timing and sex-hormone scores are about self |

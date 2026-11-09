@@ -450,7 +450,14 @@ def test_every_section_pointer_names_a_card_another_section_holds() -> None:
             assert pack[pointer.card_id].section is not section, pointer.card_id
     assert declared >= 2
     nutrition = {r.card_id for r in sections.SECTIONS[Section.NUTRITION].related}
-    assert nutrition == {"hfe_c282y_iron_overload", "hla_celiac_dq2_dq8"}
+    assert nutrition == {
+        "hfe_c282y_iron_overload",
+        "hla_celiac_dq2_dq8",
+        # M12.2: the health claims made for MTHFR render in physical and mental health.
+        "mthfr_c677t_venous_thrombosis",
+        "mthfr_c677t_coronary_heart_disease",
+        "mthfr_c677t_depression",
+    }
     assert pack["hfe_c282y_iron_overload"].section is Section.PHYSICAL_HEALTH
     assert pack["hla_celiac_dq2_dq8"].section is Section.IMMUNOGENETICS
 
@@ -549,7 +556,11 @@ def test_the_pointer_is_shown_only_on_its_own_section(
         assert by_tier.status_code == 200
         assert "Also relevant here" not in by_tier.text
         page = client.get(f"/runs/{bundle.run_id}")
-        assert page.text.count("Also relevant here, shown in their own sections:") == 1
+        # Once per section that declares pointers (M12.2 added physical and mental health),
+        # whether or not the section holds a card in this run.
+        declaring = sum(1 for s in sections.SECTION_ORDER if sections.SECTIONS[s].related)
+        assert declaring == 3
+        assert page.text.count("Also relevant here, shown in their own sections:") == declaring
         # A filter that hides the target card does not hide the pointer: it resolves against
         # the whole run, and the detail page it opens is not filtered.
         filtered = client.get(f"/runs/{bundle.run_id}?section=nutrition")

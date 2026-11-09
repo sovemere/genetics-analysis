@@ -44,7 +44,9 @@ class RelatedCard:
     Some topics still belong to two sections. HFE iron overload and celiac HLA-DQ are
     nutrition topics, but HFE carries a carrier declaration that only physical health and
     reproductive accept, and an HLA card can only sit in immunogenetics or
-    pharmacogenomics. A pointer names such a card without moving or copying it.
+    pharmacogenomics. A pointer names such a card without moving or copying it. M12.2 adds
+    the reverse case: MTHFR C677T's health claims are scored in physical and mental health,
+    each on its own evidence, and point back to the nutrition card on what the variant does.
 
     ``label`` is shown only when the run does not hold the card -- a run saved before the
     card existed -- so a reader is told it is absent rather than shown a dead link. A test
@@ -83,12 +85,15 @@ _INFO: tuple[SectionInfo, ...] = (
         "Physical health",
         "ClinVar findings and polygenic scores, gated on population frequency.",
         "M7, M9.7",
+        related=(RelatedCard("mthfr_c677t_homocysteine", "MTHFR C677T, homocysteine and folate"),),
     ),
     SectionInfo(
         Section.MENTAL_HEALTH,
         "Mental health",
-        "Polygenic scores from releases that exclude 23andMe cohorts.",
+        "Polygenic scores from releases that exclude 23andMe cohorts, and the MTHFR "
+        "depression claim, scored on the studies that tested it.",
         "M9.8",
+        related=(RelatedCard("mthfr_c677t_homocysteine", "MTHFR C677T, homocysteine and folate"),),
     ),
     SectionInfo(
         Section.PSYCHOMETRICS,
@@ -111,12 +116,18 @@ _INFO: tuple[SectionInfo, ...] = (
     SectionInfo(
         Section.NUTRITION,
         "Nutrition & metabolism",
-        "Lactase persistence, caffeine, alcohol metabolism, vitamin B12, vitamin D and "
-        "folate. Iron overload and celiac HLA-DQ have cards in their own sections.",
+        "Lactase persistence, caffeine, alcohol metabolism, vitamin B12, vitamin D, folate "
+        "and MTHFR. Iron overload, celiac HLA-DQ and three health claims made for MTHFR have "
+        "cards in their own sections.",
         "M12",
         related=(
             RelatedCard("hfe_c282y_iron_overload", "HFE C282Y and iron overload"),
             RelatedCard("hla_celiac_dq2_dq8", "HLA-DQ2.5 and DQ8 and celiac disease"),
+            RelatedCard("mthfr_c677t_venous_thrombosis", "MTHFR C677T and venous thrombosis"),
+            RelatedCard(
+                "mthfr_c677t_coronary_heart_disease", "MTHFR C677T and coronary heart disease"
+            ),
+            RelatedCard("mthfr_c677t_depression", "MTHFR C677T and depression"),
         ),
     ),
     SectionInfo(

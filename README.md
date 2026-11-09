@@ -231,7 +231,12 @@ cards moved from traits. HFE and celiac stay in their own sections, and the nutr
 to them. See the [nutrition audit](docs/nutrition.md). The
 [M12.1 diff review](docs/review_m121_session.md) replaces four card sentences no cited paper
 supported and sources two allele names to their PharmGKB records.
-[M12.2, the MTHFR calibration card](docs/handoff.md#next-open-step-m122-mthfr) is next.
+**M12.2, the MTHFR calibration case, is implemented.** Four cards share MTHFR C677T. The nutrition
+card states what the variant does: TT averages 2.1 micromol/L more homocysteine than CC, less where
+food is fortified, and it lands well-established. Three cards state the health claims made for it,
+venous thrombosis, coronary heart disease and depression, each with the studies that tested them,
+and the calculator lands each at limited. See the [calibration audit](docs/mthfr.md).
+[M13.1, the rest of the agent CLI](docs/handoff.md#next-open-step-m131-agent-cli) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
