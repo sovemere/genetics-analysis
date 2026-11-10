@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M10 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M12 and M13.1 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -238,7 +238,14 @@ venous thrombosis, coronary heart disease and depression, each with the studies 
 and the calculator lands each at limited. See the [calibration audit](docs/mthfr.md). The
 [M12.2 diff review](docs/review_m122_session.md) removes one unsourced sentence, adds a relative
 homocysteine figure and an absolute-risk statement, and corrects four wordings.
-[M13.1, the rest of the agent CLI](docs/handoff.md#next-open-step-m131-agent-cli) is next.
+**M13.1, the agent's read commands, is implemented.** `runs show --section`, `runs card`,
+`runs qc` and `cards evidence` let an agent read one section, one card, a run's QC record or a
+card's evidence without printing a whole bundle. `cards evidence` reads only the knowledge pack
+and holds no genotype, so a web search can start from it. See the
+[read-command contract](docs/agent_cli.md). The
+[M13.1 diff review](docs/review_m131_session.md) fixes `runs card` calling computed, polygenic
+and guideline cards "Not scored".
+[M13.2, a versioned JSON schema](docs/handoff.md#next-open-step-m132-json-schema) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

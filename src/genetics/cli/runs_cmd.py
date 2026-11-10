@@ -1,15 +1,15 @@
-"""``genetics runs`` -- list, read and delete saved runs (roadmap M4.2).
+"""``genetics runs`` -- list, read and delete saved runs (roadmap M4.2, M13.1).
 
-Scope, so the next author does not build it twice: this is the *store* surface. M13.1 owns
-the analysis surface on top of it -- ``show --section``, ``card <run> <card-id>``,
-``evidence``, ``search`` -- and M13.2 owns pinning the JSON as a versioned schema. ``runs
-show`` here is deliberately thin: it exists because a store you can list and delete but
-never read is not a store, and because M4.2's "or fail with a clear version error" is a
-promise about what a *user* sees, which takes a command someone can actually run.
+M4.2 built the store surface: ``list``, ``show``, ``delete`` and ``prune``. M13.1 added the
+agent's reads on top of it: ``show --section``, ``card <run> <card-id>`` and ``qc``, whose
+payloads :mod:`genetics.run.reads` builds. ``cards evidence`` is the fourth M13.1 read and
+lives in :mod:`genetics.cli.cards_cmd`, because it reads no run. M13.2 owns pinning the JSON
+as a versioned schema, and M13.3 owns ``search``.
 
 **The privacy split is inherited from the bundle format rather than reinvented.** ``runs
-list`` is scanned with ``assert_no_genotype`` on both output paths; ``runs show`` is not.
-That is a decision in both directions, not an oversight in one:
+list`` and ``runs qc`` are scanned with ``assert_no_genotype`` on both output paths; ``runs
+show`` and ``runs card`` are not. That is a decision in both directions, not an oversight
+in one:
 
 * Listing is manifest-derived, and the manifest is the file a person pastes into a bug
   report. The writer already scans it, but that scan is a property of the writer -- a bundle
@@ -18,11 +18,11 @@ That is a decision in both directions, not an oversight in one:
   branches are scanned because M1.8 got exactly this wrong: the first cut of ``genetics
   ingest`` guarded the JSON branch and left the human render open, which is the branch a
   person is *more* likely to edit.
-* ``show`` renders per-card results, and a card's summary states what the reader's genotype
-  is -- that is the product, not a leak. Scanning it would be a guard that fails on correct
-  output, and M0.3 settled what happens to those: they get switched off, including on the
-  day they were right. A bundle is raw DNA (AGENTS.md 1.1) and belongs to the person running
-  the command; keeping it off their own screen protects nobody.
+* ``show`` and ``card`` render per-card results, and a card's summary states what the
+  reader's genotype is -- that is the product, not a leak. Scanning it would be a guard that
+  fails on correct output, and M0.3 settled what happens to those: they get switched off,
+  including on the day they were right. A bundle is raw DNA (AGENTS.md 1.1) and belongs to
+  the person running the command; keeping it off their own screen protects nobody.
 """
 
 from __future__ import annotations
@@ -416,7 +416,12 @@ def runs_show(
             ),
         ),
     ] = None,
-    as_json: Annotated[bool, typer.Option("--json", help="Emit the whole bundle as JSON.")] = False,
+    as_json: Annotated[
+        bool,
+        typer.Option(
+            "--json", help="Emit JSON: the whole bundle, or with --section those sections."
+        ),
+    ] = False,
 ) -> None:
     """Read one saved run and print it. Payload digests are checked on the way in.
 
@@ -703,7 +708,7 @@ def _card_lines(view: Mapping[str, Any]) -> list[str]:
         *evidence_lines(card["evidence"], absent=_no_evidence(card, view["format_version"])),
         "",
         "Confidence",
-        *confidence_lines(card["confidence"]),
+        *confidence_lines(card),
         *(f"  {line}" for line in _ppv_lines(card["confidence"], card["confidence_tier"])),
         "",
         "Population frequencies",

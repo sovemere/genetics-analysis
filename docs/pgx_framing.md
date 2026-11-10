@@ -22,6 +22,9 @@ once before the saved report. Its JSON exposes
 `section: pharmacogenomics` identify presentation context separately from
 frozen `guideline_cards`, sample calls and saved CYP2D6 evidence.
 `genetics runs show RUN --json` remains the frozen bundle inspection interface.
+Since M13.1, `genetics runs show RUN --section pharmacogenomics` prints the notice once in
+its section frame, and its JSON gives it as
+`current_context.sections[].section_framing` ([agent read commands](agent_cli.md)).
 
 The notice does not require a completed PGx stage or a particular knowledge
 pack. Completed, unavailable-reference and historical runs receive the same

@@ -351,8 +351,9 @@ genes and excluded alleles. `genetics runs show` prints it, `--json` holds the f
 run. A run with carrier cards and no record, such as a format-26 run, still gets a plain statement
 in the dashboard and in `runs show` that its carrier cards are not a screen; nothing is written
 into that run. `runs show --json` stays the frozen record and does not add it, so an agent reads
-the same limit from `genetics cards carrier-scope --json`. A run with no carrier card gets no
-statement.
+the same limit from `genetics cards carrier-scope --json`. Since M13.1, `runs show RUN --section
+reproductive --json` also gives the statement, as `current_context.sections[].carrier_scope`
+([agent read commands](agent_cli.md)). A run with no carrier card gets no statement.
 
 ### Limits of this statement
 

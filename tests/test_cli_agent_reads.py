@@ -510,3 +510,75 @@ def test_section_frames_match_the_dashboard_s(saved: RunBundle) -> None:
         assert [(p["card_id"], p["title"], p["in_run"]) for p in context["related"]] == [
             (link.card_id, link.title, link.url is not None) for link in links
         ]
+
+
+# ---------------------------------------------------------------------------
+# Confidence for cards that keep it in their computation (review, 2026-11-10)
+# ---------------------------------------------------------------------------
+
+
+def _with_card(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch, card_id: str, **changes: Any
+) -> None:
+    cards = tuple(
+        dataclasses.replace(card, **changes) if card.card_id == card_id else card
+        for card in saved.cards
+    )
+    changed = dataclasses.replace(saved, cards=cards)
+    monkeypatch.setattr(store, "load_run", lambda *a, **k: changed)
+
+
+def test_a_computed_card_s_reliability_is_printed_not_called_unscored(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Polygenic, computed and guideline cards keep their tier in computation.reliability.
+
+    The first cut printed "Not scored" for every card whose ``confidence`` block was null,
+    which is every one of them, while the header line gave their tier.
+    """
+    reason = "Computed from synthetic inputs; capped by coverage."
+    reliability: dict[str, Any] = {
+        "tier": "limited",
+        "score": 0.31,
+        "inputs": {"comparable_weight_fraction": 0.42, "evidence_tier": "gwas"},
+        "ceilings": ["coverage"],
+        "reason": reason,
+    }
+    _with_card(
+        saved,
+        monkeypatch,
+        "wnt10a_hair_curl",
+        kind="polygenic",
+        confidence=None,
+        confidence_tier="limited",
+        computation={"source": "synthetic", "reliability": reliability},
+    )
+    text = _text(["runs", "card", saved.run_id, "wnt10a_hair_curl"])
+    confidence = text.split("\nConfidence\n")[1].split("\n\n")[0]
+    assert "Not scored" not in confidence
+    assert "tier limited; score 0.31" in confidence
+    assert reason in confidence
+    assert "comparable_weight_fraction" in confidence and "0.42" in confidence
+    assert "capped by coverage" in confidence
+
+
+def test_an_unscored_card_names_its_status(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _with_card(
+        saved,
+        monkeypatch,
+        "wnt10a_hair_curl",
+        status="not_on_array",
+        confidence=None,
+        confidence_tier=None,
+    )
+    text = _text(["runs", "card", saved.run_id, "wnt10a_hair_curl"])
+    assert "Not scored: no finding for this run (status not_on_array)." in text
+
+
+def test_citation_links_from_other_citations_are_refused() -> None:
+    from genetics.cli.render import citation_lines
+
+    with pytest.raises(ValueError):
+        citation_lines([{"type": "doi", "id": "10.1000/x"}], [])

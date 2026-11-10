@@ -55,12 +55,15 @@ An unknown card id exits 1 with `error.kind: card-not-found` and names `runs sho
 to list the run's cards. The dashboard says the same thing for a stale card link.
 
 The text form prints the claim, the variant, how the call was made, the evidence block, the
-confidence tier with its six scored inputs, any empirical PPV, the frequencies, every caveat
-and the citations with links. Polygenic, HLA, runs-of-homozygosity and multi-marker detail
-gets one line pointing to `--json`, which holds it in full; the dashboard draws those as
-tables and distributions. Where a card
-has no evidence block, the text says which of three reasons applies: an assay-limit card, a
-bundle older than format 2, or an outcome with no phenotype estimate.
+confidence tier and every input behind it, any empirical PPV, the frequencies, every caveat
+and the citations with links. The inputs come from one of two places. Interpretation and
+HLA cards hold six scored inputs in `card.confidence`. Computed, polygenic and guideline
+cards have `card.confidence: null` and hold their tier, inputs, ceilings and reason in
+`card.computation.reliability`. A card with neither says "Not scored" and gives its status.
+Polygenic, HLA, runs-of-homozygosity and multi-marker detail gets one line pointing to
+`--json`, which holds it in full; the dashboard draws those as tables and distributions.
+Where a card has no evidence block, the text says which of three reasons applies: an
+assay-limit card, a bundle older than format 2, or an outcome with no phenotype estimate.
 
 ### `runs show --section`
 
@@ -125,7 +128,9 @@ pointers are checked against the dashboard's `views` for all thirteen sections. 
 reads run as subprocesses with a cp1252 stdout. Each guard was removed in turn, and each
 removal failed the test written for it: both scans on both scanned commands, report order,
 the projection, the PGx notice, `pointed_from`, `in_run`, `--section` JSON, and the warning
-list. The full native suite passes 4,029 tests with the existing nine skips.
+list. The full native suite passes 4,029 tests with the existing nine skips, and 4,032 after
+the [session diff review](review_m131_session.md), which fixed the text form's confidence for
+computed, polygenic and guideline cards.
 
 None of these commands has been run on the real imputed run. That run's first read after this
 source change repeats its deep checks (about 54 minutes); later reads take about 13 seconds.
@@ -135,8 +140,9 @@ source change repeats its deep checks (about 54 minutes); later reads take about
 - **M13.2** versions and documents these shapes as a schema. Nothing here carries a schema
   version yet.
 - **M13.3** `genetics search <query>`.
-- **M13.4** is largely present: `card.confidence` holds the tier, score, scored inputs and
-  PPV. M13.4 decides whether the components need explaining beyond the six rows.
+- **M13.4** is largely present, in the two places described under `runs card`. M13.4
+  decides whether an agent should see one shape for both, and whether the components need
+  explaining beyond their values.
 - **M13.5** the parity test over every dashboard route. `SAVED_RECORDS` and the section-frame
   test are a start, not that test.
 - **M13.6** the worked review example; **M13.7** the outbound-query lint.

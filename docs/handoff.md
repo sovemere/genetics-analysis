@@ -546,6 +546,12 @@ What M13.1 hands over:
     `{"ok": false, "error": {"kind", "message"}}`. `pgx calls`, `prepare` and `inspect` print
     `{"ok": false, "error": "<message>"}`.
   - Exit codes: an unknown `--section` exits 2 (usage). An unknown run or card exits 1.
+- **Confidence inputs live in two places by card kind.** Interpretation and HLA cards save a
+  `confidence` block (six scored inputs, PPV). Computed, polygenic and guideline cards save
+  `confidence: null` and keep tier, score, inputs, ceilings and reason in
+  `computation.reliability`; the bundle reader takes their tier from there. The
+  [M13.1 review](review_m131_session.md) found the text form missing the second place. A
+  schema has to describe both, or M13.4 has to give an agent one shape.
 - **Which payloads hold a genotype is part of the contract.** `runs show` and `runs card` do,
   by design, and are not scanned. `runs list`, `runs qc` and `cards evidence` are scanned on
   both branches. M13.7's outbound-query lint will rely on that split.
@@ -589,6 +595,13 @@ all four strict type targets (248 files), ruff, format and the fixture check pas
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
 Run `genetics runs list --verify`, or the launcher's verify-first shortcut, before using the
 new commands or the dashboard on it.
+
+The [session diff review](review_m131_session.md) (`441e498..015c41c`) found one defect:
+`runs card` text called computed, polygenic and guideline cards "Not scored", although they
+keep their tier, inputs and reason in `computation.reliability`. It now prints them. The
+review also removed stale "what remains" text from the roadmap, the `runs` module docstring
+and the README. It made the dashboard's grid share the empty-section wording, and made
+citation links refuse a mismatched list. JSON payloads are unchanged.
 
 <a id="next-open-step-m131-agent-cli"></a>
 

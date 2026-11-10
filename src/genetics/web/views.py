@@ -286,8 +286,8 @@ class SectionView:
         about this tool's progress and names the milestone that fixes it, while **cards
         exist and none produced an interpretation** is a fact about this genome and is not a
         defect at all. Collapsing them into "nothing here" would tell a reader their array
-        lacks a marker when the truth is nobody has written the card. Worded once, by
-        :func:`reads.empty_reason`, which ``runs show --section`` also prints.
+        lacks a marker when the truth is nobody has written the card. Worded by
+        :func:`reads.empty_reason`, which :class:`CardGroup` and ``runs show --section`` share.
         """
         return reads.empty_reason(self.milestone, self.card_count, self.interpreted)
 
@@ -1579,20 +1579,14 @@ class CardGroup(NoGenotypeRepr):
         and none produced an interpretation** is a fact about this genome and is not a
         defect; **the filter is hiding them** is a fact about the reader's own last click.
         Collapsing any two would tell somebody their array lacks a marker when the truth is
-        one of the other two.
+        one of the other two. The first two are worded by :func:`reads.empty_reason`, which
+        the section nav and ``runs show --section`` also use.
         """
-        if self.total == 0:
-            if self.milestone is not None:
-                return f"Not built yet — roadmap {self.milestone}."
+        if self.total == 0 and self.milestone is None:
             return "No card in this run is at this level."
-        if not self.cards:
+        if self.total > 0 and not self.cards:
             return f"All {self.total} card(s) here are hidden by the current filter."
-        if self.interpreted == 0:
-            return (
-                f"{self.total} card(s) here, none of which produced an interpretation for "
-                "this genome. Each one states its own reason."
-            )
-        return None
+        return reads.empty_reason(self.milestone or "", self.total, self.interpreted)
 
 
 @dataclass(frozen=True)

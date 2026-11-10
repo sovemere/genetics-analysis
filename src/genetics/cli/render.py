@@ -11,6 +11,7 @@ identifier followed by its alleles in columns or after a colon, which is the sha
 
 from __future__ import annotations
 
+import json
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -39,8 +40,8 @@ def evidence_lines(
 ) -> list[str]:
     """The published claim: tier, replication, size, study population, effect.
 
-    ``absent`` says why there is none, which only the caller knows: an assay-limit card, a
-    comparison group with no estimate of its own, or a bundle older than format 2.
+    ``absent`` says why there is none, which only the caller knows: an assay-limit card, an
+    outcome with no phenotype estimate (``evidence: null``), or a bundle older than format 2.
     """
     if evidence is None:
         return [f"{indent}{absent}"]
@@ -81,14 +82,18 @@ def citation_lines(
 ) -> list[str]:
     """Each citation with its title, note and public page where one resolves."""
     lines: list[str] = []
-    for i, citation in enumerate(citations):
+    listed = list(citations)
+    # zip(strict=True): a link list built from different citations is a caller bug, and
+    # pairing a DOI with the wrong page is worse than failing.
+    paired = zip(listed, [None] * len(listed) if links is None else links, strict=True)
+    for citation, link in paired:
         name = f"{citation.get('type')}:{citation.get('id')}"
         if citation.get("database"):
             name = f"{citation['database']} {name}"
         lines.append(f"{indent}{name}  {citation.get('title') or ''}".rstrip())
         if citation.get("note"):
             lines.append(f"{indent}  note: {citation['note']}")
-        url = citation.get("url") if links is None else links[i].get("url")
+        url = citation.get("url") if link is None else link.get("url")
         if url:
             lines.append(f"{indent}  {url}")
     if not lines:
@@ -111,10 +116,44 @@ _CONFIDENCE_ROWS: tuple[tuple[str, tuple[str, ...], str], ...] = (
 """The six inputs the dashboard's confidence breakdown shows, in its order (M4.6)."""
 
 
-def confidence_lines(confidence: Mapping[str, Any] | None, indent: str = "  ") -> list[str]:
-    """The computed tier, its score and every input behind it (AGENTS.md 6)."""
-    if confidence is None:
-        return [f"{indent}Not scored: nothing was matched, or the card states an assay limit."]
+def _value(value: Any) -> str:
+    if value is None:
+        return "not recorded"
+    if isinstance(value, str):
+        return value
+    if isinstance(value, int | float) and not isinstance(value, bool):
+        return _number(value)
+    return json.dumps(value, sort_keys=True)
+
+
+def confidence_lines(card: Mapping[str, Any], indent: str = "  ") -> list[str]:
+    """The computed tier, its score and every input behind it (AGENTS.md 6).
+
+    Two places hold them. An interpretation or HLA card has a ``confidence`` block with the
+    six scored inputs. A computed, polygenic or guideline card has ``confidence: null`` and
+    keeps its tier, inputs and reason in ``computation.reliability``.
+    """
+    confidence = card.get("confidence")
+    computation = card.get("computation")
+    reliability = computation.get("reliability") if isinstance(computation, Mapping) else None
+    if not isinstance(confidence, Mapping) and isinstance(reliability, Mapping):
+        lines = [
+            f"{indent}tier {reliability.get('tier') or 'none'}; "
+            f"score {_number(reliability.get('score'))}"
+        ]
+        if reliability.get("reason"):
+            lines.append(f"{indent}{reliability['reason']}")
+        inputs = reliability.get("inputs")
+        if isinstance(inputs, Mapping):
+            lines.extend(f"{indent}{key:<32} {_value(value)}" for key, value in inputs.items())
+        ceilings = reliability.get("ceilings")
+        if isinstance(ceilings, Sequence) and not isinstance(ceilings, str) and ceilings:
+            lines.append(f"{indent}capped by {', '.join(str(c) for c in ceilings)}")
+        return lines
+    if not isinstance(confidence, Mapping):
+        if card.get("kind") == "impossibility":
+            return [f"{indent}Not scored: the card states an assay limit."]
+        return [f"{indent}Not scored: no finding for this run (status {card.get('status')})."]
     lines = [f"{indent}tier {confidence.get('tier')}; score {_number(confidence.get('score'))}"]
     inputs = confidence.get("inputs")
     inputs = inputs if isinstance(inputs, Mapping) else {}
