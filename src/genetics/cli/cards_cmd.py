@@ -3,14 +3,15 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any, NoReturn
 
 import typer
 
 cards_app = typer.Typer(
     name="cards",
-    help="Validate the declarative knowledge pack.",
+    help="Validate and read the declarative knowledge pack.",
     no_args_is_help=True,
     add_completion=False,
 )
@@ -207,3 +208,127 @@ def carriers(
         "and every untyped variant in these genes, are outside this panel. "
         "`genetics cards carrier-scope` sets it against a published screening list."
     )
+
+
+@cards_app.command("evidence")
+def evidence(
+    card_id: Annotated[
+        str, typer.Argument(help="Card id, as `runs show` and `runs card` print it.")
+    ],
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Print what a card rests on: variants, published effect, citations, caveats (M13.1).
+
+    A property of the knowledge pack, not of a run: no genotype is read, and the output is
+    checked for one before it is printed. Research a card from this, never from a run's
+    output (AGENTS.md 1.3).
+    """
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.engine.declaration import declaration
+    from genetics.privacy import assert_no_genotype
+
+    try:
+        pack = KnowledgePack.load(knowledge)
+    except CardError as exc:
+        _evidence_error("knowledge", f"error: {exc}", as_json=as_json)
+    card = pack.by_id(card_id)
+    if card is None:
+        _evidence_error(
+            "card-not-found",
+            f"No card called {card_id!r} is in the knowledge pack at {pack.source_dir}.",
+            as_json=as_json,
+        )
+    data = declaration(card)
+
+    if as_json:
+        text = json.dumps(data, indent=2, ensure_ascii=False)
+        assert_no_genotype(text, context="cards evidence JSON output")
+        typer.echo(text)
+        return
+
+    text = evidence_text(data)
+    assert_no_genotype(text, context="cards evidence output")
+    typer.echo(text)
+
+
+def evidence_text(data: Mapping[str, Any]) -> str:
+    """``cards evidence`` as text, from :func:`genetics.engine.declaration.declaration`."""
+    from genetics.cli.render import bullet_lines, citation_lines, evidence_lines, variant_line
+    from genetics.engine import sections
+
+    lines = [
+        data["title"],
+        f"  card      {data['card_id']}",
+        f"  section   {data['section']} ({sections.get(data['section']).title})",
+        f"  kind      {data['kind']}",
+    ]
+    if data["gene"]:
+        lines.append(f"  gene      {data['gene']}")
+    lines.extend(f"  variant   {variant_line(v)}" for v in data["variants"])
+    if data["impossibility_reason"]:
+        lines += ["", "Not determinable from this data", f"  {data['impossibility_reason']}"]
+    lines += [
+        "",
+        "Evidence",
+        *evidence_lines(data["evidence"], absent="No published-effect block on this card."),
+    ]
+    for name, block in data["outcome_evidence"].items():
+        lines += [
+            "",
+            f"Evidence for outcome {name}",
+            *evidence_lines(
+                block,
+                absent=(
+                    "No phenotype estimate applies to this outcome; "
+                    "its confidence cannot exceed limited."
+                ),
+            ),
+        ]
+    polygenic = data["polygenic"]
+    if polygenic is not None:
+        lines += [
+            "",
+            "Polygenic score",
+            f"  {polygenic['pgs_id']} ({polygenic['scoring_source']}); trait: {polygenic['trait']}",
+        ]
+        deciles = polygenic["decile_outcomes"]
+        if deciles is not None:
+            lines.append(
+                f"  outcome by decile: {deciles['measure']} in {deciles['population']}, "
+                f"n = {deciles['sample_size']:,}, base rate {deciles['base_rate']:g} "
+                f"({deciles['source']})"
+            )
+    if data["hla"] is not None:
+        names = ", ".join(alt["name"] for alt in data["hla"]["alternatives"])
+        lines += ["", "HLA alleles read", f"  {names}"]
+    if data["carrier"] is not None:
+        carrier = data["carrier"]
+        lines += [
+            "",
+            "Carrier declaration",
+            f"  {carrier['variant']}; {carrier['condition']}, {carrier['inheritance']}; "
+            f"ClinVar {carrier['clinvar']}",
+            f"  {carrier['typed_scope']}",
+        ]
+    if data["method_evidence"] is not None:
+        lines += ["", f"Computed by {data['computation']}; method evidence in --json."]
+    lines += ["", "Citations", *citation_lines(data["citations"])]
+    lines += ["", "Caveats", *(bullet_lines(data["caveats"]) or ["  None authored."])]
+    return "\n".join(lines)
+
+
+def _evidence_error(kind: str, message: str, *, as_json: bool) -> NoReturn:
+    if as_json:
+        typer.echo(json.dumps({"ok": False, "error": {"kind": kind, "message": message}}, indent=2))
+    else:
+        typer.secho(message, fg=typer.colors.RED, err=True)
+    raise typer.Exit(code=1)

@@ -95,7 +95,7 @@ _CPIC_VALUE = re.compile(r"\*([0-9]{2,3}:[0-9]{2,3}[A-Z]?) (positive|negative)")
 
 def definition(card: Card) -> dict[str, Any]:
     """The authored card in saved form, which :meth:`Card.parse` reads back unchanged."""
-    from genetics.run.bundle import _citation_payload, evidence_payload
+    from genetics.run.bundle import citation_payload, evidence_payload
 
     if card.kind is not CardKind.HLA or card.hla is None or card.gene is None:
         raise ValueError("Expected an HLA-linked card.")
@@ -120,7 +120,7 @@ def definition(card: Card) -> dict[str, Any]:
         "hla": card.hla.to_dict(),
         "outcomes": outcomes,
         "evidence": evidence_payload(card.evidence),
-        "citations": [_citation_payload(c) for c in card.citations],
+        "citations": [citation_payload(c) for c in card.citations],
         "caveats": list(card.caveats),
     }
 

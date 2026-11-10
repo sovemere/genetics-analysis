@@ -409,7 +409,7 @@ def _digest(path: Path) -> str:
     return hasher.hexdigest()
 
 
-def _citation_payload(citation: Citation) -> dict[str, Any]:
+def citation_payload(citation: Citation) -> dict[str, Any]:
     return {
         "type": citation.type.value,
         "id": citation.id,
@@ -518,7 +518,7 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "confidence_frequency": None
         if assembled.confidence_frequency is None
         else _frequency_payload(assembled.confidence_frequency),
-        "citations": [_citation_payload(c) for c in assembled.citations],
+        "citations": [citation_payload(c) for c in assembled.citations],
         "authored_caveats": list(assembled.authored_caveats),
         "computed_caveats": list(assembled.computed_caveats),
         "computation": assembled.computation,

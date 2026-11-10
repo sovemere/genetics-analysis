@@ -33,8 +33,9 @@ from typing import Annotated, Any, NoReturn
 
 import typer
 
+from genetics.engine.sections import Section, UnknownSectionError
 from genetics.privacy import assert_no_genotype
-from genetics.run import store
+from genetics.run import reads, store
 from genetics.run.bundle import (
     BundleError,
     BundleIntegrityError,
@@ -215,7 +216,8 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
     Mappings are copied into plain dicts rather than re-serialised through a schema: what
     was written is what a reader of a months-old bundle must get back, and a projection
     maintained here would be a second description of the payload, drifting against the one
-    in :mod:`genetics.run.bundle`.
+    in :mod:`genetics.run.bundle`. Each card goes through :func:`reads.card_payload`, which
+    ``runs card`` and ``runs show --section`` use too.
     """
     return {
         "run_id": bundle.run_id,
@@ -234,39 +236,7 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
         "imputation_provenance": None
         if bundle.imputation_provenance is None
         else dict(bundle.imputation_provenance),
-        "cards": [
-            {
-                "card_id": card.card_id,
-                "section": card.section,
-                "kind": card.kind,
-                "title": card.title,
-                "gene": card.gene,
-                "status": card.status,
-                "confidence_tier": card.confidence_tier,
-                "summary": card.summary,
-                "detail": card.detail,
-                "impossibility_reason": card.impossibility_reason,
-                "variant": None if card.variant is None else dict(card.variant),
-                "match": dict(card.match),
-                "confidence": None if card.confidence is None else dict(card.confidence),
-                "evidence": None if card.evidence is None else dict(card.evidence),
-                "observation": None if card.observation is None else dict(card.observation),
-                "frequencies": [dict(f) for f in card.frequencies],
-                "confidence_frequency": None
-                if card.confidence_frequency is None
-                else dict(card.confidence_frequency),
-                "citations": [dict(c) for c in card.citations],
-                "authored_caveats": list(card.authored_caveats),
-                "computed_caveats": list(card.computed_caveats),
-                "computation": None if card.computation is None else dict(card.computation),
-                "multi_marker": None if card.multi_marker is None else dict(card.multi_marker),
-                "risk_context": card.risk_context,
-                "imputation_mode": card.imputation_mode,
-                "ancestry_comparison": card.ancestry_comparison,
-                "carrier": None if card.carrier is None else dict(card.carrier),
-            }
-            for card in bundle.cards
-        ],
+        "cards": [reads.card_payload(card) for card in bundle.cards],
     }
 
 
@@ -435,6 +405,17 @@ def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
 @runs_app.command("show")
 def runs_show(
     run_id: Annotated[str, typer.Argument(help="Run id, as reported by `genetics runs list`.")],
+    section: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--section",
+            "-s",
+            help=(
+                "Only this section's cards, with what the dashboard shows around them; "
+                "repeatable. With --json, prints those cards rather than the whole bundle."
+            ),
+        ),
+    ] = None,
     as_json: Annotated[bool, typer.Option("--json", help="Emit the whole bundle as JSON.")] = False,
 ) -> None:
     """Read one saved run and print it. Payload digests are checked on the way in.
@@ -442,7 +423,18 @@ def runs_show(
     The output states your genotype at every matched marker -- that is what a card says.
     Treat it as raw DNA (AGENTS.md 1.1): it belongs outside the repository, and redirecting
     it into a file inside the checkout is the one route the ignore rules cannot fully cover.
+
+    Without ``--section``, ``--json`` is the frozen bundle and nothing else. With it, the
+    saved cards of those sections come with a separate ``current_context``: section titles,
+    empty-section reasons, pointers to cards other sections hold, and section notices.
     """
+    chosen: list[Section] | None = None
+    if section:
+        try:
+            chosen = [reads.parse_section(name) for name in section]
+        except UnknownSectionError as exc:
+            _refuse("unknown-section", str(exc), as_json=as_json, code=2)
+
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
     except (BundleError, OSError) as exc:
@@ -450,7 +442,8 @@ def runs_show(
 
     if as_json:
         # Deliberately not scanned -- see the module docstring.
-        typer.echo(json.dumps(_bundle_payload(bundle), indent=2, ensure_ascii=False))
+        payload = _bundle_payload(bundle) if chosen is None else reads.section_view(bundle, chosen)
+        typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
         return
 
     from genetics.engine.carrier_scope import SOURCE as SCOPE_SOURCE
@@ -474,9 +467,13 @@ def runs_show(
     )
     typer.echo("")
 
-    for card in bundle.cards:
+    names = None if chosen is None else {s.value for s in chosen}
+    shown = [card for card in bundle.cards if names is None or card.section in names]
+    for card in shown:
         tier = card.confidence_tier or card.status
-        typer.secho(f"  {tier:<16}", fg=typer.colors.CYAN, nl=False)
+        # One space wider than the longest tier: "not_determinable" filled 16 exactly and
+        # ran into the section name.
+        typer.secho(f"  {tier:<17}", fg=typer.colors.CYAN, nl=False)
         typer.echo(f"{card.section:<14} {card.card_id:<34} {card.title}")
         typer.echo(f"    Imputation mode: {card.imputation_mode or 'not recorded'}")
         if card.carrier is not None:
@@ -496,52 +493,360 @@ def runs_show(
             typer.echo(f"    {card.summary}")
         elif card.ancestry_comparison is not None:
             typer.echo(f"    {card.ancestry_comparison['text']}")
-        if card.confidence and card.confidence.get("empirical_ppv"):
-            from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
-
-            ppv = card.confidence["empirical_ppv"]
-            typer.echo(
-                "    " + confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"])
-            )
-            typer.echo(f"    {ppv['applies_to']} {CLINICAL_NOTICE}")
-        elif card.confidence_tier == "likely-artifact":
-            from genetics.engine.ppv import CLINICAL_NOTICE
-
-            typer.echo("    No empirical PPV was recorded for this reliability failure.")
-            typer.echo(f"    {CLINICAL_NOTICE}")
+        for line in _ppv_lines(card.confidence, card.confidence_tier):
+            typer.echo(f"    {line}")
 
     typer.echo("")
-    if scope is not None and scope["status"] == "not-recorded":
-        typer.echo(f"  {scope['text']}")
-    for line in _related_lines(bundle.cards):
-        typer.echo(f"  {line}")
-    typer.echo(f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations.")
+    if chosen is None:
+        if scope is not None and scope["status"] == "not-recorded":
+            typer.echo(f"  {scope['text']}")
+        for line in _related_lines(bundle.cards):
+            typer.echo(f"  {line}")
+        typer.echo(
+            f"  {len(bundle.cards)} card(s). `--json` for the full record and its citations."
+        )
+        return
+
+    for section_name in reads.in_report_order(chosen):
+        for line in _section_lines(reads.section_context(section_name, bundle)):
+            typer.echo(f"  {line}")
+        typer.echo("")
+    typer.echo(
+        f"  {len(shown)} of {len(bundle.cards)} card(s). "
+        f"`genetics runs card {bundle.path.name} <card-id>` prints one in full."
+    )
+
+
+def _ppv_lines(confidence: Mapping[str, Any] | None, tier: str | None) -> list[str]:
+    """The empirical confirmation rate a likely-artifact card states on its face (4.1)."""
+    from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
+
+    if confidence and confidence.get("empirical_ppv"):
+        ppv = confidence["empirical_ppv"]
+        return [
+            confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"]),
+            f"{ppv['applies_to']} {CLINICAL_NOTICE}",
+        ]
+    if tier == "likely-artifact":
+        return ["No empirical PPV was recorded for this reliability failure.", CLINICAL_NOTICE]
+    return []
+
+
+def _pointer_names(pointers: Sequence[Mapping[str, Any]]) -> str:
+    return "; ".join(
+        f"{p['card_id']} ({p['section']})" if p["in_run"] else f"{p['title']} (not in this run)"
+        for p in pointers
+    )
 
 
 def _related_lines(cards: Sequence[StoredCard]) -> list[str]:
     """The sections' pointers to cards other sections hold (M12.1), as the dashboard shows them.
 
     A card is listed once, in its own section; a pointer only names it. Resolved against this
-    run's cards, so a run saved before the card existed says so instead of naming a card id
-    the run cannot show.
+    run's cards by :func:`reads.related`, so a run saved before the card existed says so
+    instead of naming a card id the run cannot show.
     """
     from genetics.engine import sections
 
-    by_id = {card.card_id: card for card in cards}
-    lines: list[str] = []
-    for section in sections.SECTION_ORDER:
-        info = sections.SECTIONS[section]
-        if not info.related:
-            continue
-        names = []
-        for related in info.related:
-            card = by_id.get(related.card_id)
-            names.append(
-                f"{related.label} (not in this run)"
-                if card is None
-                else f"{card.card_id} ({card.section})"
+    return [
+        f"{sections.SECTIONS[section].title} also points to: "
+        f"{_pointer_names(reads.related(section, cards))}"
+        for section in sections.SECTION_ORDER
+        if sections.SECTIONS[section].related
+    ]
+
+
+def _section_lines(context: Mapping[str, Any]) -> list[str]:
+    """One section's frame, as the dashboard draws it around the cards."""
+    lines = [
+        f"{context['title']}: {context['card_count']} card(s), "
+        f"{context['interpreted']} with a finding",
+        f"  {context['blurb']}",
+    ]
+    if context["empty_reason"]:
+        lines.append(f"  {context['empty_reason']}")
+    framing = context.get("section_framing")
+    if framing is not None:
+        lines.append(f"  {framing['title']}: {framing['text']}")
+    scope = context.get("carrier_scope")
+    if scope is not None and scope["status"] == "not-recorded":
+        lines.append(f"  {scope['title']}: {scope['text']}")
+    if context["related"]:
+        lines.append(f"  Also points to: {_pointer_names(context['related'])}")
+    lines.extend(
+        f"  {record['title']}: `{record['command']}`" for record in context["saved_records"]
+    )
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# runs card
+# ---------------------------------------------------------------------------
+
+
+@runs_app.command("card")
+def runs_card(
+    run_id: Annotated[str, typer.Argument(help="Run id, as reported by `genetics runs list`.")],
+    card_id: Annotated[str, typer.Argument(help="Card id, as `runs show` prints it.")],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Print one saved card in full: claim, evidence, confidence inputs, caveats, citations.
+
+    States your genotype at the card's marker, as ``runs show`` does. To research the card
+    elsewhere, start from ``genetics cards evidence <card-id>``, which holds no genotype
+    (AGENTS.md 1.3).
+
+    ``--json`` holds the saved card under ``card``. Section titles, citation links and the
+    pointers between sections are under ``current_context``, because this engine adds them
+    when it reads the run.
+    """
+    try:
+        bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    card = reads.find_card(bundle, card_id)
+    if card is None:
+        # A sentence, as the dashboard gives for the same stale link.
+        _refuse(
+            "card-not-found",
+            f"Run {bundle.path.name} has no card called {card_id!r}. It may be from another "
+            "run, or from a version of the knowledge pack that no longer carries it. "
+            f"`genetics runs show {bundle.path.name}` lists this run's cards.",
+            as_json=as_json,
+        )
+    view = reads.card_view(bundle, card)
+    if as_json:
+        # Deliberately not scanned -- see the module docstring.
+        typer.echo(json.dumps(view, indent=2, ensure_ascii=False))
+        return
+    typer.echo("\n".join(_card_lines(view)))
+
+
+def _no_evidence(card: Mapping[str, Any], format_version: int) -> str:
+    """Why a saved card has no evidence block; three different facts."""
+    from genetics.run.bundle import EVIDENCE_FORMAT_VERSION
+
+    if card["kind"] == "impossibility":
+        return "None: this card states an assay limit, not a population effect."
+    if format_version < EVIDENCE_FORMAT_VERSION:
+        return f"Not recorded: this bundle predates format {EVIDENCE_FORMAT_VERSION}."
+    return "No phenotype estimate applies to this result; the caveats say why."
+
+
+def _card_lines(view: Mapping[str, Any]) -> list[str]:
+    from genetics.cli.render import (
+        bullet_lines,
+        citation_lines,
+        confidence_lines,
+        evidence_lines,
+        frequency_lines,
+        variant_line,
+    )
+
+    card = view["card"]
+    context = view["current_context"]
+    lines = [
+        card["title"],
+        f"  card        {card['card_id']}",
+        f"  section     {card['section']} ({context['section']['title']})",
+        f"  kind        {card['kind']}",
+    ]
+    if card["gene"]:
+        lines.append(f"  gene        {card['gene']}")
+    lines.append(f"  status      {card['status']}")
+    lines.append(f"  confidence  {card['confidence_tier'] or 'not scored'}")
+    if card["variant"] is not None:
+        lines.append(f"  variant     {variant_line(card['variant'])}")
+    observation = card["observation"] or {}
+    if observation:
+        call = f"  call        {_shown(observation.get('call_source'))}"
+        if observation.get("call_source") == "imputed":
+            call += f"; imputation quality {_shown(observation.get('imputation_quality'))}"
+        lines.append(
+            f"{call}; strand {_shown(card['match'].get('strand'))}; ancestry match to the "
+            f"study {_shown(observation.get('ancestry_match'))}"
+        )
+    lines.append(f"  imputation  {card['imputation_mode'] or 'not recorded'}")
+    lines += ["", "Summary", f"  {card['summary']}"]
+    if card["detail"] and card["detail"] != card["summary"]:
+        lines += ["", "Detail", f"  {card['detail']}"]
+    if card["impossibility_reason"]:
+        lines += ["", "Not determinable from this data", f"  {card['impossibility_reason']}"]
+    if card["risk_context"]:
+        lines += ["", "Risk context", f"  {card['risk_context']}"]
+    comparison = card["ancestry_comparison"]
+    if comparison is not None:
+        lines += ["", "Ancestry comparison", f"  {comparison.get('text')}"]
+    if card["carrier"] is not None:
+        from genetics.engine.carrier import STATE_LABELS
+
+        carrier = card["carrier"]
+        state = carrier.get("state")
+        lines += [
+            "",
+            "Carrier status",
+            f"  {STATE_LABELS.get(state, state)} -- "
+            f"{carrier.get('variant')}; {carrier.get('condition')}",
+            f"  {carrier.get('typed_scope')}",
+        ]
+    if card["multi_marker"] is not None:
+        markers = card["multi_marker"].get("markers", [])
+        lines += ["", f"Read from {len(markers)} markers; --json has each one's observation."]
+    if card["computation"] is not None:
+        lines += [
+            "",
+            f"Computed from {card['computation'].get('source')}; --json has the full record.",
+        ]
+    lines += [
+        "",
+        "Evidence",
+        *evidence_lines(card["evidence"], absent=_no_evidence(card, view["format_version"])),
+        "",
+        "Confidence",
+        *confidence_lines(card["confidence"]),
+        *(f"  {line}" for line in _ppv_lines(card["confidence"], card["confidence_tier"])),
+        "",
+        "Population frequencies",
+        *frequency_lines(card["frequencies"], card["confidence_frequency"]),
+        "",
+        "Caveats",
+        *(
+            bullet_lines([*card["authored_caveats"], *card["computed_caveats"]])
+            or ["  None recorded."]
+        ),
+        "",
+        "Citations",
+        *citation_lines(card["citations"], context["citation_links"]),
+    ]
+    if context["related"] or context["pointed_from"]:
+        lines += ["", "Elsewhere in this report (current sections)"]
+        if context["related"]:
+            lines.append(
+                f"  {context['section']['title']} also points to: "
+                f"{_pointer_names(context['related'])}"
             )
-        lines.append(f"{info.title} also points to: {'; '.join(names)}")
+        if context["pointed_from"]:
+            lines.append(f"  Pointed to from: {', '.join(context['pointed_from'])}")
+    return lines
+
+
+# ---------------------------------------------------------------------------
+# runs qc
+# ---------------------------------------------------------------------------
+
+
+@runs_app.command("qc")
+def runs_qc(
+    run_id: Annotated[str, typer.Argument(help="Run id, as reported by `genetics runs list`.")],
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Print a saved run's QC report, imputation record and provenance. No genotype.
+
+    Call rates, inferred sex and its evidence, the build check, duplicates and every QC
+    warning, then which engine, knowledge pack, references and tools produced the run.
+    Checked for genotypes before printing, like ``runs list``.
+    """
+    try:
+        bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    view = reads.qc_view(bundle)
+    if as_json:
+        text = json.dumps(view, indent=2, ensure_ascii=False)
+        assert_no_genotype(text, context="runs qc JSON output")
+        typer.echo(text)
+        return
+    text = "\n".join(_qc_lines(view))
+    assert_no_genotype(text, context="runs qc output")
+    typer.echo(text)
+
+
+def _get(mapping: Any, *path: str) -> Any:
+    """A nested field, or ``None`` where another version wrote a different shape."""
+    for key in path:
+        if not isinstance(mapping, Mapping):
+            return None
+        mapping = mapping.get(key)
+    return mapping
+
+
+def _shown(value: Any, spec: str = "") -> str:
+    if value is None or isinstance(value, bool):
+        return "-"
+    try:
+        return format(value, spec)
+    except (TypeError, ValueError):
+        return str(value)
+
+
+def _qc_lines(view: Mapping[str, Any]) -> list[str]:
+    """The QC record read defensively: a field another version did not write renders as -."""
+    qc = view["qc"]
+    provenance = view["provenance"]
+    lines = [
+        f"run {view['run_id']}",
+        f"  saved        {view['created_at']}",
+        f"  vendor       {_shown(_get(qc, 'vendor'))}",
+        f"  markers      {_shown(_get(qc, 'call_rates', 'total_markers'), ',')}",
+        f"  called       {_shown(_get(qc, 'call_rates', 'called'), ',')} "
+        f"({_shown(_get(qc, 'call_rates', 'call_rate'), '.4%')})",
+        f"  no-calls     {_shown(_get(qc, 'call_rates', 'no_call'), ',')}",
+        f"  indels       {_shown(_get(qc, 'indels', 'indel_markers'), ',')} "
+        "(excluded from matching by default)",
+        "  autosomal heterozygosity  "
+        f"{_shown(_get(qc, 'heterozygosity', 'autosomal_het_rate'), '.4f')}",
+        f"  inferred sex              {_shown(_get(qc, 'sex', 'inferred'))}",
+        f"    X heterozygosity (non-PAR)  {_shown(_get(qc, 'sex', 'x_het_rate'), '.4f')} over "
+        f"{_shown(_get(qc, 'sex', 'x_nonpar_loci'), ',')} loci",
+        f"    Y call rate                 {_shown(_get(qc, 'sex', 'y_call_rate'), '.4f')} over "
+        f"{_shown(_get(qc, 'sex', 'y_loci'), ',')} loci",
+    ]
+    notes = _get(qc, "sex", "notes")
+    if isinstance(notes, list):
+        lines.extend(f"    - {note}" for note in notes)
+    lines += [
+        f"  het calls on haploid chromosomes  {_shown(_get(qc, 'het_haploid_calls'), ',')}",
+        f"  duplicate rsIDs {_shown(_get(qc, 'duplicates', 'duplicate_rsids'), ',')}, "
+        f"duplicate positions {_shown(_get(qc, 'duplicates', 'duplicate_positions'), ',')}",
+        f"  build        declared {_shown(_get(qc, 'build', 'declared'))}, verdict "
+        f"{_shown(_get(qc, 'build', 'verdict'))}",
+    ]
+    warnings = _get(qc, "warnings")
+    if isinstance(warnings, list) and warnings:
+        # Every warning, in QC's order: AGENTS.md 0.1A labels, it does not filter.
+        lines += ["", "Warnings", *(f"  ! {warning}" for warning in warnings)]
+    imputation = view["imputation"]
+    lines += [
+        "",
+        "Imputation",
+        f"  mode {_shown(_get(imputation, 'mode'))}; status {_shown(_get(imputation, 'status'))}; "
+        f"card input {_shown(_get(imputation, 'card_input'))}",
+        f"  full provenance {_shown(view['imputation_provenance_status'])}; "
+        f"`genetics runs imputation {view['run_id']}` prints it",
+        "",
+        "Provenance",
+        f"  engine       {_shown(_get(provenance, 'engine_version'))}",
+        f"  knowledge    {_shown(_get(provenance, 'knowledge', 'card_count'))} card(s), digest "
+        f"{_shown(_get(provenance, 'knowledge', 'digest'))}",
+    ]
+    references = _get(provenance, "references")
+    sources = _get(references, "sources")
+    if isinstance(sources, Mapping) and sources:
+        lines.append(f"  references   {len(sources)} source(s)")
+        lines.extend(
+            f"    {name}  {_shown(_get(entry, 'version'))}  {_shown(_get(entry, 'license'))}"
+            for name, entry in sources.items()
+        )
+    else:
+        lines.append(f"  references   none recorded: {_shown(_get(references, 'reason'))}")
+    tools = _get(provenance, "tools")
+    if isinstance(tools, Mapping) and tools:
+        lines.append("  tools")
+        lines.extend(
+            f"    {name}  {_shown(_get(entry, 'version'))}" for name, entry in tools.items()
+        )
+    else:
+        lines.append("  tools        none recorded")
     return lines
 
 

@@ -282,11 +282,14 @@ these, and do not accept a card proposal that depends on one.
 
 ### The agent interface
 
-The CLI is the contract. Design it so `genetics run --input X`, `genetics list-runs`,
-`genetics show <run> --section health`, `genetics card <run> <card-id> --json`, and
-`genetics evidence <card-id>` cover the workflow: *"review this run, look at the curly
-hair card, check the cited papers, search the web, give me ten facts."* Card JSON must
-include the citations so the agent can verify rather than confabulate.
+The CLI is the contract. `genetics run --input X`, `genetics runs list`,
+`genetics runs show <run> --section physical_health`, `genetics runs card <run> <card-id>
+--json`, `genetics runs qc <run>` and `genetics cards evidence <card-id>` cover the workflow:
+*"review this run, look at the curly hair card, check the cited papers, search the web, give
+me ten facts."* Card JSON must include the citations so the agent can verify rather than
+confabulate. Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence`
+reads the knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
+Payload shapes: [docs/agent_cli.md](docs/agent_cli.md).
 
 ---
 

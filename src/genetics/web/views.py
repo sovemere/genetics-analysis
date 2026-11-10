@@ -40,6 +40,7 @@ from genetics.engine.confidence import ConfidenceTier
 from genetics.engine.matcher import MatchStatus
 from genetics.engine.sections import Section
 from genetics.privacy import NoGenotypeRepr
+from genetics.run import reads
 from genetics.run.bundle import EVIDENCE_FORMAT_VERSION as _EVIDENCE_FORMAT_VERSION
 from genetics.run.bundle import RunBundle, StoredCard
 from genetics.run.store import RunListing, RunStatus, RunSummary
@@ -285,16 +286,10 @@ class SectionView:
         about this tool's progress and names the milestone that fixes it, while **cards
         exist and none produced an interpretation** is a fact about this genome and is not a
         defect at all. Collapsing them into "nothing here" would tell a reader their array
-        lacks a marker when the truth is nobody has written the card.
+        lacks a marker when the truth is nobody has written the card. Worded once, by
+        :func:`reads.empty_reason`, which ``runs show --section`` also prints.
         """
-        if self.card_count == 0:
-            return f"Not built yet — roadmap {self.milestone}."
-        if self.interpreted == 0:
-            return (
-                f"{self.card_count} card(s) here, none of which produced an interpretation "
-                "for this genome. Each one states its own reason."
-            )
-        return None
+        return reads.empty_reason(self.milestone, self.card_count, self.interpreted)
 
 
 def section_views(cards: Sequence[StoredCard]) -> tuple[SectionView, ...]:

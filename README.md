@@ -355,6 +355,10 @@ licenses. Once installed, computation is local. Prefix the following commands wi
 genetics run --input <outside-repo-export>
 genetics runs list
 genetics runs show <run-id> --json
+genetics runs show <run-id> --section nutrition --json
+genetics runs card <run-id> <card-id> --json
+genetics runs qc <run-id> --json
+genetics cards evidence <card-id> --json
 genetics runs clinvar <run-id> --json
 genetics runs secondary <run-id> --json
 genetics serve

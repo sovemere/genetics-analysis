@@ -16,8 +16,21 @@ the source of truth for build state.
 
 ## Next up
 
-**M13.1, the rest of the agent CLI, is next.** M0–M12 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m131-agent-cli) records what it inherits.
+**M13.2, a versioned and documented JSON schema for the agent CLI, is next.** M0–M12 and
+M13.1 are implemented. The [current handoff](docs/handoff.md#next-open-step-m132-json-schema)
+records what it inherits.
+
+M13.1 adds four read commands, so an agent can read one card, one section, a run's QC record
+or a card's evidence without printing a whole bundle (about 1 GB for the real imputed run).
+`genetics runs show <run> --section S` prints that section's cards and the frame the dashboard
+draws around them: counts, the empty-section reason, pointers to cards other sections hold,
+section notices and the commands for the section's other saved records. `genetics runs card
+<run> <card-id>` prints one saved card in full. `genetics runs qc <run>` prints the QC report,
+imputation record and provenance. `genetics cards evidence <card-id>` prints a card's
+variants, published effect, citations with links and caveats from the knowledge pack alone,
+with no genotype, so a web search can start from it (AGENTS.md §1.3). Saved records and
+current context are kept apart in every payload. No schema or bundle-format change. See
+[the read-command contract](docs/agent_cli.md).
 
 M12.2 is the MTHFR C677T calibration case: four cards on one marker, each scored on the evidence
 for its own claim. The nutrition card says what the variant does. TT averages 2.10 micromol/L more
@@ -2988,8 +3001,15 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 *The CLI is the contract. Every analysis must be reachable as JSON
 ([AGENTS.md §3](AGENTS.md)).*
 
-- [~] **M13.1** `genetics list-runs`, `show <run> [--section S]`,
+- [x] **M13.1** `genetics list-runs`, `show <run> [--section S]`,
       `card <run> <card-id> --json`, `evidence <card-id>`, `qc <run>`, `refs licenses`.
+      - **Done 2026-11-10** as `runs show --section` (repeatable), `runs card`, `runs qc` and
+        `cards evidence`. Run-scoped reads stay under `runs`; `evidence` reads only the pack,
+        so it is under `cards`. AGENTS.md §3 now gives these names. Each payload keeps the
+        saved record apart from a `current_context` block (section frames, M12.1 pointers,
+        citation links, the PGx notice). `runs qc` and `cards evidence` are scanned for
+        genotypes; `runs card` is not, like `runs show`. See
+        [the read-command contract](docs/agent_cli.md).
       - **Partly delivered early, and recorded here so it is not built twice.**
         [M4.2](#m4--run-bundle--first-ui) shipped `genetics runs list` (this item's
         `list-runs`, under the `runs` group), `refs licenses` landed in M2.6, and `runs show
@@ -3089,6 +3109,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-10 | M13.1 | Four agent read commands: `runs show --section` (repeatable), `runs card`, `runs qc`, `cards evidence`. **Decision, no owner question:** run-scoped reads stay under `runs`, because M4.2 put listing there and top-level aliases would give each command two names (M0.4, M3.7, M4.1). `evidence` reads only the pack, so it sits under `cards`. AGENTS.md §3 now gives the real names. **Saved record versus current context:** each payload holds the saved record, and section frames, M12.1 pointers (`related`, `pointed_from`), citation links and the PGx notice go under `current_context`. This follows the M10.5 split; `runs show --json` without `--section` is unchanged. `run/reads.py` holds the one card projection, which `runs show --json` now uses too. A test fails if a `StoredCard` field is missing from it, and another compares all thirteen section frames with the dashboard's. `views.SectionView.empty_reason` now calls the same function. **Privacy split:** `runs qc` and `cards evidence` are scanned on both branches. `runs card` is not, like `runs show`. A test runs the scanner over the evidence JSON and text of all 119 cards, so the runtime check cannot refuse correct output. **Found by using it:** the `runs show` tier column was one character short for `not_determinable`; the text form now gives one of three reasons when evidence is missing. Eleven guards were each removed in turn, and each removal failed its test. **4,029 tests, nine existing skips** in 666 s; card lint, four type targets, ruff and fixtures pass. None of the commands was run on the real imputed run. See [the read-command contract](docs/agent_cli.md). |
 | 2026-11-10 | M12.2 diff review | Reviewed `d1a26d4..f8eebb0` (M12.2 and the launcher's `--verify`). No defect in matching, confidence, saved evidence, pointers or launcher control flow. **P2:** the depression card said Border et al. tested rs1801133 "additively, which covers one copy"; Border's "additive" is the interaction scale and genotype coding is not stated. Reworded. **P3:** the homocysteine card now gives Clarke 2012 Table 1's relative figure beside the absolute one (TT 18%, 99% CI 17-19%, more than CC; 70 studies, 68,369 people; 25% in Asia, 7% after US/ANZ fortification). The depression card states that no absolute risk is assigned. Clarke's datasets were "not yet published", not "never published". The audit's stroke and dataset wordings were tightened. The verify-first shortcut repeats current checks too, so the launcher and README now say to use it after code changes. **P4:** ACMG note attribution, Box 1's own wording, and a test pinning each claim card's tier-meaning caveat. See the [review](docs/review_m122_session.md). |
 | 2026-11-09 | M12.2 | MTHFR C677T calibration case: four schema-3 cards on rs1801133. **Owner decisions, both the recommended option:** a biochemistry card plus a card for each well-tested health claim, rather than one card with the claims only in its text, so the calculator scores each claim; A1298C mentioned, not carded. **Landings, none tuned:** homocysteine/folate (Holmes 2011, TT-CC 2.10 micromol/L, 1.71-2.50, n 53,643; functional, meta-analysis) lands well-established, or strong while ancestry is uncomputed. Venous thrombosis (MEGA, TT OR 0.94, 0.81-1.08), coronary heart disease (Clarke 2012, 19 unpublished datasets, OR 1.02, 0.98-1.07, against 1.15 published, P = 0.001) and depression (Gilbody 2007, OR 1.36, 1.11-1.67; Border 2019 found no association in up to 443,264) are `candidate_gene` with `replication: conflicting` and land limited for every genotype. Each claim card's best estimate is on its face and the claim's original figure beside it. A caveat says a limited tier rates the claim, not the precision of the null. **Observed, not tuned:** `replication: none` outscores `conflicting`, so an unreplicated small study (Friso's methylation result) would land above the refuted claims; it is stated on the nutrition card rather than carded. **Strand:** 677T is forward A, by ClinVar 3520 (`c.665C>T`, forward G>A) and by frequency (gnomAD 31.5%; Frosst about 38%; Grarup 677C 0.668). dbSNP lists G>A,C,T, so `forward_only`. **Denominators:** Holmes's 53,643 without cardiovascular disease, not the 59,995 with homocysteine data. Gilbody's populations were not verified (abstract only, publisher paywall), so the card says `UNKNOWN`. ACMG 2013 was reaffirmed in 2020 but reclassified as a Clinical Practice Resource, so no card uses the `clinical_guideline` tier on it. Section pointers now also run from physical and mental health to the nutrition card. Full dbSNP card lint: 119 cards, 594 renders, 65/65 keys. See [the calibration audit](docs/mthfr.md). |
 | 2026-11-08 | M12.1 diff review | Reviewed `243aa3e..9f3d6ab`. No defect in matching, saved evidence or the section pointer. **P2: four card details asserted things no cited paper says**: coffee drinking "cultural and personal", B12 dominated by "diet, absorption, age and medicines", serum folate "recent intake rather than stores", and season moving vitamin D "far more" than GC (18 vs 34.2 nmol/L in the cited cohort). Each now quotes its own source's figures. **The first fix repeated the error**: it read Grarup's 27%/17% sibling-pair heritability as "mostly not genetic", which the same paper's 59%/56% twin estimates contradict; both figures are now given without a conclusion. **P2:** the FOLR3 card said the array "cannot read" the frameshift (never checked; the pipeline does not match indels) and called it causal (Grarup: "lead signal"). **P3:** Sachse's "position 734 in intron 1" and "ADH1B*2" were identified by convention; PharmGKB's variant records list both and now back the cards, and show CYP1A2*1F is retired. The audit's "56-study" P value is 46 of 56 studies. Test helper and filtered-pointer test added. See the [review](docs/review_m121_session.md). |

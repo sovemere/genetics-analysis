@@ -1,8 +1,8 @@
-# Handoff: M13.1 agent CLI
+# Handoff: M13.2 JSON schema
 
-As of 2026-11-09, **M0-M12 are implemented; M13.1 is next**. See
-[the M13.1 entry contract](#next-open-step-m131-agent-cli) and
-[the M12.2 record](#accepted-m122-mthfr). Full-reference
+As of 2026-11-10, **M0-M12 and M13.1 are implemented; M13.2 is next**. See
+[the M13.2 entry contract](#next-open-step-m132-json-schema) and
+[the M13.1 record](#accepted-m131-agent-read-commands). Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -519,9 +519,80 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m132-json-schema"></a>
+
+## Next open step: M13.2 JSON schema
+
+M13.2 is a stable, versioned and documented JSON schema for the agent CLI, with citations in
+card JSON. Nothing has been selected or verified beyond what is listed here.
+
+What M13.1 hands over:
+
+- **The shapes exist and are written down, unversioned.** [The read-command contract](agent_cli.md)
+  gives `runs card`, `runs show --section`, `runs qc` and `cards evidence`. No payload carries
+  a schema version. The frozen card inside them is `reads.card_payload`, one projection
+  shared with `runs show --json`; a test fails if a `StoredCard` field is missing from it.
+- **Citations are already in card JSON.** `card.citations` is the saved list.
+  `current_context.citation_links` gives each one's public page, re-validated by
+  `citation_url`. `cards evidence` adds `url` to each citation directly, since it reads the
+  pack and has nothing frozen to keep apart.
+- **Frozen versus current is a convention, not a schema.** Everything this engine adds at read
+  time is under `current_context` with `"context": "current"` (`runs card`, `runs show
+  --section`, `pgx calls`). M13.2 should decide whether that becomes a schema rule.
+- **Three inconsistencies a schema would have to settle.**
+  - `run_id`: the new payloads give the directory name, which commands resolve.
+    `runs show --json` gives the manifest's `run_id`. They differ only for a renamed bundle.
+  - Error objects: `runs`, `cards evidence` and `hla calls` print
+    `{"ok": false, "error": {"kind", "message"}}`. `pgx calls`, `prepare` and `inspect` print
+    `{"ok": false, "error": "<message>"}`.
+  - Exit codes: an unknown `--section` exits 2 (usage). An unknown run or card exits 1.
+- **Which payloads hold a genotype is part of the contract.** `runs show` and `runs card` do,
+  by design, and are not scanned. `runs list`, `runs qc` and `cards evidence` are scanned on
+  both branches. M13.7's outbound-query lint will rely on that split.
+
+<a id="accepted-m131-agent-read-commands"></a>
+
+## Accepted M13.1 agent read commands
+
+Implemented on 2026-11-10 under [the read-command contract](agent_cli.md). No owner question
+was asked: the roadmap left open only where the commands live, and M4.2 had already settled
+that a saved run has one command group.
+
+- **Four commands.** `runs show --section` (repeatable, case-insensitive), `runs card`,
+  `runs qc` and `cards evidence`. `runs list` (M4.2) and `refs licenses` (M2.6) were already
+  there. AGENTS.md §3 and the README now give the real names.
+- **One projection of a saved card.** `run/reads.py` holds `card_payload`, which
+  `runs show --json` now uses too, and the section, card and QC views.
+- **The dashboard and CLI share wording.** `views.SectionView.empty_reason` now calls
+  `reads.empty_reason`. A test compares every section's title, blurb, milestone, counts,
+  empty reason and pointers with the dashboard's views.
+- **Small fixes found by using it.** `runs show` widened its tier column by one, because
+  `not_determinable` ran into the section name. `_citation_payload` in `run/bundle.py` is now
+  public as `citation_payload`, since a third module uses it.
+- **Text output names why evidence is missing.** It is one of three cases: an assay-limit
+  card, a bundle older than format 2, or an outcome with `evidence: null`.
+
+No schema, bundle format, card or saved-file type changed. No personal export or saved real
+run was opened; all checks used synthetic runs.
+
+Validation on 2026-11-10, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **4,029 tests with nine skips** in 666 s: the five
+existing Windows skips and the four published-classifier HIBAG tests. Nothing changed between
+that run and the commit except documentation. An earlier run was stopped at 37% (no failures
+by then) so two cleanups could land first. The 36 new tests are in
+`tests/test_cli_agent_reads.py`. Eleven guards were each removed in turn, and each removal
+failed the test written for it. The report-order guard moved during the cleanup and was
+checked again in its new place. Full dbSNP card lint (119 cards, 594 renders, 65/65 keys),
+all four strict type targets (248 files), ruff, format and the fixture check pass.
+
+**Saved runs repeat their deep checks once.** This change edits Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, before using the
+new commands or the dashboard on it.
+
 <a id="next-open-step-m131-agent-cli"></a>
 
-## Next open step: M13.1 agent CLI
+## M13.1 entry contract (implemented; retained for review)
 
 M13.1 is the rest of the agent interface's read commands. The roadmap lists `--section`
 filtering, `card <run> <card-id>`, `evidence <card-id>` and `qc <run>` as its own command.
