@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
-from typing import Annotated, Any
+from typing import Annotated, Any, NoReturn
 
 import typer
+
+from genetics.cli import contract
 
 hla_app = typer.Typer(
     help="HIBAG classifier metadata and saved HLA imputation.", no_args_is_help=True
@@ -26,6 +28,9 @@ def calls(
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
         data = report(bundle.hla)
+    except store.RunNotFoundError as exc:
+        # The same kind and sentence as `genetics runs`: no such run is not an HLA failure.
+        contract.refuse("not-found", str(exc), as_json=as_json)
     except (BundleError, HLAError, OSError, ValueError):
         _fail(as_json)
     else:
@@ -98,13 +103,9 @@ def _ceiling(confidence: dict[str, Any]) -> str:
     )
 
 
-def _fail(as_json: bool) -> None:
+def _fail(as_json: bool) -> NoReturn:
     message = "HLA evidence could not be validated; inspect prerequisites and saved-run integrity."
-    if as_json:
-        typer.echo(json.dumps({"ok": False, "error": {"kind": "hla", "message": message}}))
-    else:
-        typer.secho(message, fg=typer.colors.RED, err=True)
-    raise typer.Exit(1)
+    contract.refuse("hla", message, as_json=as_json)
 
 
 @hla_app.command("inspect")

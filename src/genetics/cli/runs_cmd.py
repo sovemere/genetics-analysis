@@ -3,8 +3,9 @@
 M4.2 built the store surface: ``list``, ``show``, ``delete`` and ``prune``. M13.1 added the
 agent's reads on top of it: ``show --section``, ``card <run> <card-id>`` and ``qc``, whose
 payloads :mod:`genetics.run.reads` builds. ``cards evidence`` is the fourth M13.1 read and
-lives in :mod:`genetics.cli.cards_cmd`, because it reads no run. M13.2 owns pinning the JSON
-as a versioned schema, and M13.3 owns ``search``.
+lives in :mod:`genetics.cli.cards_cmd`, because it reads no run. M13.2 pinned their JSON as a
+versioned schema: each document is tagged by :func:`genetics.cli.contract.tagged`, and
+``run_id`` is the bundle's directory name in every one. M13.3 owns ``search``.
 
 **The privacy split is inherited from the bundle format rather than reinvented.** ``runs
 list`` and ``runs qc`` are scanned with ``assert_no_genotype`` on both output paths; ``runs
@@ -33,6 +34,7 @@ from typing import Annotated, Any, NoReturn
 
 import typer
 
+from genetics.cli import contract
 from genetics.engine.sections import Section, UnknownSectionError
 from genetics.privacy import assert_no_genotype
 from genetics.run import reads, store
@@ -66,7 +68,7 @@ def _size(n: int) -> str:
     return f"{n:,} B"
 
 
-def _error_kind(exc: Exception) -> str:
+def error_kind(exc: Exception) -> str:
     """A stable machine-readable name for a failure.
 
     ``version`` is the one that has to survive: M4.2 requires "written by a newer engine"
@@ -90,17 +92,11 @@ def _error_kind(exc: Exception) -> str:
     return "bundle"
 
 
-def _refuse(kind: str, message: str, *, as_json: bool, code: int = 1) -> NoReturn:
-    if as_json:
-        payload = {"ok": False, "error": {"kind": kind, "message": message}}
-        typer.echo(json.dumps(payload, indent=2))
-    else:
-        typer.secho(message, fg=typer.colors.RED, err=True)
-    raise typer.Exit(code=code)
+_refuse = contract.refuse
 
 
 def _fail(exc: Exception, *, as_json: bool) -> NoReturn:
-    _refuse(_error_kind(exc), str(exc), as_json=as_json)
+    _refuse(error_kind(exc), str(exc), as_json=as_json)
 
 
 # ---------------------------------------------------------------------------
@@ -136,7 +132,7 @@ def runs_list(
     listing = store.list_runs(verify=verify, progress=store.report_to_console)
 
     if as_json:
-        text = json.dumps(listing.to_dict(), indent=2)
+        text = json.dumps(contract.tagged("runs.list", listing.to_dict()), indent=2)
         assert_no_genotype(text, context="runs list JSON output")
         typer.echo(text)
         return
@@ -218,9 +214,14 @@ def _bundle_payload(bundle: RunBundle) -> dict[str, Any]:
     maintained here would be a second description of the payload, drifting against the one
     in :mod:`genetics.run.bundle`. Each card goes through :func:`reads.card_payload`, which
     ``runs card`` and ``runs show --section`` use too.
+
+    ``run_id`` is the directory name, as in every other payload, because that is the id a
+    command resolves. The manifest's own id is kept beside it as ``recorded_run_id``; the
+    two differ only for a renamed bundle.
     """
     return {
-        "run_id": bundle.run_id,
+        "run_id": bundle.path.name,
+        "recorded_run_id": bundle.run_id,
         "path": str(bundle.path),
         "format_version": bundle.format_version,
         "created_at": bundle.created_at,
@@ -272,7 +273,11 @@ def runs_imputation(
     if as_json:
         typer.echo(
             json.dumps(
-                {"run_id": bundle.run_id, "execution": bundle.imputation, "provenance": record},
+                {
+                    "run_id": bundle.path.name,
+                    "execution": bundle.imputation,
+                    "provenance": record,
+                },
                 indent=2,
             )
         )
@@ -312,11 +317,11 @@ def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
     if as_json:
         payload = (
             {
-                "run_id": bundle.run_id,
+                "run_id": bundle.path.name,
                 "secondary": None if bundle.clinvar is None else secondary_view(bundle.clinvar),
             }
             if secondary_only
-            else {"run_id": bundle.run_id, "clinvar": bundle.clinvar}
+            else {"run_id": bundle.path.name, "clinvar": bundle.clinvar}
         )
         typer.echo(json.dumps(payload, indent=2))
         return
@@ -447,7 +452,11 @@ def runs_show(
 
     if as_json:
         # Deliberately not scanned -- see the module docstring.
-        payload = _bundle_payload(bundle) if chosen is None else reads.section_view(bundle, chosen)
+        payload = (
+            contract.tagged("runs.show", _bundle_payload(bundle))
+            if chosen is None
+            else contract.tagged("runs.section", reads.section_view(bundle, chosen))
+        )
         typer.echo(json.dumps(payload, indent=2, ensure_ascii=False))
         return
 
@@ -455,7 +464,7 @@ def runs_show(
     from genetics.engine.carrier_scope import section_notice
 
     scope = section_notice(bundle.cards)
-    typer.secho(f"run {bundle.run_id}", bold=True)
+    typer.secho(f"run {bundle.path.name}", bold=True)
     typer.echo(f"  saved       {bundle.created_at}")
     typer.echo(f"  format      {bundle.format_version}")
     typer.echo(f"  engine      {bundle.provenance.get('engine_version')}")
@@ -622,7 +631,7 @@ def runs_card(
     view = reads.card_view(bundle, card)
     if as_json:
         # Deliberately not scanned -- see the module docstring.
-        typer.echo(json.dumps(view, indent=2, ensure_ascii=False))
+        typer.echo(json.dumps(contract.tagged("runs.card", view), indent=2, ensure_ascii=False))
         return
     typer.echo("\n".join(_card_lines(view)))
 
@@ -757,7 +766,7 @@ def runs_qc(
         _fail(exc, as_json=as_json)
     view = reads.qc_view(bundle)
     if as_json:
-        text = json.dumps(view, indent=2, ensure_ascii=False)
+        text = json.dumps(contract.tagged("runs.qc", view), indent=2, ensure_ascii=False)
         assert_no_genotype(text, context="runs qc JSON output")
         typer.echo(text)
         return

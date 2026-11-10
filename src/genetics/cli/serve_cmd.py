@@ -44,6 +44,7 @@ from typing import Annotated, Any, NoReturn
 
 import typer
 
+from genetics.cli import contract
 from genetics.netaddr import is_local_address
 from genetics.privacy import assert_no_genotype
 from genetics.web.config import (
@@ -191,14 +192,7 @@ def _fail(exc: Exception, *, as_json: bool) -> NoReturn:
     """
     message = str(exc)
     assert_no_genotype(message, context="genetics serve error output")
-    if as_json:
-        payload = {"ok": False, "error": {"kind": _error_kind(exc), "message": message}}
-        text = json.dumps(payload, indent=2)
-        assert_no_genotype(text, context="genetics serve --json error output")
-        typer.echo(text)
-    else:
-        typer.secho(message, fg=typer.colors.RED, err=True)
-    raise typer.Exit(code=2)
+    contract.refuse(_error_kind(exc), message, as_json=as_json, code=2)
 
 
 def _store_state() -> dict[str, Any]:

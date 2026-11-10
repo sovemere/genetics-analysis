@@ -4,11 +4,12 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, NoReturn
 
 import polars as pl
 import typer
 
+from genetics.cli import contract
 from genetics.refs.postprocess import ProcessError
 
 pgx_app = typer.Typer(
@@ -104,12 +105,18 @@ def prepare(
         )
 
 
-def _error(exc: Exception, as_json: bool) -> None:
-    if as_json:
-        typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-    else:
-        typer.secho(str(exc), fg=typer.colors.RED, err=True)
-    raise typer.Exit(code=1) from exc
+def _error(exc: Exception, as_json: bool) -> NoReturn:
+    """One error document for the group (M13.2). A run that could not be opened keeps the
+    kind ``genetics runs`` gives it, so ``not-found`` means the same thing from every
+    command that takes a run id."""
+    from genetics.run.bundle import BundleError
+
+    kind = "pgx"
+    if isinstance(exc, BundleError):
+        from genetics.cli.runs_cmd import error_kind
+
+        kind = error_kind(exc)
+    contract.refuse(kind, str(exc), as_json=as_json)
 
 
 @pgx_app.command("inspect")

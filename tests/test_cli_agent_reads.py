@@ -222,6 +222,7 @@ def test_a_card_read_is_the_saved_card_plus_separate_current_context(saved: RunB
     for card_id in CARD_IDS:
         view = _json(["runs", "card", saved.run_id, card_id, "--json"])
         assert set(view) == {
+            "schema",
             "run_id",
             "path",
             "format_version",

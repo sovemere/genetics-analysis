@@ -2458,6 +2458,7 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     monkeypatch: pytest.MonkeyPatch,
     stage: str,
     display_schema: int,
+    agent_schema_check: Any,
 ) -> None:
     from html import unescape
 
@@ -2527,6 +2528,10 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     detail = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert detail.exit_code == 0, detail.output
     assert "current_context" not in json.loads(detail.output)
+    # A saved run with a guideline card: its agent documents match the M13.2 schema.
+    assert agent_schema_check(json.loads(detail.output)) == "runs.show"
+    one = CliRunner().invoke(app, ["runs", "card", path.name, saved.card_id, "--json"])
+    assert agent_schema_check(json.loads(one.output)) == "runs.card"
     assert json.loads(detail.output)["cards"][-1]["computation"] == card.computation
     client = TestClient(
         create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"

@@ -13,6 +13,11 @@ record, or a card's evidence without printing a whole bundle. On the real impute
 
 `genetics runs list` (M4.2) and `genetics refs licenses` (M2.6) are the rest of M13.1's list.
 
+Since M13.2 these payloads, `runs list --json` and `runs show --json` are described by a
+versioned JSON Schema, and each begins with a `schema` tag naming its payload and version.
+The sketches below leave the tag out. See [the agent schema](agent_schema.md) for field types,
+vocabularies, the error document and exit codes.
+
 ## Where they live
 
 Run-scoped reads are under `runs`, beside `list`, `show` and `delete`, so a saved run has one
@@ -29,8 +34,9 @@ Everything added is under `current_context`, which carries `"context": "current"
 this split for `pgx calls`, and the M11.6 and M12.1 reviews kept it. `runs show --json`
 without `--section` is unchanged: it prints the saved bundle with no current context.
 
-`run_id` in the new payloads is the bundle's directory name, which every command resolves.
-`runs show --json` prints the manifest's own `run_id`, as before. The two differ only when a
+`run_id` is the bundle's directory name, which every command resolves. At M13.1
+`runs show --json` still printed the manifest's own `run_id`. M13.2 made it the directory name
+there too, and kept the manifest's value as `recorded_run_id`. The two differ only when a
 bundle directory has been renamed.
 
 ### `runs card`
@@ -137,8 +143,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
 
 ## Left to later items
 
-- **M13.2** versions and documents these shapes as a schema. Nothing here carries a schema
-  version yet.
+- **M13.2** (done 2026-11-11) versions and documents these shapes as
+  [the agent schema](agent_schema.md).
 - **M13.3** `genetics search <query>`.
 - **M13.4** is largely present, in the two places described under `runs card`. M13.4
   decides whether an agent should see one shape for both, and whether the components need

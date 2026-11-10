@@ -289,7 +289,11 @@ The CLI is the contract. `genetics run --input X`, `genetics runs list`,
 me ten facts."* Card JSON must include the citations so the agent can verify rather than
 confabulate. Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence`
 reads the knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
-Payload shapes: [docs/agent_cli.md](docs/agent_cli.md).
+What each command is for: [docs/agent_cli.md](docs/agent_cli.md). Their JSON is described by a
+versioned JSON Schema that `genetics schema` prints. Each document starts with a `schema` tag
+naming its payload and version, and a failure under `--json` is one error document with a
+stable `kind`. Rules for readers and for changing it:
+[docs/agent_schema.md](docs/agent_schema.md).
 
 ---
 

@@ -45,6 +45,7 @@ import typer
 
 from genetics.ancestry.context import AncestryContext, AncestryError
 from genetics.ancestry.eigenstrat import EigenstratError
+from genetics.cli import contract
 from genetics.engine.cards import CardError
 from genetics.engine.evidence import EvidenceAssemblyError
 from genetics.external.beagle import BeagleError
@@ -76,7 +77,7 @@ def _echo(text: str = "", **kwargs: object) -> None:
 
 
 def _error_kind(exc: Exception) -> str:
-    """A stable machine-readable name for a failure, mirroring ``runs_cmd._error_kind``.
+    """A stable machine-readable name for a failure, mirroring ``runs_cmd.error_kind``.
 
     The distinction that has to survive into ``--json`` is *which stage* refused. "Your
     export is malformed", "your knowledge pack is malformed" and "the disk is full" are
@@ -127,12 +128,7 @@ def _fail(exc: Exception, *, as_json: bool) -> NoReturn:
     """
     message = str(exc)
     assert_no_genotype(message, context="genetics run error output")
-    if as_json:
-        payload = {"ok": False, "error": {"kind": _error_kind(exc), "message": message}}
-        typer.echo(json.dumps(payload, indent=2))
-    else:
-        typer.secho(message, fg=typer.colors.RED, err=True)
-    raise typer.Exit(code=2)
+    contract.refuse(_error_kind(exc), message, as_json=as_json, code=2)
 
 
 def _payload(analysis: Analysis, path: Path) -> dict[str, Any]:

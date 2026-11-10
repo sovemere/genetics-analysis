@@ -486,6 +486,48 @@ def paths(
         typer.echo(f"{row['label']:<20} [{marker}] {row['path']}")
 
 
+@app.command()
+def schema(
+    name: Annotated[
+        str | None,
+        typer.Argument(help="A payload name, such as runs.card. Omit to list them."),
+    ] = None,
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit the whole schema document.")
+    ] = False,
+) -> None:
+    """Print the versioned JSON Schema of the agent commands' output (M13.2).
+
+    With no argument, lists each described payload and the command that prints it, and
+    ``--json`` prints the whole document. With a payload name, prints a self-contained JSON
+    Schema for that payload, which a validator can be handed as it is. Reads no run and no
+    genotype. The rules around the document are in docs/agent_schema.md.
+    """
+    from genetics.cli import contract
+
+    names = contract.payload_names()
+    if name is not None:
+        if name not in names:
+            contract.refuse(
+                "unknown-payload",
+                f"unknown payload {name!r}; expected one of: {', '.join(names)}",
+                as_json=as_json,
+                code=2,
+            )
+        typer.echo(json.dumps(contract.payload_schema(name), indent=2))
+        return
+    if as_json:
+        typer.echo(json.dumps(contract.document(), indent=2))
+        return
+
+    typer.echo(f"agent schema version {contract.AGENT_SCHEMA_VERSION}")
+    for entry in contract.payloads():
+        facts = "holds your genotype" if entry["holds_genotype"] else "no genotype"
+        typer.echo(f"  {entry['name']:<15} {entry['command']}")
+        typer.echo(f"  {'':<15} reads: {entry['reads']}; {facts}")
+    typer.echo("`genetics schema <name>` prints one payload's JSON Schema.")
+
+
 _add_refs_commands()
 _add_cards_commands()
 _add_runs_commands()

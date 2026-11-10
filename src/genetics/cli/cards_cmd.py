@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Annotated, Any, NoReturn
+from typing import Annotated, Any
 
 import typer
 
@@ -232,6 +232,7 @@ def evidence(
     checked for one before it is printed. Research a card from this, never from a run's
     output (AGENTS.md 1.3).
     """
+    from genetics.cli import contract
     from genetics.engine.cards import CardError, KnowledgePack
     from genetics.engine.declaration import declaration
     from genetics.privacy import assert_no_genotype
@@ -239,10 +240,10 @@ def evidence(
     try:
         pack = KnowledgePack.load(knowledge)
     except CardError as exc:
-        _evidence_error("knowledge", f"error: {exc}", as_json=as_json)
+        contract.refuse("knowledge", f"error: {exc}", as_json=as_json)
     card = pack.by_id(card_id)
     if card is None:
-        _evidence_error(
+        contract.refuse(
             "card-not-found",
             f"No card called {card_id!r} is in the knowledge pack at {pack.source_dir}.",
             as_json=as_json,
@@ -250,7 +251,7 @@ def evidence(
     data = declaration(card)
 
     if as_json:
-        text = json.dumps(data, indent=2, ensure_ascii=False)
+        text = json.dumps(contract.tagged("cards.evidence", data), indent=2, ensure_ascii=False)
         assert_no_genotype(text, context="cards evidence JSON output")
         typer.echo(text)
         return
@@ -324,11 +325,3 @@ def evidence_text(data: Mapping[str, Any]) -> str:
     lines += ["", "Citations", *citation_lines(data["citations"])]
     lines += ["", "Caveats", *(bullet_lines(data["caveats"]) or ["  None authored."])]
     return "\n".join(lines)
-
-
-def _evidence_error(kind: str, message: str, *, as_json: bool) -> NoReturn:
-    if as_json:
-        typer.echo(json.dumps({"ok": False, "error": {"kind": kind, "message": message}}, indent=2))
-    else:
-        typer.secho(message, fg=typer.colors.RED, err=True)
-    raise typer.Exit(code=1)

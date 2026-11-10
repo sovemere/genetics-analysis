@@ -13,8 +13,12 @@ made (``pgx calls``) and the M11.6 and M12.1 reviews kept: a saved run is what t
 read, and an engine that has since changed must not appear to have said something then.
 
 **The run id is the directory name**, which is what every command resolves. The manifest
-records its own ``run_id`` too, and ``runs show --json`` prints that one because it prints
-the record; the two differ only when a bundle directory was renamed.
+records its own ``run_id`` too; the two differ only when a bundle directory was renamed.
+Since M13.2 ``runs show --json`` prints the directory name as well, and keeps the manifest's
+value as ``recorded_run_id``.
+
+The CLI tags each of these payloads with its name and schema version before printing; see
+:mod:`genetics.cli.contract`.
 
 Nothing here is scanned for genotypes. A card read states the reader's own call at its
 marker, as ``runs show`` does; see :mod:`genetics.cli.runs_cmd`. The QC view holds no

@@ -1,0 +1,963 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:genetics-analysis:agent-schema",
+  "title": "genetics agent CLI payloads",
+  "description": "Every JSON document the agent read commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
+  "version": 1,
+  "x-payloads": [
+    {
+      "name": "runs.list",
+      "command": "genetics runs list --json",
+      "reads": "run store",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
+      "name": "runs.show",
+      "command": "genetics runs show <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "runs.section",
+      "command": "genetics runs show <run> --section <section> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "runs.card",
+      "command": "genetics runs card <run> <card-id> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "runs.qc",
+      "command": "genetics runs qc <run> --json",
+      "reads": "saved run",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
+      "name": "cards.evidence",
+      "command": "genetics cards evidence <card-id> --json",
+      "reads": "knowledge pack",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
+      "name": "error",
+      "command": "a failing command with --json (docs/agent_schema.md lists them)",
+      "reads": "nothing",
+      "holds_genotype": false,
+      "scanned": false
+    }
+  ],
+  "oneOf": [
+    { "$ref": "#/$defs/runs.list" },
+    { "$ref": "#/$defs/runs.show" },
+    { "$ref": "#/$defs/runs.section" },
+    { "$ref": "#/$defs/runs.card" },
+    { "$ref": "#/$defs/runs.qc" },
+    { "$ref": "#/$defs/cards.evidence" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "runs.list": {
+      "description": "Every directory under the runs root, newest first. A damaged or newer-format run is a row with a status, not a failure.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.list" },
+        "root": { "type": "string", "description": "The runs directory that was listed." },
+        "verified": {
+          "type": "boolean",
+          "description": "Whether payload digests and deep checks were repeated (--verify). When false, `readable` means the manifest parsed and its files are present, not that they are intact."
+        },
+        "runs": { "type": "array", "items": { "$ref": "#/$defs/run_summary" } },
+        "incomplete": {
+          "type": "array",
+          "description": "Staging directories left by interrupted saves. They hold no run; `genetics runs prune` removes them.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "run_id": { "type": "string", "description": "The id the interrupted save was claiming. It is still free." },
+              "path": { "type": "string" },
+              "size_bytes": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["run_id", "path", "size_bytes"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["schema", "root", "verified", "runs", "incomplete"],
+      "additionalProperties": false
+    },
+    "runs.show": {
+      "description": "One saved run in full: the frozen record and nothing this engine adds, apart from the envelope (`schema`, `run_id`, `path`). About 1 GB on an imputed run; prefer runs.section or runs.card.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.show" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "recorded_run_id": {
+          "type": "string",
+          "description": "The id the manifest recorded when the run was saved. It differs from `run_id` only when the bundle directory was renamed."
+        },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "qc": { "$ref": "#/$defs/qc" },
+        "ancestry": {
+          "type": ["object", "null"],
+          "description": "The ancestry stage's record: `population`, `mt`, `y`, `ancient`, and from format 18 `reference_population`. Null for a bundle older than format 3: not recorded, which is different from not run."
+        },
+        "clinvar": {
+          "type": ["object", "null"],
+          "description": "The ClinVar reference lookup, with its own `schema_version` (docs/clinvar_coverage.md, docs/secondary_findings.md). Null before format 7. `genetics runs clinvar` and `runs secondary` print it."
+        },
+        "pgx": {
+          "type": ["object", "null"],
+          "description": "Saved pharmacogenomic calls, with their own `schema_version` (docs/pgx_calling.md). Null before format 19. `genetics pgx calls` prints them."
+        },
+        "hla": {
+          "type": ["object", "null"],
+          "description": "Saved HLA classifier evidence, with its own `schema_version` (docs/hla_imputation.md). Null before format 21. `genetics hla calls` prints it."
+        },
+        "imputation": { "$ref": "#/$defs/imputation" },
+        "imputation_provenance": {
+          "type": ["object", "null"],
+          "description": "Full imputation provenance: `schema_version`, `status`, `stage` (docs/imputation_provenance.md). Null before format 16."
+        },
+        "cards": { "type": "array", "items": { "$ref": "#/$defs/stored_card" } }
+      },
+      "required": [
+        "schema",
+        "run_id",
+        "recorded_run_id",
+        "path",
+        "format_version",
+        "created_at",
+        "provenance",
+        "qc",
+        "ancestry",
+        "clinvar",
+        "pgx",
+        "hla",
+        "imputation",
+        "imputation_provenance",
+        "cards"
+      ],
+      "additionalProperties": false
+    },
+    "runs.section": {
+      "description": "The saved cards of the requested sections, with what the dashboard shows around them.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.section" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "sections": {
+          "type": "array",
+          "description": "The requested sections, once each, in AGENTS.md 3.1 order whatever order they were asked in.",
+          "items": { "$ref": "#/$defs/section_name" }
+        },
+        "cards": {
+          "type": "array",
+          "description": "Those sections' saved cards, in saved order. No card is left out for its confidence.",
+          "items": { "$ref": "#/$defs/stored_card" }
+        },
+        "current_context": {
+          "type": "object",
+          "properties": {
+            "context": { "const": "current" },
+            "sections": {
+              "type": "array",
+              "description": "One entry per requested section, in the order of `sections`. A section with no cards is still reported, with its reason.",
+              "items": { "$ref": "#/$defs/section_context" }
+            }
+          },
+          "required": ["context", "sections"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "sections", "cards", "current_context"],
+      "additionalProperties": false
+    },
+    "runs.card": {
+      "description": "One saved card in full, with the current context a reader of it needs.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.card" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "card": { "$ref": "#/$defs/stored_card" },
+        "current_context": {
+          "type": "object",
+          "properties": {
+            "context": { "const": "current" },
+            "section": {
+              "type": "object",
+              "properties": {
+                "section": { "type": "string" },
+                "title": { "type": "string" },
+                "blurb": { "type": ["string", "null"] }
+              },
+              "required": ["section", "title", "blurb"],
+              "additionalProperties": false
+            },
+            "citation_links": {
+              "type": "array",
+              "description": "One entry per entry of `card.citations`, in the same order.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "type": { "type": ["string", "null"] },
+                  "id": { "type": ["string", "null"] },
+                  "url": {
+                    "type": ["string", "null"],
+                    "description": "The citation's public page. Null when this engine will not link the saved citation."
+                  }
+                },
+                "required": ["type", "id", "url"],
+                "additionalProperties": false
+              }
+            },
+            "related": {
+              "type": "array",
+              "description": "Cards held by other sections that this card's section points to. They are the section's pointers, not the card's own.",
+              "items": { "$ref": "#/$defs/pointer" }
+            },
+            "pointed_from": {
+              "type": "array",
+              "description": "Sections whose pointers name this card.",
+              "items": { "$ref": "#/$defs/section_name" }
+            }
+          },
+          "required": ["context", "section", "citation_links", "related", "pointed_from"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "card", "current_context"],
+      "additionalProperties": false
+    },
+    "runs.qc": {
+      "description": "A saved run's QC report, imputation execution record and provenance. Holds no genotype.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.qc" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "qc": { "$ref": "#/$defs/qc" },
+        "imputation": { "$ref": "#/$defs/imputation" },
+        "imputation_provenance_status": {
+          "type": ["string", "null"],
+          "description": "`recorded` when full imputation provenance was saved, another status when it was not, null before format 16. `genetics runs imputation <run>` prints the record."
+        },
+        "provenance": { "$ref": "#/$defs/provenance" }
+      },
+      "required": [
+        "schema",
+        "run_id",
+        "path",
+        "format_version",
+        "created_at",
+        "qc",
+        "imputation",
+        "imputation_provenance_status",
+        "provenance"
+      ],
+      "additionalProperties": false
+    },
+    "cards.evidence": {
+      "description": "What a knowledge-pack card rests on. It reads no run and holds no genotype, so it is the payload to research a card from (AGENTS.md 1.3). Outcome text is left out: it is a template with the reader's genotype still to be filled in.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.cards.evidence" },
+        "card_id": { "type": "string" },
+        "section": { "$ref": "#/$defs/section_name" },
+        "kind": { "$ref": "#/$defs/card_kind" },
+        "title": { "type": "string" },
+        "gene": { "type": ["string", "null"] },
+        "variants": {
+          "type": "array",
+          "description": "Every variant the card reads. Empty for a card that matches no marker.",
+          "items": { "$ref": "#/$defs/variant" }
+        },
+        "evidence": {
+          "description": "The card-level published claim. Null for an assay-limit card and for a computed card, which states `method_evidence` instead.",
+          "anyOf": [{ "$ref": "#/$defs/evidence" }, { "type": "null" }]
+        },
+        "outcome_evidence": {
+          "type": "object",
+          "description": "Outcomes that set their own evidence, by outcome name. Null means no phenotype estimate applies to that outcome.",
+          "additionalProperties": { "anyOf": [{ "$ref": "#/$defs/evidence" }, { "type": "null" }] }
+        },
+        "polygenic": {
+          "type": ["object", "null"],
+          "description": "The score a polygenic card computes. Null for every other kind.",
+          "properties": {
+            "pgs_id": { "type": "string" },
+            "scoring_source": { "type": "string" },
+            "trait": { "type": ["string", "null"] },
+            "decile_outcomes": {
+              "type": ["object", "null"],
+              "description": "Absolute outcome rates by score decile, where a source publishes them (AGENTS.md 4.5).",
+              "properties": {
+                "measure": { "type": "string" },
+                "population": { "type": "string" },
+                "sample_size": { "type": "integer" },
+                "source": { "type": "string" },
+                "base_rate": { "type": "number" },
+                "rates": { "type": "array", "items": { "type": "number" } },
+                "context": { "type": ["string", "null"] }
+              },
+              "required": ["measure", "population", "sample_size", "source", "base_rate", "rates", "context"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["pgs_id", "scoring_source", "trait", "decile_outcomes"],
+          "additionalProperties": false
+        },
+        "hla": {
+          "type": ["object", "null"],
+          "description": "An HLA card's authored selector: `alternatives`, `states`, and optionally `phase` and `cpic` (docs/hla_cards.md). Null for every other kind."
+        },
+        "carrier": {
+          "type": ["object", "null"],
+          "description": "A carrier card's declaration (docs/carrier_status.md). Null when the card declares none.",
+          "properties": {
+            "condition": { "type": "string" },
+            "inheritance": { "type": "string" },
+            "variant": { "type": "string" },
+            "pathogenic_allele": { "type": "string" },
+            "clinvar": { "type": "integer", "description": "The ClinVar variation id." },
+            "typed_scope": { "type": "string" }
+          },
+          "required": ["condition", "inheritance", "variant", "pathogenic_allele", "clinvar", "typed_scope"],
+          "additionalProperties": false
+        },
+        "computation": {
+          "type": ["string", "null"],
+          "description": "The name of the computation a computed card reports. Null for every other kind."
+        },
+        "method_evidence": {
+          "type": ["object", "null"],
+          "description": "Evidence for a computed card's method, in place of a per-variant effect."
+        },
+        "impossibility_reason": {
+          "type": ["string", "null"],
+          "description": "Why the assay cannot determine this (AGENTS.md 3.2). Such a card cites nothing."
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": { "$ref": "#/$defs/citation_type" },
+              "id": { "type": "string" },
+              "title": { "type": ["string", "null"] },
+              "database": { "type": ["string", "null"] },
+              "note": { "type": ["string", "null"] },
+              "url": { "type": ["string", "null"], "description": "The citation's public page, or null when none is linked." }
+            },
+            "required": ["type", "id", "title", "database", "note", "url"],
+            "additionalProperties": false
+          }
+        },
+        "caveats": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": [
+        "schema",
+        "card_id",
+        "section",
+        "kind",
+        "title",
+        "gene",
+        "variants",
+        "evidence",
+        "outcome_evidence",
+        "polygenic",
+        "hla",
+        "carrier",
+        "computation",
+        "method_evidence",
+        "impossibility_reason",
+        "citations",
+        "caveats"
+      ],
+      "additionalProperties": false
+    },
+    "error": {
+      "description": "What a command prints on stdout when it fails under --json. The exit code is non-zero.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.error" },
+        "ok": { "const": false },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]*$",
+              "description": "A stable name to branch on. docs/agent_schema.md lists the kinds each read command gives."
+            },
+            "message": { "type": "string", "description": "A sentence for a person. Do not parse it." }
+          },
+          "required": ["kind", "message"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "ok", "error"],
+      "additionalProperties": false
+    },
+    "tag.runs.list": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.show": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.section": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.card": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.qc": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.cards.evidence": {
+      "type": "object",
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.error": {
+      "type": "object",
+      "properties": { "name": { "const": "error" }, "version": { "const": 1 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "run_id": {
+      "type": "string",
+      "description": "The bundle's directory name, which is the id every command resolves and `runs list` prints."
+    },
+    "run_path": { "type": "string", "description": "Where the bundle is on this machine." },
+    "format_version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The bundle format the run was saved in. It versions the saved record; `schema.version` versions this document."
+    },
+    "created_at": { "type": "string", "description": "When the run was saved, as the manifest recorded it (UTC, ISO 8601)." },
+    "section_name": {
+      "enum": [
+        "ancestry",
+        "physical_health",
+        "mental_health",
+        "psychometrics",
+        "pharmacogenomics",
+        "traits",
+        "nutrition",
+        "substance_use",
+        "immunogenetics",
+        "reproductive",
+        "genome_structure",
+        "sleep_circadian",
+        "fitness"
+      ]
+    },
+    "card_kind": { "enum": ["guideline", "hla", "interpretation", "computed", "polygenic", "impossibility"] },
+    "card_status": {
+      "description": "`matched` and `computed` are findings. Every other status says why the card has no finding for this run.",
+      "enum": [
+        "matched",
+        "phase_ambiguous",
+        "computed",
+        "not_run",
+        "insufficient_coverage",
+        "insufficient_calls",
+        "not_determinable",
+        "marker_absent",
+        "no_call",
+        "allele_mismatch",
+        "indel_excluded",
+        "het_haploid",
+        "duplicate_conflict",
+        "strand_ambiguous"
+      ]
+    },
+    "confidence_tier": {
+      "description": "The reliability tier a card shows on its face. A label, never a filter (AGENTS.md 0.1A).",
+      "enum": ["well-established", "strong", "moderate", "limited", "likely-artifact"]
+    },
+    "evidence_tier": {
+      "enum": ["clinical_guideline", "expert_curated", "functional", "cohort", "gwas", "candidate_gene", "anecdotal"]
+    },
+    "replication": { "enum": ["meta_analysis", "independent", "same_cohort", "none", "conflicting"] },
+    "effect_measure": {
+      "enum": [
+        "odds_ratio",
+        "hazard_ratio",
+        "risk_ratio",
+        "beta",
+        "mean_difference",
+        "percent_variance_explained",
+        "penetrance",
+        "proportion"
+      ]
+    },
+    "study_ancestry": { "enum": ["AFR", "AMR", "EAS", "EUR", "SAS", "MULTI", "UNKNOWN"] },
+    "citation_type": { "enum": ["doi", "pmid", "pmcid", "accession", "url"] },
+    "call_source": { "enum": ["direct", "imputed"] },
+    "call_status": { "enum": ["called", "hemizygous", "het_haploid", "no_call"] },
+    "strand": { "enum": ["as_written", "complemented", "ambiguous", "not_applicable"] },
+    "run_status": {
+      "description": "`future-version` is intact and needs the version of the tool that wrote it. `damaged` could not be read.",
+      "enum": ["readable", "future-version", "damaged"]
+    },
+    "run_summary": {
+      "type": "object",
+      "description": "One run directory. Every field except `run_id`, `path` and `status` is null when the manifest could not supply it.",
+      "properties": {
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "status": { "$ref": "#/$defs/run_status" },
+        "created_at": { "type": ["string", "null"] },
+        "format_version": { "type": ["integer", "null"] },
+        "engine_version": { "type": ["string", "null"] },
+        "card_count": { "type": ["integer", "null"] },
+        "with_interpretation": { "type": ["integer", "null"], "description": "Cards whose status is `matched` or `computed`." },
+        "vendor": { "type": ["string", "null"] },
+        "detail": { "type": ["string", "null"], "description": "Why the run is not readable, or a note about a readable one." }
+      },
+      "required": [
+        "run_id",
+        "path",
+        "status",
+        "created_at",
+        "format_version",
+        "engine_version",
+        "card_count",
+        "with_interpretation",
+        "vendor",
+        "detail"
+      ],
+      "additionalProperties": false
+    },
+    "variant": {
+      "type": "object",
+      "description": "A marker, keyed as AGENTS.md 2 requires: position and alleles on GRCh37, forward strand.",
+      "properties": {
+        "rsid": { "type": "string" },
+        "chrom": { "type": "string", "description": "1-22, X, Y, PAR or MT." },
+        "pos_grch37": { "type": "integer" },
+        "alleles": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["rsid", "chrom", "pos_grch37", "alleles"],
+      "additionalProperties": false
+    },
+    "match": {
+      "type": "object",
+      "description": "How the card's criteria met this genome. This block states the reader's genotype.",
+      "properties": {
+        "reason": { "type": ["string", "null"], "description": "Why the card has this status." },
+        "genotype": { "type": ["string", "null"], "description": "The call the outcome was chosen by, sorted, on the card's strand." },
+        "observed_genotype": { "type": ["string", "null"], "description": "The call as the export gave it, sorted." },
+        "observed_rsid": { "type": ["string", "null"] },
+        "call_status": { "anyOf": [{ "$ref": "#/$defs/call_status" }, { "type": "null" }] },
+        "strand": { "$ref": "#/$defs/strand" },
+        "outcome_name": { "type": ["string", "null"] },
+        "candidate_outcomes": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": [
+        "reason",
+        "genotype",
+        "observed_genotype",
+        "observed_rsid",
+        "call_status",
+        "strand",
+        "outcome_name",
+        "candidate_outcomes"
+      ],
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "object",
+      "description": "The computed confidence of an interpretation or HLA card: the tier and every input that produced it. Computed, polygenic and guideline cards keep theirs in `computation.reliability` instead.",
+      "properties": {
+        "tier": { "$ref": "#/$defs/confidence_tier" },
+        "score": { "type": "number" },
+        "inputs": {
+          "type": "object",
+          "description": "Six scored inputs, each with the value that was scored. A null value from format 12 on means no phenotype estimate applies to the outcome.",
+          "properties": {
+            "evidence_tier": { "anyOf": [{ "$ref": "#/$defs/evidence_tier" }, { "type": "null" }] },
+            "evidence_score": { "type": ["number", "null"] },
+            "effect_measure": { "anyOf": [{ "$ref": "#/$defs/effect_measure" }, { "type": "null" }] },
+            "effect_value": { "type": ["number", "null"] },
+            "effect_score": { "type": ["number", "null"] },
+            "replication": { "anyOf": [{ "$ref": "#/$defs/replication" }, { "type": "null" }] },
+            "replication_score": { "type": ["number", "null"] },
+            "population_allele_frequency": {
+              "type": ["number", "null"],
+              "description": "Rarity lowers confidence (AGENTS.md 4.1)."
+            },
+            "frequency_score": { "type": ["number", "null"] },
+            "call_source": { "$ref": "#/$defs/call_source" },
+            "imputation_quality": { "type": ["number", "null"] },
+            "imputation_score": { "type": ["number", "null"] },
+            "ancestry_match": { "type": ["number", "null"] },
+            "ancestry_score": { "type": ["number", "null"] }
+          },
+          "required": [
+            "evidence_tier",
+            "evidence_score",
+            "effect_measure",
+            "effect_value",
+            "effect_score",
+            "replication",
+            "replication_score",
+            "population_allele_frequency",
+            "frequency_score",
+            "call_source",
+            "imputation_quality",
+            "imputation_score",
+            "ancestry_match",
+            "ancestry_score"
+          ],
+          "additionalProperties": false
+        },
+        "empirical_ppv": {
+          "type": ["object", "null"],
+          "description": "The measured share of such chip calls that sequencing confirmed, for a likely-artifact call in a band that has one.",
+          "properties": {
+            "estimate": { "type": "number" },
+            "population_frequency_ceiling": { "type": ["number", "null"] },
+            "applies_to": { "type": "string" }
+          },
+          "required": ["estimate", "population_frequency_ceiling", "applies_to"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["tier", "score", "inputs", "empirical_ppv"],
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "description": "A published claim: what was measured, in whom, and how large.",
+      "properties": {
+        "tier": { "$ref": "#/$defs/evidence_tier" },
+        "replication": { "$ref": "#/$defs/replication" },
+        "sample_size": { "type": ["integer", "null"] },
+        "ancestry": {
+          "type": "array",
+          "description": "The populations the estimate came from.",
+          "items": { "$ref": "#/$defs/study_ancestry" }
+        },
+        "within_family_attenuation": {
+          "type": ["number", "null"],
+          "description": "The share of the population-level effect that remains within families, where a source reports it (AGENTS.md 4.5)."
+        },
+        "effect": {
+          "type": "object",
+          "properties": {
+            "measure": { "$ref": "#/$defs/effect_measure" },
+            "value": { "type": "number" },
+            "units": { "type": ["string", "null"] },
+            "ci_low": { "type": ["number", "null"] },
+            "ci_high": { "type": ["number", "null"] },
+            "context": { "type": ["string", "null"], "description": "What the number is a measure of, in a sentence." }
+          },
+          "required": ["measure", "value", "units", "ci_low", "ci_high", "context"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["tier", "replication", "sample_size", "ancestry", "within_family_attenuation", "effect"],
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "description": "How the call entered the engine. Present even when the card has no finding.",
+      "properties": {
+        "call_source": { "$ref": "#/$defs/call_source" },
+        "imputation_quality": { "type": ["number", "null"] },
+        "ancestry_match": { "type": ["number", "null"] },
+        "imputation": {
+          "type": "object",
+          "description": "The imputed dosage evidence behind an imputed call (format 15 on; docs/imputation_quality.md)."
+        }
+      },
+      "required": ["call_source", "imputation_quality", "ancestry_match"],
+      "additionalProperties": false
+    },
+    "frequency": {
+      "type": "object",
+      "properties": {
+        "allele": { "type": "string" },
+        "frequency": { "type": "number" },
+        "population": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["allele", "frequency", "population", "source"],
+      "additionalProperties": false
+    },
+    "citation": {
+      "type": "object",
+      "description": "A saved citation. Every interpretation card has at least one; an assay-limit card has none.",
+      "properties": {
+        "type": { "$ref": "#/$defs/citation_type" },
+        "id": { "type": "string", "description": "The DOI, PMID, PMCID, accession or URL itself." },
+        "title": { "type": ["string", "null"] },
+        "database": { "type": ["string", "null"], "description": "The database an accession belongs to." },
+        "note": { "type": ["string", "null"] }
+      },
+      "required": ["type", "id", "title", "database", "note"],
+      "additionalProperties": false
+    },
+    "computation": {
+      "type": "object",
+      "description": "The record behind a computed, polygenic, guideline or HLA card.",
+      "properties": {
+        "source": {
+          "type": "string",
+          "description": "Which computation: `polygenic_score`, `pgx_guideline`, `hla_card`, or a computed card's source such as `long_roh`."
+        },
+        "status": { "$ref": "#/$defs/card_status" },
+        "reason": { "type": ["string", "null"], "description": "Why the computation did not run. Null when it did." },
+        "result": {
+          "description": "The measured record, in the shape its source documents. A guideline card from format 26 on holds a reference to the run's PGx record instead of a copy."
+        },
+        "reliability": {
+          "type": ["object", "null"],
+          "description": "Where computed, polygenic and guideline cards keep their tier and what produced it. `score`, `inputs`, `ceilings` and `genes` are present where the source computes them.",
+          "properties": {
+            "tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
+            "reason": { "type": "string" },
+            "score": { "type": ["number", "null"] },
+            "inputs": { "type": "object" },
+            "ceilings": { "type": "array" }
+          }
+        },
+        "method_evidence": {
+          "type": ["object", "null"],
+          "description": "Evidence for the method, in place of a per-variant effect."
+        }
+      },
+      "required": ["source", "status"],
+      "additionalProperties": false
+    },
+    "stored_card": {
+      "type": "object",
+      "description": "One card as the run saved it. Every key is always present; a key the bundle's format did not have is null. Frozen: this engine adds nothing to it.",
+      "properties": {
+        "card_id": { "type": "string" },
+        "section": { "$ref": "#/$defs/section_name" },
+        "kind": { "$ref": "#/$defs/card_kind" },
+        "title": { "type": "string" },
+        "gene": { "type": ["string", "null"] },
+        "status": { "$ref": "#/$defs/card_status" },
+        "confidence_tier": {
+          "description": "The card's tier, from `confidence.tier` or `computation.reliability.tier`. Null when the card has no finding or states an assay limit.",
+          "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }]
+        },
+        "summary": { "type": "string", "description": "The claim on the card face, with the reader's result filled in." },
+        "detail": { "type": "string" },
+        "impossibility_reason": { "type": ["string", "null"] },
+        "variant": {
+          "description": "The marker a single-marker card reads. Null for a card that reads none or several.",
+          "anyOf": [{ "$ref": "#/$defs/variant" }, { "type": "null" }]
+        },
+        "match": { "$ref": "#/$defs/match" },
+        "confidence": { "anyOf": [{ "$ref": "#/$defs/confidence" }, { "type": "null" }] },
+        "evidence": {
+          "description": "Null for an assay-limit card, for an outcome with no phenotype estimate, and for every card of a format 1 bundle.",
+          "anyOf": [{ "$ref": "#/$defs/evidence" }, { "type": "null" }]
+        },
+        "observation": { "anyOf": [{ "$ref": "#/$defs/observation" }, { "type": "null" }] },
+        "frequencies": { "type": "array", "items": { "$ref": "#/$defs/frequency" } },
+        "confidence_frequency": {
+          "description": "The frequency the confidence calculation used.",
+          "anyOf": [{ "$ref": "#/$defs/frequency" }, { "type": "null" }]
+        },
+        "citations": { "type": "array", "items": { "$ref": "#/$defs/citation" } },
+        "authored_caveats": { "type": "array", "items": { "type": "string" } },
+        "computed_caveats": { "type": "array", "items": { "type": "string" } },
+        "computation": { "anyOf": [{ "$ref": "#/$defs/computation" }, { "type": "null" }] },
+        "multi_marker": {
+          "type": ["object", "null"],
+          "description": "A card read from several markers: its own `schema_version`, each marker's observation, and the haplotypes or diplotypes they support."
+        },
+        "risk_context": { "type": ["string", "null"], "description": "The absolute risk beside a relative one, on a matched card that states one." },
+        "imputation_mode": { "type": ["string", "null"], "description": "The run's imputation mode (format 14 on; docs/imputation_mode.md)." },
+        "ancestry_comparison": {
+          "type": ["object", "null"],
+          "description": "How the run's ancestry placement compares with the study population (format 18 on; docs/card_ancestry.md). `text` states it."
+        },
+        "carrier": {
+          "type": ["object", "null"],
+          "description": "A carrier card's declaration and derived `state` (format 24 on; docs/carrier_status.md)."
+        }
+      },
+      "required": [
+        "card_id",
+        "section",
+        "kind",
+        "title",
+        "gene",
+        "status",
+        "confidence_tier",
+        "summary",
+        "detail",
+        "impossibility_reason",
+        "variant",
+        "match",
+        "confidence",
+        "evidence",
+        "observation",
+        "frequencies",
+        "confidence_frequency",
+        "citations",
+        "authored_caveats",
+        "computed_caveats",
+        "computation",
+        "multi_marker",
+        "risk_context",
+        "imputation_mode",
+        "ancestry_comparison",
+        "carrier"
+      ],
+      "additionalProperties": false
+    },
+    "pointer": {
+      "type": "object",
+      "description": "A pointer a section declares to a card another section holds, resolved against this run.",
+      "properties": {
+        "card_id": { "type": "string" },
+        "in_run": { "type": "boolean", "description": "False for a run saved before the card existed." },
+        "title": { "type": "string" },
+        "section": {
+          "description": "The section that holds the card. Null when `in_run` is false.",
+          "anyOf": [{ "$ref": "#/$defs/section_name" }, { "type": "null" }]
+        }
+      },
+      "required": ["card_id", "in_run", "title", "section"],
+      "additionalProperties": false
+    },
+    "section_context": {
+      "type": "object",
+      "description": "What the dashboard shows around one section's cards.",
+      "properties": {
+        "section": { "$ref": "#/$defs/section_name" },
+        "title": { "type": "string" },
+        "blurb": { "type": "string" },
+        "milestone": { "type": "string" },
+        "card_count": { "type": "integer", "minimum": 0 },
+        "interpreted": { "type": "integer", "minimum": 0, "description": "Cards whose status is `matched` or `computed`." },
+        "empty_reason": { "type": ["string", "null"], "description": "Why the section shows no finding. Null when it shows one." },
+        "related": { "type": "array", "items": { "$ref": "#/$defs/pointer" } },
+        "saved_records": {
+          "type": "array",
+          "description": "Saved records beyond the cards, with the command that prints each.",
+          "items": {
+            "type": "object",
+            "properties": { "title": { "type": "string" }, "command": { "type": "string" } },
+            "required": ["title", "command"],
+            "additionalProperties": false
+          }
+        },
+        "section_framing": {
+          "type": "object",
+          "description": "Pharmacogenomics only: the section's standing notice (docs/pgx_framing.md).",
+          "properties": {
+            "context": { "const": "current" },
+            "section": { "const": "pharmacogenomics" },
+            "title": { "type": "string" },
+            "text": { "type": "string" }
+          },
+          "required": ["context", "section", "title", "text"],
+          "additionalProperties": false
+        },
+        "carrier_scope": {
+          "type": ["object", "null"],
+          "description": "Reproductive only: the statement that the section is not a carrier screen. Null when the run holds no carrier card.",
+          "properties": {
+            "status": { "enum": ["recorded", "not-recorded"] },
+            "title": { "type": "string" },
+            "text": { "type": "string" }
+          },
+          "required": ["status", "title", "text"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "section",
+        "title",
+        "blurb",
+        "milestone",
+        "card_count",
+        "interpreted",
+        "empty_reason",
+        "related",
+        "saved_records"
+      ],
+      "additionalProperties": false
+    },
+    "qc": {
+      "type": "object",
+      "description": "The saved QC report (qc.run.json), as the engine that saved the run wrote it. Read it defensively: another version may have written fewer fields. Today's writer gives `vendor`, `call_rates`, `heterozygosity`, `sex`, `build`, `duplicates`, `indels`, `het_haploid_calls`, `source_path` and `warnings`.",
+      "properties": {
+        "vendor": { "type": "string" },
+        "call_rates": { "type": "object" },
+        "heterozygosity": { "type": "object" },
+        "sex": { "type": "object", "description": "`inferred`, and the X heterozygosity and Y call rate behind it." },
+        "build": { "type": "object", "description": "`declared` and the `verdict` of the anchor check." },
+        "duplicates": { "type": "object" },
+        "indels": { "type": "object" },
+        "warnings": { "type": "array", "description": "Every QC warning, in QC's order." }
+      }
+    },
+    "imputation": {
+      "type": ["object", "null"],
+      "description": "The imputation execution record: `schema_version`, `mode`, `status`, `card_input`, `summary` (docs/imputation_mode.md). Null before format 14."
+    },
+    "provenance": {
+      "type": "object",
+      "description": "What produced the run.",
+      "properties": {
+        "engine_version": { "type": "string" },
+        "knowledge": {
+          "type": "object",
+          "description": "The knowledge pack by content: `card_schema_version`, `card_count`, a `digest` over the card files, and each file's digest."
+        },
+        "references": {
+          "type": "object",
+          "description": "`present`, `reason`, and each reference source's `version` and `license` under `sources`."
+        },
+        "tools": { "type": "object", "description": "Each pinned tool's `version`, `reported_version` and `sha256`." },
+        "input": { "type": "object", "description": "`vendor`, `markers` and the export's file name." }
+      }
+    }
+  }
+}

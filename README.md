@@ -245,7 +245,11 @@ and holds no genotype, so a web search can start from it. See the
 [read-command contract](docs/agent_cli.md). The
 [M13.1 diff review](docs/review_m131_session.md) fixes `runs card` calling computed, polygenic
 and guideline cards "Not scored".
-[M13.2, a versioned JSON schema](docs/handoff.md#next-open-step-m132-json-schema) is next.
+**M13.2, the agent JSON schema, is implemented.** One JSON Schema document describes what the
+agent read commands print, and `genetics schema` prints it. Each document names its payload and
+version, `run_id` is the same id in every command, and a failure under `--json` is one error
+document. See [the agent schema](docs/agent_schema.md).
+[M13.3, card search](docs/handoff.md#next-open-step-m133-card-search) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
@@ -366,6 +370,7 @@ genetics runs show <run-id> --section nutrition --json
 genetics runs card <run-id> <card-id> --json
 genetics runs qc <run-id> --json
 genetics cards evidence <card-id> --json
+genetics schema
 genetics runs clinvar <run-id> --json
 genetics runs secondary <run-id> --json
 genetics serve

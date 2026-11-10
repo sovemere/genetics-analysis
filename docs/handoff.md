@@ -1,7 +1,8 @@
-# Handoff: M13.2 JSON schema
+# Handoff: M13.3 card search
 
-As of 2026-11-10, **M0-M12 and M13.1 are implemented; M13.2 is next**. See
-[the M13.2 entry contract](#next-open-step-m132-json-schema) and
+As of 2026-11-11, **M0-M12, M13.1 and M13.2 are implemented; M13.3 is next**. See
+[the M13.3 entry contract](#next-open-step-m133-card-search),
+[the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands). Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
@@ -519,9 +520,99 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m133-card-search"></a>
+
+## Next open step: M13.3 card search
+
+M13.3 is `genetics search <query>` across cards, so that an agent can find "curly hair"
+without knowing the card id. Nothing has been selected or verified beyond what is listed here.
+
+What is open:
+
+- **What it searches.** The knowledge pack (titles, genes, traits, variants, caveats), a saved
+  run (the cards that run holds, with their results), or both. A pack search holds no
+  genotype and can be scanned, like `cards evidence`. A run search states results, like
+  `runs show`. The roadmap line does not say which.
+- **Where it lives.** The roadmap writes it as top-level `genetics search`. M13.1 put
+  run-scoped reads under `runs` and pack reads under `cards`, and declined top-level aliases.
+- **How a match is ranked and reported.** Nothing exists yet. M14.4 is the dashboard's global
+  search, and AGENTS.md §3 requires the two to call the same function.
+
+What M13.2 requires of it:
+
+- **A new payload goes in the schema document.** Add its definition, its `tag.<name>`, an
+  `x-payloads` entry stating whether it holds a genotype and is scanned, and the root
+  `oneOf` entry. That is a shape change, so it takes version 2: bump
+  `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to `SHAPE_DIGESTS`, and
+  add a line to the version history in [the agent schema](agent_schema.md). The tests fail
+  until all of that is done.
+- **Failures go through `contract.refuse`**, with a kind from the table in
+  [the agent schema](agent_schema.md) or a new one added to it.
+
+What M13.2 left, for whichever later item needs it:
+
+- **Exit codes outside the read commands.** `run`, `impute` and `serve` exit 2 for every
+  failure, not only usage errors.
+- **Failures printed as text under `--json`.** `ingest`, `refs`, `tools`, `paths` and `roh`.
+- **Commands with no tag.** `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`
+  and `hla calls` print saved records that version 1 does not describe. M13.5's parity test
+  will list what an agent can reach, and is the place to decide which need describing.
+- **Confidence in two places.** The document describes `confidence` and
+  `computation.reliability` as they are. M13.4 decides whether an agent sees one shape.
+
+<a id="accepted-m132-agent-json-schema"></a>
+
+## Accepted M13.2 agent JSON schema
+
+Implemented on 2026-11-11 under [the agent schema](agent_schema.md). No owner question was
+asked: each choice follows something M13.1 or the bundle format had already settled, and that
+page lists them.
+
+- **One document.** `src/genetics/cli/agent_schema.json`, JSON Schema draft 2020-12, describes
+  seven payloads: `runs.list`, `runs.show`, `runs.section`, `runs.card`, `runs.qc`,
+  `cards.evidence` and `error`. `genetics schema` prints it whole, or one payload as a
+  self-contained schema.
+- **Every described document names itself.** It starts with
+  `"schema": {"name": ..., "version": 1}`. `genetics/cli/contract.py` holds the version, the
+  tag and the one error writer.
+- **The M13.1 handoff's open points.**
+  - `run_id` is the bundle's directory name in every command and in the text output.
+    `runs.show` keeps the manifest's value as `recorded_run_id`.
+  - One error document, `{"ok": false, "error": {"kind", "message"}}` with the tag, from every
+    command that printed an error document. `pgx` and `pgs` printed a bare string before.
+    `pgx calls` and `hla calls` now report an unknown run as `not-found`, as `runs` does.
+  - Exit codes are stated for the read commands and unchanged: 1 where the command could not
+    be carried out, 2 where the command line was wrong.
+  - Saved record versus `current_context` is now a rule, stated by the document's structure.
+- **Citations.** Required on every saved card and evidence declaration, with `type` and `id`
+  on each. `runs.card` and `cards.evidence` give each one's public page.
+- **Stability is tested.** A digest of each version's shape is pinned, the vocabularies and
+  card keys are compared with the engine's, and every command's output is validated against
+  the document, including the saved runs with HLA and guideline cards.
+
+Changed for a caller: `runs show --json`, `runs clinvar --json`, `runs secondary --json` and
+`runs imputation --json` print the directory name as `run_id` (the same value unless the
+bundle was renamed); the six read payloads gain a leading `schema` key and `runs.show` gains
+`recorded_run_id`; `pgx` and `pgs` errors are objects; an unknown run in `pgx calls` and
+`hla calls` has kind `not-found`. No bundle format, knowledge schema, card or saved-file type
+changed. No personal export or saved real run was opened; all checks used synthetic runs.
+
+Validation on 2026-11-11, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **4,083 tests with nine skips** in 710 s: the five existing
+Windows skips and the four published-classifier HIBAG tests. After that run only documentation
+and one module docstring changed. Full dbSNP card lint (119 cards, 594 renders, 65/65 keys),
+strict mypy over source, scripts and tests (250 files), ruff, format and the fixture check
+pass. The 51 new tests are in `tests/test_agent_schema.py`, and two
+existing tests in `tests/hla` and `tests/refs` now validate their saved runs against the
+document. Sixteen guards were each removed in turn, and each removal failed a test.
+
+**Saved runs repeat their deep checks once.** This change edits Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
 <a id="next-open-step-m132-json-schema"></a>
 
-## Next open step: M13.2 JSON schema
+## M13.2 entry contract (implemented; retained for review)
 
 M13.2 is a stable, versioned and documented JSON schema for the agent CLI, with citations in
 card JSON. Nothing has been selected or verified beyond what is listed here.

@@ -8,6 +8,7 @@ from typing import Annotated
 
 import typer
 
+from genetics.cli import contract
 from genetics.pgs.catalog import Catalog, PgsError
 from genetics.pgs.scoring import ScoringFile
 from genetics.refs.postprocess import ProcessError
@@ -55,11 +56,7 @@ def inspect_score(
             scoring_file, catalog, pgs_id=pgs_id, expected_build=build
         ).inspect()
     except (PgsError, ProcessError) as exc:
-        if as_json:
-            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-        else:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        contract.refuse("pgs", str(exc), as_json=as_json)
     if as_json:
         typer.echo(json.dumps({"ok": True, **result}, indent=2))
     else:
@@ -177,11 +174,7 @@ def score_pgs(
         Plink2Error,
         BundleError,
     ) as exc:
-        if as_json:
-            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-        else:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        contract.refuse("pgs", str(exc), as_json=as_json)
     if as_json:
         typer.echo(
             json.dumps({"ok": True, "output": str(destination), **result.to_dict()}, indent=2)
@@ -234,11 +227,7 @@ def coverage(
             scoring = ScoringFile.open(scoring_file, catalog)
         report = read_coverage(result_path, scoring=scoring)
     except (PgsError, ProcessError) as exc:
-        if as_json:
-            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-        else:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        contract.refuse("pgs", str(exc), as_json=as_json)
     if as_json:
         typer.echo(json.dumps({"ok": True, **report}, indent=2))
     else:
@@ -281,11 +270,7 @@ def placement(
             scoring = ScoringFile.open(scoring_file, catalog)
         report = read_placement(result_path, scoring=scoring)
     except (PgsError, ProcessError) as exc:
-        if as_json:
-            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-        else:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        contract.refuse("pgs", str(exc), as_json=as_json)
     if as_json:
         typer.echo(json.dumps({"ok": True, **report}, indent=2))
         return
@@ -328,11 +313,7 @@ def portability(
             scoring = ScoringFile.open(scoring_file, catalog)
         report = read_portability(result_path, scoring=scoring)
     except (PgsError, ProcessError) as exc:
-        if as_json:
-            typer.echo(json.dumps({"ok": False, "error": str(exc)}))
-        else:
-            typer.secho(str(exc), fg=typer.colors.RED, err=True)
-        raise typer.Exit(code=1) from exc
+        contract.refuse("pgs", str(exc), as_json=as_json)
     if as_json:
         typer.echo(json.dumps({"ok": True, **report}, indent=2))
         return

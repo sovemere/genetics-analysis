@@ -23,6 +23,7 @@ def impute_command(
     as_json: Annotated[bool, typer.Option("--json")] = False,
 ) -> None:
     """Phase then impute with full prepared panels; save private dosages and quality."""
+    from genetics.cli import contract
     from genetics.external.beagle import BeagleError, BeagleOptions
     from genetics.imputation import ImputationError, PreparedReference, impute
     from genetics.ingest import IngestError, ingest
@@ -68,10 +69,4 @@ def impute_command(
             else "Imputation failed; verify input, prepared panels/maps and pinned tools."
         )
         assert_no_genotype(message, context="imputation failure")
-        if as_json:
-            typer.echo(
-                json.dumps({"ok": False, "error": {"kind": "imputation", "message": message}})
-            )
-        else:
-            typer.echo(message, err=True)
-        raise typer.Exit(2) from None
+        contract.refuse("imputation", message, as_json=as_json, code=2)

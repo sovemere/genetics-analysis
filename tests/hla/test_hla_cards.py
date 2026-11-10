@@ -670,7 +670,11 @@ def _rewrite(path: Path, name: str, payload: Any, *, version: int | None = None)
 
 
 def test_saved_cards_rebuild_from_frozen_evidence(
-    build: Any, sample_qc: Any, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    build: Any,
+    sample_qc: Any,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    agent_schema_check: Any,
 ) -> None:
     from genetics.pgx.calling import unavailable as pgx_unavailable
     from genetics.run.bundle import CARDS_NAME, BundleError, read_bundle, write_bundle
@@ -714,6 +718,12 @@ def test_saved_cards_rebuild_from_frozen_evidence(
     assert "hla_b5701_abacavir: matched; moderate; pharmacogenomics" in text.output
     shown = CliRunner().invoke(app, ["runs", "show", path.name])
     assert shown.exit_code == 0 and "PREDICT-1" in shown.output
+    # The only saved run with HLA cards: its agent documents match the M13.2 schema.
+    whole = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
+    assert agent_schema_check(json.loads(whole.stdout)) == "runs.show"
+    for card_id in saved:
+        one = CliRunner().invoke(app, ["runs", "card", path.name, card_id, "--json"])
+        assert agent_schema_check(json.loads(one.stdout)) == "runs.card", card_id
     client = TestClient(
         create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"
     )

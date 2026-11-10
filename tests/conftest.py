@@ -436,3 +436,38 @@ def installed_plink2(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Callabl
         return binary
 
     return build
+
+
+@pytest.fixture(scope="session")
+def agent_schema_check() -> Callable[[object], str]:
+    """Check one agent CLI document against the schema its own tag names (M13.2).
+
+    Returns the payload name, so a test can also say which document it expected. A fixture
+    because ``tests/`` is not a package: the HLA and PGx suites build the only saved runs
+    that hold HLA and guideline cards, and check them with this.
+    """
+    from jsonschema import Draft202012Validator
+
+    from genetics.cli import contract
+
+    validators = {
+        name: Draft202012Validator(contract.payload_schema(name))
+        for name in contract.payload_names()
+    }
+
+    def check(document: object) -> str:
+        assert isinstance(document, dict), "an agent document is a JSON object"
+        tag = document.get("schema")
+        assert isinstance(tag, dict), "no schema tag"
+        assert tag.get("version") == contract.AGENT_SCHEMA_VERSION, tag
+        name = tag.get("name")
+        assert isinstance(name, str) and name in validators, tag
+        assert next(iter(document)) == "schema", "the tag comes first"
+        problems = [
+            f"{'/'.join(str(part) for part in error.absolute_path)}: {error.message[:300]}"
+            for error in validators[name].iter_errors(document)
+        ]
+        assert not problems, f"{name} does not match its schema:\n" + "\n".join(problems[:12])
+        return name
+
+    return check

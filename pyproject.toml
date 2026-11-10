@@ -52,6 +52,11 @@ dev = [
     # because CI installs with `uv pip install -e ".[dev]"` and would not see it there:
     # the web tests would fail on the runner and pass on every developer's machine.
     "httpx2>=2.10",
+    # M13.2: the tests check what the agent commands print against the committed JSON
+    # Schema, and check that the document is itself a valid schema. A test-only dependency:
+    # the CLI prints the schema and never validates against it at run time.
+    "jsonschema>=4.23",
+    "types-jsonschema>=4.23",
 ]
 
 [project.scripts]
