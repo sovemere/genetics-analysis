@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 1,
+  "version": 2,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -406,8 +406,8 @@
           "properties": {
             "kind": {
               "type": "string",
-              "pattern": "^[a-z][a-z0-9-]*$",
-              "description": "A stable name to branch on. docs/agent_schema.md lists the kinds each read command gives."
+              "pattern": "^[a-z][a-z0-9_-]*$",
+              "description": "A stable name to branch on. docs/agent_schema.md lists the kinds each read command gives. `genetics run` gives two with an underscore."
             },
             "message": { "type": "string", "description": "A sentence for a person. Do not parse it." }
           },
@@ -420,43 +420,43 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 1 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 2 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },

@@ -37,7 +37,7 @@ reader's own call, which is what a card says, and are not scanned
 Every described document starts with:
 
 ```json
-"schema": {"name": "runs.card", "version": 1}
+"schema": {"name": "runs.card", "version": 2}
 ```
 
 `name` is one of the seven above. `version` is the version of the schema document, which is
@@ -103,7 +103,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 1},
+  "schema": {"name": "error", "version": 2},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -114,6 +114,10 @@ Branch on `error.kind`. `message` is for a person and may be reworded.
 Before M13.2 the `pgx` and `pgs` groups printed `error` as a bare string. Every command that
 printed an error document now prints this one, through `contract.refuse`: all of `runs`,
 `cards evidence`, `pgx`, `pgs`, `hla`, `run`, `impute`, `serve` and `schema`.
+
+`runs`, `pgx calls` and `hla calls` give the same kind for a run that cannot be opened,
+through `contract.run_error_kind`. Before the [session review](review_m132_session.md),
+`hla calls` called every such failure `hla` and `pgx calls` called a disk failure `pgx`.
 
 For the read commands and `schema`, the exit code says which kind of failure it was:
 
@@ -127,10 +131,10 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 |---|---|---|
 | `not-found` | any command that takes a run id | No run with that id is saved. `pgx calls` and `hla calls` give the same kind |
 | `card-not-found` | `runs card`, `cards evidence` | The run or the pack has no card with that id |
-| `version` | any command that reads a run | The run was saved by a newer version of the tool. It is intact |
-| `integrity` | any command that reads a run | A saved file does not match its recorded digest |
-| `io` | any command that reads a run | The disk refused: a locked file, a permission, a missing drive |
-| `bundle` | any command that reads a run | The run could not be read for another reason |
+| `version` | `runs`, `pgx calls`, `hla calls` | The run was saved by a newer version of the tool. It is intact |
+| `integrity` | `runs`, `pgx calls`, `hla calls` | A saved file does not match its recorded digest |
+| `io` | `runs`, `pgx calls`, `hla calls` | The disk refused: a locked file, a permission, a missing drive |
+| `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
 | `knowledge` | `cards evidence` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
 | `unknown-payload` | `schema` | Not one of the seven payload names |
@@ -139,12 +143,19 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 A command line Typer itself rejects (a missing argument, an unknown option) exits 2 with a
 usage message on stderr and nothing on stdout.
 
+The other groups name their own kinds: `pgs`, `pgx`, `hla` and `imputation` for their groups,
+`config` and `serve` for `serve`, and one per pipeline stage for `run` (`ingest`, `ancestry`,
+`structure`, `polygenic`, `run_parts`, `frequency_reference` and others). A kind is lowercase
+letters, digits, hyphens and underscores. `tests/test_agent_schema.py` reads every kind the
+CLI modules can print and checks each against the document.
+
 Not unified, and recorded here so that nobody assumes otherwise:
 
 - `run`, `impute` and `serve` exit 2 for every failure, including ones that are not usage
   errors. Their error document is the same.
-- `ingest`, `refs`, `tools`, `paths` and `roh` print a failure as a sentence on stderr even
-  under `--json`, with a non-zero exit and nothing on stdout. None is an agent read command.
+- `ingest`, `refs`, `tools` and `paths` print a failure as a sentence on stderr even under
+  `--json`, with a non-zero exit and nothing on stdout. `roh` has no `--json` flag: it prints
+  its result as JSON and a failure as a sentence. None is an agent read command.
 
 ## How closely each part is described
 
@@ -178,16 +189,16 @@ card and in every evidence declaration, and requires `type` and `id` on each cit
 `cards.evidence` adds `url` to each citation. A test checks that every card with a claim has
 at least one citation, and that an assay-limit card has none (AGENTS.md §7.6).
 
-## Outside version 1
+## Not described
 
 These commands print JSON that the document does not describe yet. Their shapes are stable
 in practice and documented elsewhere, but they carry no tag:
 
 - `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`, `hla calls`: the saved
   records a section's `saved_records` names. Each record has its own `schema_version`.
-- `run`, `ingest`, `impute`, `serve`, `doctor`, `paths`, `version`, `refs`, `tools`, `pgs`,
-  `pgx inspect`, `hla inspect`, `cards lint`, `cards carriers`, `cards carrier-scope`,
-  `runs delete`, `runs prune`.
+- `run`, `ingest`, `impute`, `serve`, `doctor`, `paths`, `adapters`, `version`, `roh`, `refs`,
+  `tools`, `pgs`, `pgx inspect`, `pgx prepare`, `hla inspect`, `cards lint`, `cards carriers`,
+  `cards carrier-scope`, `runs delete`, `runs prune`.
 
 M13.5's parity test is the natural place to decide which of these an agent needs described.
 
@@ -204,33 +215,38 @@ No owner question was asked. Each choice follows something already settled:
 - **The error is `{kind, message}`.** `runs`, `cards evidence`, `hla`, `run`, `impute` and
   `serve` already printed that; `pgx` and `pgs` printed a string.
 - **Exit codes are stated, not changed.** The read commands already followed the 1-or-2 rule.
-  `run`, `impute` and `serve` exit 2 for everything, and tests and callers rely on it.
+  `run`, `impute` and `serve` exit 2 for everything, and `tests/test_cli_run.py` pins it.
 - **`jsonschema` is a development dependency only.** The tests validate with it. The CLI
   prints the document and never validates at run time.
 
 ## Validation
 
-`tests/test_agent_schema.py` holds 51 tests. They check that the document is a valid schema
+`tests/test_agent_schema.py` holds 52 tests. They check that the document is a valid schema
 at the declared version, that every payload is listed, defined and reachable, and that no
 definition is unused. They compare thirteen vocabularies with the engine's enums and the
 card's keys with `StoredCard`. They build a saved run from 103 committed cards matched
 against an invented table and check every read against the document, including `runs card`
 for each card. They check the evidence declaration of all 119 cards. They check thirteen
 failures for one error document, a stable kind and the stated exit code, and that a damaged
-run and a newer-format run are told apart. A renamed bundle is read through seven commands
-to check `run_id`.
+run and a newer-format run are told apart by `runs`, `pgx calls` and `hla calls`. They read
+every error kind the CLI modules can print and check each one. A renamed bundle is read
+through seven commands to check `run_id`.
 
 HLA and guideline cards need a stage record, so the saved runs that hold them are built in
 `tests/hla/test_hla_cards.py` and `tests/refs/test_pgx.py`. Both now check `runs show --json`
 and `runs card --json` against the document with the shared `agent_schema_check` fixture.
 
-Sixteen guards were each removed in turn, and each removal failed a test: the tag on three
-commands and on the error document, the three `run_id` sources, the two error kinds for an
-unknown run in `pgx calls` and `hla calls`, the error as a bare string, an unlisted key in
-three outputs, the document edited under version 1, the version bumped without a digest, and
-the exit code for an unknown payload.
+Sixteen guards were each removed in turn at M13.2, and each removal failed a test: the tag
+on three commands and on the error document, the three `run_id` sources, the two error kinds
+for an unknown run in `pgx calls` and `hla calls`, the error as a bare string, an unlisted key
+in three outputs, the document edited under version 1, the version bumped without a digest,
+and the exit code for an unknown payload. The session review removed five more, each caught:
+the shared kind in `pgx calls` and `hla calls`, the `version` kind, version 1's kind pattern
+(caught by the new kind test on its own, not only by the digest), and the version bumped to 3
+without a digest.
 
-The full native suite passes 4,083 tests with the existing nine skips.
+The full native suite passed 4,083 tests with the existing nine skips at M13.2, and
+4,084 after the session review.
 
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
@@ -240,3 +256,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | Version | Date | Change |
 |---|---|---|
 | 1 | 2026-11-11 | First version: seven payloads |
+| 2 | 2026-11-11 | `error.kind` may contain an underscore. Version 1's pattern refused two kinds `genetics run` prints, `run_parts` and `frequency_reference`. Found by the [session review](review_m132_session.md) |

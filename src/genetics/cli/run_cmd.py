@@ -77,7 +77,7 @@ def _echo(text: str = "", **kwargs: object) -> None:
 
 
 def _error_kind(exc: Exception) -> str:
-    """A stable machine-readable name for a failure, mirroring ``runs_cmd.error_kind``.
+    """A stable machine-readable name for a failure, mirroring ``contract.run_error_kind``.
 
     The distinction that has to survive into ``--json`` is *which stage* refused. "Your
     export is malformed", "your knowledge pack is malformed" and "the disk is full" are

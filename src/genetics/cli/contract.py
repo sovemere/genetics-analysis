@@ -32,7 +32,7 @@ from typing import Any, Final, NoReturn
 
 import typer
 
-AGENT_SCHEMA_VERSION: Final[int] = 1
+AGENT_SCHEMA_VERSION: Final[int] = 2
 """The version every tagged document carries. Bump it with any change to a described shape."""
 
 SCHEMA_PATH: Final[Path] = Path(__file__).with_name("agent_schema.json")
@@ -92,6 +92,33 @@ def tagged(name: str, payload: dict[str, Any]) -> dict[str, Any]:
 def error_payload(kind: str, message: str) -> dict[str, Any]:
     """The one error document. ``kind`` is for a program; ``message`` is for a person."""
     return tagged("error", {"ok": False, "error": {"kind": kind, "message": message}})
+
+
+def run_error_kind(exc: Exception) -> str:
+    """The kind for a saved run that could not be opened, the same from every command.
+
+    ``version`` is the one that has to survive: M4.2 requires "written by a newer engine" to
+    be distinguishable from "this file is damaged", and an agent reading ``--json`` cannot
+    draw that distinction out of prose. ``io`` exists because the store raises ``OSError``,
+    not ``BundleError``, when the disk refuses -- a locked file on Windows, a permission
+    change, a removable drive that is no longer there.
+
+    Shared by ``runs``, ``pgx calls`` and ``hla calls`` since the M13.2 review: before it,
+    ``hla calls`` reported a newer-format run as ``hla`` and ``pgx calls`` a disk failure
+    as ``pgx``, so one run gave three kinds depending on which command opened it.
+    """
+    from genetics.run.bundle import BundleIntegrityError, BundleVersionError
+    from genetics.run.store import RunNotFoundError
+
+    if isinstance(exc, BundleVersionError):
+        return "version"
+    if isinstance(exc, RunNotFoundError):
+        return "not-found"
+    if isinstance(exc, BundleIntegrityError):
+        return "integrity"
+    if isinstance(exc, OSError):
+        return "io"
+    return "bundle"
 
 
 def refuse(kind: str, message: str, *, as_json: bool, code: int = 1) -> NoReturn:

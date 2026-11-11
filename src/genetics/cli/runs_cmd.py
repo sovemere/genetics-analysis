@@ -40,12 +40,10 @@ from genetics.privacy import assert_no_genotype
 from genetics.run import reads, store
 from genetics.run.bundle import (
     BundleError,
-    BundleIntegrityError,
-    BundleVersionError,
     RunBundle,
     StoredCard,
 )
-from genetics.run.store import RunNotFoundError, RunStatus
+from genetics.run.store import RunStatus
 
 runs_app = typer.Typer(
     name="runs",
@@ -68,35 +66,18 @@ def _size(n: int) -> str:
     return f"{n:,} B"
 
 
-def error_kind(exc: Exception) -> str:
-    """A stable machine-readable name for a failure.
-
-    ``version`` is the one that has to survive: M4.2 requires "written by a newer engine"
-    to be distinguishable from "this file is damaged", and an agent reading ``--json``
-    cannot draw that distinction out of prose.
-
-    ``io`` exists because the store raises ``OSError``, not ``BundleError``, when the disk
-    refuses -- a locked file on Windows, a permission change, a removable drive that is no
-    longer there. Catching only ``BundleError`` here meant the commands most likely to meet
-    that (``show`` opens every payload to digest it, ``delete`` removes a directory tree)
-    printed a traceback instead of a sentence.
-    """
-    if isinstance(exc, BundleVersionError):
-        return "version"
-    if isinstance(exc, RunNotFoundError):
-        return "not-found"
-    if isinstance(exc, BundleIntegrityError):
-        return "integrity"
-    if isinstance(exc, OSError):
-        return "io"
-    return "bundle"
-
-
 _refuse = contract.refuse
 
 
 def _fail(exc: Exception, *, as_json: bool) -> NoReturn:
-    _refuse(error_kind(exc), str(exc), as_json=as_json)
+    """A run that could not be opened or removed, as a sentence rather than a traceback.
+
+    ``OSError`` is caught beside ``BundleError`` at every call site because the store raises
+    it when the disk refuses; ``show`` opens every payload to digest it and ``delete``
+    removes a directory tree, so those are the commands most likely to meet it. The kind is
+    :func:`contract.run_error_kind`'s, which ``pgx calls`` and ``hla calls`` share.
+    """
+    _refuse(contract.run_error_kind(exc), str(exc), as_json=as_json)
 
 
 # ---------------------------------------------------------------------------

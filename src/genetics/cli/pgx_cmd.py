@@ -31,7 +31,12 @@ def calls(
     from genetics.run.bundle import BundleError
 
     try:
-        result = saved_report(store.load_run(run_id, progress=store.report_to_console), gene)
+        bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        # The same kind as `genetics runs` for the same run (M13.2).
+        contract.refuse(contract.run_error_kind(exc), str(exc), as_json=as_json)
+    try:
+        result = saved_report(bundle, gene)
     except (CallingError, BundleError, OSError, ValueError) as exc:
         _error(exc, as_json)
     else:
@@ -106,17 +111,7 @@ def prepare(
 
 
 def _error(exc: Exception, as_json: bool) -> NoReturn:
-    """One error document for the group (M13.2). A run that could not be opened keeps the
-    kind ``genetics runs`` gives it, so ``not-found`` means the same thing from every
-    command that takes a run id."""
-    from genetics.run.bundle import BundleError
-
-    kind = "pgx"
-    if isinstance(exc, BundleError):
-        from genetics.cli.runs_cmd import error_kind
-
-        kind = error_kind(exc)
-    contract.refuse(kind, str(exc), as_json=as_json)
+    contract.refuse("pgx", str(exc), as_json=as_json)
 
 
 @pgx_app.command("inspect")

@@ -3,7 +3,10 @@
 As of 2026-11-11, **M0-M12, M13.1 and M13.2 are implemented; M13.3 is next**. See
 [the M13.3 entry contract](#next-open-step-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
-[the M13.1 record](#accepted-m131-agent-read-commands). Full-reference
+[the M13.1 record](#accepted-m131-agent-read-commands). The
+[M13.2 session review](review_m132_session.md) moved the schema to version 2, because version 1
+refused two error kinds `genetics run` prints, and made `pgx calls` and `hla calls` give the
+same kind as `runs` for a run that cannot be opened. Full-reference
 and broad native acceptance remain recorded with their original milestones.
 The M10.5 review reruns affected tests and does not claim another full native
 suite. Read [AGENTS.md](../AGENTS.md) first, then [the roadmap](../phase1_roadmap.md).
@@ -542,20 +545,24 @@ What M13.2 requires of it:
 
 - **A new payload goes in the schema document.** Add its definition, its `tag.<name>`, an
   `x-payloads` entry stating whether it holds a genotype and is scanned, and the root
-  `oneOf` entry. That is a shape change, so it takes version 2: bump
+  `oneOf` entry. That is a shape change, so it takes version 3: bump
   `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to `SHAPE_DIGESTS`, and
   add a line to the version history in [the agent schema](agent_schema.md). The tests fail
   until all of that is done.
 - **Failures go through `contract.refuse`**, with a kind from the table in
-  [the agent schema](agent_schema.md) or a new one added to it.
+  [the agent schema](agent_schema.md) or a new one added to it. A search that reads a saved
+  run reports a run it cannot open with `contract.run_error_kind`, as `runs` does. A kind is
+  lowercase letters, digits, hyphens and underscores; a test reads every kind the CLI
+  modules print and checks it.
 
 What M13.2 left, for whichever later item needs it:
 
 - **Exit codes outside the read commands.** `run`, `impute` and `serve` exit 2 for every
   failure, not only usage errors.
-- **Failures printed as text under `--json`.** `ingest`, `refs`, `tools`, `paths` and `roh`.
+- **Failures printed as text under `--json`.** `ingest`, `refs`, `tools` and `paths`. `roh`
+  has no `--json` flag; it prints its result as JSON and a failure as text.
 - **Commands with no tag.** `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`
-  and `hla calls` print saved records that version 1 does not describe. M13.5's parity test
+  and `hla calls` print saved records that the schema does not describe. M13.5's parity test
   will list what an agent can reach, and is the place to decide which need describing.
 - **Confidence in two places.** The document describes `confidence` and
   `computation.reliability` as they are. M13.4 decides whether an agent sees one shape.
@@ -609,6 +616,14 @@ document. Sixteen guards were each removed in turn, and each removal failed a te
 **Saved runs repeat their deep checks once.** This change edits Python source, so the first
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
 Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
+The [session diff review](review_m132_session.md) (`7a4c4c3..2c90a52`) found two defects.
+Version 1's `error.kind` pattern refused `run_parts` and `frequency_reference`, two kinds
+`genetics run` prints; the schema is now version 2, which allows underscores, and a test checks
+every kind the CLI modules can print. `hla calls` called a newer-format or damaged run `hla`
+and `pgx calls` called a disk failure `pgx`; both now share `contract.run_error_kind` with
+`runs`. The review also corrected the README status line and the claim that `roh` has a
+`--json` flag. The full native suite passes **4,084 tests with the same nine skips** in 691 s: the five Windows skips and the four published-classifier HIBAG tests.
 
 <a id="next-open-step-m132-json-schema"></a>
 

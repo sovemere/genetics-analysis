@@ -64,6 +64,7 @@ Change = Callable[[dict[str, Any]], object]
 
 SHAPE_DIGESTS = {
     1: "b03f416e3aa1d460629018bbeec56c493286e3d4c042c0af7e272dcfc5d740f5",
+    2: "8451a2298c73410063d93d775ed93ee1242b843ac35ead8dd47fbb26dc814e09",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
@@ -358,7 +359,9 @@ def test_a_schema_violation_is_caught(saved: RunBundle, agent_schema_check: Chec
         with pytest.raises(AssertionError, match="does not match its schema"):
             agent_schema_check(broken(change))
     with pytest.raises(AssertionError):
-        agent_schema_check(broken(lambda d: d["schema"].update(version=2)))
+        agent_schema_check(
+            broken(lambda d: d["schema"].update(version=contract.AGENT_SCHEMA_VERSION + 1))
+        )
     with pytest.raises(AssertionError):
         agent_schema_check(broken(lambda d: d.pop("schema")))
 
@@ -509,7 +512,12 @@ def test_a_damaged_and_a_newer_run_are_told_apart(
             manifest = json.loads((copy / MANIFEST_NAME).read_text(encoding="utf-8"))
             edit(manifest)
             (copy / MANIFEST_NAME).write_text(json.dumps(manifest), encoding="utf-8")
-            for args in (["runs", "show", name], ["runs", "qc", name], ["pgx", "calls", name]):
+            for args in (
+                ["runs", "show", name],
+                ["runs", "qc", name],
+                ["pgx", "calls", name],
+                ["hla", "calls", name],
+            ):
                 document = _json([*args, "--json"], code=1)
                 assert agent_schema_check(document) == "error"
                 assert document["error"]["kind"] == kind, args
@@ -530,6 +538,53 @@ def test_other_groups_print_the_same_error_document(
         document = _json([*args, "--json"], code=code)
         assert agent_schema_check(document) == "error", args
         assert document["error"]["kind"] == kind, args
+
+
+def _emitted_kinds() -> set[str]:
+    """Every error kind a CLI module can print: each literal returned by an ``*error_kind``
+    function, and each literal passed to ``refuse``.
+
+    Read from the source because most kinds belong to failures that need a broken tool, a
+    full disk or a damaged reference to reach. Found in the M13.2 review: version 1's pattern
+    refused two of ``genetics run``'s kinds, and no test produced either failure.
+    """
+    import ast
+
+    import genetics.cli
+
+    kinds: set[str] = set()
+    for path in Path(genetics.cli.__file__).parent.glob("*.py"):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.FunctionDef) and node.name.endswith("error_kind"):
+                # Every string a return can yield, `"a" if test else "b"` included.
+                kinds.update(
+                    leaf.value
+                    for ret in ast.walk(node)
+                    if isinstance(ret, ast.Return) and ret.value is not None
+                    for leaf in ast.walk(ret.value)
+                    if isinstance(leaf, ast.Constant) and isinstance(leaf.value, str)
+                )
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute | ast.Name)
+                and (getattr(node.func, "attr", None) or getattr(node.func, "id", None))
+                in {"refuse", "_refuse"}
+                and node.args
+                and isinstance(node.args[0], ast.Constant)
+                and isinstance(node.args[0].value, str)
+            ):
+                kinds.add(node.args[0].value)
+    return kinds
+
+
+def test_every_kind_a_command_can_print_matches_the_schema(agent_schema_check: Check) -> None:
+    kinds = _emitted_kinds()
+    # The harvest finds what it should, so an empty or partial set cannot pass vacuously.
+    assert {"not-found", "card-not-found", "unknown-section", "pgs", "hla"} <= kinds
+    assert {"run_parts", "frequency_reference", "structure", "config", "serve"} <= kinds
+    for kind in sorted(kinds):
+        assert agent_schema_check(contract.error_payload(kind, "A sentence.")) == "error", kind
 
 
 def test_an_unlisted_payload_cannot_be_tagged() -> None:

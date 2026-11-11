@@ -27,11 +27,13 @@ def calls(
 
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        # The same kind and sentence as `genetics runs` for the same run (M13.2): a run that
+        # cannot be opened is not an HLA failure.
+        contract.refuse(contract.run_error_kind(exc), str(exc), as_json=as_json)
+    try:
         data = report(bundle.hla)
-    except store.RunNotFoundError as exc:
-        # The same kind and sentence as `genetics runs`: no such run is not an HLA failure.
-        contract.refuse("not-found", str(exc), as_json=as_json)
-    except (BundleError, HLAError, OSError, ValueError):
+    except (HLAError, OSError, ValueError):
         _fail(as_json)
     else:
         if as_json:
