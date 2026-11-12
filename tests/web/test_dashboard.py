@@ -665,6 +665,24 @@ def test_the_detail_view_shows_the_arithmetic_behind_the_tier(
     assert "Weighted score" in body
 
 
+def test_the_detail_view_says_what_decided_the_tier_as_the_cli_does(
+    client: TestClient, interpreted: Path
+) -> None:
+    """M13.4: one function explains a tier, for `genetics runs card` and for this page."""
+    from html import unescape
+
+    from genetics.run import reads
+    from genetics.run.bundle import read_bundle
+
+    bundle = read_bundle(interpreted)
+    card = reads.find_card(bundle, "synthetic_dominant_trait")
+    assert card is not None
+    said = reads.card_view(bundle, card)["current_context"]["confidence"]
+    assert said["basis"] in {"score", "ceiling"}
+    body = unescape(client.get(f"/runs/{interpreted.name}/cards/synthetic_dominant_trait").text)
+    assert f'<p class="decided">{said["reason"]}</p>' in body
+
+
 def test_a_citation_is_clickable_and_says_where_it_goes(
     client: TestClient, interpreted: Path
 ) -> None:

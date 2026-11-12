@@ -271,7 +271,7 @@ def test_a_card_reads_as_claim_evidence_confidence_and_sources(saved: RunBundle)
         "tier gwas; replication independent; n = 5,385; study ancestry EUR",
         "effect beta 0.193 points per T-allele copy",
         f"tier {card.confidence_tier}",
-        "evidence tier",
+        "evidence_tier",
         "https://doi.org/10.1093/hmg/ddx416",
         "Hair shape is polygenic",
     ):
@@ -583,3 +583,69 @@ def test_citation_links_from_other_citations_are_refused() -> None:
 
     with pytest.raises(ValueError):
         citation_lines([{"type": "doi", "id": "10.1000/x"}], [])
+
+
+# ---------------------------------------------------------------------------
+# What decided the tier (M13.4)
+# ---------------------------------------------------------------------------
+
+
+def test_a_card_read_says_what_decided_the_tier(saved: RunBundle) -> None:
+    """The block is this engine's reading of the saved inputs, beside the unchanged card."""
+    from genetics.run.explain import explain_confidence
+
+    card = next(c for c in saved.cards if c.card_id == "wnt10a_hair_curl")
+    view = _json(["runs", "card", saved.run_id, "wnt10a_hair_curl", "--json"])
+    block = view["current_context"]["confidence"]
+    assert block == json.loads(json.dumps(explain_confidence(card)))
+    assert view["card"] == reads.card_payload(card)
+    assert "current_context" not in view["card"]
+    # This run fetched no frequency reference, so rarity could not be checked (AGENTS.md 4.1).
+    assert (block["basis"], block["tier"], block["score_tier"]) == ("ceiling", "moderate", "strong")
+    assert block["limiting"] == ["allele_frequency"]
+    assert block["source"] == "confidence" and block["replay"]["matches"] is True
+    assert block["score"] == view["card"]["confidence"]["score"]
+
+
+def test_the_text_and_the_json_explain_the_tier_alike(saved: RunBundle) -> None:
+    view = _json(["runs", "card", saved.run_id, "wnt10a_hair_curl", "--json"])
+    block = view["current_context"]["confidence"]
+    text = _text(["runs", "card", saved.run_id, "wnt10a_hair_curl"])
+    shown = text.split("\nConfidence\n")[1].split("\n\n")[0]
+    assert "tier moderate; score 0.72 (on its own the score gives strong)" in shown
+    assert block["reason"] in shown
+    for row in block["inputs"]:
+        assert f"  {row['name']} " in shown
+    assert "component 0.8, weight 0.3, lost 0.06" in shown
+    assert "effect_measure beta, effect_value 0.193" in shown
+    assert (
+        "ceiling from allele_frequency: at most moderate, because no population allele "
+        "frequency was available, so rarity could not be checked; sets the tier"
+    ) in shown
+    # A ceiling above the tier is listed, and not said to set it.
+    assert shown.rstrip().endswith(
+        "ceiling from ancestry_match: at most strong, because ancestry match to the study "
+        "is unknown"
+    )
+
+
+def test_a_ceiling_at_the_score_s_band_is_printed_as_keeping_the_tier(saved: RunBundle) -> None:
+    """A claim card whose result has no phenotype estimate: scored low, and capped as well."""
+    card_id = next(
+        c.card_id for c in saved.cards if c.card_id in CLAIMS and c.confidence_tier == "limited"
+    )
+    block = _json(["runs", "card", saved.run_id, card_id, "--json"])["current_context"][
+        "confidence"
+    ]
+    assert block["basis"] == "score" and block["limiting"]
+    text = _text(["runs", "card", saved.run_id, card_id])
+    assert "; keeps the tier here whatever the score" in text
+    assert "; sets the tier" not in text
+    assert "A higher score would not raise the tier, because" in text
+
+
+def test_the_explanation_does_not_reach_the_scanned_reads(saved: RunBundle) -> None:
+    """`runs qc` and `cards evidence` hold no run result, so they gain nothing."""
+    assert "confidence" not in json.dumps(_json(["runs", "qc", saved.run_id, "--json"]))
+    evidence = _json(["cards", "evidence", "wnt10a_hair_curl", "--json"])
+    assert "current_context" not in evidence

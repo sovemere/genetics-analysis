@@ -20,8 +20,10 @@ individual posterior probability.
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Final
 
 from genetics.engine.cards import Effect, EffectMeasure, Evidence, EvidenceTier, Replication
@@ -40,6 +42,10 @@ _WEIGHTS: Final[dict[str, float]] = {
     "imputation": 0.10,
     "ancestry": 0.05,
 }
+
+SCORE_WEIGHTS: Final[Mapping[str, float]] = MappingProxyType(_WEIGHTS)
+"""The six weights, read-only, for a reader that explains a saved score (M13.4). A polygenic
+score puts weight coverage in the ``frequency`` slot and weighted quality in ``imputation``."""
 
 
 class ConfidenceError(ValueError):
@@ -76,6 +82,30 @@ _CONFIDENCE_ORDER: Final[tuple[ConfidenceTier, ...]] = (
     ConfidenceTier.LIMITED,
     ConfidenceTier.LIKELY_ARTIFACT,
 )
+
+SCORE_BANDS: Final[tuple[tuple[ConfidenceTier, float], ...]] = (
+    (ConfidenceTier.WELL_ESTABLISHED, 0.85),
+    (ConfidenceTier.STRONG, 0.70),
+    (ConfidenceTier.MODERATE, 0.50),
+    (ConfidenceTier.LIMITED, 0.0),
+)
+"""Each tier a weighted score can earn, with the lowest score that earns it. No score earns
+``likely-artifact``: only an observation ceiling gives that tier."""
+
+
+@dataclass(frozen=True)
+class Ceiling:
+    """The best tier one input allows, whatever the weighted score says.
+
+    A tier is the weaker of the score's band and every ceiling, so a ceiling at or above
+    the band changes nothing and is still listed: it is a rule that applied. ``input`` names
+    the input that imposed it and ``rule`` states the condition as a clause, so that a
+    reader can say why a tier is what it is without re-deriving the thresholds (M13.4).
+    """
+
+    input: str
+    tier: ConfidenceTier
+    rule: str
 
 
 @dataclass(frozen=True)
@@ -239,18 +269,160 @@ def _frequency_score(frequency: float | None) -> float:
     return 1.0
 
 
-def _score_tier(score: float) -> ConfidenceTier:
-    if score >= 0.85:
-        return ConfidenceTier.WELL_ESTABLISHED
-    if score >= 0.70:
-        return ConfidenceTier.STRONG
-    if score >= 0.50:
-        return ConfidenceTier.MODERATE
+def score_tier(score: float) -> ConfidenceTier:
+    """The band a weighted score falls in, before any ceiling."""
+    for tier, floor in SCORE_BANDS:
+        if score >= floor:
+            return tier
     return ConfidenceTier.LIMITED
+
+
+_score_tier = score_tier
 
 
 def _weaker_of(left: ConfidenceTier, right: ConfidenceTier) -> ConfidenceTier:
     return left if left.rank >= right.rank else right
+
+
+def weakest(band: ConfidenceTier, ceilings: tuple[Ceiling, ...]) -> ConfidenceTier:
+    """The tier: the weaker of the score's band and every ceiling."""
+    tier = band
+    for ceiling in ceilings:
+        tier = _weaker_of(tier, ceiling.tier)
+    return tier
+
+
+def _evidence_ceilings(
+    has_evidence: bool, evidence_tier: EvidenceTier | None, replication: Replication | None
+) -> list[Ceiling]:
+    """Claim-evidence ceilings, weakest first.
+
+    A striking, common observation does not upgrade weak literature. Weakest first, so
+    that applying them in order names this group at most once in a saved polygenic record.
+    """
+    ceilings: list[Ceiling] = []
+    if not has_evidence:
+        ceilings.append(
+            Ceiling(
+                "evidence_tier",
+                ConfidenceTier.LIMITED,
+                "no phenotype estimate applies to this result",
+            )
+        )
+        return ceilings
+    if evidence_tier is EvidenceTier.ANECDOTAL:
+        ceilings.append(
+            Ceiling("evidence_tier", ConfidenceTier.LIMITED, "the evidence tier is anecdotal")
+        )
+    if replication is Replication.CONFLICTING:
+        ceilings.append(
+            Ceiling("replication", ConfidenceTier.LIMITED, "replication is conflicting")
+        )
+    if evidence_tier is EvidenceTier.CANDIDATE_GENE:
+        ceilings.append(
+            Ceiling("evidence_tier", ConfidenceTier.MODERATE, "the evidence tier is candidate_gene")
+        )
+    return ceilings
+
+
+_QUALITY_CEILINGS: Final[tuple[tuple[float, ConfidenceTier], ...]] = (
+    (0.30, ConfidenceTier.LIKELY_ARTIFACT),
+    (0.60, ConfidenceTier.LIMITED),
+    (0.80, ConfidenceTier.MODERATE),
+)
+"""Observation-quality ceilings for a call's DR2 and a score's weighted DR2: below the
+bound, the tier is at best the one beside it. :func:`calculate_hla_call_reliability` applies
+the same three bounds to a posterior and states them itself."""
+
+
+def _quality_ceiling(quality: float, name: str, what: str) -> list[Ceiling]:
+    for bound, tier in _QUALITY_CEILINGS:
+        if quality < bound:
+            return [Ceiling(name, tier, f"{what} is below {bound:.2f}")]
+    return []
+
+
+def _share_ceiling(share: float | None, name: str, what: str) -> list[Ceiling]:
+    """:func:`ancestry_ceiling` as a :class:`Ceiling`, for a match or a demonstrated share."""
+    tier = ancestry_ceiling(share)
+    if tier is None:
+        return []
+    if share is None:
+        return [Ceiling(name, tier, f"{what} is unknown")]
+    return [Ceiling(name, tier, f"{what} is below {0.25 if share < 0.25 else 0.50:.2f}")]
+
+
+def single_call_ceilings(
+    *,
+    has_evidence: bool,
+    evidence_tier: EvidenceTier | None,
+    replication: Replication | None,
+    population_allele_frequency: float | None,
+    call_source: CallSource,
+    imputation_quality: float | None,
+    ancestry_match: float | None,
+    variant_ancestry: bool,
+) -> tuple[Ceiling, ...]:
+    """Every ceiling :func:`calculate_confidence` applies to one call, from its inputs.
+
+    The calculator calls this, and so does a reader explaining a saved tier, so the two
+    cannot state different rules. Order carries no meaning here: the tier is the weakest.
+    """
+    ceilings = _evidence_ceilings(has_evidence, evidence_tier, replication)
+    # Observation-reliability ceilings cannot be averaged away by strong literature.
+    if population_allele_frequency is None:
+        # Missing runtime calibration cannot establish that a call is common.
+        ceilings.append(
+            Ceiling(
+                "allele_frequency",
+                ConfidenceTier.MODERATE,
+                "no population allele frequency was available, so rarity could not be checked",
+            )
+        )
+    elif population_allele_frequency < RARE_CALL_FREQUENCY_CEILING:
+        ceilings.append(
+            Ceiling(
+                "allele_frequency",
+                ConfidenceTier.LIKELY_ARTIFACT,
+                "the population allele frequency is below 0.001%, the rare-call band",
+            )
+        )
+    if call_source is CallSource.IMPUTED and imputation_quality is None:
+        ceilings.append(
+            Ceiling(
+                "call_quality",
+                ConfidenceTier.LIMITED,
+                "the call is imputed and its quality was not estimated",
+            )
+        )
+    if imputation_quality is not None:
+        ceilings += _quality_ceiling(imputation_quality, "call_quality", "imputation quality")
+    # M9.13 variant membership changes the weighted component, not PRS transfer ceilings.
+    # Preserve the historical unknown-ancestry strong cap and legacy caller behavior.
+    if not (variant_ancestry and ancestry_match is not None):
+        ceilings += _share_ceiling(ancestry_match, "ancestry_match", "ancestry match to the study")
+    return tuple(ceilings)
+
+
+def polygenic_ceilings(
+    *,
+    evidence_tier: EvidenceTier,
+    replication: Replication,
+    weight_coverage: float,
+    weighted_quality: float,
+    ancestry_match: float | None,
+) -> tuple[Ceiling, ...]:
+    """Every ceiling :func:`calculate_polygenic_confidence` applies, in application order.
+
+    The order matters to the saved record only: ``ceilings`` there lists the ones that
+    lowered the tier when applied in this order.
+    """
+    return (
+        *_evidence_ceilings(True, evidence_tier, replication),
+        *_quality_ceiling(weighted_quality, "weighted_quality", "weighted imputation quality"),
+        *_share_ceiling(weight_coverage, "weight_coverage", "comparable score weight"),
+        *_share_ceiling(ancestry_match, "ancestry_match", "ancestry match to the study"),
+    )
 
 
 def ancestry_ceiling(ancestry_match: float | None) -> ConfidenceTier | None:
@@ -369,39 +541,22 @@ def calculate_confidence(
             ),
         )
 
-    tier = _score_tier(score)
-    if imputation_quality_unknown:
-        tier = _weaker_of(tier, ConfidenceTier.LIMITED)
-    # A striking, common observation does not upgrade weak literature. These are claim-
-    # evidence ceilings, parallel to the observation-reliability ceilings below.
-    if (
-        evidence is None
-        or evidence.tier is EvidenceTier.ANECDOTAL
-        or evidence.replication is Replication.CONFLICTING
-    ):
-        tier = _weaker_of(tier, ConfidenceTier.LIMITED)
-    elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
-        tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-
-    # Observation-reliability ceilings cannot be averaged away by strong literature.
-    if empirical_ppv is not None or (imputation is not None and imputation < 0.30):
-        tier = ConfidenceTier.LIKELY_ARTIFACT
-    elif imputation is not None and imputation < 0.60:
-        tier = _weaker_of(tier, ConfidenceTier.LIMITED)
-    elif imputation is not None and imputation < 0.80:
-        tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-
-    # Missing runtime calibration cannot establish that a call is common or portable.
-    # Keep the raw None values visible above; these ceilings prevent neutral arithmetic
-    # from being mistaken for measured agreement while the M5/M7 references are absent.
-    if frequency is None:
-        tier = _weaker_of(tier, ConfidenceTier.MODERATE)
-    # M9.13 variant membership changes the weighted component, not PRS transfer ceilings.
-    # Preserve the historical unknown-ancestry strong cap and legacy caller behavior.
-    ceiling = None if variant_ancestry and ancestry is not None else ancestry_ceiling(ancestry)
-    if ceiling is not None:
-        tier = _weaker_of(tier, ceiling)
-
+    # The raw None values stay visible above. The ceilings keep neutral arithmetic from
+    # being mistaken for measured agreement, and strong literature from hiding a weak
+    # observation. One function states them, for this calculator and for a reader (M13.4).
+    tier = weakest(
+        _score_tier(score),
+        single_call_ceilings(
+            has_evidence=evidence is not None,
+            evidence_tier=None if evidence is None else evidence.tier,
+            replication=None if evidence is None else evidence.replication,
+            population_allele_frequency=frequency,
+            call_source=call_source,
+            imputation_quality=imputation,
+            ancestry_match=ancestry,
+            variant_ancestry=variant_ancestry,
+        ),
+    )
     return ConfidenceResult(tier=tier, score=score, inputs=inputs, empirical_ppv=empirical_ppv)
 
 
@@ -434,6 +589,18 @@ class PolygenicConfidenceInputs:
     unknown_quality_weight_fraction: float
     ancestry_match: float | None
     ancestry_score: float
+
+
+POLYGENIC_CEILING_NAMES: Final[Mapping[str, str]] = MappingProxyType(
+    {
+        "evidence_tier": "evidence",
+        "replication": "evidence",
+        "weighted_quality": "imputation_quality",
+        "weight_coverage": "coverage",
+        "ancestry_match": "ancestry",
+    }
+)
+"""The name a saved polygenic record gives a ceiling (M9.6), by the input that set it."""
 
 
 @dataclass(frozen=True)
@@ -485,26 +652,17 @@ def calculate_polygenic_confidence(
     )
     tier = _score_tier(score)
     ceilings: list[str] = []
-
-    def cap(ceiling: ConfidenceTier | None, why: str) -> None:
-        nonlocal tier
-        if ceiling is not None and ceiling.rank > tier.rank:
-            tier = ceiling
-            ceilings.append(why)
-
-    if evidence.tier is EvidenceTier.ANECDOTAL or evidence.replication is Replication.CONFLICTING:
-        cap(ConfidenceTier.LIMITED, "evidence")
-    elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
-        cap(ConfidenceTier.MODERATE, "evidence")
-    if quality < 0.30:
-        cap(ConfidenceTier.LIKELY_ARTIFACT, "imputation_quality")
-    elif quality < 0.60:
-        cap(ConfidenceTier.LIMITED, "imputation_quality")
-    elif quality < 0.80:
-        cap(ConfidenceTier.MODERATE, "imputation_quality")
-    coverage_ceiling = ancestry_ceiling(coverage)
-    cap(coverage_ceiling, "coverage")
-    cap(ancestry_ceiling(ancestry), "ancestry")
+    # The saved record names a ceiling only where it lowered the tier, in application order.
+    for ceiling in polygenic_ceilings(
+        evidence_tier=evidence.tier,
+        replication=evidence.replication,
+        weight_coverage=coverage,
+        weighted_quality=quality,
+        ancestry_match=ancestry,
+    ):
+        if ceiling.tier.rank > tier.rank:
+            tier = ceiling.tier
+            ceilings.append(POLYGENIC_CEILING_NAMES[ceiling.input])
     return PolygenicConfidence(
         tier=tier,
         score=score,

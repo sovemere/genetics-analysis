@@ -253,6 +253,7 @@
           Weighted score {{ "%.2f" | format(card.confidence.score) }}.
         {% endif %}
       </p>
+      {% if card.confidence.decided %}<p class="decided">{{ card.confidence.decided }}</p>{% endif %}
       <div class="tablescroll">
         <table class="breakdown">
           <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>

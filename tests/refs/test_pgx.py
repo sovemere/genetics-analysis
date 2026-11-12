@@ -2532,6 +2532,22 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     assert agent_schema_check(json.loads(detail.output)) == "runs.show"
     one = CliRunner().invoke(app, ["runs", "card", path.name, saved.card_id, "--json"])
     assert agent_schema_check(json.loads(one.output)) == "runs.card"
+    # M13.4: a guideline card's tier is its method's, with each gene's tier and reasons.
+    why = json.loads(one.output)["current_context"]["confidence"]
+    assert why["tier"] == saved.confidence_tier
+    if saved.confidence_tier is None:
+        assert (why["source"], why["basis"]) == (None, "none")
+        assert saved.computation["reason"] in why["reason"]
+    else:
+        genes = saved.computation["result"]["reliability"]["genes"]
+        assert (why["source"], why["basis"]) == ("computation.reliability", "method")
+        assert [(row["name"], row["values"]) for row in why["inputs"]] == [
+            (gene, {"tier": None if record is None else record["tier"]})
+            for gene, record in genes.items()
+        ]
+        assert why["reason"].startswith(saved.computation["reliability"]["reason"])
+        for record in genes.values():
+            assert all(reason in why["reason"] for reason in (record or {}).get("reasons", []))
     assert json.loads(detail.output)["cards"][-1]["computation"] == card.computation
     client = TestClient(
         create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"

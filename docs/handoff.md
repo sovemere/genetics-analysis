@@ -1,10 +1,16 @@
-# Handoff: M13.4 machine-readable confidence
+# Handoff: M13.5 CLI and dashboard parity test
 
-As of 2026-11-12, **M0-M12 and M13.1-M13.3 are implemented; M13.4 is next**. See
-[the M13.4 entry contract](#next-open-step-m134-machine-readable-confidence),
+As of 2026-11-12, **M0-M12 and M13.1-M13.4 are implemented; M13.5 is next**. See
+[the M13.5 entry contract](#next-open-step-m135-parity-test),
+[the M13.4 record](#accepted-m134-machine-readable-confidence),
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M13.4 machine-readable confidence is implemented.** `genetics runs card --json` adds
+`current_context.confidence`: one block for every kind of card, giving the saved tier and
+score, each input with its weight and what it cost the score, every ceiling that applies,
+which of them set the tier, and a sentence saying so. The saved card is unchanged, and the
+agent schema is now version 4. See [the confidence contract](agent_cli.md#confidence-m134).
 **M13.3 card search is implemented** as `genetics cards search <query>` (the knowledge pack,
 no genotype) and `genetics runs search <run> <query>` (one saved run's cards, with each
 one's result). Both rank with `genetics.engine.search.search`, and the agent schema is now
@@ -531,49 +537,56 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
-<a id="next-open-step-m134-machine-readable-confidence"></a>
+<a id="next-open-step-m135-parity-test"></a>
 
-## Next open step: M13.4 machine-readable confidence
+## Next open step: M13.5 parity test
 
-M13.4 is the tier plus the numeric inputs that produced it, so that an agent can explain why
-a card is low confidence. Nothing has been selected or verified beyond what is listed here.
+M13.5 is a test that every analysis reachable from the dashboard is reachable from the CLI,
+wired into CI. Nothing has been selected or verified beyond what is listed here.
 
 What already exists:
 
-- **The inputs are saved beside the tier (M4.1), in two places by card kind.**
-  Interpretation and HLA cards save `confidence`: the tier, the score and six scored inputs,
-  each with the value that was scored, and the empirical PPV where one applies. Computed,
-  polygenic and guideline cards save `confidence: null` and keep tier, score, inputs,
-  ceilings and reason in `computation.reliability`, whose inputs differ by source.
-  `confidence_tier` on the card is the tier from whichever applies.
-- **The schema describes both as they are** (`confidence` closed key for key,
-  `computation.reliability` open), and `runs card` text prints both (the
-  [M13.1 review](review_m131_session.md)).
+- **The dashboard has eight routes.** `/`, `/runs/{run}`, `/runs/{run}/cards/{card}`,
+  `/runs/{run}/clinvar`, `/runs/{run}/secondary-findings`, `/runs/{run}/hla`,
+  `/runs/{run}/pgx` and `/healthz` (`web/app.py`).
+- **Pieces of a parity test, not the test.** `tests/test_cli_agent_reads.py` compares every
+  section's title, blurb, milestone, counts, empty reason and pointers with the dashboard's
+  views. `reads.SAVED_RECORDS` names the command for each record the dashboard links as a
+  page. `tests/web/test_dashboard.py` checks that the card page prints the sentence
+  `runs card` gives for what decided a tier.
+- **Shared functions.** `reads.empty_reason`, `reads.related`, `reads.card_payload`,
+  `reads.search_view` and `explain.explain_confidence` are each called by both front-ends,
+  or are what the dashboard is meant to call.
 
 What is open:
 
-- **One shape or two.** Whether an agent reads one block whatever the card's kind, and if so
-  where it goes. The saved card is frozen, so a block this engine builds at read time
-  belongs under `current_context`.
-- **Whether the values are enough.** "Why is this card low confidence" needs to know which
-  input or ceiling decided the tier. The six scores are saved; what limited the tier is not
-  stated as such for interpretation cards. `computation.reliability.reason` states it in a
-  sentence for the others.
-- **A card with no tier.** A card with no finding has `confidence_tier: null` and a status.
-  Whether "why" covers those.
+- **What "reachable" is checked against.** A list of routes, a list of the view fields each
+  page renders, or the functions each page calls. The roadmap line does not say.
+- **Which untagged commands need describing.** `runs clinvar`, `runs secondary`,
+  `runs imputation`, `pgx calls` and `hla calls` print saved records the schema does not
+  describe. M13.2 left that decision to this item.
+- **What the dashboard draws that the CLI only points to.** `runs card` text gives one line
+  for polygenic, HLA, runs-of-homozygosity and multi-marker detail and points to `--json`,
+  which holds each in full. Whether JSON reachability is enough is this item's call.
+- **How it runs in CI.** The roadmap says to wire it in; `ci.yml` runs `pytest -q`, so a
+  test in the suite already runs there.
 
-What M13.3 hands over:
+What M13.4 hands over:
 
-- **The schema is version 3, with nine payloads.** A new key or payload takes version 4:
+- **The schema is version 4, with nine payloads.** A new key or payload takes version 5:
   bump `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to
   `SHAPE_DIGESTS`, and add a line to the version history in
   [the agent schema](agent_schema.md).
-- **Search does not weigh confidence.** `runs search` returns each card's saved
-  `confidence_tier` in `results` and ranks by the query alone. M13.4 should not change that:
-  a tier is a label, not a filter or a rank (AGENTS.md 0.1A).
-- **An error kind is a literal in a CLI module.** The kind test reads kinds from the source
-  of `genetics/cli`, so a kind carried on an exception or built at run time would escape it.
-  `contract.search_query` writes its two kinds out for that reason.
+- **The confidence block is on `runs card` only.** `runs show --section` and `runs search`
+  list each card's saved `confidence_tier` and nothing more. A parity test that compares a
+  section page with `runs.section` will find the tier on both and the block on neither.
+- **The dashboard shows part of the block.** Its "Why this tier" section prints `reason`
+  and the six rows for a card with a `confidence` block. It does not print weights, what
+  each input lost, or the list of ceilings; computed, polygenic and guideline cards keep
+  their own detail partials, which print the saved reason. M14.3 (confidence legend) is
+  the place for the rest.
+- **A ceiling's wording is the engine's.** `Ceiling.rule` in `engine/confidence.py` is
+  printed by the CLI and the dashboard. Rewording one changes both and no saved run.
 
 What M13.2 left, for whichever later item needs it:
 
@@ -581,14 +594,11 @@ What M13.2 left, for whichever later item needs it:
   failure, not only usage errors.
 - **Failures printed as text under `--json`.** `ingest`, `refs`, `tools` and `paths`. `roh`
   has no `--json` flag; it prints its result as JSON and a failure as text.
-- **Commands with no tag.** `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`
-  and `hla calls` print saved records that the schema does not describe. M13.5's parity test
-  will list what an agent can reach, and is the place to decide which need describing.
 
 What M13.3 left:
 
 - **The dashboard has no search yet.** M14.4 should call `reads.search_view`, which is what
-  `runs search` prints, so that M13.5's parity test can compare them.
+  `runs search` prints, so that the parity test can compare them.
 - **Guideline recommendation rows and saved score records are not searched.** A guideline
   card is found by its gene, title and citation titles. A drug named only in its saved CPIC
   rows is not a search term for the card.
@@ -604,6 +614,96 @@ What M13.3 left:
 - **A genotype in a query is whatever `genetics.privacy` recognises.** An rsID followed by
   two bare alleles, with no chromosome, position, colon or equals sign, is not one of its
   shapes. M13.7 owns the outbound-query lint.
+
+<a id="accepted-m134-machine-readable-confidence"></a>
+
+## Accepted M13.4 machine-readable confidence
+
+Implemented on 2026-11-12 under [the confidence contract](agent_cli.md#confidence-m134). No
+owner question was asked: each of the entry contract's three open points follows something
+already settled, and that page lists them.
+
+- **One shape, on `runs card`.** `current_context.confidence` has the same twelve keys for
+  every card: `source`, `basis`, `tier`, `score`, `score_tier`, `score_bands`, `inputs`,
+  `ceilings`, `limiting`, `reason`, `empirical_ppv` and `replay`. It is built when the run
+  is read, by `genetics.run.explain.explain_confidence`. The saved card and both places it
+  keeps confidence (`confidence` and `computation.reliability`) are unchanged.
+- **What decided the tier is stated.** A tier is the weaker of the score's band and every
+  ceiling. `basis` says which it was (`score`, `ceiling`, `method`, `not_reproduced`,
+  `none`), `limiting` names the inputs whose ceiling is the tier, and each scored row gives
+  its weight and what it cost the score.
+- **One statement of the ceilings.** `calculate_confidence` and
+  `calculate_polygenic_confidence` now take their ceilings from `single_call_ceilings` and
+  `polygenic_ceilings`, which the reader calls too. No tier and no saved record changed: a
+  test keeps a copy of the earlier rules and compares 22,848 results with it.
+- **The reading checks itself.** The saved inputs are replayed. If the tier or the score
+  does not come out as saved, the basis is `not_reproduced` and the block says nothing
+  about what decided the tier.
+- **A card with no tier is covered.** Basis `none`, with the reason it was not scored.
+- **Text and dashboard.** `runs card` text prints the block. The dashboard's card page
+  prints its `reason` under "Why this tier", from the same function.
+- **Schema version 4.** `runs.card` gains the required key; `confidence_explanation` and
+  the `confidence_basis` vocabulary are new. No other payload changed.
+
+Changed for a caller: every tagged document now says `"version": 4`; `runs card --json`
+has one more key under `current_context`; the "Confidence" lines of `runs card` text are
+laid out differently and name inputs by their row names (`evidence_tier`, not
+`evidence tier`). No bundle format, knowledge schema, card or saved-file type changed. No
+personal export or saved real run was opened; all checks used synthetic runs and the
+committed pack.
+
+Validation on 2026-11-12, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **4,229 tests with nine skips** in 835 s: the five
+existing Windows skips and the four published-classifier HIBAG tests. After that run only
+documentation and two docstrings changed. The 38 new tests are 29 in
+`tests/run/test_explain.py`, four in `tests/test_agent_schema.py`, four in
+`tests/test_cli_agent_reads.py` and one in `tests/web/test_dashboard.py`; one existing test
+each in `tests/hla` and `tests/refs` now checks the block on its saved run. Thirty-five
+guards were each removed in turn, and each removal failed a test. Full dbSNP card lint (119
+cards, 594 renders, 65/65 keys), strict mypy on all four Windows/Linux x Python 3.11/3.13
+targets (255 files), ruff, format and the fixture check pass.
+
+Three things were found by the tests while this was built. The score replay first summed
+the unscored `hla_call` row, so no HLA card reproduced. `limiting` was first empty whenever
+the score's own band was the tier, which hid a ceiling sitting at that band (a refuted
+claim that also scores low); it now names that ceiling and the reason says a higher score
+would not raise the tier. And `engine/confidence.py` had been left with CRLF line endings
+by an edit, which six guard removals failed to match; it is LF again.
+
+**Saved runs repeat their deep checks once.** This change edits Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
+<a id="next-open-step-m134-machine-readable-confidence"></a>
+
+## M13.4 entry contract (implemented; retained for review)
+
+M13.4 is the tier plus the numeric inputs that produced it, so that an agent can explain why
+a card is low confidence.
+
+What already existed:
+
+- **The inputs are saved beside the tier (M4.1), in two places by card kind.**
+  Interpretation and HLA cards save `confidence`: the tier, the score and six scored inputs,
+  each with the value that was scored, and the empirical PPV where one applies. Computed,
+  polygenic and guideline cards save `confidence: null` and keep tier, score, inputs,
+  ceilings and reason in `computation.reliability`, whose inputs differ by source.
+  `confidence_tier` on the card is the tier from whichever applies.
+- **The schema describes both as they are** (`confidence` closed key for key,
+  `computation.reliability` open), and `runs card` text printed both (the
+  [M13.1 review](review_m131_session.md)).
+
+What was open:
+
+- **One shape or two.** Whether an agent reads one block whatever the card's kind, and if so
+  where it goes. The saved card is frozen, so a block this engine builds at read time
+  belongs under `current_context`.
+- **Whether the values are enough.** "Why is this card low confidence" needs to know which
+  input or ceiling decided the tier. The six scores are saved; what limited the tier is not
+  stated as such for interpretation cards. `computation.reliability.reason` states it in a
+  sentence for the others.
+- **A card with no tier.** A card with no finding has `confidence_tier: null` and a status.
+  Whether "why" covers those.
 
 <a id="accepted-m133-card-search"></a>
 

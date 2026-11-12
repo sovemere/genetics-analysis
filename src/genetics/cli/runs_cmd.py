@@ -593,9 +593,9 @@ def runs_card(
     elsewhere, start from ``genetics cards evidence <card-id>``, which holds no genotype
     (AGENTS.md 1.3).
 
-    ``--json`` holds the saved card under ``card``. Section titles, citation links and the
-    pointers between sections are under ``current_context``, because this engine adds them
-    when it reads the run.
+    ``--json`` holds the saved card under ``card``. Section titles, citation links, the
+    pointers between sections and what decided the card's tier are under ``current_context``,
+    because this engine adds them when it reads the run.
     """
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
@@ -700,7 +700,7 @@ def _card_lines(view: Mapping[str, Any]) -> list[str]:
         *evidence_lines(card["evidence"], absent=_no_evidence(card, view["format_version"])),
         "",
         "Confidence",
-        *confidence_lines(card),
+        *confidence_lines(context["confidence"]),
         *(f"  {line}" for line in _ppv_lines(card["confidence"], card["confidence_tier"])),
         "",
         "Population frequencies",

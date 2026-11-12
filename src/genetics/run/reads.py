@@ -1,5 +1,6 @@
 """Read-side views of one saved run: a card, a section, the QC record, a search (roadmap
-M13.1, M13.3).
+M13.1, M13.3). The card view also says what decided the card's tier (M13.4), built by
+:mod:`genetics.run.explain`.
 
 The agent's read commands (``genetics runs card``, ``runs show --section``, ``runs qc``,
 ``runs search``) build their JSON here rather than in the CLI module, so that the projection
@@ -8,7 +9,8 @@ can call these functions directly, and M14.4's dashboard search calls :func:`sea
 
 **Frozen record and current context are kept apart.** Every payload carries the saved
 record under its own keys, and anything this engine adds at read time -- section titles,
-the pointers M12.1 declared, citation links, the PGx section notice -- sits under
+the pointers M12.1 declared, citation links, the PGx section notice, the reading of a
+card's confidence -- sits under
 ``current_context`` with ``"context": "current"``. That is the split the M10.5 PGx framing
 made (``pgx calls``) and the M11.6 and M12.1 reviews kept: a saved run is what the person
 read, and an engine that has since changed must not appear to have said something then.
@@ -44,6 +46,7 @@ from genetics.engine.search import (
 )
 from genetics.engine.sections import Section
 from genetics.run.bundle import RunBundle, StoredCard
+from genetics.run.explain import explain_confidence
 
 INTERPRETED_STATUSES = frozenset({"matched", "computed"})
 """What counts as a finding in a section's tally: matched and computed, as the dashboard's
@@ -186,11 +189,16 @@ def card_view(bundle: RunBundle, card: StoredCard) -> dict[str, Any]:
     ``related`` is what the card's own section points to; ``pointed_from`` names the
     sections that point to this card. M12.2's four MTHFR cards rely on both: a reader of one
     claim card is meant to find the nutrition card, and the reverse.
+
+    ``confidence`` says what decided the card's tier, in one shape whatever the card's kind
+    (M13.4). It is this engine's reading of the saved inputs, which is why it is here and
+    not in the saved card; see :mod:`genetics.run.explain`.
     """
     context: dict[str, Any] = {
         "context": "current",
         "section": _section_info(card.section),
         "citation_links": citation_links(card.citations),
+        "confidence": explain_confidence(card),
         "related": [],
         "pointed_from": pointed_from(card.card_id),
     }

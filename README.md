@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M12 and M13.1–M13.3 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M12 and M13.1–M13.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -256,7 +256,14 @@ use one ranking, say which fields each hit matched, and refuse a query that read
 genotype. See [the search contract](docs/agent_cli.md#search-m133). The
 [M13.3 diff review](docs/review_m133_session.md) fixes a stemming rule that made a search for
 `note` match every card saying `not`.
-[M13.4, machine-readable confidence](docs/handoff.md#next-open-step-m134-machine-readable-confidence)
+**M13.4, machine-readable confidence, is implemented.** `genetics runs card` says what
+decided a card's confidence tier, in one shape for every kind of card: the saved tier and
+score, each input with its weight and what it cost the score, every ceiling that applies and
+which of them set the tier. A card with no tier says why. The block is this engine's reading
+of the saved inputs, checked against the saved tier before it is offered, and the saved card
+is unchanged. The agent schema is version 4. See
+[the confidence contract](docs/agent_cli.md#confidence-m134).
+[M13.5, the CLI and dashboard parity test](docs/handoff.md#next-open-step-m135-parity-test)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

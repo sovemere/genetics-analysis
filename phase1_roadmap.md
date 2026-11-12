@@ -16,9 +16,18 @@ the source of truth for build state.
 
 ## Next up
 
-**M13.4, machine-readable confidence, is next.** M0–M12 and M13.1–M13.3 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m134-machine-readable-confidence) records
+**M13.5, the CLI and dashboard parity test, is next.** M0–M12 and M13.1–M13.4 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m135-parity-test) records
 what it inherits.
+
+M13.4 makes `genetics runs card` say what decided a card's confidence tier.
+`current_context.confidence` has one shape for every kind of card: the saved tier and score,
+each input with its weight and what it cost the score, every ceiling that applies, which of
+them set the tier, and a sentence saying so. A card with no tier says why it has none. The
+block is built when the run is read and is checked against the saved tier first; a run
+saved under other rules gets no explanation, not a wrong one. The agent schema is version 4.
+No bundle-format or knowledge-schema change. See
+[the confidence contract](docs/agent_cli.md#confidence-m134).
 
 M13.3 adds card search, so an agent can find "curly hair" without knowing the card id.
 `genetics cards search <query>` searches the knowledge pack, holds no genotype and is checked
@@ -3077,12 +3086,29 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       - **The [M13.3 diff review](docs/review_m133_session.md)** fixed a stemming rule that
         cut `note` to `not`, so that `cards search note` listed 109 of 119 cards, and made
         the side-by-side bonus read the query as typed, dropped words included.
-- [ ] **M13.4** Machine-readable confidence: tier plus the numeric inputs that produced
+- [x] **M13.4** Machine-readable confidence: tier plus the numeric inputs that produced
       it, so an agent can explain *why* a card is low confidence.
-      - **Mostly present already:** M4.1 stores the inputs beside the tier. They sit in two
+      - **Done 2026-11-12** as `current_context.confidence` on `genetics runs card`: one
+        block for every kind of card, built when the run is read by
+        `genetics.run.explain.explain_confidence`. See
+        [the confidence contract](docs/agent_cli.md#confidence-m134).
+      - **The saved record is unchanged.** M4.1 stores the inputs beside the tier, in two
         places by card kind: `confidence` (six scored inputs, PPV) for interpretation and
         HLA cards, and `computation.reliability` (inputs, ceilings, reason) for computed,
-        polygenic and guideline cards. M13.4 decides whether an agent should see one shape.
+        polygenic and guideline cards. Both stay, and stay described.
+      - **What decided the tier is stated:** `basis` (`score`, `ceiling`, `method`,
+        `not_reproduced`, `none`), each input's weight and what it cost the score, every
+        ceiling that applies, the inputs whose ceiling is the tier, and a sentence. A card
+        with no tier says why.
+      - **One statement of the ceilings.** Both calculators take them from
+        `single_call_ceilings` and `polygenic_ceilings`, which the reader calls too. No
+        tier changed; a test compares 22,848 results with a copy of the earlier rules.
+      - **Checked before it is offered.** The saved inputs are replayed; a tier or score
+        that does not come out as saved is reported as `not_reproduced`, unexplained.
+      - **Agent schema version 4.** No other payload changed.
+      - **Left for later:** the block is not on `runs show --section` or `runs search`; the
+        dashboard prints the sentence and its six rows, not the weights or the ceiling
+        list (M14.3).
 - [ ] **M13.5** Parity test: every UI-reachable analysis is CLI-reachable. Wire into CI —
       this is the requirement most likely to silently rot.
 - [ ] **M13.6** Document the review workflow in `AGENTS.md` or a `docs/agent-usage.md`,
@@ -3169,6 +3195,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-12 | M13.4 | `genetics runs card` says what decided a card's confidence tier. `current_context.confidence` has twelve keys for every kind of card: `source`, `basis`, the saved `tier` and `score`, `score_tier`, `score_bands`, `inputs` (each row with its saved values, component, weight, contribution and what it lost), `ceilings`, `limiting`, `reason`, `empirical_ppv` and `replay`. **Decisions, no owner question:** one shape, built at read time under `current_context`, because the saved card is frozen and bundles already written must be explained too; what decided the tier is stated, not left to be inferred from six values; a card with no tier gets the block with basis `none`. Both saved places (`confidence`, `computation.reliability`) are unchanged. **One statement of the ceilings:** `calculate_confidence` and `calculate_polygenic_confidence` now take theirs from `single_call_ceilings` and `polygenic_ceilings`, which `run/explain.py` calls too. A tier is the weaker of the score's band and every ceiling. No tier and no saved record changed: a test keeps a copy of the earlier rules and compares 16,800 single calls and 6,048 polygenic scores, saved ceiling names included. **Five bases:** `ceiling` (a ceiling below the score's band; `limiting` names the inputs), `score` (the band is the tier; rows give what each input lost, and `limiting` names any ceiling sitting at that band), `method` (computed and guideline cards; the saved reason, and each gene's), `none`, and `not_reproduced`. **The reading checks itself:** the saved inputs are replayed, and a tier or a score (within 0.00015) that does not come out as saved gets no explanation. That covers a run saved under other weights or thresholds, and is why whether a card was compared with its study by membership (M9.13) is read from the saved `ancestry_comparison`. A rare call's reason gives the 16% benchmark (AGENTS.md §4.1). HLA cards add an `hla_call` row and their weakest call's ceiling; a multi-marker card names the marker whose confidence it took. **Text and dashboard:** `runs card` text prints the block, and the card page prints its sentence under "Why this tier" from the same function. **Schema version 4:** `runs.card` gains the required key; `confidence_explanation` and `confidence_basis` are new; no other payload changed. Not added to `runs show --section` or `runs search`. **Found by the tests while building:** the replay summed the unscored HLA row; `limiting` hid a ceiling at the score's own band; one source file had CRLF endings. **Validation:** full native suite 4,229 passed, the existing nine skips, 835 s; 38 new tests; 35 guards removed in turn, all caught; full card lint (119 cards, 594 renders, 65/65 keys), four strict type targets (255 files), ruff, format and fixtures pass. No personal export or saved real run was opened. See [the confidence contract](docs/agent_cli.md#confidence-m134). |
 | 2026-11-12 | M13.3 diff review | Reviewed `96760e0..a8b80d1`. **P2: the stemmer made `note` match `not`.** The final `e`/`y` rule applied to four-letter words, leaving three-letter stems that are whole words: `note`/`not`, `none`/`non`, `rate`/`rat`, `site`/`sit`. `cards search note` listed 109 of the pack's 119 cards at quality 0.75. The rule now needs five letters and the same search lists 3; found by listing every stem the pack's 4,014-word vocabulary shares between two words. **P3: the side-by-side bonus ignored dropped words.** For `risk of heart disease` it looked for `risk heart disease`, so text saying exactly what was asked earned nothing. It now compares the query as typed, and a single searched term earns none. **P3:** a query word starting with a hyphen (`-163C>A`, a marker's name) reads as an option; `--` before the query is now documented and tested. **Docs:** the `stem` docstring said identifiers match "exactly or not at all" (they also match as a prefix); the handoff's example of a stemming miss used a word no card holds; `query` is whitespace-collapsed, not "as given"; the schema's `score` description left out the bonus (wording only, still version 3); the search validation sat inside M13.1's. **Recorded:** remaining stem joins (`even`/`evening`, `ever`/`every`), no `-ion` rule, a hit does not report match quality, and the first CI run on `a8b80d1` failed two jobs on an HTTP 502 from the bref3 download and passed on re-run. **Validation:** full native suite 4,191 passed, the existing nine skips, 748 s; eight new tests; 27 guards removed in turn, all caught; full card lint, four strict type targets, ruff, format and fixtures pass. See [the review](docs/review_m133_session.md). |
 | 2026-11-12 | M13.3 | Card search as two commands over one ranking: `cards search <query>` (knowledge pack; no genotype; scanned on both branches) and `runs search <run> <query>` (one saved run's cards, each with its saved face; not scanned, like `runs show`). **Decisions, no owner question:** both scopes, because the roadmap's use needs only the pack while M14.4's dashboard search is over a run and must call the same function; under `cards` and `runs`, not top-level, as M13.1 settled; a stated deterministic ranking with no index or dependency, since a pack is 119 cards. **Ranking** (`engine/search.py`): fourteen fields with fixed weights (title, gene and rsID 5, down to citations and section 1); a query word matches exactly (1), by a light English stem (0.75; `curly` finds `curl`, `color` finds `colour`) or as a prefix (0.5); a card's score is the sum of each word's best weight times quality, plus half a field's weight where the whole query sits side by side in it; order is words matched, then score, then listing order. Partial matches are listed below full ones and each hit names its matched fields. Status and confidence play no part; a test changes both and the ranking does not move. Outcome-template placeholders are not searched. **Privacy:** a query the scanner reads as a genotype is refused before the run is opened or the query echoed (`genotype-in-query`, exit 2); a test scans a pack search for every card's id, title, gene and rsIDs. **Schema version 3:** `cards.search`, `runs.search`, `search_field`, `card_face`; in `runs.search` saved faces are `results` and the query and ranking are under `current_context`. Error kinds stay literals in `genetics/cli` (`contract.search_query`), so the kind test still reads all of them. **Validation:** full native suite 4,183 passed, the existing nine skips, 842 s; 99 new tests; 24 guards removed in turn, 23 caught and the 24th (the side-by-side bonus) caught after its test was tightened; full card lint (119 cards, 594 renders, 65/65 keys), four strict type targets (253 files), ruff, format and fixtures pass. No personal export or saved real run was opened. See [the search contract](docs/agent_cli.md#search-m133). |
 | 2026-11-11 | M13.2 diff review | Reviewed `7a4c4c3..2c90a52`. **P2: version 1 refused two of `genetics run`'s error kinds.** Its `error.kind` pattern allowed no underscore, and `run` prints `run_parts` and `frequency_reference`; no test reached either failure. Fixed as **schema version 2**, which allows underscores, rather than by editing a pushed version 1. A new test reads every kind the CLI modules can return or pass to `refuse` and validates each; restoring version 1's pattern fails it on its own. **P2: one damaged run gave three kinds.** `hla calls` called a newer-format, damaged or unreadable run `hla`, and `pgx calls` called a disk failure `pgx`, while the new documentation said `version`, `integrity`, `io` and `bundle` came from any command that reads a run. `runs_cmd.error_kind` is now `contract.run_error_kind`, shared by `runs`, `pgx calls` and `hla calls` for a run that cannot be opened. **P3:** the README status line still said M13.1; `roh` has no `--json` flag although three documents said it printed failures as text under one; `adapters` and `pgx prepare` were missing from the untagged-command list. Five more guards were each removed in turn and each removal failed a test. **4,084 tests, nine existing skips** in 691 s; card lint, four type targets, ruff and fixtures pass. See [the review](docs/review_m132_session.md). |

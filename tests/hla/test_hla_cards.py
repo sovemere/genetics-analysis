@@ -724,6 +724,15 @@ def test_saved_cards_rebuild_from_frozen_evidence(
     for card_id in saved:
         one = CliRunner().invoke(app, ["runs", "card", path.name, card_id, "--json"])
         assert agent_schema_check(json.loads(one.stdout)) == "runs.card", card_id
+        # M13.4: each real HLA card's saved tier replays, call ceiling included.
+        why = json.loads(one.stdout)["current_context"]["confidence"]
+        assert why["tier"] == saved[card_id].confidence_tier, card_id
+        if saved[card_id].confidence_tier is None:
+            assert why["basis"] == "none", card_id
+            continue
+        assert why["source"] == "confidence" and why["replay"]["matches"] is True, card_id
+        assert why["basis"] in {"score", "ceiling"}, card_id
+        assert why["inputs"][-1]["name"] == "hla_call", card_id
     client = TestClient(
         create_app(WebConfig(runs_root=tmp_path / "runs")), base_url="http://127.0.0.1"
     )

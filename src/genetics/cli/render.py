@@ -105,63 +105,65 @@ def bullet_lines(items: Iterable[str], indent: str = "  ") -> list[str]:
     return [f"{indent}- {item}" for item in items]
 
 
-_CONFIDENCE_ROWS: tuple[tuple[str, tuple[str, ...], str], ...] = (
-    ("evidence tier", ("evidence_tier",), "evidence_score"),
-    ("effect size", ("effect_measure", "effect_value"), "effect_score"),
-    ("replication", ("replication",), "replication_score"),
-    ("allele frequency", ("population_allele_frequency",), "frequency_score"),
-    ("how the call was made", ("call_source", "imputation_quality"), "imputation_score"),
-    ("ancestry match to study", ("ancestry_match",), "ancestry_score"),
-)
-"""The six inputs the dashboard's confidence breakdown shows, in its order (M4.6)."""
-
-
 def _value(value: Any) -> str:
     if value is None:
         return "not recorded"
+    if isinstance(value, bool):
+        return "yes" if value else "no"
     if isinstance(value, str):
         return value
-    if isinstance(value, int | float) and not isinstance(value, bool):
+    if isinstance(value, int | float):
         return _number(value)
     return json.dumps(value, sort_keys=True)
 
 
-def confidence_lines(card: Mapping[str, Any], indent: str = "  ") -> list[str]:
-    """The computed tier, its score and every input behind it (AGENTS.md 6).
+def _observed(row: Mapping[str, Any]) -> str:
+    """A row's saved values. One value under the row's own name prints bare."""
+    values = row.get("values")
+    values = values if isinstance(values, Mapping) else {}
+    if list(values) == [row.get("name")]:
+        return _value(values[row["name"]])
+    shown = [f"{key} {_value(value)}" for key, value in values.items() if value is not None]
+    return ", ".join(shown) or "not recorded"
 
-    Two places hold them. An interpretation or HLA card has a ``confidence`` block with the
-    six scored inputs. A computed, polygenic or guideline card has ``confidence: null`` and
-    keeps its tier, inputs and reason in ``computation.reliability``.
+
+def confidence_lines(explanation: Mapping[str, Any], indent: str = "  ") -> list[str]:
+    """A card's tier, what decided it, and every input behind it (AGENTS.md 6, M13.4).
+
+    ``explanation`` is the block :func:`genetics.run.explain.explain_confidence` builds and
+    ``runs card --json`` prints as ``current_context.confidence``, so the text and the JSON
+    say the same thing whichever of the two saved places the card keeps its inputs in.
     """
-    confidence = card.get("confidence")
-    computation = card.get("computation")
-    reliability = computation.get("reliability") if isinstance(computation, Mapping) else None
-    if not isinstance(confidence, Mapping) and isinstance(reliability, Mapping):
-        lines = [
-            f"{indent}tier {reliability.get('tier') or 'none'}; "
-            f"score {_number(reliability.get('score'))}"
-        ]
-        if reliability.get("reason"):
-            lines.append(f"{indent}{reliability['reason']}")
-        inputs = reliability.get("inputs")
-        if isinstance(inputs, Mapping):
-            lines.extend(f"{indent}{key:<32} {_value(value)}" for key, value in inputs.items())
-        ceilings = reliability.get("ceilings")
-        if isinstance(ceilings, Sequence) and not isinstance(ceilings, str) and ceilings:
-            lines.append(f"{indent}capped by {', '.join(str(c) for c in ceilings)}")
-        return lines
-    if not isinstance(confidence, Mapping):
-        if card.get("kind") == "impossibility":
-            return [f"{indent}Not scored: the card states an assay limit."]
-        return [f"{indent}Not scored: no finding for this run (status {card.get('status')})."]
-    lines = [f"{indent}tier {confidence.get('tier')}; score {_number(confidence.get('score'))}"]
-    inputs = confidence.get("inputs")
-    inputs = inputs if isinstance(inputs, Mapping) else {}
-    for label, keys, score in _CONFIDENCE_ROWS:
-        observed = " ".join(str(inputs[key]) for key in keys if inputs.get(key) is not None)
+    if explanation["basis"] == "none":
+        return [f"{indent}{explanation['reason']}"]
+    head = f"{indent}tier {explanation['tier'] or 'none'}"
+    if explanation["score"] is not None:
+        head += f"; score {_number(explanation['score'])}"
+        if explanation["score_tier"] not in (None, explanation["tier"]):
+            head += f" (on its own the score gives {explanation['score_tier']})"
+    lines = [head, f"{indent}{explanation['reason']}"]
+    for row in explanation["inputs"]:
+        line = f"{indent}{row['name']:<32} {_observed(row)}"
+        if row["weight"] is not None:
+            line = (
+                f"{indent}{row['name']:<18} {_observed(row):<44} "
+                f"component {_number(row['component'])}, weight {_number(row['weight'])}, "
+                f"lost {_number(row['lost'])}"
+            )
+        lines.append(line)
+    limiting = set(explanation["limiting"])
+    held = (
+        "; sets the tier"
+        if explanation["basis"] == "ceiling"
+        else "; keeps the tier here whatever the score"
+    )
+    for ceiling in explanation["ceilings"]:
+        decides = (
+            held if ceiling["input"] in limiting and ceiling["tier"] == explanation["tier"] else ""
+        )
         lines.append(
-            f"{indent}{label:<24} {observed or 'not recorded':<28} "
-            f"component {_number(inputs.get(score))}"
+            f"{indent}ceiling from {ceiling['input']}: at most {ceiling['tier']}, because "
+            f"{ceiling['rule']}{decides}"
         )
     return lines
 

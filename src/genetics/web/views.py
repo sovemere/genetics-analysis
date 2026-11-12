@@ -43,6 +43,7 @@ from genetics.privacy import NoGenotypeRepr
 from genetics.run import reads
 from genetics.run.bundle import EVIDENCE_FORMAT_VERSION as _EVIDENCE_FORMAT_VERSION
 from genetics.run.bundle import RunBundle, StoredCard
+from genetics.run.explain import explain_confidence
 from genetics.run.store import RunListing, RunStatus, RunSummary
 from genetics.web.polygenic import PolygenicView
 
@@ -872,6 +873,10 @@ class ConfidenceView:
     ppv_estimate: float | None
     ppv_ceiling: float | None
     ppv_applies_to: str | None
+    decided: str | None = None
+    """What decided the tier: the sentence ``genetics runs card`` prints, from the same
+    function (M13.4). ``None`` for one marker of a multi-marker card, whose table is its
+    own inputs and whose card states which marker's confidence it took."""
 
     @property
     def has_ppv(self) -> bool:
@@ -898,7 +903,7 @@ class ConfidenceView:
         return citation_url("doi", DOI) if self.has_ppv else None
 
     @classmethod
-    def of(cls, raw: Mapping[str, Any]) -> ConfidenceView:
+    def of(cls, raw: Mapping[str, Any], decided: str | None = None) -> ConfidenceView:
         inputs = raw.get("inputs")
         inputs = inputs if isinstance(inputs, Mapping) else {}
         ppv = raw.get("empirical_ppv")
@@ -947,6 +952,7 @@ class ConfidenceView:
             ppv_estimate=_number(ppv.get("estimate")),
             ppv_ceiling=_number(ppv.get("population_frequency_ceiling")),
             ppv_applies_to=_text(ppv.get("applies_to")),
+            decided=decided,
         )
 
 
@@ -1272,7 +1278,11 @@ class CardView(NoGenotypeRepr):
             tier=card.confidence_tier,
             variant=None if card.variant is None else VariantView.of(card.variant),
             evidence=None if card.evidence is None else EvidenceView.of(card.evidence),
-            confidence=None if card.confidence is None else ConfidenceView.of(card.confidence),
+            confidence=(
+                None
+                if card.confidence is None
+                else ConfidenceView.of(card.confidence, explain_confidence(card)["reason"])
+            ),
             frequencies=tuple(FrequencyView.of(item) for item in card.frequencies),
             confidence_frequency=(
                 None

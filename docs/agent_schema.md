@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 3 since M13.3 (2026-11-12), which added the two search
-payloads. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 4 since M13.4 (2026-11-12), which added what decided a
+card's confidence tier to `runs.card`. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -40,7 +40,7 @@ reader's own call, which is what a card says, and are not scanned
 Every described document starts with:
 
 ```json
-"schema": {"name": "runs.card", "version": 3}
+"schema": {"name": "runs.card", "version": 4}
 ```
 
 `name` is one of the nine above. `version` is the version of the schema document, which is
@@ -86,7 +86,8 @@ payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`, `runs.search`):
 - `schema`, `run_id` and `path` are the envelope. They describe this read.
 - `current_context` holds everything this engine adds at read time: section titles and
   blurbs, empty-section reasons, pointers between sections, citation links, section
-  notices and a search's query and ranking. It always carries `"context": "current"`.
+  notices, a search's query and ranking, and what decided a card's tier. It always carries
+  `"context": "current"`.
 - Every other top-level key is the saved record, unchanged.
 
 `runs.show` and `runs.qc` have no `current_context`, because they add nothing. In
@@ -108,7 +109,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 3},
+  "schema": {"name": "error", "version": 4},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -166,9 +167,10 @@ Not unified, and recorded here so that nobody assumes otherwise:
 
 ## How closely each part is described
 
-- **Closed, key for key:** the envelope, `current_context`, the run listing, the evidence
-  declaration, both search payloads, the error document, and the saved card's 26 keys. A
-  saved card always has all 26; a key its bundle's format did not have is null.
+- **Closed, key for key:** the envelope, `current_context` (the confidence block
+  included), the run listing, the evidence declaration, both search payloads, the error
+  document, and the saved card's 26 keys. A saved card always has all 26; a key its
+  bundle's format did not have is null.
 - **Closed, inside the saved card:** `variant`, `match`, `confidence`, `evidence`,
   `observation`, `frequencies` and `citations`. Their keys were checked against the first
   version of the bundle writer in git history: `variant`, `match`, `confidence`, frequencies
@@ -180,12 +182,21 @@ Not unified, and recorded here so that nobody assumes otherwise:
   `imputation` and `imputation_provenance`. The document types each as an object, says when
   it is null, and names the document that describes it.
 
-**Confidence is in two places, and the document describes both.** Interpretation and HLA
-cards hold `confidence`: the tier, the score and six scored inputs, with the empirical PPV
-where one applies. Computed, polygenic and guideline cards hold `confidence: null` and keep
-their tier and what produced it in `computation.reliability`, whose inputs differ by source.
-`confidence_tier` on the card is the tier from whichever applies. M13.4 decides whether an
-agent should see one shape.
+**A saved card keeps its confidence in one of two places, and the document describes
+both.** Interpretation and HLA cards hold `confidence`: the tier, the score and six scored
+inputs, with the empirical PPV where one applies. Computed, polygenic and guideline cards
+hold `confidence: null` and keep their tier and what produced it in
+`computation.reliability`, whose inputs differ by source. `confidence_tier` on the card is
+the tier from whichever applies.
+
+**An agent reads one shape (M13.4).** `runs.card` adds `current_context.confidence`, the
+`confidence_explanation` definition: the saved tier and score, each input as a row with its
+weight and what it cost the score, every ceiling that applies, which of them set the tier,
+and a sentence saying so. It has the same twelve keys for every card, including a card with
+no tier. `basis` is the `confidence_basis` vocabulary: `score`, `ceiling`, `method`,
+`not_reproduced` or `none`. [The read-command contract](agent_cli.md#confidence-m134) gives
+the weights, bands and ceilings. The block is built when the run is read, so the saved card
+and both saved places are unchanged.
 
 ## Citations
 
@@ -267,6 +278,15 @@ The [M13.3 session review](review_m133_session.md) added the side-by-side bonus 
 description of `search_score`. That is wording, so the document is still version 3 and its
 digest is unchanged. The suite passes 4,191 tests after the review.
 
+M13.4 took the document to version 4, and `tests/test_agent_schema.py` now holds 61 tests.
+The added checks: the `confidence_basis` vocabulary against the engine's enum; the block
+required on `runs.card`, closed at every level, and absent from the saved card's
+definition; seven ways of breaking the block in a real document; the block for every card
+of the saved run, with its tier equal to the saved tier and its replay matching; and its
+absence from `runs.section` and `runs.search`. Removing `confidence` from the required
+list, opening the block or adding a basis under version 4 fails the digest test. The full
+native suite passes 4,229 tests with the same nine skips.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 
@@ -277,3 +297,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 1 | 2026-11-11 | First version: seven payloads |
 | 2 | 2026-11-11 | `error.kind` may contain an underscore. Version 1's pattern refused two kinds `genetics run` prints, `run_parts` and `frequency_reference`. Found by the [session review](review_m132_session.md) |
 | 3 | 2026-11-12 | Two payloads, `cards.search` and `runs.search` (M13.3), with the `search_field` vocabulary and `card_face`, eight keys of the saved card. No existing payload changed |
+| 4 | 2026-11-12 | `runs.card` gains the required key `current_context.confidence` (M13.4): `confidence_explanation`, with the `confidence_basis` vocabulary. The saved card and every other payload are unchanged |

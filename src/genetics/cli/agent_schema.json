@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read and search commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 3,
+  "version": 4,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -244,6 +244,7 @@
                 "additionalProperties": false
               }
             },
+            "confidence": { "$ref": "#/$defs/confidence_explanation" },
             "related": {
               "type": "array",
               "description": "Cards held by other sections that this card's section points to. They are the section's pointers, not the card's own.",
@@ -255,7 +256,7 @@
               "items": { "$ref": "#/$defs/section_name" }
             }
           },
-          "required": ["context", "section", "citation_links", "related", "pointed_from"],
+          "required": ["context", "section", "citation_links", "confidence", "related", "pointed_from"],
           "additionalProperties": false
         }
       },
@@ -517,55 +518,55 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 3 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 4 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -796,7 +797,7 @@
     },
     "confidence": {
       "type": "object",
-      "description": "The computed confidence of an interpretation or HLA card: the tier and every input that produced it. Computed, polygenic and guideline cards keep theirs in `computation.reliability` instead.",
+      "description": "The computed confidence of an interpretation or HLA card: the tier and every input that produced it. Computed, polygenic and guideline cards keep theirs in `computation.reliability` instead. `runs.card` gives both in one shape, with what decided the tier, as `current_context.confidence`.",
       "properties": {
         "tier": { "$ref": "#/$defs/confidence_tier" },
         "score": { "type": "number" },
@@ -853,6 +854,139 @@
         }
       },
       "required": ["tier", "score", "inputs", "empirical_ppv"],
+      "additionalProperties": false
+    },
+    "confidence_basis": {
+      "description": "What decided a card's tier. `score`: the weighted score's band, with no ceiling below it. `ceiling`: one or more ceilings below the score's band, named in `limiting`. `method`: the card's method sets the tier and there is no weighted score (computed and guideline cards). `not_reproduced`: this engine's rules do not give the saved tier and score from the saved inputs, so it does not say what decided them. `none`: the card has no tier.",
+      "enum": ["score", "ceiling", "method", "not_reproduced", "none"]
+    },
+    "confidence_explanation": {
+      "type": "object",
+      "description": "What a saved card's tier is and what decided it, in one shape for every kind of card (M13.4). Built when the run is read, from `card.confidence` or `card.computation.reliability`, by the rules the calculator itself uses; the saved card is unchanged. `tier` and `score` are the saved values. A tier is the weaker of the score's band and every ceiling. It labels the card and never hides it (AGENTS.md 0.1A).",
+      "properties": {
+        "source": {
+          "description": "Where the saved card keeps its tier and inputs. Null when it has neither.",
+          "enum": ["confidence", "computation.reliability", null]
+        },
+        "basis": { "$ref": "#/$defs/confidence_basis" },
+        "tier": {
+          "description": "The saved tier, the same as `card.confidence_tier`.",
+          "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }]
+        },
+        "score": {
+          "type": ["number", "null"],
+          "description": "The saved weighted score, from 0 to 1: the sum of each scored input's `contribution`. Null where the tier has no score."
+        },
+        "score_tier": {
+          "description": "The band `score` falls in before any ceiling. Null where there is no score.",
+          "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }]
+        },
+        "score_bands": {
+          "type": "array",
+          "description": "Each tier a score can earn, strongest first, with the lowest score that earns it. The same in every document. No score earns `likely-artifact`; only a ceiling gives it.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tier": { "$ref": "#/$defs/confidence_tier" },
+              "min_score": { "type": "number" }
+            },
+            "required": ["tier", "min_score"],
+            "additionalProperties": false
+          }
+        },
+        "inputs": {
+          "type": "array",
+          "description": "What went into the tier, one row per input. A scored row has a weight; the six weights sum to 1. An unscored row (null `weight`) is an input the method or a ceiling reads.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The input. Scored rows of a single call: `evidence_tier`, `effect_size`, `replication`, `allele_frequency`, `call_quality`, `ancestry_match`. Of a polygenic score: `weight_coverage` and `weighted_quality` in place of the fourth and fifth. Other rows carry the saved key's own name, a gene symbol on a guideline card, or `hla_call`."
+              },
+              "values": {
+                "type": "object",
+                "description": "What was observed, under the saved record's own key names.",
+                "additionalProperties": { "type": ["string", "number", "boolean", "null"] }
+              },
+              "component": {
+                "type": ["number", "null"],
+                "description": "The input's saved component score, from 0 to 1."
+              },
+              "weight": { "type": ["number", "null"] },
+              "contribution": {
+                "type": ["number", "null"],
+                "description": "`weight` times `component`: what this input added to the score."
+              },
+              "lost": {
+                "type": ["number", "null"],
+                "description": "`weight` times (1 - `component`): what this input cost the score."
+              }
+            },
+            "required": ["name", "values", "component", "weight", "contribution", "lost"],
+            "additionalProperties": false
+          }
+        },
+        "ceilings": {
+          "type": "array",
+          "description": "Every ceiling that applies to the saved inputs: the best tier one input allows, whatever the score. A ceiling at or above the score's band is listed too; it changes nothing. Empty for basis `method` and `none`.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "input": { "type": "string", "description": "The `name` of the row in `inputs` that imposed it." },
+              "tier": { "$ref": "#/$defs/confidence_tier" },
+              "rule": { "type": "string", "description": "The condition that holds, as a clause." }
+            },
+            "required": ["input", "tier", "rule"],
+            "additionalProperties": false
+          }
+        },
+        "limiting": {
+          "type": "array",
+          "description": "The inputs whose ceiling is the card's own tier. For basis `ceiling` they are what set it. For basis `score` the score earned that tier too, and a higher score would not have raised it; where the list is empty, the rows with the largest `lost` say why the score is what it is.",
+          "items": { "type": "string" }
+        },
+        "reason": {
+          "type": "string",
+          "description": "What decided the tier, in a sentence or two. For basis `method` it repeats the saved record's own reason. For basis `none` it says why the card has no tier."
+        },
+        "empirical_ppv": {
+          "type": ["object", "null"],
+          "description": "The saved `card.confidence.empirical_ppv`, repeated: the measured share of such chip calls that sequencing confirmed.",
+          "properties": {
+            "estimate": { "type": "number" },
+            "population_frequency_ceiling": { "type": ["number", "null"] },
+            "applies_to": { "type": "string" }
+          },
+          "required": ["estimate", "population_frequency_ceiling", "applies_to"],
+          "additionalProperties": false
+        },
+        "replay": {
+          "type": ["object", "null"],
+          "description": "This engine's rules applied to the saved inputs, for a tier that has a score. When `matches` is false the basis is `not_reproduced`. Null where there is no score to replay.",
+          "properties": {
+            "tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
+            "score": { "type": ["number", "null"] },
+            "matches": { "type": "boolean" }
+          },
+          "required": ["tier", "score", "matches"],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "source",
+        "basis",
+        "tier",
+        "score",
+        "score_tier",
+        "score_bands",
+        "inputs",
+        "ceilings",
+        "limiting",
+        "reason",
+        "empirical_ppv",
+        "replay"
+      ],
       "additionalProperties": false
     },
     "evidence": {
@@ -942,7 +1076,7 @@
         },
         "reliability": {
           "type": ["object", "null"],
-          "description": "Where computed, polygenic and guideline cards keep their tier and what produced it. `score`, `inputs`, `ceilings` and `genes` are present where the source computes them.",
+          "description": "Where computed, polygenic and guideline cards keep their tier and what produced it. `score`, `inputs`, `ceilings` and `genes` are present where the source computes them. `ceilings` names only the ceilings that lowered the tier when applied in order, under the names `evidence`, `imputation_quality`, `coverage` and `ancestry`; `runs.card` lists every one that applies under `current_context.confidence`.",
           "properties": {
             "tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
             "reason": { "type": "string" },

@@ -56,6 +56,7 @@ from genetics.run.bundle import (
     read_bundle,
     write_bundle,
 )
+from genetics.run.explain import SOURCES, Basis
 from genetics.run.pipeline import observations
 from genetics.run.store import RunStatus
 
@@ -67,6 +68,7 @@ SHAPE_DIGESTS = {
     1: "b03f416e3aa1d460629018bbeec56c493286e3d4c042c0af7e272dcfc5d740f5",
     2: "8451a2298c73410063d93d775ed93ee1242b843ac35ead8dd47fbb26dc814e09",
     3: "642c1d7a1526da0f1202316b5223a03a620e0f7b2fcc5457df98573cc7069685",
+    4: "eacffe68e489f07c1210b6751a793b767da2d638af1d01f1b14b4619950bc55a",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
@@ -185,6 +187,7 @@ def test_the_shape_digest_ignores_prose_and_sees_everything_else() -> None:
         ("strand", Strand),
         ("run_status", RunStatus),
         ("search_field", SearchField),
+        ("confidence_basis", Basis),
     ],
 )
 def test_each_vocabulary_is_the_engine_s_own(definition: str, vocabulary: type[StrEnum]) -> None:
@@ -223,8 +226,14 @@ def test_closed_objects_are_closed_so_an_unlisted_key_fails() -> None:
         "pointer",
         "run_summary",
         "card_face",
+        "confidence_explanation",
     ):
         assert defs[name]["additionalProperties"] is False, name
+    explanation = defs["confidence_explanation"]["properties"]
+    for name in ("score_bands", "inputs", "ceilings"):
+        assert explanation[name]["items"]["additionalProperties"] is False, name
+    for name in ("empirical_ppv", "replay"):
+        assert explanation[name]["additionalProperties"] is False, name
 
 
 # ---------------------------------------------------------------------------
@@ -380,6 +389,13 @@ def test_a_schema_violation_is_caught(saved: RunBundle, agent_schema_check: Chec
         lambda d: d["card"]["confidence"]["inputs"].update(unlisted=0.5),
         lambda d: d["current_context"].update(context="saved"),
         lambda d: d["current_context"].update(unlisted=[]),
+        lambda d: d["current_context"].pop("confidence"),
+        lambda d: d["current_context"]["confidence"].update(basis="authored"),
+        lambda d: d["current_context"]["confidence"].update(unlisted=1),
+        lambda d: d["current_context"]["confidence"].pop("reason"),
+        lambda d: d["current_context"]["confidence"]["inputs"][0].update(unlisted=1),
+        lambda d: d["current_context"]["confidence"]["inputs"][0]["values"].update(nested={}),
+        lambda d: d["current_context"]["confidence"]["score_bands"][0].update(tier="certain"),
         lambda d: d.update(unlisted=1),
         lambda d: d.pop("run_id"),
     ):
@@ -680,3 +696,65 @@ def test_the_schema_ships_inside_the_package() -> None:
     assert contract.SCHEMA_PATH.parent == Path(contract.__file__).parent
     raw = contract.SCHEMA_PATH.read_bytes()
     assert b"\r" not in raw and raw.isascii()
+
+
+# ---------------------------------------------------------------------------
+# Machine-readable confidence (M13.4)
+# ---------------------------------------------------------------------------
+
+
+def test_the_confidence_block_is_required_and_its_saved_parts_keep_their_definitions() -> None:
+    defs = contract.document()["$defs"]
+    context = defs["runs.card"]["properties"]["current_context"]
+    assert context["properties"]["confidence"] == {"$ref": "#/$defs/confidence_explanation"}
+    assert "confidence" in context["required"]
+    block = defs["confidence_explanation"]
+    assert set(block["required"]) == set(block["properties"])
+    assert block["properties"]["source"]["enum"] == [*SOURCES, None]
+
+    def shape(node: dict[str, Any]) -> dict[str, Any]:
+        return {key: value for key, value in node.items() if key != "description"}
+
+    # The benchmark is the saved one repeated, so it is described the same way.
+    saved = defs["confidence"]["properties"]["empirical_ppv"]
+    assert shape(block["properties"]["empirical_ppv"]) == shape(saved)
+    # The block is nowhere in the saved card: a frozen record gains nothing at read time.
+    assert "confidence_explanation" not in json.dumps(defs["stored_card"])
+
+
+def test_every_saved_card_s_tier_is_explained_and_reproduced(saved: RunBundle) -> None:
+    """One shape for every kind, and the tier it explains is the saved one."""
+    run = saved.path.name
+    bases: dict[str, set[str]] = {}
+    for card in saved.cards:
+        view = _json(["runs", "card", run, card.card_id, "--json"])
+        block = view["current_context"]["confidence"]
+        assert block["tier"] == view["card"]["confidence_tier"] == card.confidence_tier
+        assert block["reason"].strip()
+        bases.setdefault(card.kind, set()).add(block["basis"])
+        if card.confidence_tier is None:
+            assert (block["basis"], block["source"]) == ("none", None), card.card_id
+            continue
+        # Nothing this engine saved is beyond its own rules.
+        assert block["basis"] != "not_reproduced", card.card_id
+        expected = "confidence" if card.confidence is not None else "computation.reliability"
+        assert block["source"] == expected, card.card_id
+        if block["replay"] is not None:
+            assert block["replay"]["matches"] is True, card.card_id
+            kept = view["card"]["confidence"] or view["card"]["computation"]["reliability"]
+            assert block["score"] == kept["score"], card.card_id
+    assert bases["impossibility"] == {"none"}
+    # This run has no stage records, so its computed and polygenic cards did not run;
+    # tests/run/test_explain.py, tests/hla and tests/refs cover the ones that did.
+    assert bases["computed"] <= {"method", "none"}
+    assert bases["polygenic"] <= {"score", "ceiling", "none"}
+    assert {"ceiling", "none"} <= bases["interpretation"] <= {"score", "ceiling", "none"}
+
+
+def test_a_section_read_and_a_search_do_not_carry_the_block(saved: RunBundle) -> None:
+    """It is on the card read only; a tier in a list is still the saved label."""
+    run = saved.path.name
+    section = _json(["runs", "show", run, "--section", "traits", "--json"])
+    found = _json(["runs", "search", run, "hair", "--json"])
+    assert "confidence" not in section["current_context"]
+    assert "confidence" not in found["current_context"]

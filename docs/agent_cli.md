@@ -1,9 +1,11 @@
-# Agent read commands (M13.1, M13.3)
+# Agent read commands (M13.1, M13.3, M13.4)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
 `runs show --json` prints about 1 GB. M13.3 (2026-11-12) added two search commands, so an
-agent can find a card without knowing its id.
+agent can find a card without knowing its id. M13.4 (2026-11-12) made `runs card` say what
+decided a card's confidence tier, in one shape for every kind of card; see
+[Confidence](#confidence-m134).
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -53,6 +55,7 @@ current_context
   section               {section, title, blurb}
   citation_links        [{type, id, url}] in the order of card.citations; url null when
                         this engine will not link it (re-validated, as the dashboard does)
+  confidence            what decided the card's tier (M13.4); see Confidence below
   related               pointers the card's section declares (M12.1), resolved in this run:
                         [{card_id, in_run, title, section}]
   pointed_from          sections whose pointers name this card
@@ -65,11 +68,10 @@ An unknown card id exits 1 with `error.kind: card-not-found` and names `runs sho
 to list the run's cards. The dashboard says the same thing for a stale card link.
 
 The text form prints the claim, the variant, how the call was made, the evidence block, the
-confidence tier and every input behind it, any empirical PPV, the frequencies, every caveat
-and the citations with links. The inputs come from one of two places. Interpretation and
-HLA cards hold six scored inputs in `card.confidence`. Computed, polygenic and guideline
-cards have `card.confidence: null` and hold their tier, inputs, ceilings and reason in
-`card.computation.reliability`. A card with neither says "Not scored" and gives its status.
+confidence tier with what decided it and every input behind it, any empirical PPV, the
+frequencies, every caveat and the citations with links. The confidence lines are
+`current_context.confidence` as text, so the text and the JSON say the same thing. A card
+with no tier says "Not scored" and why.
 Polygenic, HLA, runs-of-homozygosity and multi-marker detail gets one line pointing to
 `--json`, which holds it in full; the dashboard draws those as tables and distributions.
 Where a card has no evidence block, the text says which of three reasons applies: an
@@ -128,6 +130,128 @@ caveats             authored caveats
 Outcome text is left out. It is a template with the reader's genotype still to be filled in,
 and `runs card` prints it filled in. A test runs the privacy scanner over the JSON and text
 of every card in the pack, so the runtime check cannot refuse correct output.
+
+## Confidence (M13.4)
+
+Implemented 2026-11-12. A saved card keeps what produced its tier in one of two places, by
+kind. Neither says which input decided the tier. `runs card` now reads whichever applies
+and prints one block, `current_context.confidence`, for every card:
+
+```text
+source        "confidence", "computation.reliability", or null: where the saved card keeps it
+basis         what decided the tier: score, ceiling, method, not_reproduced or none
+tier, score   the saved values; score is null where the tier has none
+score_tier    the band the score falls in before any ceiling
+score_bands   [{tier, min_score}], the same in every document
+inputs[]      {name, values, component, weight, contribution, lost}
+ceilings[]    {input, tier, rule}: every ceiling that applies to the saved inputs
+limiting      the inputs whose ceiling is the card's own tier
+reason        what decided the tier, in a sentence or two
+empirical_ppv the saved benchmark, repeated, or null
+replay        {tier, score, matches}: this engine's rules applied to the saved inputs
+```
+
+### How a tier is decided
+
+A tier is the weaker of two things: the band the weighted score falls in, and every ceiling.
+
+- **The score** is the sum of six inputs, each a component from 0 to 1 times a fixed weight.
+  The weights sum to 1. `contribution` is what an input added and `lost` is what it cost.
+
+  | Row (single call) | Row (polygenic score) | Weight |
+  |---|---|---|
+  | `evidence_tier` | `evidence_tier` | 0.30 |
+  | `effect_size` | `effect_size` | 0.15 |
+  | `replication` | `replication` | 0.20 |
+  | `allele_frequency` | `weight_coverage` | 0.20 |
+  | `call_quality` | `weighted_quality` | 0.10 |
+  | `ancestry_match` | `ancestry_match` | 0.05 |
+
+- **The bands** are well-established from 0.85, strong from 0.70, moderate from 0.50 and
+  limited below that. No score earns `likely-artifact`.
+- **A ceiling** is the best tier one input allows, whatever the score. Strong literature
+  cannot raise a weak observation (AGENTS.md §4.1).
+
+  | Input | Condition | At most |
+  |---|---|---|
+  | `evidence_tier` | no phenotype estimate applies to the result, or the tier is anecdotal | limited |
+  | `evidence_tier` | candidate_gene | moderate |
+  | `replication` | conflicting | limited |
+  | `allele_frequency` | below 0.001%, the rare-call band | likely-artifact |
+  | `allele_frequency` | no frequency was available | moderate |
+  | `call_quality` | imputed with no quality estimate | limited |
+  | `call_quality`, `weighted_quality` | below 0.30 / 0.60 / 0.80 | likely-artifact / limited / moderate |
+  | `weight_coverage` | below 0.25 / 0.50 | limited / moderate |
+  | `ancestry_match` | unknown | strong |
+  | `ancestry_match` | below 0.25 / 0.50, for a polygenic score or a card with no saved `ancestry_comparison` | limited / moderate |
+  | `hla_call` | an HLA card's weakest classifier call has a ceiling of its own | that ceiling |
+
+  A card compared with its study population by membership (one with a saved
+  `ancestry_comparison`, format 18 on, and every HLA card) takes no ancestry ceiling when
+  the match is known; the match still enters the score.
+
+### The five bases
+
+| `basis` | Means | Where to look |
+|---|---|---|
+| `ceiling` | One or more ceilings are below the score's band | `limiting` names the inputs; `reason` states each rule |
+| `score` | The score's band is the tier, and no ceiling is below it | The rows with the largest `lost`. If `limiting` is not empty, a ceiling sits at the same tier and a higher score would not raise it |
+| `method` | The card's method sets the tier and there is no weighted score: computed cards (always limited when they run) and guideline cards | `reason` repeats the saved reason, and for a guideline card each gene's reasons; `inputs` holds the saved flags, or one row per gene |
+| `none` | The card has no tier | `reason` says why: an assay limit, or the status with the saved reason |
+| `not_reproduced` | This engine's rules do not give the saved tier and score from the saved inputs | `replay`. The saved tier stands; nothing is said about what decided it |
+
+Every ceiling that applies is listed, including one above the tier, which changes nothing.
+A polygenic card's saved `computation.reliability.ceilings` is narrower: it names only the
+ceilings that lowered the tier when applied in order, under the names `evidence`,
+`imputation_quality`, `coverage` and `ancestry`.
+
+### What is saved and what is this engine's
+
+`tier`, `score`, every `values` entry, every `component` and `empirical_ppv` are the saved
+record's. The weights, bands, ceilings, `limiting` and `reason` are this engine's reading of
+it, which is why the block is under `current_context` and the saved card is unchanged.
+
+The reading is checked before it is offered. The saved inputs are replayed through the
+rules the calculator itself calls (`single_call_ceilings` and `polygenic_ceilings` in
+`engine/confidence.py`). If the replayed tier differs from the saved one, or the weights do
+not sum to the saved score within 0.00015, the basis is `not_reproduced`. A run saved under
+other weights or thresholds therefore gets no explanation, not a wrong one.
+
+A multi-marker card takes its weakest marker's confidence; `reason` names that marker. An
+HLA card gets an unscored `hla_call` row and, where its weakest call has a ceiling, that
+ceiling. The block states no genotype of its own, but `runs card` is unscanned as before.
+
+### Where it appears
+
+Only in `runs card`. `runs show --section` and `runs search` list each card's saved
+`confidence_tier` and add nothing. The dashboard's card page prints `reason` under "Why this
+tier", from the same function, `genetics.run.explain.explain_confidence`.
+
+### Decisions
+
+No owner question was asked. The M13.4 entry contract listed three open points:
+
+- **One shape, built at read time.** The saved card is frozen, so the block is under
+  `current_context`. Both saved places stay as they are and stay described.
+- **The values were not enough, so what decided the tier is stated.** That needs the
+  ceilings, which no saved block lists in full. The calculators now take theirs from two
+  functions that the reader calls too, so the two cannot state different rules.
+- **A card with no tier is covered.** It gets the same block, with basis `none` and the
+  reason it was not scored.
+
+### Validation
+
+`tests/run/test_explain.py` keeps a separate copy of the rules as they were before the
+ceilings moved, and compares 16,800 single calls and 6,048 polygenic scores: the earlier
+tier, the saved tier, the saved ceiling names and the replay all agree. It then checks each
+basis, a rare call (the reason gives the 16% benchmark), nine ways a saved block can fail
+to replay, computed and guideline cards, HLA call ceilings and multi-marker cards.
+`tests/test_agent_schema.py` checks the block for every card of a saved run of 103 cards,
+and `tests/hla` and `tests/refs` check it for the real HLA and guideline cards.
+Thirty-five guards were each removed in turn, and each removal failed a test. The full
+native suite passes 4,229 tests with the existing nine skips.
+
+`runs card` has not been run on the real imputed run since this change.
 
 ## Search (M13.3)
 
@@ -342,9 +466,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   [the agent schema](agent_schema.md).
 - **M13.3** (done 2026-11-12) is `cards search` and `runs search`, described under
   [Search](#search-m133).
-- **M13.4** is largely present, in the two places described under `runs card`. M13.4
-  decides whether an agent should see one shape for both, and whether the components need
-  explaining beyond their values.
+- **M13.4** (done 2026-11-12) is `current_context.confidence` on `runs card`, described under
+  [Confidence](#confidence-m134).
 - **M13.5** the parity test over every dashboard route. `SAVED_RECORDS` and the section-frame
   test are a start, not that test.
 - **M13.6** the worked review example; **M13.7** the outbound-query lint.
