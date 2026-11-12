@@ -42,6 +42,7 @@ from genetics.engine.citations import CitationType
 from genetics.engine.confidence import CallSource, ConfidenceTier
 from genetics.engine.evidence import assemble_pack
 from genetics.engine.matcher import MatchStatus, Strand, match_pack
+from genetics.engine.search import SearchField
 from genetics.engine.sections import SECTION_ORDER, Section
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, GenotypeTable
 from genetics.privacy import find_genotypes
@@ -65,6 +66,7 @@ Change = Callable[[dict[str, Any]], object]
 SHAPE_DIGESTS = {
     1: "b03f416e3aa1d460629018bbeec56c493286e3d4c042c0af7e272dcfc5d740f5",
     2: "8451a2298c73410063d93d775ed93ee1242b843ac35ead8dd47fbb26dc814e09",
+    3: "642c1d7a1526da0f1202316b5223a03a620e0f7b2fcc5457df98573cc7069685",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
@@ -77,7 +79,7 @@ only; a key is never removed or given another meaning.
 ENVELOPE = {"schema", "run_id", "path"}
 """Top-level keys of a run-scoped document that describe the read, not the run."""
 
-RUN_SCOPED = ("runs.show", "runs.section", "runs.card", "runs.qc")
+RUN_SCOPED = ("runs.show", "runs.section", "runs.card", "runs.qc", "runs.search")
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +184,7 @@ def test_the_shape_digest_ignores_prose_and_sees_everything_else() -> None:
         ("call_status", CallStatus),
         ("strand", Strand),
         ("run_status", RunStatus),
+        ("search_field", SearchField),
     ],
 )
 def test_each_vocabulary_is_the_engine_s_own(definition: str, vocabulary: type[StrEnum]) -> None:
@@ -214,7 +217,13 @@ def test_citations_are_required_wherever_a_card_is_printed() -> None:
 def test_closed_objects_are_closed_so_an_unlisted_key_fails() -> None:
     """Every object the engine builds at read time rejects a key the schema does not list."""
     defs = contract.document()["$defs"]
-    for name in (*contract.payload_names(), "section_context", "pointer", "run_summary"):
+    for name in (
+        *contract.payload_names(),
+        "section_context",
+        "pointer",
+        "run_summary",
+        "card_face",
+    ):
         assert defs[name]["additionalProperties"] is False, name
 
 
@@ -300,6 +309,24 @@ def test_every_read_matches_the_schema_and_names_itself(
     for card in saved.cards:
         view = _json(["runs", "card", run, card.card_id, "--json"])
         assert agent_schema_check(view) == "runs.card", card.card_id
+    for query in ("curly hair", "risk of heart disease", "rs7349332", "zzzunmatchable"):
+        found = _json(["runs", "search", run, query, "--json"])
+        assert agent_schema_check(found) == "runs.search", query
+        assert agent_schema_check(_json(["cards", "search", query, "--json"])) == "cards.search"
+    # Every saved card is reachable by search, whatever its kind or status.
+    everything = _json(["runs", "search", run, *(s.value for s in SECTION_ORDER), "--json"])
+    assert agent_schema_check(everything) == "runs.search"
+    assert {r["card_id"] for r in everything["results"]} == {c.card_id for c in saved.cards}
+
+
+def test_the_card_face_is_a_subset_of_the_saved_card() -> None:
+    """A search result's keys are saved-card keys with the saved card's own definitions."""
+    defs = contract.document()["$defs"]
+    face, card = defs["card_face"], defs["stored_card"]
+    assert set(face["required"]) == set(face["properties"]) < set(card["properties"])
+    for key, definition in face["properties"].items():
+        stored = {k: v for k, v in card["properties"][key].items() if k != "description"}
+        assert definition == stored, key
 
 
 def test_every_card_s_evidence_matches_the_schema(
@@ -383,6 +410,7 @@ def test_run_id_is_the_id_a_command_resolves_in_every_payload(saved: RunBundle) 
             ["runs", "show", "renamed-run", "--section", "traits"],
             ["runs", "card", "renamed-run", "wnt10a_hair_curl"],
             ["runs", "qc", "renamed-run"],
+            ["runs", "search", "renamed-run", "hair"],
             ["runs", "clinvar", "renamed-run"],
             ["runs", "secondary", "renamed-run"],
             ["runs", "imputation", "renamed-run"],
@@ -408,9 +436,18 @@ def test_what_the_engine_adds_at_read_time_is_under_current_context(saved: RunBu
     assert card["card"] == by_id["wnt10a_hair_curl"]
     assert all(entry == by_id[entry["card_id"]] for entry in section["cards"])
     assert qc["qc"] == whole["qc"] and qc["provenance"] == whole["provenance"]
-    for document in (section, card):
+    found = _json(["runs", "search", run, "curly hair", "--json"])
+    assert all(
+        face == {key: by_id[face["card_id"]][key] for key in face} for face in found["results"]
+    )
+    assert set(found) - ENVELOPE - {"current_context"} == {
+        "format_version",
+        "created_at",
+        "results",
+    }
+    for document in (section, card, found):
         assert document["current_context"]["context"] == "current"
-    for document in (whole, section, card, qc):
+    for document in (whole, section, card, qc, found):
         saved_keys = set(document) - ENVELOPE - {"current_context"}
         assert {"format_version", "created_at"} <= saved_keys
         assert document["format_version"] == BUNDLE_FORMAT_VERSION
@@ -418,7 +455,7 @@ def test_what_the_engine_adds_at_read_time_is_under_current_context(saved: RunBu
     defs = contract.document()["$defs"]
     for name in RUN_SCOPED:
         assert set(defs[name]["required"]) >= ENVELOPE, name
-    for name in ("runs.section", "runs.card"):
+    for name in ("runs.section", "runs.card", "runs.search"):
         context = defs[name]["properties"]["current_context"]
         assert context["properties"]["context"] == {"const": "current"}
         assert "context" in context["required"]
@@ -440,6 +477,7 @@ def test_the_payload_list_states_which_documents_hold_a_genotype(saved: RunBundl
         "runs.show",
         "runs.section",
         "runs.card",
+        "runs.search",
     }
     assert all(
         entry["scanned"] != entry["holds_genotype"]
@@ -449,7 +487,12 @@ def test_the_payload_list_states_which_documents_hold_a_genotype(saved: RunBundl
     run = saved.path.name
     held = json.dumps(_json(["runs", "card", run, "wnt10a_hair_curl", "--json"]))
     assert "observed_genotype" in held
-    for args in (["runs", "list"], ["runs", "qc", run], ["cards", "evidence", "wnt10a_hair_curl"]):
+    for args in (
+        ["runs", "list"],
+        ["runs", "qc", run],
+        ["cards", "evidence", "wnt10a_hair_curl"],
+        ["cards", "search", "curly hair"],
+    ):
         assert find_genotypes(runner.invoke(app, [*args, "--json"]).stdout) == [], args
 
 
@@ -466,6 +509,9 @@ MISSING_RUN = "20260101T000000Z-00000000"
         (["runs", "show", MISSING_RUN], "not-found", 1),
         (["runs", "card", MISSING_RUN, "wnt10a_hair_curl"], "not-found", 1),
         (["runs", "qc", MISSING_RUN], "not-found", 1),
+        (["runs", "search", MISSING_RUN, "hair"], "not-found", 1),
+        (["runs", "search", "{run}", "?!"], "empty-query", 2),
+        (["cards", "search", "?!"], "empty-query", 2),
         (["runs", "clinvar", MISSING_RUN], "not-found", 1),
         (["runs", "secondary", MISSING_RUN], "not-found", 1),
         (["runs", "imputation", MISSING_RUN], "not-found", 1),
@@ -515,6 +561,7 @@ def test_a_damaged_and_a_newer_run_are_told_apart(
             for args in (
                 ["runs", "show", name],
                 ["runs", "qc", name],
+                ["runs", "search", name, "hair"],
                 ["pgx", "calls", name],
                 ["hla", "calls", name],
             ):
@@ -583,6 +630,7 @@ def test_every_kind_a_command_can_print_matches_the_schema(agent_schema_check: C
     # The harvest finds what it should, so an empty or partial set cannot pass vacuously.
     assert {"not-found", "card-not-found", "unknown-section", "pgs", "hla"} <= kinds
     assert {"run_parts", "frequency_reference", "structure", "config", "serve"} <= kinds
+    assert {"empty-query", "genotype-in-query"} <= kinds
     for kind in sorted(kinds):
         assert agent_schema_check(contract.error_payload(kind, "A sentence.")) == "error", kind
 

@@ -1,6 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 3 since M13.3 (2026-11-12), which added the two search
+payloads. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -23,25 +24,27 @@ rules around it. [The read-command contract](agent_cli.md) describes what each c
 | `runs.section` | `genetics runs show <run> --section S --json` | saved run | yes | no |
 | `runs.card` | `genetics runs card <run> <card-id> --json` | saved run | yes | no |
 | `runs.qc` | `genetics runs qc <run> --json` | saved run | no | yes |
+| `runs.search` | `genetics runs search <run> <query> --json` | saved run | yes | no |
 | `cards.evidence` | `genetics cards evidence <card-id> --json` | knowledge pack | no | yes |
+| `cards.search` | `genetics cards search <query> --json` | knowledge pack | no | yes |
 | `error` | a failing command with `--json` (listed below) | nothing | no | no |
 
 The same table is in the document as `x-payloads`. "Scanned" means the command checks its
-output for genotypes before printing. The three payloads that hold a genotype state the
+output for genotypes before printing. The four payloads that hold a genotype state the
 reader's own call, which is what a card says, and are not scanned
-([why](agent_cli.md)). Research a card from `cards.evidence`, never from a run payload
-(AGENTS.md §1.3).
+([why](agent_cli.md)). Find a card with `cards.search` and research it from
+`cards.evidence`, never from a run payload (AGENTS.md §1.3).
 
 ## The tag
 
 Every described document starts with:
 
 ```json
-"schema": {"name": "runs.card", "version": 2}
+"schema": {"name": "runs.card", "version": 3}
 ```
 
-`name` is one of the seven above. `version` is the version of the schema document, which is
-the same for all seven. It is separate from `format_version`, which is the bundle format the
+`name` is one of the nine above. `version` is the version of the schema document, which is
+the same for all nine. It is separate from `format_version`, which is the bundle format the
 run was saved in.
 
 ## Rules for a reader
@@ -78,15 +81,17 @@ run was saved in.
 
 M13.1 kept the saved record apart from what the engine adds when it reads a run, as a
 convention. It is now the rule, and the document's structure states it. In a run-scoped
-payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`):
+payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`, `runs.search`):
 
 - `schema`, `run_id` and `path` are the envelope. They describe this read.
 - `current_context` holds everything this engine adds at read time: section titles and
-  blurbs, empty-section reasons, pointers between sections, citation links and section
-  notices. It always carries `"context": "current"`.
+  blurbs, empty-section reasons, pointers between sections, citation links, section
+  notices and a search's query and ranking. It always carries `"context": "current"`.
 - Every other top-level key is the saved record, unchanged.
 
-`runs.show` and `runs.qc` have no `current_context`, because they add nothing. `pgx calls`
+`runs.show` and `runs.qc` have no `current_context`, because they add nothing. In
+`runs.search`, `results` holds each matched card's saved face and `current_context.hits`
+holds why it matched, in the same order. `pgx calls`
 follows the same rule but is outside this version (see below).
 
 ## `run_id`
@@ -103,7 +108,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 2},
+  "schema": {"name": "error", "version": 3},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -113,7 +118,7 @@ Branch on `error.kind`. `message` is for a person and may be reworded.
 
 Before M13.2 the `pgx` and `pgs` groups printed `error` as a bare string. Every command that
 printed an error document now prints this one, through `contract.refuse`: all of `runs`,
-`cards evidence`, `pgx`, `pgs`, `hla`, `run`, `impute`, `serve` and `schema`.
+`cards evidence`, `cards search`, `pgx`, `pgs`, `hla`, `run`, `impute`, `serve` and `schema`.
 
 `runs`, `pgx calls` and `hla calls` give the same kind for a run that cannot be opened,
 through `contract.run_error_kind`. Before the [session review](review_m132_session.md),
@@ -125,7 +130,7 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 |---|---|---|
 | 0 | Success | |
 | 1 | The command was well formed but could not be carried out | `not-found`, `card-not-found`, `version`, `integrity`, `io`, `bundle`, `knowledge` |
-| 2 | The command line was wrong | `unknown-section`, `unknown-payload`, `confirmation-required` |
+| 2 | The command line was wrong | `unknown-section`, `unknown-payload`, `confirmation-required`, `empty-query`, `genotype-in-query` |
 
 | Kind | From | Means |
 |---|---|---|
@@ -135,9 +140,11 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 | `integrity` | `runs`, `pgx calls`, `hla calls` | A saved file does not match its recorded digest |
 | `io` | `runs`, `pgx calls`, `hla calls` | The disk refused: a locked file, a permission, a missing drive |
 | `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
-| `knowledge` | `cards evidence` | The knowledge pack could not be loaded |
+| `knowledge` | `cards evidence`, `cards search` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
-| `unknown-payload` | `schema` | Not one of the seven payload names |
+| `unknown-payload` | `schema` | Not one of the nine payload names |
+| `empty-query` | `cards search`, `runs search` | The query has no letter or digit to search for |
+| `genotype-in-query` | `cards search`, `runs search` | The query reads as a genotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
 | `confirmation-required` | `runs delete`, `runs prune` | `--json` cannot prompt; pass `--yes` |
 
 A command line Typer itself rejects (a missing argument, an unknown option) exits 2 with a
@@ -160,8 +167,8 @@ Not unified, and recorded here so that nobody assumes otherwise:
 ## How closely each part is described
 
 - **Closed, key for key:** the envelope, `current_context`, the run listing, the evidence
-  declaration, the error document, and the saved card's 26 keys. A saved card always has all
-  26; a key its bundle's format did not have is null.
+  declaration, both search payloads, the error document, and the saved card's 26 keys. A
+  saved card always has all 26; a key its bundle's format did not have is null.
 - **Closed, inside the saved card:** `variant`, `match`, `confidence`, `evidence`,
   `observation`, `frequencies` and `citations`. Their keys were checked against the first
   version of the bundle writer in git history: `variant`, `match`, `confidence`, frequencies
@@ -248,6 +255,14 @@ without a digest.
 The full native suite passed 4,083 tests with the existing nine skips at M13.2, and
 4,084 after the session review.
 
+M13.3 took the document to version 3, and `tests/test_agent_schema.py` now holds 57 tests.
+The added checks: the `search_field` vocabulary against the engine's enum; both search
+payloads against the document for four queries, and a run search that returns every saved
+card; `card_face` as eight keys of the saved card with the saved card's own definitions;
+`runs.search` in the saved-versus-current, renamed-run, unknown-run and damaged-run tests;
+and the two query kinds. Editing the document under version 3 without a new digest fails the
+digest test. The full native suite passes 4,183 tests with the same nine skips.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 
@@ -257,3 +272,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 |---|---|---|
 | 1 | 2026-11-11 | First version: seven payloads |
 | 2 | 2026-11-11 | `error.kind` may contain an underscore. Version 1's pattern refused two kinds `genetics run` prints, `run_parts` and `frequency_reference`. Found by the [session review](review_m132_session.md) |
+| 3 | 2026-11-12 | Two payloads, `cards.search` and `runs.search` (M13.3), with the `search_field` vocabulary and `card_face`, eight keys of the saved card. No existing payload changed |

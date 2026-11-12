@@ -249,7 +249,13 @@ and guideline cards "Not scored".
 agent read commands print, and `genetics schema` prints it. Each document names its payload and
 version, `run_id` is the same id in every command, and a failure under `--json` is one error
 document. See [the agent schema](docs/agent_schema.md).
-[M13.3, card search](docs/handoff.md#next-open-step-m133-card-search) is next.
+**M13.3, card search, is implemented.** `genetics cards search <query>` finds cards in the
+knowledge pack by what they are about, with no run and no genotype, and
+`genetics runs search <run> <query>` finds them in one saved run with each one's result. Both
+use one ranking, say which fields each hit matched, and refuse a query that reads as a
+genotype. See [the search contract](docs/agent_cli.md#search-m133).
+[M13.4, machine-readable confidence](docs/handoff.md#next-open-step-m134-machine-readable-confidence)
+is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
@@ -370,6 +376,8 @@ genetics runs show <run-id> --section nutrition --json
 genetics runs card <run-id> <card-id> --json
 genetics runs qc <run-id> --json
 genetics cards evidence <card-id> --json
+genetics cards search curly hair --json
+genetics runs search <run-id> curly hair --json
 genetics schema
 genetics runs clinvar <run-id> --json
 genetics runs secondary <run-id> --json

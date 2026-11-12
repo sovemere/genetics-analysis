@@ -1,4 +1,9 @@
-"""CLI for reviewing the committed knowledge pack (roadmap M3.5)."""
+"""CLI for reviewing the committed knowledge pack (roadmap M3.5, M13.1, M13.3).
+
+``lint``, ``carriers`` and ``carrier-scope`` review the pack. ``evidence`` and ``search``
+are agent reads: they open no run, hold no genotype, and scan their output to keep that
+true. ``search`` finds a card id from a phrase; ``evidence`` prints what that card rests on.
+"""
 
 from __future__ import annotations
 
@@ -259,6 +264,74 @@ def evidence(
     text = evidence_text(data)
     assert_no_genotype(text, context="cards evidence output")
     typer.echo(text)
+
+
+@cards_app.command("search")
+def search(
+    query: Annotated[
+        list[str],
+        typer.Argument(help="A trait, gene, rsID or phrase, such as `curly hair`."),
+    ],
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Show only the best N. The total is still stated."),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Find cards in the knowledge pack by what they are about (M13.3).
+
+    Searches every card's id, title, gene, rsIDs, trait, condition, HLA alleles, authored
+    text, caveats and citations, and says which of those each hit matched. A card matching
+    only some of the query's words is listed below the cards matching all of them.
+
+    A property of the knowledge pack, not of a run: no genotype is read, and the output is
+    checked for one before it is printed. A query that reads as a genotype is refused:
+    search for the variant, never for a call at it (AGENTS.md 1.3). To search one saved
+    run's cards and results, use ``genetics runs search <run> <query>``.
+    """
+    from genetics.cli import contract
+    from genetics.engine import search as engine
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.privacy import assert_no_genotype
+
+    parsed = contract.search_query(query, as_json=as_json)
+    try:
+        pack = KnowledgePack.load(knowledge)
+    except CardError as exc:
+        contract.refuse("knowledge", f"error: {exc}", as_json=as_json)
+    view = engine.pack_view(pack.cards, parsed, limit)
+
+    if as_json:
+        text = json.dumps(contract.tagged("cards.search", view), indent=2, ensure_ascii=False)
+        assert_no_genotype(text, context="cards search JSON output")
+        typer.echo(text)
+        return
+
+    text = search_text(view)
+    assert_no_genotype(text, context="cards search output")
+    typer.echo(text)
+
+
+def search_text(view: Mapping[str, Any]) -> str:
+    """``cards search`` as text, from :func:`genetics.engine.search.pack_view`."""
+    from genetics.cli.render import search_heading, search_hit_lines
+
+    lines = [search_heading(view, "the knowledge pack")]
+    for hit in view["hits"]:
+        lines.append(f"  {hit['section']:<17}{hit['card_id']:<36} {hit['title']}")
+        lines.extend(search_hit_lines(hit, len(view["terms"])))
+    if view["hits"]:
+        lines.append("`genetics cards evidence <card-id>` prints what a card rests on.")
+    return "\n".join(lines)
 
 
 def evidence_text(data: Mapping[str, Any]) -> str:

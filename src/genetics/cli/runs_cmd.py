@@ -5,12 +5,14 @@ agent's reads on top of it: ``show --section``, ``card <run> <card-id>`` and ``q
 payloads :mod:`genetics.run.reads` builds. ``cards evidence`` is the fourth M13.1 read and
 lives in :mod:`genetics.cli.cards_cmd`, because it reads no run. M13.2 pinned their JSON as a
 versioned schema: each document is tagged by :func:`genetics.cli.contract.tagged`, and
-``run_id`` is the bundle's directory name in every one. M13.3 owns ``search``.
+``run_id`` is the bundle's directory name in every one. M13.3 added ``search <run> <query>``,
+which ranks the run's saved cards with the function ``cards search`` uses on the pack
+(:func:`genetics.engine.search.search`).
 
 **The privacy split is inherited from the bundle format rather than reinvented.** ``runs
 list`` and ``runs qc`` are scanned with ``assert_no_genotype`` on both output paths; ``runs
-show`` and ``runs card`` are not. That is a decision in both directions, not an oversight
-in one:
+show``, ``runs card`` and ``runs search`` are not. That is a decision in both directions, not
+an oversight in one:
 
 * Listing is manifest-derived, and the manifest is the file a person pastes into a bug
   report. The writer already scans it, but that scan is a property of the writer -- a bundle
@@ -19,8 +21,8 @@ in one:
   branches are scanned because M1.8 got exactly this wrong: the first cut of ``genetics
   ingest`` guarded the JSON branch and left the human render open, which is the branch a
   person is *more* likely to edit.
-* ``show`` and ``card`` render per-card results, and a card's summary states what the
-  reader's genotype is -- that is the product, not a leak. Scanning it would be a guard that
+* ``show``, ``card`` and ``search`` render per-card results, and a card's summary states what
+  the reader's genotype is -- that is the product, not a leak. Scanning it would be a guard that
   fails on correct output, and M0.3 settled what happens to those: they get switched off,
   including on the day they were right. A bundle is raw DNA (AGENTS.md 1.1) and belongs to
   the person running the command; keeping it off their own screen protects nobody.
@@ -723,6 +725,66 @@ def _card_lines(view: Mapping[str, Any]) -> list[str]:
         if context["pointed_from"]:
             lines.append(f"  Pointed to from: {', '.join(context['pointed_from'])}")
     return lines
+
+
+# ---------------------------------------------------------------------------
+# runs search
+# ---------------------------------------------------------------------------
+
+
+@runs_app.command("search")
+def runs_search(
+    run_id: Annotated[str, typer.Argument(help="Run id, as reported by `genetics runs list`.")],
+    query: Annotated[
+        list[str],
+        typer.Argument(help="A trait, gene, rsID or phrase, such as `curly hair`."),
+    ],
+    limit: Annotated[
+        int | None,
+        typer.Option("--limit", min=1, help="Show only the best N. The total is still stated."),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Find a saved run's cards by what they are about, with each one's result (M13.3).
+
+    Searches what the run saved for each card: id, title, gene, rsIDs, the summary and
+    detail it recorded, caveats and citations. Cards are ranked by the query alone, never by
+    status or confidence, and none is left out for either. A card matching only some of the
+    query's words is listed below the cards matching all of them.
+
+    Each hit shows the card's saved summary, which states your genotype at its marker, as
+    ``runs show`` does. To find a card without opening a run, use ``genetics cards search``,
+    which holds no genotype. A query that reads as a genotype is refused by both: search for
+    the variant, never for a call at it (AGENTS.md 1.3).
+
+    ``--json`` holds each matched card's saved face under ``results``. The query, the counts
+    and each hit's score and matched fields are under ``current_context``, in the same
+    order, because this engine ranks when it reads the run.
+    """
+    from genetics.cli.render import search_heading, search_hit_lines
+
+    parsed = contract.search_query(query, as_json=as_json)
+    try:
+        bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    view = reads.search_view(bundle, parsed, limit)
+    if as_json:
+        # Deliberately not scanned -- see the module docstring.
+        typer.echo(json.dumps(contract.tagged("runs.search", view), indent=2, ensure_ascii=False))
+        return
+
+    context = view["current_context"]
+    typer.echo(search_heading(context, f"run {view['run_id']}"))
+    for card, hit in zip(view["results"], context["hits"], strict=True):
+        tier = card["confidence_tier"] or card["status"]
+        typer.secho(f"  {tier:<17}", fg=typer.colors.CYAN, nl=False)
+        typer.echo(f"{card['section']:<14} {card['card_id']:<34} {card['title']}")
+        typer.echo(f"      {card['summary']}")
+        for line in search_hit_lines(hit, len(context["terms"])):
+            typer.echo(line)
+    if view["results"]:
+        typer.echo(f"`genetics runs card {view['run_id']} <card-id>` prints one in full.")
 
 
 # ---------------------------------------------------------------------------

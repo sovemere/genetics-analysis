@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
-  "description": "Every JSON document the agent read commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 2,
+  "description": "Every JSON document the agent read and search commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
+  "version": 3,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -41,8 +41,22 @@
       "scanned": true
     },
     {
+      "name": "runs.search",
+      "command": "genetics runs search <run> <query> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
       "name": "cards.evidence",
       "command": "genetics cards evidence <card-id> --json",
+      "reads": "knowledge pack",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
+      "name": "cards.search",
+      "command": "genetics cards search <query> --json",
       "reads": "knowledge pack",
       "holds_genotype": false,
       "scanned": true
@@ -61,7 +75,9 @@
     { "$ref": "#/$defs/runs.section" },
     { "$ref": "#/$defs/runs.card" },
     { "$ref": "#/$defs/runs.qc" },
+    { "$ref": "#/$defs/runs.search" },
     { "$ref": "#/$defs/cards.evidence" },
+    { "$ref": "#/$defs/cards.search" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -395,6 +411,87 @@
       ],
       "additionalProperties": false
     },
+    "runs.search": {
+      "description": "The saved cards of one run that match a query, best first, each with its saved face. The ranking is made when the run is read, so everything about it is under `current_context`. No card is ranked or left out for its status or confidence tier.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.search" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "results": {
+          "type": "array",
+          "description": "The matched cards as the run saved them, best first. Each is eight keys of the saved card; `genetics runs card` prints the rest.",
+          "items": { "$ref": "#/$defs/card_face" }
+        },
+        "current_context": {
+          "type": "object",
+          "properties": {
+            "context": { "const": "current" },
+            "query": { "$ref": "#/$defs/search_query" },
+            "terms": { "$ref": "#/$defs/search_terms" },
+            "ignored": { "$ref": "#/$defs/search_ignored" },
+            "searched": { "$ref": "#/$defs/search_searched" },
+            "total": { "$ref": "#/$defs/search_total" },
+            "limit": { "$ref": "#/$defs/search_limit" },
+            "hits": {
+              "type": "array",
+              "description": "One entry per entry of `results`, in the same order: why that card matched.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "card_id": { "type": "string" },
+                  "score": { "$ref": "#/$defs/search_score" },
+                  "terms_matched": { "$ref": "#/$defs/search_terms_matched" },
+                  "matched": { "$ref": "#/$defs/search_matched" }
+                },
+                "required": ["card_id", "score", "terms_matched", "matched"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["context", "query", "terms", "ignored", "searched", "total", "limit", "hits"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "results", "current_context"],
+      "additionalProperties": false
+    },
+    "cards.search": {
+      "description": "The knowledge-pack cards that match a query, best first. It reads no run and holds no genotype, so it is the payload to find a card id from (AGENTS.md 1.3). A query that reads as a genotype is refused with kind `genotype-in-query`.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.cards.search" },
+        "query": { "$ref": "#/$defs/search_query" },
+        "terms": { "$ref": "#/$defs/search_terms" },
+        "ignored": { "$ref": "#/$defs/search_ignored" },
+        "searched": { "$ref": "#/$defs/search_searched" },
+        "total": { "$ref": "#/$defs/search_total" },
+        "limit": { "$ref": "#/$defs/search_limit" },
+        "hits": {
+          "type": "array",
+          "description": "The matched cards, best first: by terms matched, then score, then the pack's own order.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "card_id": { "type": "string", "description": "The id `genetics cards evidence` and `genetics runs card` take." },
+              "section": { "$ref": "#/$defs/section_name" },
+              "kind": { "$ref": "#/$defs/card_kind" },
+              "title": { "type": "string" },
+              "gene": { "type": ["string", "null"] },
+              "score": { "$ref": "#/$defs/search_score" },
+              "terms_matched": { "$ref": "#/$defs/search_terms_matched" },
+              "matched": { "$ref": "#/$defs/search_matched" }
+            },
+            "required": ["card_id", "section", "kind", "title", "gene", "score", "terms_matched", "matched"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["schema", "query", "terms", "ignored", "searched", "total", "limit", "hits"],
+      "additionalProperties": false
+    },
     "error": {
       "description": "What a command prints on stdout when it fails under --json. The exit code is non-zero.",
       "type": "object",
@@ -420,43 +517,55 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 3 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.search": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 3 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.cards.search": {
+      "type": "object",
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 2 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 3 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -536,6 +645,88 @@
     "run_status": {
       "description": "`future-version` is intact and needs the version of the tool that wrote it. `damaged` could not be read.",
       "enum": ["readable", "future-version", "damaged"]
+    },
+    "search_field": {
+      "description": "Where in a card a query term was found. `variant` is an rsID the card reads, never a call at it. `summary` is the card face: in the pack, any outcome's; in a saved run, the one that run recorded.",
+      "enum": [
+        "card_id",
+        "title",
+        "gene",
+        "variant",
+        "trait",
+        "condition",
+        "hla",
+        "summary",
+        "detail",
+        "impossibility_reason",
+        "evidence",
+        "caveats",
+        "citations",
+        "section"
+      ]
+    },
+    "search_query": { "type": "string", "description": "The query as it was given, with runs of whitespace collapsed." },
+    "search_terms": {
+      "type": "array",
+      "description": "The words searched for: the query lowercased and split into runs of letters and digits, once each, in the query's order.",
+      "items": { "type": "string" },
+      "minItems": 1
+    },
+    "search_ignored": {
+      "type": "array",
+      "description": "Common words dropped from the query, such as `of` and `the`. Empty when the query held nothing else, in which case they are searched.",
+      "items": { "type": "string" }
+    },
+    "search_searched": { "type": "integer", "minimum": 0, "description": "How many cards were searched." },
+    "search_total": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "How many cards matched at least one term. More than the hits listed when `limit` cut the list."
+    },
+    "search_limit": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "The --limit given, or null when every match is listed."
+    },
+    "search_score": {
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "description": "Field weight times match quality, summed over the terms. It orders the hits of one search and means nothing across searches. docs/agent_cli.md gives the weights."
+    },
+    "search_terms_matched": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "How many of `terms` the card matched. Hits are ordered by this first."
+    },
+    "search_matched": {
+      "type": "array",
+      "description": "Each field that matched, with the terms it matched in the query's order.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "properties": {
+          "field": { "$ref": "#/$defs/search_field" },
+          "terms": { "type": "array", "items": { "type": "string" }, "minItems": 1 }
+        },
+        "required": ["field", "terms"],
+        "additionalProperties": false
+      }
+    },
+    "card_face": {
+      "type": "object",
+      "description": "What a saved card shows before it is opened: eight keys of `stored_card`, with the same meanings. Frozen: this engine adds nothing to it. `summary` states the reader's result.",
+      "properties": {
+        "card_id": { "type": "string" },
+        "section": { "$ref": "#/$defs/section_name" },
+        "kind": { "$ref": "#/$defs/card_kind" },
+        "title": { "type": "string" },
+        "gene": { "type": ["string", "null"] },
+        "status": { "$ref": "#/$defs/card_status" },
+        "confidence_tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
+        "summary": { "type": "string" }
+      },
+      "required": ["card_id", "section", "kind", "title", "gene", "status", "confidence_tier", "summary"],
+      "additionalProperties": false
     },
     "run_summary": {
       "type": "object",

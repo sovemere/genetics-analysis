@@ -16,9 +16,19 @@ the source of truth for build state.
 
 ## Next up
 
-**M13.3, `genetics search` across cards, is next.** M0–M12, M13.1 and M13.2 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m133-card-search) records what it
-inherits.
+**M13.4, machine-readable confidence, is next.** M0–M12 and M13.1–M13.3 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m134-machine-readable-confidence) records
+what it inherits.
+
+M13.3 adds card search, so an agent can find "curly hair" without knowing the card id.
+`genetics cards search <query>` searches the knowledge pack, holds no genotype and is checked
+for one before printing. `genetics runs search <run> <query>` searches one saved run's cards
+and returns each one's saved face. Both rank with one function, which the dashboard's search
+(M14.4) must call too. A card matching only some of the query's words is listed below the
+cards matching all of them, each hit says which fields matched, and status and confidence
+play no part in the order. A query that reads as a genotype is refused. The agent schema is
+version 3. No bundle-format or knowledge-schema change. See
+[the search contract](docs/agent_cli.md#search-m133).
 
 M13.2 describes the agent commands' JSON in one versioned JSON Schema document, which
 `genetics schema` prints. Each document names its payload and version. See
@@ -3046,8 +3056,24 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         failure; `ingest`, `refs`, `tools` and `paths` print failures as text under
         `--json`, and `roh` has no `--json`; the saved records behind `runs clinvar`, `pgx calls` and `hla calls` are
         not in version 1.
-- [ ] **M13.3** `genetics search <query>` across cards, so an agent can find "curly hair"
+- [x] **M13.3** `genetics search <query>` across cards, so an agent can find "curly hair"
       without knowing the card id.
+      - **Done 2026-11-12** as `genetics cards search <query>` (the knowledge pack; no
+        genotype, scanned) and `genetics runs search <run> <query>` (one saved run's cards,
+        with each one's saved face). Not a top-level command: M13.1 put pack reads under
+        `cards` and run reads under `runs`, and the two differ in privacy. See
+        [the search contract](docs/agent_cli.md#search-m133).
+      - **One ranking,** `genetics.engine.search.search`: fourteen weighted fields; a query
+        word matches exactly, by stem or as a prefix; order is words matched, then score,
+        then listing order. Partial matches are listed, each hit names the fields that
+        matched, and status and confidence play no part.
+      - **A query that reads as a genotype is refused** by both commands, before anything
+        is read (kind `genotype-in-query`).
+      - **Agent schema version 3:** payloads `cards.search` and `runs.search`. No existing
+        payload changed.
+      - **Left for later:** the dashboard's search (M14.4) should call
+        `reads.search_view`; guideline recommendation rows and saved score records are not
+        searched.
 - [ ] **M13.4** Machine-readable confidence: tier plus the numeric inputs that produced
       it, so an agent can explain *why* a card is low confidence.
       - **Mostly present already:** M4.1 stores the inputs beside the tier. They sit in two
@@ -3074,6 +3100,9 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 - [ ] **M14.3** Confidence legend and a "how to read these results" page covering the
       rarity-inversion, PRS attenuation, and array limitations.
 - [ ] **M14.4** Global search across cards.
+      - **The engine exists (M13.3).** Call `genetics.run.reads.search_view`, which is what
+        `genetics runs search` prints, so the dashboard and the CLI rank identically
+        ([AGENTS.md §3](AGENTS.md)).
 - [ ] **M14.5** QC / provenance page: reference versions, tool versions, imputation
       parameters, coverage stats.
 - [ ] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
@@ -3137,6 +3166,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-12 | M13.3 | Card search as two commands over one ranking: `cards search <query>` (knowledge pack; no genotype; scanned on both branches) and `runs search <run> <query>` (one saved run's cards, each with its saved face; not scanned, like `runs show`). **Decisions, no owner question:** both scopes, because the roadmap's use needs only the pack while M14.4's dashboard search is over a run and must call the same function; under `cards` and `runs`, not top-level, as M13.1 settled; a stated deterministic ranking with no index or dependency, since a pack is 119 cards. **Ranking** (`engine/search.py`): fourteen fields with fixed weights (title, gene and rsID 5, down to citations and section 1); a query word matches exactly (1), by a light English stem (0.75; `curly` finds `curl`, `color` finds `colour`) or as a prefix (0.5); a card's score is the sum of each word's best weight times quality, plus half a field's weight where the whole query sits side by side in it; order is words matched, then score, then listing order. Partial matches are listed below full ones and each hit names its matched fields. Status and confidence play no part; a test changes both and the ranking does not move. Outcome-template placeholders are not searched. **Privacy:** a query the scanner reads as a genotype is refused before the run is opened or the query echoed (`genotype-in-query`, exit 2); a test scans a pack search for every card's id, title, gene and rsIDs. **Schema version 3:** `cards.search`, `runs.search`, `search_field`, `card_face`; in `runs.search` saved faces are `results` and the query and ranking are under `current_context`. Error kinds stay literals in `genetics/cli` (`contract.search_query`), so the kind test still reads all of them. **Validation:** full native suite 4,183 passed, the existing nine skips, 842 s; 99 new tests; 24 guards removed in turn, 23 caught and the 24th (the side-by-side bonus) caught after its test was tightened; full card lint (119 cards, 594 renders, 65/65 keys), four strict type targets (253 files), ruff, format and fixtures pass. No personal export or saved real run was opened. See [the search contract](docs/agent_cli.md#search-m133). |
 | 2026-11-11 | M13.2 diff review | Reviewed `7a4c4c3..2c90a52`. **P2: version 1 refused two of `genetics run`'s error kinds.** Its `error.kind` pattern allowed no underscore, and `run` prints `run_parts` and `frequency_reference`; no test reached either failure. Fixed as **schema version 2**, which allows underscores, rather than by editing a pushed version 1. A new test reads every kind the CLI modules can return or pass to `refuse` and validates each; restoring version 1's pattern fails it on its own. **P2: one damaged run gave three kinds.** `hla calls` called a newer-format, damaged or unreadable run `hla`, and `pgx calls` called a disk failure `pgx`, while the new documentation said `version`, `integrity`, `io` and `bundle` came from any command that reads a run. `runs_cmd.error_kind` is now `contract.run_error_kind`, shared by `runs`, `pgx calls` and `hla calls` for a run that cannot be opened. **P3:** the README status line still said M13.1; `roh` has no `--json` flag although three documents said it printed failures as text under one; `adapters` and `pgx prepare` were missing from the untagged-command list. Five more guards were each removed in turn and each removal failed a test. **4,084 tests, nine existing skips** in 691 s; card lint, four type targets, ruff and fixtures pass. See [the review](docs/review_m132_session.md). |
 | 2026-11-11 | M13.2 | One JSON Schema document (draft 2020-12) for the agent commands' output, in the package beside `genetics/cli/contract.py`; `genetics schema` prints it whole or one payload at a time. Seven payloads: `runs.list`, `runs.show`, `runs.section`, `runs.card`, `runs.qc`, `cards.evidence`, `error`. Each document starts with `"schema": {"name", "version"}`; version 1. **Decisions, no owner question:** the document is hand-written and is the contract; one version covers all payloads; changes are additions and take the next version, as in the bundle. **The four things the M13.1 handoff left:** `run_id` is the directory name everywhere (`runs show --json`, `runs clinvar`, `runs secondary` and `runs imputation` printed the manifest's; `runs.show` keeps it as `recorded_run_id`). One error document through `contract.refuse` for every command that printed one (`pgx` and `pgs` printed a bare string); `pgx calls` and `hla calls` now give `not-found` for an unknown run, as `runs` does. Exit codes stated for the read commands (1 could not be done, 2 command line wrong), not changed. Saved record versus `current_context` is a rule the document's structure states. **How closely it describes:** closed key for key for everything the engine builds at read time and for the saved card's 26 keys and its uniform blocks, whose keys were checked against the format 1 writer in git history; named but open for records with their own `schema_version` (`computation.result`, `multi_marker`, `carrier`, `qc`, `clinvar`, `pgx`, `hla`). Both confidence locations are described; M13.4 still decides on one shape. **Found while doing it:** `ingest`, `refs`, `tools`, `paths` and `roh` print failures as text under `--json`, and `run`, `impute` and `serve` exit 2 for every failure. Recorded, not changed. `jsonschema` is a development dependency; the CLI never validates at run time. Sixteen guards were each removed in turn and each removal failed a test. **4,083 tests, nine existing skips** in 710 s; card lint (119 cards, 594 renders, 65/65 keys), mypy over 250 files, ruff and fixtures pass. None of the commands was run on the real imputed run. See [the agent schema](docs/agent_schema.md). |
 | 2026-11-10 | M13.1 diff review | Reviewed `441e498..015c41c`. **P2:** `runs card` text printed "Not scored" for computed, polygenic and guideline cards, under a header giving their tier: they save `confidence: null` and keep tier, inputs, ceilings and reason in `computation.reliability`, which the bundle reader already uses. The text now prints that block; a card with neither says "Not scored" with its status. JSON was right throughout. **P3:** stale "what remains" text in this item, the `runs` module docstring and the README (which said M0–M10); `runs show --json` help ignored `--section`. **P4:** the grid's `CardGroup.empty_reason` kept a second copy of the empty-section wording; citation links paired by index (now `zip(strict=True)`). Recorded for M13.2/M13.4: confidence inputs live in two places by card kind. **4,032 tests, nine existing skips** in 749 s; card lint, four type targets, ruff and fixtures pass. See [the review](docs/review_m131_session.md). |

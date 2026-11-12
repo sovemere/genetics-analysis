@@ -2,9 +2,9 @@
 
 ``agent_schema.json`` beside this module is the contract. It describes every document the
 agent read commands print (``runs list``, ``runs show``, ``runs show --section``, ``runs
-card``, ``runs qc``, ``cards evidence``) and the error document every ``--json`` command
-prints when it fails. ``genetics schema`` prints it, and ``docs/agent_schema.md`` states the
-rules around it.
+card``, ``runs qc``, ``runs search``, ``cards evidence``, ``cards search``) and the error
+document every ``--json`` command prints when it fails. ``genetics schema`` prints it, and
+``docs/agent_schema.md`` states the rules around it.
 
 **Every described document names itself.** :func:`tagged` puts
 ``"schema": {"name": ..., "version": ...}`` first, so a reader can tell a card from an error
@@ -26,13 +26,17 @@ from __future__ import annotations
 
 import copy
 import json
+from collections.abc import Sequence
 from functools import cache
 from pathlib import Path
-from typing import Any, Final, NoReturn
+from typing import TYPE_CHECKING, Any, Final, NoReturn
 
 import typer
 
-AGENT_SCHEMA_VERSION: Final[int] = 2
+if TYPE_CHECKING:
+    from genetics.engine.search import Query
+
+AGENT_SCHEMA_VERSION: Final[int] = 3
 """The version every tagged document carries. Bump it with any change to a described shape."""
 
 SCHEMA_PATH: Final[Path] = Path(__file__).with_name("agent_schema.json")
@@ -132,3 +136,20 @@ def refuse(kind: str, message: str, *, as_json: bool, code: int = 1) -> NoReturn
     else:
         typer.secho(message, fg=typer.colors.RED, err=True)
     raise typer.Exit(code=code)
+
+
+def search_query(words: Sequence[str], *, as_json: bool) -> Query:
+    """A search command's query, or a usage error (exit 2) before anything is read (M13.3).
+
+    Shared by ``cards search`` and ``runs search`` so both refuse the same queries under the
+    same kinds. The kinds are written out here, not carried on the exceptions, so the test
+    that reads every kind from this package's source finds them.
+    """
+    from genetics.engine import search
+
+    try:
+        return search.parse_query(" ".join(words))
+    except search.GenotypeQueryError as exc:
+        refuse("genotype-in-query", str(exc), as_json=as_json, code=2)
+    except search.EmptyQueryError as exc:
+        refuse("empty-query", str(exc), as_json=as_json, code=2)

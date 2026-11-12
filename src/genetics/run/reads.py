@@ -1,9 +1,10 @@
-"""Read-side views of one saved run: a card, a section, the QC record (roadmap M13.1).
+"""Read-side views of one saved run: a card, a section, the QC record, a search (roadmap
+M13.1, M13.3).
 
-The agent's read commands (``genetics runs card``, ``runs show --section``, ``runs qc``)
-build their JSON here rather than in the CLI module, so that the projection of a saved
-card exists once and ``runs show --json`` uses the same one. M13.5's parity test can call
-these functions directly.
+The agent's read commands (``genetics runs card``, ``runs show --section``, ``runs qc``,
+``runs search``) build their JSON here rather than in the CLI module, so that the projection
+of a saved card exists once and ``runs show --json`` uses the same one. M13.5's parity test
+can call these functions directly, and M14.4's dashboard search calls :func:`search_view`.
 
 **Frozen record and current context are kept apart.** Every payload carries the saved
 record under its own keys, and anything this engine adds at read time -- section titles,
@@ -21,8 +22,9 @@ The CLI tags each of these payloads with its name and schema version before prin
 :mod:`genetics.cli.contract`.
 
 Nothing here is scanned for genotypes. A card read states the reader's own call at its
-marker, as ``runs show`` does; see :mod:`genetics.cli.runs_cmd`. The QC view holds no
-genotype, and its command scans it.
+marker, as ``runs show`` does; see :mod:`genetics.cli.runs_cmd`. A search result carries each
+matched card's face, which states that call too. The QC view holds no genotype, and its
+command scans it.
 """
 
 from __future__ import annotations
@@ -32,6 +34,14 @@ from typing import Any
 
 from genetics.engine import sections
 from genetics.engine.citations import citation_url
+from genetics.engine.search import (
+    Document,
+    Query,
+    SearchField,
+    query_payload,
+    search,
+    section_text,
+)
 from genetics.engine.sections import Section
 from genetics.run.bundle import RunBundle, StoredCard
 
@@ -266,4 +276,103 @@ def qc_view(bundle: RunBundle) -> dict[str, Any]:
         "imputation": _plain(bundle.imputation),
         "imputation_provenance_status": None if provenance is None else provenance.get("status"),
         "provenance": dict(bundle.provenance),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Search (M13.3)
+# ---------------------------------------------------------------------------
+
+
+def _texts(*values: Any) -> list[str]:
+    """The non-empty strings among ``values``; anything another version wrote is skipped."""
+    return [value for value in values if isinstance(value, str) and value]
+
+
+def search_document(card: StoredCard) -> Document:
+    """A saved card's searchable text, read defensively like everything from a bundle.
+
+    What the run recorded and nothing else: the one face and detail it saved, not the
+    other outcomes the pack could have chosen. The section title is the one thing taken
+    from this engine, so that ``sleep`` finds a card saved under ``sleep_circadian``.
+    """
+    fields: list[tuple[SearchField, str]] = [
+        (SearchField.CARD_ID, card.card_id),
+        (SearchField.TITLE, card.title),
+        (SearchField.SECTION, section_text(card.section)),
+    ]
+
+    def add(field: SearchField, *values: Any) -> None:
+        fields.extend((field, text) for text in _texts(*values))
+
+    def get(record: Any, *path: str) -> Any:
+        for key in path:
+            if not isinstance(record, Mapping):
+                return None
+            record = record.get(key)
+        return record
+
+    add(SearchField.GENE, card.gene)
+    add(SearchField.VARIANT, get(card.variant, "rsid"))
+    markers = get(card.multi_marker, "markers")
+    if isinstance(markers, Sequence) and not isinstance(markers, str):
+        add(SearchField.VARIANT, *(get(marker, "variant", "rsid") for marker in markers))
+    authored = get(card.computation, "result", "authored")
+    add(SearchField.TRAIT, get(authored, "trait"), get(authored, "pgs_id"))
+    add(SearchField.CONDITION, get(card.carrier, "condition"), get(card.carrier, "variant"))
+    add(SearchField.SUMMARY, card.summary)
+    add(SearchField.DETAIL, card.detail, card.risk_context)
+    add(SearchField.IMPOSSIBILITY_REASON, card.impossibility_reason)
+    add(
+        SearchField.EVIDENCE,
+        get(card.evidence, "effect", "units"),
+        get(card.evidence, "effect", "context"),
+    )
+    add(
+        SearchField.CAVEATS,
+        *card.authored_caveats,
+        *card.computed_caveats,
+        get(card.carrier, "typed_scope"),
+    )
+    for citation in card.citations:
+        add(
+            SearchField.CITATIONS,
+            citation.get("title"),
+            citation.get("id"),
+            citation.get("database"),
+            citation.get("note"),
+        )
+    return Document(card.card_id, tuple(fields))
+
+
+def card_face(card: StoredCard) -> dict[str, Any]:
+    """What a saved card shows before it is opened: eight of :func:`card_payload`'s keys."""
+    return {
+        "card_id": card.card_id,
+        "section": card.section,
+        "kind": card.kind,
+        "title": card.title,
+        "gene": card.gene,
+        "status": card.status,
+        "confidence_tier": card.confidence_tier,
+        "summary": card.summary,
+    }
+
+
+def search_view(bundle: RunBundle, query: Query, limit: int | None = None) -> dict[str, Any]:
+    """The saved cards that match ``query``, best first (``genetics runs search``).
+
+    ``results`` is the saved record: each matched card's face, unchanged. The ranking is
+    this engine's, made now, so the query, the counts and each hit's score and matched
+    fields are under ``current_context``; ``hits[i]`` is about ``results[i]``. No card is
+    ranked or left out for its status or tier (AGENTS.md 0.1A).
+    """
+    by_id = {card.card_id: card for card in bundle.cards}
+    hits = search((search_document(card) for card in bundle.cards), query)
+    shown = hits if limit is None else hits[:limit]
+    return _header(bundle) | {
+        "results": [card_face(by_id[hit.card_id]) for hit in shown],
+        "current_context": {"context": "current"}
+        | query_payload(query, searched=len(bundle.cards), total=len(hits), limit=limit)
+        | {"hits": [hit.to_dict() for hit in shown]},
     }

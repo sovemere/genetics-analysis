@@ -1,9 +1,14 @@
-# Handoff: M13.3 card search
+# Handoff: M13.4 machine-readable confidence
 
-As of 2026-11-11, **M0-M12, M13.1 and M13.2 are implemented; M13.3 is next**. See
-[the M13.3 entry contract](#next-open-step-m133-card-search),
+As of 2026-11-12, **M0-M12 and M13.1-M13.3 are implemented; M13.4 is next**. See
+[the M13.4 entry contract](#next-open-step-m134-machine-readable-confidence),
+[the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
-[the M13.1 record](#accepted-m131-agent-read-commands). The
+[the M13.1 record](#accepted-m131-agent-read-commands).
+**M13.3 card search is implemented** as `genetics cards search <query>` (the knowledge pack,
+no genotype) and `genetics runs search <run> <query>` (one saved run's cards, with each
+one's result). Both rank with `genetics.engine.search.search`, and the agent schema is now
+version 3. See [the search contract](agent_cli.md#search-m133). The
 [M13.2 session review](review_m132_session.md) moved the schema to version 2, because version 1
 refused two error kinds `genetics run` prints, and made `pgx calls` and `hla calls` give the
 same kind as `runs` for a run that cannot be opened. Full-reference
@@ -523,9 +528,125 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m134-machine-readable-confidence"></a>
+
+## Next open step: M13.4 machine-readable confidence
+
+M13.4 is the tier plus the numeric inputs that produced it, so that an agent can explain why
+a card is low confidence. Nothing has been selected or verified beyond what is listed here.
+
+What already exists:
+
+- **The inputs are saved beside the tier (M4.1), in two places by card kind.**
+  Interpretation and HLA cards save `confidence`: the tier, the score and six scored inputs,
+  each with the value that was scored, and the empirical PPV where one applies. Computed,
+  polygenic and guideline cards save `confidence: null` and keep tier, score, inputs,
+  ceilings and reason in `computation.reliability`, whose inputs differ by source.
+  `confidence_tier` on the card is the tier from whichever applies.
+- **The schema describes both as they are** (`confidence` closed key for key,
+  `computation.reliability` open), and `runs card` text prints both (the
+  [M13.1 review](review_m131_session.md)).
+
+What is open:
+
+- **One shape or two.** Whether an agent reads one block whatever the card's kind, and if so
+  where it goes. The saved card is frozen, so a block this engine builds at read time
+  belongs under `current_context`.
+- **Whether the values are enough.** "Why is this card low confidence" needs to know which
+  input or ceiling decided the tier. The six scores are saved; what limited the tier is not
+  stated as such for interpretation cards. `computation.reliability.reason` states it in a
+  sentence for the others.
+- **A card with no tier.** A card with no finding has `confidence_tier: null` and a status.
+  Whether "why" covers those.
+
+What M13.3 hands over:
+
+- **The schema is version 3, with nine payloads.** A new key or payload takes version 4:
+  bump `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to
+  `SHAPE_DIGESTS`, and add a line to the version history in
+  [the agent schema](agent_schema.md).
+- **Search does not weigh confidence.** `runs search` returns each card's saved
+  `confidence_tier` in `results` and ranks by the query alone. M13.4 should not change that:
+  a tier is a label, not a filter or a rank (AGENTS.md 0.1A).
+- **An error kind is a literal in a CLI module.** The kind test reads kinds from the source
+  of `genetics/cli`, so a kind carried on an exception or built at run time would escape it.
+  `contract.search_query` writes its two kinds out for that reason.
+
+What M13.2 left, for whichever later item needs it:
+
+- **Exit codes outside the read commands.** `run`, `impute` and `serve` exit 2 for every
+  failure, not only usage errors.
+- **Failures printed as text under `--json`.** `ingest`, `refs`, `tools` and `paths`. `roh`
+  has no `--json` flag; it prints its result as JSON and a failure as text.
+- **Commands with no tag.** `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`
+  and `hla calls` print saved records that the schema does not describe. M13.5's parity test
+  will list what an agent can reach, and is the place to decide which need describing.
+
+What M13.3 left:
+
+- **The dashboard has no search yet.** M14.4 should call `reads.search_view`, which is what
+  `runs search` prints, so that M13.5's parity test can compare them.
+- **Guideline recommendation rows and saved score records are not searched.** A guideline
+  card is found by its gene, title and citation titles. A drug named only in its saved CPIC
+  rows is not a search term for the card.
+- **The stemmer is a short English suffix list.** `obese` does not find `obesity`. Each hit
+  says which fields matched, so a miss is visible as a miss and not as a wrong card.
+- **A genotype in a query is whatever `genetics.privacy` recognises.** An rsID followed by
+  two bare alleles, with no chromosome, position, colon or equals sign, is not one of its
+  shapes. M13.7 owns the outbound-query lint.
+
+<a id="accepted-m133-card-search"></a>
+
+## Accepted M13.3 card search
+
+Implemented on 2026-11-12 under [the search contract](agent_cli.md#search-m133). No owner
+question was asked: each of the entry contract's three open points follows something
+already settled, and that page lists them.
+
+- **Two commands, one ranking.** `genetics cards search <query>` searches the knowledge pack
+  and `genetics runs search <run> <query>` searches one saved run's cards. Both call
+  `genetics.engine.search.search` over plain `Document` records, which is the function
+  M14.4's dashboard search must call.
+- **Not a top-level `genetics search`.** The roadmap wrote it that way. M13.1 put pack reads
+  under `cards` and run reads under `runs` and declined top-level aliases, and the two
+  searches differ in privacy: the pack search holds no genotype and is scanned on both
+  branches; the run search carries each card's saved summary and is not, like `runs show`.
+- **The ranking is stated and deterministic.** Fourteen fields with fixed weights; a query
+  word matches exactly, by stem or as a prefix; cards are ordered by words matched, then
+  score, then listing order. Each hit lists the fields that matched. No index, no new
+  dependency.
+- **Partial matches are ranked, not hidden, and confidence plays no part.** A test changes a
+  card's status and tier and checks that the ranking does not move.
+- **A query that reads as a genotype is refused** before anything is read or echoed, with
+  kind `genotype-in-query`, by both commands (AGENTS.md 1.3).
+- **Schema version 3.** Two payloads, `cards.search` and `runs.search`, the `search_field`
+  vocabulary and `card_face`. No existing payload changed. In `runs.search` the saved faces
+  are under `results` and the query and ranking under `current_context`.
+
+Changed for a caller: every tagged document now says `"version": 3`. No bundle format,
+knowledge schema, card or saved-file type changed. No personal export or saved real run was
+opened; all checks used synthetic runs and the committed pack.
+
+Validation on 2026-11-12, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **4,183 tests with nine skips** in 842 s: the five
+existing Windows skips and the four published-classifier HIBAG tests. Nothing but
+documentation changed between that run and the commit. An earlier run was stopped at about
+30% (no failures by then) so that the guard checks could run on a quiet tree. The 99 new
+tests are 58 in `tests/engine/test_search.py`, 36 in `tests/test_cli_search.py` and five in
+`tests/test_agent_schema.py`. Twenty-four guards were each removed in turn. Twenty-three
+removals failed a test. The twenty-fourth, the side-by-side bonus set to zero, passed,
+because its test compared the score with the constant itself; the test now also checks the
+order, and a new test pins the weights and qualities the documentation states. Full dbSNP
+card lint (119 cards, 594 renders, 65/65 keys), strict mypy on all four Windows/Linux x
+Python 3.11/3.13 targets (253 files), ruff, format and the fixture check pass.
+
+**Saved runs repeat their deep checks once.** This change edits Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
 <a id="next-open-step-m133-card-search"></a>
 
-## Next open step: M13.3 card search
+## M13.3 entry contract (implemented; retained for review)
 
 M13.3 is `genetics search <query>` across cards, so that an agent can find "curly hair"
 without knowing the card id. Nothing has been selected or verified beyond what is listed here.

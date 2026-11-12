@@ -183,3 +183,33 @@ def frequency_lines(
     if used is not None:
         lines.append(f"{indent}used for confidence: {one(used)}")
     return lines or [f"{indent}None recorded."]
+
+
+def search_heading(view: Mapping[str, Any], searched: str) -> str:
+    """One line saying what was asked, what was searched for and how much came back (M13.3).
+
+    ``view`` is the query block both search payloads share. Dropped words and a ``--limit``
+    are stated here, so neither narrows the result unseen.
+    """
+    total, shown = view["total"], len(view["hits"])
+    count = "No card" if total == 0 else f"{total} of {view['searched']} card(s)"
+    verb = "matches" if total <= 1 else "match"
+    line = f"{count} in {searched} {verb} {view['query']!r} (terms: {', '.join(view['terms'])}"
+    if view["ignored"]:
+        line += f"; ignored: {', '.join(view['ignored'])}"
+    line += ")."
+    if total == 0:
+        line += f" {view['searched']} card(s) searched."
+    if shown < total:
+        line += f" Showing the best {shown}."
+    return line
+
+
+def search_hit_lines(
+    hit: Mapping[str, Any], term_count: int, *, indent: str = "      "
+) -> list[str]:
+    """Why a card matched: how many terms, the score, and each field with its terms."""
+    where = "; ".join(f"{match['field']}: {', '.join(match['terms'])}" for match in hit["matched"])
+    return [
+        f"{indent}{hit['terms_matched']} of {term_count} term(s), score {hit['score']:g}; {where}"
+    ]

@@ -284,11 +284,15 @@ these, and do not accept a card proposal that depends on one.
 
 The CLI is the contract. `genetics run --input X`, `genetics runs list`,
 `genetics runs show <run> --section physical_health`, `genetics runs card <run> <card-id>
---json`, `genetics runs qc <run>` and `genetics cards evidence <card-id>` cover the workflow:
+--json`, `genetics runs qc <run>`, `genetics cards evidence <card-id>` and
+`genetics cards search <query>` cover the workflow:
 *"review this run, look at the curly hair card, check the cited papers, search the web, give
 me ten facts."* Card JSON must include the citations so the agent can verify rather than
 confabulate. Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence`
 reads the knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
+`cards search` finds a card id from a phrase such as "curly hair", also from the pack alone;
+`genetics runs search <run> <query>` searches one saved run and returns each card's result.
+Both refuse a query that reads as a genotype: search for the variant, never a call at it.
 What each command is for: [docs/agent_cli.md](docs/agent_cli.md). Their JSON is described by a
 versioned JSON Schema that `genetics schema` prints. Each document starts with a `schema` tag
 naming its payload and version, and a failure under `--json` is one error document with a

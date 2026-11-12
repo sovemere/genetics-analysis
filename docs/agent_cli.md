@@ -1,8 +1,9 @@
-# Agent read commands (M13.1)
+# Agent read commands (M13.1, M13.3)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
-`runs show --json` prints about 1 GB.
+`runs show --json` prints about 1 GB. M13.3 (2026-11-12) added two search commands, so an
+agent can find a card without knowing its id.
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -10,8 +11,11 @@ record, or a card's evidence without printing a whole bundle. On the real impute
 | `genetics runs card <run> <card-id> [--json]` | saved run | yes | no |
 | `genetics runs qc <run> [--json]` | saved run | no | both branches |
 | `genetics cards evidence <card-id> [--json]` | knowledge pack | no | both branches |
+| `genetics cards search <query> [--limit N] [--json]` (M13.3) | knowledge pack | no | both branches |
+| `genetics runs search <run> <query> [--limit N] [--json]` (M13.3) | saved run | yes | no |
 
 `genetics runs list` (M4.2) and `genetics refs licenses` (M2.6) are the rest of M13.1's list.
+The two search commands are described under [Search](#search-m133).
 
 Since M13.2 these payloads, `runs list --json` and `runs show --json` are described by a
 versioned JSON Schema, and each begins with a `schema` tag naming its payload and version.
@@ -125,7 +129,179 @@ Outcome text is left out. It is a template with the reader's genotype still to b
 and `runs card` prints it filled in. A test runs the privacy scanner over the JSON and text
 of every card in the pack, so the runtime check cannot refuse correct output.
 
+## Search (M13.3)
+
+Implemented 2026-11-12. An agent asked about "curly hair" does not know the card is called
+`wnt10a_hair_curl`. Two commands find it, and both rank with one function,
+`genetics.engine.search.search`:
+
+```text
+genetics cards search curly hair            the knowledge pack; no run, no genotype
+genetics runs search <run> curly hair       one saved run's cards, with each one's result
+```
+
+The query is every word after the command (and after the run id), quoted or not.
+`--limit N` shows the best N and still states the total.
+
+### Which one to use
+
+- **`cards search` to find a card id.** It reads the pack only, so it works with no saved
+  run, and its output is checked for genotypes on both branches. Follow it with
+  `cards evidence <card-id>`, or `runs card <run> <card-id>` for the result.
+- **`runs search` to find a result in one run.** It searches what that run saved: the
+  summary and detail it recorded, not the pack's other outcomes, and the cards that run
+  holds, which may differ from today's pack. Each hit carries the card's saved face, so the
+  output states the reader's result and is not scanned, like `runs show`.
+
+### What is searched
+
+| Field | `cards search` | `runs search` | Weight |
+|---|---|---|---|
+| `title` | the card's title | the saved title | 5 |
+| `gene` | the gene symbol | the saved symbol | 5 |
+| `variant` | every rsID the card reads | the saved marker's rsID, and each marker of a multi-marker card | 5 |
+| `card_id` | the id, split at underscores | the same | 4 |
+| `trait` | a polygenic card's trait and PGS id | the same, from the saved score record when the score ran | 4 |
+| `condition` | a carrier card's condition and allele name | the same, from the saved declaration | 4 |
+| `hla` | the HLA alleles an HLA card reads | not a separate field; the saved title and text are searched | 4 |
+| `summary` | every outcome's face, placeholders removed | the one face the run saved | 3 |
+| `impossibility_reason` | why the assay cannot determine it | the same | 3 |
+| `detail` | every outcome's detail and risk context | the saved detail and risk context | 2 |
+| `evidence` | the effect's units and context sentence | the same | 2 |
+| `caveats` | authored caveats and the carrier scope | authored and computed caveats, and the carrier scope | 1.5 |
+| `citations` | titles, identifiers, databases, notes | the same | 1 |
+| `section` | the section's name and title | the same | 1 |
+
+Nothing under a saved card's `computation.result` is searched apart from a score's trait and
+id. A guideline card is found by its gene, title and citation titles; the drugs in its saved
+recommendation rows are read with `pgx calls`.
+
+### How a card is ranked
+
+- **Words.** Text is lowercased and split into runs of letters and digits, so
+  `wnt10a_hair_curl` is three words and `HLA-B*57:01` is four.
+- **A query word matches a card's word in one of three ways:** exactly (quality 1); by a
+  shared stem (0.75), so `curly` finds `curl` and `curlier`, and `color` finds `colour`; or
+  as the start of a longer word (0.5), for words of three characters or more that are not
+  bare numbers. Identifiers are never stemmed: `rs7349332` and `WNT10A` match exactly or as a
+  prefix.
+- **Score.** Each query word scores its best weight times quality over all fields, and a
+  card's score is the sum. If every word of the query appears side by side and in order
+  within one field, half that field's weight is added. A score orders the hits of one search
+  and means nothing across searches.
+- **Order.** By how many of the query's words the card matched, then by score, then by the
+  order the pack or the run lists its cards.
+- **Partial matches are listed.** A card matching one word of two appears below every card
+  matching both, with `terms_matched` saying so. Nothing is hidden (AGENTS.md §0.1A).
+- **Confidence, status and result play no part.** A likely-artifact card, a card with no
+  finding and an assay-limit card are found and ranked like any other. A test changes a
+  card's status and tier and checks that the ranking does not move.
+- **Common words are dropped** (36 of them, such as `of`, `the`, `my` and `is`) and listed
+  as `ignored`. A query of only common words is searched as given. `a` and `i` are among
+  them, so `HLA-A` matches on `hla` alone; search the allele (`A*31:01`) or the drug.
+
+Every hit says where it matched: `matched` lists each field with the query words found in
+it. The stemmer is a short suffix list for English (`engine/search.py`). A wrong stem costs
+a match at quality 0.75; it cannot change what a card says.
+
+### A query is never a genotype
+
+A query that the privacy scanner reads as a genotype (an rsID with a call attached, or an
+export row) is refused before anything is searched, with `error.kind: genotype-in-query` and
+exit 2. The message does not repeat the query. Search for the variant, gene or trait
+(AGENTS.md §1.3). Both commands refuse it, so that the habit is the same in each. The scanner
+knows the shapes listed in `genetics/privacy.py`; M13.7 owns anything beyond them.
+
+### `cards search`
+
+```text
+query               the query as given
+terms               the words searched for, in order
+ignored             common words dropped
+searched            cards in the pack
+total               cards that matched at least one term
+limit               the --limit given, or null
+hits[]              {card_id, section, kind, title, gene, score, terms_matched,
+                     matched: [{field, terms}]}
+```
+
+No match is an answer, not an error: `hits` is empty and the exit code is 0.
+
+### `runs search`
+
+```text
+run_id, path, format_version, created_at
+results[]           each matched card's saved face, best first:
+                    {card_id, section, kind, title, gene, status, confidence_tier, summary}
+current_context
+  context           "current"
+  query, terms, ignored, searched, total, limit      as in cards search
+  hits[]            {card_id, score, terms_matched, matched}; hits[i] is about results[i]
+```
+
+The saved faces and the ranking are kept apart, as in every run-scoped payload: `results` is
+what the run recorded, and the ranking is made by this engine when it reads the run, so it is
+under `current_context`. `runs card` does the same with `card.citations` and
+`current_context.citation_links`.
+
+The text form prints each card's tier (or its status, where it has no tier), section, id and
+title, as `runs show` does, then its saved summary and why it matched.
+
+### Errors
+
+| Kind | Exit | Means |
+|---|---|---|
+| `empty-query` | 2 | The query has no letter or digit |
+| `genotype-in-query` | 2 | The query reads as a genotype; it was not searched or repeated |
+| `knowledge` | 1 | `cards search`: the pack could not be loaded |
+| `not-found`, `version`, `integrity`, `io`, `bundle` | 1 | `runs search`: the run could not be opened, as for every other read |
+
+The query is checked before the run is opened. A command line with no query at all is
+rejected by Typer: exit 2, a usage message on stderr and nothing on stdout.
+
+### Decisions
+
+No owner question was asked. The M13.3 entry contract listed three open points, and each
+follows something already settled:
+
+- **Both the pack and a saved run are searched, by separate commands.** The roadmap's use
+  ("find 'curly hair' without knowing the card id") needs only the pack, and a pack search is
+  the one that can be scanned. M14.4's dashboard search is over one run's cards, and AGENTS.md
+  §3 requires it to call the function the CLI calls, so the run search has to exist first.
+- **`cards search` and `runs search`, not a top-level `genetics search`.** M13.1 put pack
+  reads under `cards` and run reads under `runs` and declined top-level aliases. A top-level
+  command would also have to choose between two payloads with different privacy.
+- **A stated, deterministic ranking with no index and no dependency.** The pack holds 119
+  cards and a run about as many, so every search reads all of them. Field weights, three match
+  qualities and term coverage are enough to put the card a phrase names first, and an agent
+  can explain a hit from `matched`.
+
+### For M14.4
+
+The dashboard's search should call `genetics.run.reads.search_view(bundle, query, limit)`,
+which is what `runs search` prints, and `genetics.engine.search.parse_query` for the query.
+M13.5's parity test can then compare the two directly.
+
 ## Validation
+
+`tests/engine/test_search.py` tests the ranking on invented documents, one rule at a time,
+then searches the committed pack for every card's own id, title, gene, rsIDs, PGS id and
+carrier condition. `tests/test_cli_search.py` tests both commands: payloads, text, limits,
+errors, the saved-versus-current split, a bundle with odd nested shapes, and both commands
+through a cp1252 pipe. A privacy test runs the scanner over the JSON and text of a pack search
+for every card's id, title, gene and rsIDs, and for each rsID followed by its alleles, so the
+runtime check cannot refuse correct output.
+
+Twenty-four guards were each removed in turn: both scans, both query refusals, the dropped
+words, each ordering rule, each match quality, the placeholder stripping, both totals, the
+saved summary, the split between `results` and `hits`, the query check before the run is
+opened, the exit code, the tag and two edits to the schema under version 3. Twenty-three
+removals failed a test. Setting the side-by-side bonus to zero did not, because its test
+compared the score with the constant itself. That test now checks the order too, and another
+pins the weights and qualities in the table above. The full native suite passes 4,183 tests
+with the existing nine skips.
+
+Neither search command has been run on the real imputed run.
 
 `tests/test_cli_agent_reads.py` builds a saved run from six committed cards matched against an
 invented table and checks each command's shape, ordering, pointers, errors and reasons. It
@@ -145,7 +321,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
 
 - **M13.2** (done 2026-11-11) versions and documents these shapes as
   [the agent schema](agent_schema.md).
-- **M13.3** `genetics search <query>`.
+- **M13.3** (done 2026-11-12) is `cards search` and `runs search`, described under
+  [Search](#search-m133).
 - **M13.4** is largely present, in the two places described under `runs card`. M13.4
   decides whether an agent should see one shape for both, and whether the components need
   explaining beyond their values.
