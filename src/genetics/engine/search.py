@@ -17,8 +17,8 @@ why a card came back:
   not a bare number).
 * Each field has a weight (:data:`WEIGHTS`). A query word scores its best weight times
   quality over all fields, and a card's score is the sum over the query's words. Where
-  every word of the query appears side by side and in order within one field, half that
-  field's weight is added.
+  the whole query, as typed, appears side by side and in order within one field, half
+  that field's weight is added.
 * Cards are ordered by how many of the query's words they match, then by score, then by
   the order they were given in. A card that matches one word of two is still listed, below
   every card that matches both: partial matches are ranked, not hidden (AGENTS.md 0.1A).
@@ -141,8 +141,14 @@ def stem(word: str) -> str:
     ``-ier``/``-iest``, a final ``e`` or ``y`` after a consonant, and British ``-our``
     (``colour`` and ``color`` share a stem). Words under four letters, and anything holding a
     digit or a non-ASCII letter, are left alone: ``rs7349332``, ``WNT10A`` and ``ALDH2``
-    match exactly or not at all. A stem is not a word and is never shown; it only has to be
-    the same on both sides. A wrong stem costs a match at quality 0.75, never a wrong claim.
+    match exactly or as a prefix, never by stem. A stem is not a word and is never shown; it
+    only has to be the same on both sides. A wrong stem costs a match at quality 0.75, never
+    a wrong claim.
+
+    No rule leaves a stem under four letters, except a plural's. The final ``e`` or ``y``
+    comes off only a word of five letters or more: the first version took it off four, so
+    ``note`` became ``not`` and a search for it listed 109 of the pack's 119 cards (found in
+    the M13.3 review, with ``none``/``non``, ``rate``/``rat`` and ``site``/``sit``).
     """
     if len(word) < 4 or not word.isascii() or not word.isalpha():
         return word
@@ -169,7 +175,7 @@ def stem(word: str) -> str:
             break
     if len(word) >= 5 and word.endswith("our"):
         word = word[:-3] + "or"
-    if len(word) >= 4 and word[-1] in "ey" and word[-2] not in _VOWELS:
+    if len(word) >= 5 and word[-1] in "ey" and word[-2] not in _VOWELS:
         word = word[:-1]
     return word
 
@@ -181,6 +187,10 @@ class Query:
     text: str
     terms: tuple[str, ...]
     ignored: tuple[str, ...]
+    words: tuple[str, ...]
+    """Every word of the query in the order typed, repeats and dropped words included. Only
+    the side-by-side bonus reads it: ``risk of heart disease`` is that phrase, not ``risk
+    heart disease``."""
 
 
 def parse_query(text: str) -> Query:
@@ -196,7 +206,8 @@ def parse_query(text: str) -> Query:
             "the variant, gene or trait on its own (an rsID, a gene symbol, a phrase), never "
             "for a call at it (AGENTS.md 1.3)."
         )
-    words = list(dict.fromkeys(tokenize(text)))
+    typed = tuple(tokenize(text))
+    words = list(dict.fromkeys(typed))
     if not words:
         raise EmptyQueryError(
             "The query has no letter or digit to search for. Give a trait, gene, rsID or "
@@ -204,11 +215,12 @@ def parse_query(text: str) -> Query:
         )
     terms = tuple(word for word in words if word not in STOPWORDS)
     if not terms:
-        return Query(text=text, terms=tuple(words), ignored=())
+        return Query(text=text, terms=tuple(words), ignored=(), words=typed)
     return Query(
         text=text,
         terms=terms,
         ignored=tuple(word for word in words if word in STOPWORDS),
+        words=typed,
     )
 
 
@@ -272,6 +284,9 @@ def _has_run(stems: Sequence[str], wanted: Sequence[str]) -> bool:
 
 def _score(document: Document, query: Query) -> Hit | None:
     term_stems = tuple(stem(term) for term in query.terms)
+    # The phrase is the query as typed. Matching only the searched terms would deny the
+    # bonus to text that says "risk of heart disease" when that is what was asked.
+    phrase_stems = tuple(stem(word) for word in query.words) if len(query.terms) > 1 else ()
     best: dict[str, float] = {}
     found: dict[SearchField, set[str]] = {}
     phrase = 0.0
@@ -287,7 +302,7 @@ def _score(document: Document, query: Query) -> Hit | None:
             if quality:
                 best[term] = max(best.get(term, 0.0), weight * quality)
                 found.setdefault(field, set()).add(term)
-        if len(term_stems) > 1 and _has_run(passage_stems, term_stems):
+        if phrase_stems and _has_run(passage_stems, phrase_stems):
             phrase = max(phrase, PHRASE_BONUS * weight)
     if not best:
         return None

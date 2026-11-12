@@ -691,7 +691,7 @@
     "search_score": {
       "type": "number",
       "exclusiveMinimum": 0,
-      "description": "Field weight times match quality, summed over the terms. It orders the hits of one search and means nothing across searches. docs/agent_cli.md gives the weights."
+      "description": "Field weight times match quality, summed over the terms, plus half a field's weight where the whole query appears side by side in it. It orders the hits of one search and means nothing across searches. docs/agent_cli.md gives the weights."
     },
     "search_terms_matched": {
       "type": "integer",

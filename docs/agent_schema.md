@@ -263,6 +263,10 @@ card; `card_face` as eight keys of the saved card with the saved card's own defi
 and the two query kinds. Editing the document under version 3 without a new digest fails the
 digest test. The full native suite passes 4,183 tests with the same nine skips.
 
+The [M13.3 session review](review_m133_session.md) added the side-by-side bonus to the
+description of `search_score`. That is wording, so the document is still version 3 and its
+digest is unchanged. The suite passes 4,191 tests after the review.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 

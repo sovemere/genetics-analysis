@@ -79,6 +79,32 @@ def test_distinct_words_keep_distinct_stems() -> None:
     assert stem("seed") == "seed" and stem("ring") == "ring" and stem("status") == "status"
 
 
+@pytest.mark.parametrize(
+    ("word", "other"),
+    [("note", "not"), ("none", "non"), ("rate", "rat"), ("site", "sit"), ("case", "cas")],
+)
+def test_a_four_letter_word_keeps_its_last_letter(word: str, other: str) -> None:
+    """Review, 2026-11-12: ``note`` stemmed to ``not`` and matched nearly every card."""
+    assert stem(word) == word != stem(other)
+    assert stem(word + "s") == word
+    documents = [_doc("card", summary=f"This is {other} about that.")]
+    assert _ids(documents, word) == []
+
+
+def test_a_search_for_note_does_not_list_every_card_that_says_not(pack: KnowledgePack) -> None:
+    documents = [engine.pack_document(card) for card in pack.cards]
+    note = search(documents, parse_query("note"))
+    negated = search(documents, parse_query("not"))
+    assert len(negated) > len(pack.cards) // 2
+    assert 0 < len(note) < len(negated) // 4
+    for hit in note:
+        document = next(d for d in documents if d.card_id == hit.card_id)
+        words = {word for _, text in document.fields for word in tokenize(text)}
+        assert words & {"note", "notes", "noted", "noting"} or any(
+            word.startswith("note") for word in words
+        ), hit.card_id
+
+
 # ---------------------------------------------------------------------------
 # Queries
 # ---------------------------------------------------------------------------
@@ -89,6 +115,8 @@ def test_a_query_is_split_once_per_word_and_common_words_are_reported() -> None:
     assert query.text == "Risk of the HEART disease, heart"
     assert query.terms == ("risk", "heart", "disease")
     assert query.ignored == ("of", "the")
+    # The words as typed, repeats and dropped words included, for the side-by-side bonus.
+    assert query.words == ("risk", "of", "the", "heart", "disease", "heart")
 
 
 def test_a_query_of_only_common_words_is_searched_as_given() -> None:
@@ -197,6 +225,26 @@ def test_terms_side_by_side_and_in_order_score_a_bonus() -> None:
     # A phrase does not run across two passages of one field.
     split = Document("split", ((SearchField.CAVEATS, "blood"), (SearchField.CAVEATS, "pressure")))
     assert search([split], parse_query("blood pressure"))[0].score == 2 * 1.5
+
+
+def test_the_side_by_side_bonus_is_for_the_query_as_typed() -> None:
+    """Review, 2026-11-12: dropped words were left out of the phrase, so text saying exactly
+    what was asked earned nothing and text missing a word could."""
+    documents = [
+        _doc("as-asked", summary="the risk of heart disease in adults"),
+        _doc("without", summary="risk heart disease"),
+        _doc("apart", summary="heart risk and disease"),
+    ]
+    query = parse_query("risk of heart disease")
+    assert query.terms == ("risk", "heart", "disease") and query.ignored == ("of",)
+    hits = {hit.card_id: hit.score for hit in search(documents, query)}
+    weight = engine.WEIGHTS[SearchField.SUMMARY]
+    assert hits["as-asked"] == 3 * weight + engine.PHRASE_BONUS * weight
+    assert hits["without"] == hits["apart"] == 3 * weight
+    assert _ids(documents, "risk of heart disease")[0] == "as-asked"
+    # One searched term is not a phrase, whatever common words came with it.
+    (alone,) = search([_doc("card", summary="the earwax")], parse_query("the earwax"))
+    assert alone.score == weight
 
 
 def test_ties_keep_the_order_the_cards_came_in() -> None:

@@ -154,6 +154,18 @@ def test_words_may_be_given_quoted_or_one_by_one() -> None:
     assert _text(["cards", "search", "curly hair"]) == _text(["cards", "search", "curly", "hair"])
 
 
+def test_a_query_word_that_starts_with_a_hyphen_goes_after_a_double_dash() -> None:
+    """``-163C>A`` is a marker's name. Alone it reads as an option; ``--`` ends the options."""
+    refused = runner.invoke(app, ["cards", "search", "-163C>A", "--json"])
+    assert refused.exit_code == 2 and refused.stdout == ""
+    payload = _json(["cards", "search", "--json", "--", "-163C>A"])
+    assert payload["query"] == "-163C>A" and payload["terms"] == ["163c"]
+    assert payload["hits"][0]["card_id"] == "cyp1a2_rs762551_caffeine"
+    # Inside a longer quoted query it needs nothing.
+    quoted = _json(["cards", "search", "CYP1A2 -163C>A", "--json"])
+    assert quoted["hits"][0]["card_id"] == "cyp1a2_rs762551_caffeine"
+
+
 def test_the_pack_search_text_says_what_matched_and_where() -> None:
     text = _text(["cards", "search", "curly hair"])
     first, second, third = text.splitlines()[:3]

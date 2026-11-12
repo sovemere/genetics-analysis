@@ -9,6 +9,9 @@ As of 2026-11-12, **M0-M12 and M13.1-M13.3 are implemented; M13.4 is next**. See
 no genotype) and `genetics runs search <run> <query>` (one saved run's cards, with each
 one's result). Both rank with `genetics.engine.search.search`, and the agent schema is now
 version 3. See [the search contract](agent_cli.md#search-m133). The
+[M13.3 session review](review_m133_session.md) fixed a stemming rule that made
+`cards search note` list 109 of 119 cards, and made the side-by-side bonus read the query
+as typed. The
 [M13.2 session review](review_m132_session.md) moved the schema to version 2, because version 1
 refused two error kinds `genetics run` prints, and made `pgx calls` and `hla calls` give the
 same kind as `runs` for a run that cannot be opened. Full-reference
@@ -589,8 +592,15 @@ What M13.3 left:
 - **Guideline recommendation rows and saved score records are not searched.** A guideline
   card is found by its gene, title and citation titles. A drug named only in its saved CPIC
   rows is not a search term for the card.
-- **The stemmer is a short English suffix list.** `obese` does not find `obesity`. Each hit
+- **The stemmer is a short English suffix list.** `depressed` does not find `depression`,
+  and it joins a few unrelated words (`even` and `evening`, `ever` and `every`). Each hit
   says which fields matched, so a miss is visible as a miss and not as a wrong card.
+- **A hit does not say how each word matched.** `matched` names fields and words, not the
+  quality (exact, stem or prefix) or whether the side-by-side bonus applied.
+- **A failed tool download can fail CI.** The first CI run on `a8b80d1` failed two of four
+  jobs because the bref3 download returned HTTP 502; re-running them passed. On the
+  Windows job the install step did not stop the job, and the failure showed up eight
+  minutes later as failing tests. `ci.yml` was not changed.
 - **A genotype in a query is whatever `genetics.privacy` recognises.** An rsID followed by
   two bare alleles, with no chromosome, position, colon or equals sign, is not one of its
   shapes. M13.7 owns the outbound-query lint.
@@ -643,6 +653,19 @@ Python 3.11/3.13 targets (253 files), ruff, format and the fixture check pass.
 **Saved runs repeat their deep checks once.** This change edits Python source, so the first
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
 Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
+The [session diff review](review_m133_session.md) (`96760e0..a8b80d1`) found two defects in
+the ranking. The stemmer took a final `e` or `y` off four-letter words, so `note` became
+`not` and `cards search note` listed 109 of 119 cards; it now needs five letters, and the
+same search lists 3. The side-by-side bonus compared only the searched terms, so text
+saying "risk of heart disease" earned nothing for that query; it now compares the query as
+typed. The review also documented `--` for a query word that starts with a hyphen,
+corrected four statements in the docs and one docstring, and added the bonus to the
+schema's description of `score` (wording only, still version 3). The full native suite
+passes **4,191 tests with the same nine skips** in 748 s, with nothing but documentation
+changed between that run and the commit. All 27 guards, three of them new, fail a test
+when removed. Full card lint (119 cards, 594 renders, 65/65 keys), the four strict type
+targets (253 files), ruff, format and the fixture check pass.
 
 <a id="next-open-step-m133-card-search"></a>
 

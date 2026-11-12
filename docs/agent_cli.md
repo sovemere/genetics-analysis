@@ -141,7 +141,9 @@ genetics runs search <run> curly hair       one saved run's cards, with each one
 ```
 
 The query is every word after the command (and after the run id), quoted or not.
-`--limit N` shows the best N and still states the total.
+`--limit N` shows the best N and still states the total. A query word that begins with a
+hyphen reads as an option, so put `--` before the query: `genetics cards search -- -163C>A`.
+Inside a longer quoted query it needs nothing.
 
 ### Which one to use
 
@@ -186,9 +188,10 @@ recommendation rows are read with `pgx calls`.
   bare numbers. Identifiers are never stemmed: `rs7349332` and `WNT10A` match exactly or as a
   prefix.
 - **Score.** Each query word scores its best weight times quality over all fields, and a
-  card's score is the sum. If every word of the query appears side by side and in order
-  within one field, half that field's weight is added. A score orders the hits of one search
-  and means nothing across searches.
+  card's score is the sum. If the whole query, as typed, appears side by side and in order
+  within one field, half that field's weight is added. Dropped common words count there:
+  `risk of heart disease` earns it from text that says exactly that. A score orders the hits
+  of one search and means nothing across searches.
 - **Order.** By how many of the query's words the card matched, then by score, then by the
   order the pack or the run lists its cards.
 - **Partial matches are listed.** A card matching one word of two appears below every card
@@ -201,8 +204,16 @@ recommendation rows are read with `pgx calls`.
   them, so `HLA-A` matches on `hla` alone; search the allele (`A*31:01`) or the drug.
 
 Every hit says where it matched: `matched` lists each field with the query words found in
-it. The stemmer is a short suffix list for English (`engine/search.py`). A wrong stem costs
-a match at quality 0.75; it cannot change what a card says.
+it. It does not say which of the three qualities each word matched at, or whether the
+side-by-side bonus applied.
+
+The stemmer is a short suffix list for English (`engine/search.py`). A wrong stem costs a
+match at quality 0.75; it cannot change what a card says. Two limits to know:
+
+- **It misses some forms.** There is no rule for `-ion`, `-ic` or `-ive`, so `depressed` does
+  not find `depression`. The shorter form does: `depress` matches as a prefix.
+- **It joins a few unrelated words.** On the pack's own text: `even` and `evening`, `ever`
+  and `every`, `german` and `germany`, `unit` and `united`, `mean` and `meaning`.
 
 ### A query is never a genotype
 
@@ -215,7 +226,7 @@ knows the shapes listed in `genetics/privacy.py`; M13.7 owns anything beyond the
 ### `cards search`
 
 ```text
-query               the query as given
+query               the query as given, with runs of whitespace collapsed
 terms               the words searched for, in order
 ignored             common words dropped
 searched            cards in the pack
@@ -282,7 +293,7 @@ The dashboard's search should call `genetics.run.reads.search_view(bundle, query
 which is what `runs search` prints, and `genetics.engine.search.parse_query` for the query.
 M13.5's parity test can then compare the two directly.
 
-## Validation
+### Validation
 
 `tests/engine/test_search.py` tests the ranking on invented documents, one rule at a time,
 then searches the committed pack for every card's own id, title, gene, rsIDs, PGS id and
@@ -301,7 +312,15 @@ compared the score with the constant itself. That test now checks the order too,
 pins the weights and qualities in the table above. The full native suite passes 4,183 tests
 with the existing nine skips.
 
+The [session diff review](review_m133_session.md) found that the stemmer cut `note` to `not`,
+so `cards search note` listed 109 of the pack's 119 cards, and that the side-by-side bonus
+left out the query's dropped words. Both are fixed, with a test each that fails on the first
+version. Three more guards were removed for the fixes, and all 27 removals now fail a
+test. The full native suite passes 4,191 tests with the existing nine skips.
+
 Neither search command has been run on the real imputed run.
+
+## Validation
 
 `tests/test_cli_agent_reads.py` builds a saved run from six committed cards matched against an
 invented table and checks each command's shape, ordering, pointers, errors and reasons. It

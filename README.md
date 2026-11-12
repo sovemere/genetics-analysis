@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M12, M13.1 and M13.2 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M12 and M13.1–M13.3 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -253,7 +253,9 @@ document. See [the agent schema](docs/agent_schema.md).
 knowledge pack by what they are about, with no run and no genotype, and
 `genetics runs search <run> <query>` finds them in one saved run with each one's result. Both
 use one ranking, say which fields each hit matched, and refuse a query that reads as a
-genotype. See [the search contract](docs/agent_cli.md#search-m133).
+genotype. See [the search contract](docs/agent_cli.md#search-m133). The
+[M13.3 diff review](docs/review_m133_session.md) fixes a stemming rule that made a search for
+`note` match every card saying `not`.
 [M13.4, machine-readable confidence](docs/handoff.md#next-open-step-m134-machine-readable-confidence)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
