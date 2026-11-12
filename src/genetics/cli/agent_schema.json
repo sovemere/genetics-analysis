@@ -875,7 +875,7 @@
         },
         "score": {
           "type": ["number", "null"],
-          "description": "The saved weighted score, from 0 to 1: the sum of each scored input's `contribution`. Null where the tier has no score."
+          "description": "The saved weighted score, from 0 to 1: the sum of each scored input's `weight` times `component`, rounded to four places. Each row's `contribution` is rounded on its own, so the rows can add up to a figure 0.0002 away. Null where the tier has no score."
         },
         "score_tier": {
           "description": "The band `score` falls in before any ceiling. Null where there is no score.",

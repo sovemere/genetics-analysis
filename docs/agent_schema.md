@@ -287,6 +287,11 @@ absence from `runs.section` and `runs.search`. Removing `confidence` from the re
 list, opening the block or adding a basis under version 4 fails the digest test. The full
 native suite passes 4,229 tests with the same nine skips.
 
+The [M13.4 session review](review_m134_session.md) reworded the description of
+`confidence_explanation.score`: it is the sum of weight times component, and the rows'
+rounded `contribution` figures can add up to a figure 0.0002 away. That is wording, so the
+document is still version 4 and its digest is unchanged.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 

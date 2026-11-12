@@ -10,6 +10,7 @@ it. The cards are built from evidence objects; no genotype and no export is read
 from __future__ import annotations
 
 import itertools
+import random
 from collections.abc import Iterator
 from dataclasses import asdict
 from typing import Any
@@ -30,6 +31,7 @@ from genetics.engine.confidence import (
     SCORE_WEIGHTS,
     CallSource,
     ConfidenceTier,
+    PolygenicConfidence,
     calculate_confidence,
     calculate_polygenic_confidence,
     score_tier,
@@ -38,6 +40,7 @@ from genetics.engine.serialization import confidence_payload
 from genetics.run.bundle import StoredCard
 from genetics.run.explain import (
     POLYGENIC_ROWS,
+    SCORE_TOLERANCE,
     SINGLE_CALL_ROWS,
     Basis,
     explain_confidence,
@@ -235,6 +238,24 @@ def _single_calls() -> Iterator[tuple[StoredCard, ConfidenceTier]]:
         )
 
 
+def _polygenic_card(result: PolygenicConfidence) -> StoredCard:
+    """A polygenic card, in the shape genetics.pgs.cards.reliability saves."""
+    inputs = {k: (v.value if hasattr(v, "value") else v) for k, v in asdict(result.inputs).items()}
+    reliability = {
+        "tier": result.tier.value,
+        "score": result.score,
+        "inputs": inputs,
+        "ceilings": list(result.ceilings),
+        "reason": "Computed from synthetic inputs.",
+    }
+    return _card(
+        kind="polygenic",
+        status="computed",
+        confidence_tier=result.tier.value,
+        computation={"source": "polygenic_score", "reliability": reliability},
+    )
+
+
 def _polygenic_scores() -> Iterator[tuple[StoredCard, ConfidenceTier, list[str]]]:
     for evidence, coverage, quality, ancestry in itertools.product(
         [e for e in EVIDENCE if e is not None],
@@ -250,27 +271,7 @@ def _polygenic_scores() -> Iterator[tuple[StoredCard, ConfidenceTier, list[str]]
             ancestry_match=ancestry,
         )
         tier, ceilings = _earlier_polygenic(evidence, result.score, coverage, quality, ancestry)
-        # The saved shape is the one genetics.pgs.cards.reliability writes.
-        inputs = {
-            k: (v.value if hasattr(v, "value") else v) for k, v in asdict(result.inputs).items()
-        }
-        reliability = {
-            "tier": result.tier.value,
-            "score": result.score,
-            "inputs": inputs,
-            "ceilings": list(result.ceilings),
-            "reason": "Computed from synthetic inputs.",
-        }
-        yield (
-            _card(
-                kind="polygenic",
-                status="computed",
-                confidence_tier=result.tier.value,
-                computation={"source": "polygenic_score", "reliability": reliability},
-            ),
-            tier,
-            ceilings,
-        )
+        yield _polygenic_card(result), tier, ceilings
 
 
 def _check_scored(block: dict[str, Any], tier: str, score: float) -> None:
@@ -302,7 +303,7 @@ def _check_scored(block: dict[str, Any], tier: str, score: float) -> None:
 
 
 def test_the_calculator_gives_the_tiers_it_gave_before_and_each_is_explained() -> None:
-    """4,200 single calls: the earlier rules' tier, the saved tier and the replay agree."""
+    """16,800 single calls: the earlier rules' tier, the saved tier and the replay agree."""
     count = 0
     seen: set[tuple[str, str]] = set()
     for card, expected in _single_calls():
@@ -792,3 +793,84 @@ def test_a_ceiling_at_the_score_s_own_band_is_said_to_hold_the_tier() -> None:
     assert block["reason"].endswith(
         "A higher score would not raise the tier, because replication is conflicting."
     )
+
+
+# ---------------------------------------------------------------------------
+# Scores with real decimals (review, 2026-11-13)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("tier", "value", "coverage", "quality", "ancestry", "score"),
+    [
+        (EvidenceTier.CLINICAL_GUIDELINE, 1.504, 0.1238, 0.6095, 0.0133, 0.4705),
+        (EvidenceTier.COHORT, 2.341, 0.0847, 0.5413, 0.959, 0.4911),
+    ],
+)
+def test_a_score_is_replayed_from_its_components_not_from_the_rounded_rows(
+    tier: EvidenceTier, value: float, coverage: float, quality: float, ancestry: float, score: float
+) -> None:
+    """Each row's `contribution` is rounded for display, and the rounded rows do not add up.
+
+    The first version summed them. These two honest scores came out 0.0002 away, past the
+    tolerance, and were reported as saved under other rules. The grids above cannot show
+    it: their inputs are round numbers, so no row is rounded at all.
+    """
+    result = calculate_polygenic_confidence(
+        _evidence(tier, Replication.NONE, value),
+        weight_coverage=coverage,
+        weighted_quality=quality,
+        unknown_quality_weight_fraction=0.0,
+        ancestry_match=ancestry,
+    )
+    assert result.score == score
+    block = explain_confidence(_polygenic_card(result))
+    assert block["replay"] == {"tier": result.tier.value, "score": score, "matches": True}
+    assert block["basis"] in {"score", "ceiling"}
+    shown = sum(row["contribution"] for row in block["inputs"])
+    assert abs(shown - score) > SCORE_TOLERANCE, "the rounded rows no longer disagree"
+
+
+def test_every_score_with_arbitrary_decimals_is_reproduced() -> None:
+    """A real run's DR2, coverage and ancestry match are not round numbers."""
+    rng = random.Random(134)
+    tiers, replications = list(EvidenceTier), list(Replication)
+
+    def evidence() -> Evidence:
+        return _evidence(
+            rng.choice(tiers), rng.choice(replications), round(rng.uniform(0.2, 9.0), 3)
+        )
+
+    for _ in range(3000):
+        polygenic = calculate_polygenic_confidence(
+            evidence(),
+            weight_coverage=rng.random(),
+            weighted_quality=rng.random(),
+            unknown_quality_weight_fraction=rng.random(),
+            ancestry_match=rng.choice([None, rng.random()]),
+        )
+        block = explain_confidence(_polygenic_card(polygenic))
+        assert block["replay"]["matches"] is True, block["replay"]
+        # Polygenic components are saved as scored, so the replay is exact.
+        assert block["replay"]["score"] == polygenic.score
+
+        imputed = rng.random() < 0.7
+        by_membership = rng.random() < 0.5
+        single = calculate_confidence(
+            evidence(),
+            population_allele_frequency=rng.choice([None, rng.random(), rng.random() / 1000]),
+            call_source=CallSource.IMPUTED if imputed else CallSource.DIRECT,
+            imputation_quality=rng.random() if imputed else None,
+            ancestry_match=rng.choice([None, rng.random()]),
+            variant_ancestry=by_membership,
+        )
+        block = explain_confidence(
+            _card(
+                confidence=confidence_payload(single),
+                confidence_tier=single.tier.value,
+                ancestry_comparison={"text": "synthetic"} if by_membership else None,
+            )
+        )
+        assert block["replay"]["matches"] is True, block["replay"]
+        # One step in the fourth place at most: the effect component is saved rounded.
+        assert abs(block["replay"]["score"] - single.score) < 0.00010001

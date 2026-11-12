@@ -801,6 +801,69 @@ def test_empirical_ppv_is_visible_on_the_face_and_detail_as_a_study_benchmark(
         assert 'rel="noreferrer noopener" class="citelink"' in markup
 
 
+def test_a_rare_call_s_detail_states_its_rate_once() -> None:
+    """The deciding sentence gives the rate; the caution keeps the scope, notice and link."""
+    from genetics.engine.cards import (
+        Ancestry,
+        Effect,
+        EffectMeasure,
+        Evidence,
+        EvidenceTier,
+        Replication,
+    )
+    from genetics.engine.confidence import CallSource, calculate_confidence
+    from genetics.engine.serialization import confidence_payload
+
+    rare = confidence_payload(
+        calculate_confidence(
+            Evidence(
+                tier=EvidenceTier.EXPERT_CURATED,
+                effect=Effect(EffectMeasure.ODDS_RATIO, 8.0),
+                sample_size=10_000,
+                ancestry=(Ancestry.EUR,),
+                replication=Replication.INDEPENDENT,
+            ),
+            population_allele_frequency=0.000001,
+            call_source=CallSource.DIRECT,
+        )
+    )
+    stored = StoredCard(
+        card_id="rare",
+        section="physical_health",
+        kind="interpretation",
+        title="Rare",
+        status="matched",
+        summary="Synthetic rare call.",
+        detail="",
+        gene=None,
+        impossibility_reason=None,
+        confidence_tier=rare["tier"],
+        variant=None,
+        match={},
+        confidence=rare,
+        evidence=None,
+        observation=None,
+        frequencies=(),
+        confidence_frequency=None,
+        citations=(),
+        authored_caveats=(),
+        computed_caveats=(),
+    )
+    card = views.CardView.of(stored, format_version=BUNDLE_FORMAT_VERSION, run_id="a-run")
+    assert card.confidence is not None and card.confidence.decided is not None
+    assert "16% confirmed" in card.confidence.decided
+    assert card.confidence.ppv_display is not None and card.confidence.ppv_caution is None
+    markup = _render_card(card, "_carddetail.html")
+    assert markup.count("16% confirmed") == 1
+    assert "Only clinical sequencing" in markup
+    assert "not an individual posterior probability" in markup
+    assert 'href="https://doi.org/10.1136/bmj.n214"' in markup
+    # A card whose tier is not explained keeps the rate in the caution, as before.
+    unexplained = _render_card(_full_card(), "_carddetail.html")
+    assert unexplained.count("16% confirmed") == 1
+    assert "nothing here says which input decided it" in unexplained
+
+
 def test_imputation_artifact_without_a_ppv_stays_visible_without_fabricated_odds() -> None:
     card = replace(
         _full_card(),

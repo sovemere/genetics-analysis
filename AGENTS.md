@@ -290,8 +290,9 @@ The CLI is the contract. `genetics run --input X`, `genetics runs list`,
 me ten facts."* Card JSON must include the citations so the agent can verify rather than
 confabulate. `runs card` also says what decided the card's confidence tier
 (`current_context.confidence`): each input with its weight, every ceiling that applies and
-which of them set the tier, so "why is this low confidence" has an answer an agent can read. Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence`
-reads the knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
+which of them set the tier, so "why is this low confidence" has an answer an agent can read.
+Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence` reads the
+knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
 `cards search` finds a card id from a phrase such as "curly hair", also from the pack alone;
 `genetics runs search <run> <query>` searches one saved run and returns each card's result.
 Both refuse a query that reads as a genotype: search for the variant, never a call at it.

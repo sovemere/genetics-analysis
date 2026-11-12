@@ -891,6 +891,16 @@ class ConfidenceView:
         return confirmation_text(self.ppv_estimate, self.ppv_ceiling)
 
     @property
+    def ppv_caution(self) -> str | None:
+        """The benchmark sentence for the caution paragraph, unless ``decided`` gave it.
+
+        A rare call's ``decided`` sentence states the rate. The caution below it then keeps
+        the scope, the clinical notice and the link, and does not say the rate twice.
+        """
+        text = self.ppv_display
+        return None if text is None or text in (self.decided or "") else text
+
+    @property
     def clinical_notice(self) -> str:
         from genetics.engine.ppv import CLINICAL_NOTICE
 

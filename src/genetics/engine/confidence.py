@@ -277,9 +277,6 @@ def score_tier(score: float) -> ConfidenceTier:
     return ConfidenceTier.LIMITED
 
 
-_score_tier = score_tier
-
-
 def _weaker_of(left: ConfidenceTier, right: ConfidenceTier) -> ConfidenceTier:
     return left if left.rank >= right.rank else right
 
@@ -545,7 +542,7 @@ def calculate_confidence(
     # being mistaken for measured agreement, and strong literature from hiding a weak
     # observation. One function states them, for this calculator and for a reader (M13.4).
     tier = weakest(
-        _score_tier(score),
+        score_tier(score),
         single_call_ceilings(
             has_evidence=evidence is not None,
             evidence_tier=None if evidence is None else evidence.tier,
@@ -650,7 +647,7 @@ def calculate_polygenic_confidence(
         + _WEIGHTS["ancestry"] * ancestry_score,
         4,
     )
-    tier = _score_tier(score)
+    tier = score_tier(score)
     ceilings: list[str] = []
     # The saved record names a ceiling only where it lowered the tier, in application order.
     for ceiling in polygenic_ceilings(

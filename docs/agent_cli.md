@@ -71,7 +71,8 @@ The text form prints the claim, the variant, how the call was made, the evidence
 confidence tier with what decided it and every input behind it, any empirical PPV, the
 frequencies, every caveat and the citations with links. The confidence lines are
 `current_context.confidence` as text, so the text and the JSON say the same thing. A card
-with no tier says "Not scored" and why.
+with no tier says "Not scored" and why. A rare call's rate is printed once, in the sentence
+that says what decided the tier; the benchmark's scope and the clinical notice follow it.
 Polygenic, HLA, runs-of-homozygosity and multi-marker detail gets one line pointing to
 `--json`, which holds it in full; the dashboard draws those as tables and distributions.
 Where a card has no evidence block, the text says which of three reasons applies: an
@@ -213,9 +214,12 @@ it, which is why the block is under `current_context` and the saved card is unch
 
 The reading is checked before it is offered. The saved inputs are replayed through the
 rules the calculator itself calls (`single_call_ceilings` and `polygenic_ceilings` in
-`engine/confidence.py`). If the replayed tier differs from the saved one, or the weights do
-not sum to the saved score within 0.00015, the basis is `not_reproduced`. A run saved under
-other weights or thresholds therefore gets no explanation, not a wrong one.
+`engine/confidence.py`). If the replayed tier differs from the saved one, or the saved
+components times their weights do not sum to the saved score within 0.00015, the basis is
+`not_reproduced`. A run saved under other weights or thresholds therefore gets no
+explanation, not a wrong one. The sum uses the components, not the rows' `contribution`
+figures: each of those is rounded to four places on its own, so the rows can add up to a
+figure 0.0002 from `score`.
 
 A multi-marker card takes its weakest marker's confidence; `reason` names that marker. An
 HLA card gets an unscored `hla_call` row and, where its weakest call has a ceiling, that
@@ -250,6 +254,14 @@ to replay, computed and guideline cards, HLA call ceilings and multi-marker card
 and `tests/hla` and `tests/refs` check it for the real HLA and guideline cards.
 Thirty-five guards were each removed in turn, and each removal failed a test. The full
 native suite passes 4,229 tests with the existing nine skips.
+
+The [session diff review](review_m134_session.md) found that the replay summed the rows'
+rounded `contribution` figures, so that 23 of 20,000 polygenic scores drawn with arbitrary
+decimals were reported as `not_reproduced`; the grids above use round inputs and could not
+show it. It now sums the saved components. The review also stopped a rare call's rate being
+printed twice. Two failing scores are pinned as a test, 6,000 results with arbitrary
+decimals are replayed, and seven more guards were removed in turn, each caught.
+The full native suite passes 4,235 tests with the existing nine skips.
 
 `runs card` has not been run on the real imputed run since this change.
 

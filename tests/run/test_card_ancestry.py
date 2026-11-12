@@ -267,6 +267,14 @@ def test_frozen_cli_dashboard_and_historical_format(
     )
     frozen = read_bundle(directory).cards[0]
     assert frozen.ancestry_comparison == result.ancestry_comparison
+    # M13.4: the saved comparison is what tells a reader the membership policy applied.
+    from genetics.run.explain import explain_confidence
+
+    explained = explain_confidence(frozen)
+    assert explained["replay"]["matches"] is True
+    assert "ancestry_match" not in {c["input"] for c in explained["ceilings"]}
+    assert frozen.confidence is not None
+    assert frozen.confidence["inputs"]["ancestry_match"] is not None
     monkeypatch.setenv("GENETICS_DATA_DIR", str(tmp_path))
     cli = CliRunner().invoke(app, ["runs", "show", "synthetic-ancestry", "--json"])
     assert cli.exit_code == 0, cli.stdout
@@ -296,6 +304,7 @@ def test_frozen_cli_dashboard_and_historical_format(
     (old / MANIFEST_NAME).write_text(json.dumps(raw), encoding="utf-8")
     historical = read_bundle(old).cards[0]
     assert historical.ancestry_comparison is None
+    assert explain_confidence(historical)["replay"]["matches"] is True
     assert historical.summary == sample_cards[0].summary
     assert historical.confidence == _card_payload(sample_cards[0])["confidence"]
 

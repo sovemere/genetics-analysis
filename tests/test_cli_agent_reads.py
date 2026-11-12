@@ -649,3 +649,62 @@ def test_the_explanation_does_not_reach_the_scanned_reads(saved: RunBundle) -> N
     assert "confidence" not in json.dumps(_json(["runs", "qc", saved.run_id, "--json"]))
     evidence = _json(["cards", "evidence", "wnt10a_hair_curl", "--json"])
     assert "current_context" not in evidence
+
+
+def test_a_rare_call_s_measured_rate_is_printed_once(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The sentence that says what decided the tier gives the rate (AGENTS.md 4.1).
+
+    The first version printed the same sentence again two lines below, from the saved
+    benchmark. Its scope and the clinical notice are still printed.
+    """
+    from genetics.engine.confidence import CallSource, calculate_confidence
+    from genetics.engine.serialization import confidence_payload
+
+    card = next(c for c in saved.cards if c.card_id == "wnt10a_hair_curl")
+    assert card.confidence is not None
+    pack = KnowledgePack.load(default_knowledge_dir())
+    authored = next(c for c in pack.cards if c.id == "wnt10a_hair_curl").evidence
+    rare = confidence_payload(
+        calculate_confidence(
+            authored, population_allele_frequency=0.000001, call_source=CallSource.DIRECT
+        )
+    )
+    assert rare["tier"] == "likely-artifact"
+    _with_card(
+        saved, monkeypatch, "wnt10a_hair_curl", confidence=rare, confidence_tier=rare["tier"]
+    )
+    block = _json(["runs", "card", saved.run_id, "wnt10a_hair_curl", "--json"])["current_context"][
+        "confidence"
+    ]
+    rate = "Published SNP-chip benchmark: about 16% confirmed and 84% unconfirmed"
+    assert (block["basis"], block["limiting"]) == ("ceiling", ["allele_frequency"])
+    assert rate in block["reason"]
+    text = _text(["runs", "card", saved.run_id, "wnt10a_hair_curl"])
+    assert text.count(rate) == 1
+    assert rare["empirical_ppv"]["applies_to"] in text
+    assert "Only clinical sequencing can establish or exclude the variant." in text
+
+
+def test_a_rate_the_reason_does_not_give_is_still_printed(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A rare call this engine cannot replay gets no explanation, and keeps its rate."""
+    from genetics.engine.confidence import CallSource, calculate_confidence
+    from genetics.engine.serialization import confidence_payload
+
+    pack = KnowledgePack.load(default_knowledge_dir())
+    authored = next(c for c in pack.cards if c.id == "wnt10a_hair_curl").evidence
+    rare = confidence_payload(
+        calculate_confidence(
+            authored, population_allele_frequency=0.000001, call_source=CallSource.DIRECT
+        )
+    )
+    rare["score"] = round(rare["score"] - 0.05, 4)
+    _with_card(
+        saved, monkeypatch, "wnt10a_hair_curl", confidence=rare, confidence_tier=rare["tier"]
+    )
+    text = _text(["runs", "card", saved.run_id, "wnt10a_hair_curl"])
+    assert "nothing here says which input decided it" in text
+    assert text.count("Published SNP-chip benchmark: about 16% confirmed") == 1

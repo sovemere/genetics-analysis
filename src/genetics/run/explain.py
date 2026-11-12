@@ -65,8 +65,10 @@ SOURCES: Final[tuple[str, ...]] = ("confidence", "computation.reliability")
 """Where the saved card keeps its tier and inputs."""
 
 SCORE_TOLERANCE: Final[float] = 0.00015
-"""How far a replayed score may sit from the saved one. The saved score was rounded to four
-places from unrounded components, and the effect component is itself saved rounded."""
+"""How far a replayed score may sit from the saved one: one step in the fourth place. A
+single call's score was rounded from an unrounded effect component, and the component is
+saved rounded, so the two sums can fall either side of a rounding boundary. Every other
+component is saved as it was scored."""
 
 _Row = tuple[str, tuple[str, ...], str, str]
 
@@ -250,8 +252,14 @@ def _scored(
 ) -> dict[str, Any]:
     """A tier that came from a weighted score and ceilings, checked against a replay."""
     tier, score = _tier_name(saved_tier), _number(saved_score)
-    components = [row["contribution"] for row in rows if row["weight"] is not None]
-    replayed_score = None if any(c is None for c in components) else round(math.fsum(components), 4)
+    # From the saved components, not from each row's `contribution`: those are rounded to
+    # four places for display, and four rounded rows can sit 0.0002 from the saved score.
+    scored = [row for row in rows if row["weight"] is not None]
+    replayed_score = (
+        None
+        if any(row["component"] is None for row in scored)
+        else round(math.fsum(float(row["weight"] * row["component"]) for row in scored), 4)
+    )
     replayed_tier = (
         None if ceilings is None or score is None else weakest(score_tier(score), ceilings).value
     )

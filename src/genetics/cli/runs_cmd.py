@@ -514,14 +514,20 @@ def runs_show(
     )
 
 
-def _ppv_lines(confidence: Mapping[str, Any] | None, tier: str | None) -> list[str]:
-    """The empirical confirmation rate a likely-artifact card states on its face (4.1)."""
+def _ppv_lines(confidence: Mapping[str, Any] | None, tier: str | None, said: str = "") -> list[str]:
+    """The empirical confirmation rate a likely-artifact card states on its face (4.1).
+
+    ``said`` is text already printed above these lines. ``runs card`` passes the sentence
+    that says what decided the tier, which gives the rate for a rare call, so that the rate
+    is stated once and its scope and the clinical notice still follow.
+    """
     from genetics.engine.ppv import CLINICAL_NOTICE, confirmation_text
 
     if confidence and confidence.get("empirical_ppv"):
         ppv = confidence["empirical_ppv"]
+        rate = confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"])
         return [
-            confirmation_text(ppv["estimate"], ppv["population_frequency_ceiling"]),
+            *(() if rate in said else (rate,)),
             f"{ppv['applies_to']} {CLINICAL_NOTICE}",
         ]
     if tier == "likely-artifact":
@@ -701,7 +707,12 @@ def _card_lines(view: Mapping[str, Any]) -> list[str]:
         "",
         "Confidence",
         *confidence_lines(context["confidence"]),
-        *(f"  {line}" for line in _ppv_lines(card["confidence"], card["confidence_tier"])),
+        *(
+            f"  {line}"
+            for line in _ppv_lines(
+                card["confidence"], card["confidence_tier"], context["confidence"]["reason"]
+            )
+        ),
         "",
         "Population frequencies",
         *frequency_lines(card["frequencies"], card["confidence_frequency"]),

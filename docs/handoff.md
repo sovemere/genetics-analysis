@@ -11,6 +11,9 @@ As of 2026-11-12, **M0-M12 and M13.1-M13.4 are implemented; M13.5 is next**. See
 score, each input with its weight and what it cost the score, every ceiling that applies,
 which of them set the tier, and a sentence saying so. The saved card is unchanged, and the
 agent schema is now version 4. See [the confidence contract](agent_cli.md#confidence-m134).
+The [M13.4 session review](review_m134_session.md) fixed a replay that summed rounded
+figures, so that about one honest polygenic score in a thousand was reported as saved under
+other rules, and stopped a rare call's rate being printed twice.
 **M13.3 card search is implemented** as `genetics cards search <query>` (the knowledge pack,
 no genotype) and `genetics runs search <run> <query>` (one saved run's cards, with each
 one's result). Both rank with `genetics.engine.search.search`, and the agent schema is now
@@ -554,9 +557,11 @@ What already exists:
   views. `reads.SAVED_RECORDS` names the command for each record the dashboard links as a
   page. `tests/web/test_dashboard.py` checks that the card page prints the sentence
   `runs card` gives for what decided a tier.
-- **Shared functions.** `reads.empty_reason`, `reads.related`, `reads.card_payload`,
-  `reads.search_view` and `explain.explain_confidence` are each called by both front-ends,
-  or are what the dashboard is meant to call.
+- **Two shared functions.** `reads.empty_reason` and `explain.explain_confidence` are
+  called by both front-ends. The dashboard builds its pointers (`views.related_links`) and
+  its card views (`CardView.of`) itself; a test compares the pointers with `reads.related`,
+  and nothing compares a card view with `reads.card_payload`. `reads.search_view` is what
+  M14.4's dashboard search is meant to call.
 
 What is open:
 
@@ -582,9 +587,11 @@ What M13.4 hands over:
   section page with `runs.section` will find the tier on both and the block on neither.
 - **The dashboard shows part of the block.** Its "Why this tier" section prints `reason`
   and the six rows for a card with a `confidence` block. It does not print weights, what
-  each input lost, or the list of ceilings; computed, polygenic and guideline cards keep
-  their own detail partials, which print the saved reason. M14.3 (confidence legend) is
-  the place for the rest.
+  each input lost, or the list of ceilings. Computed and guideline cards keep their own
+  detail partials, which print the saved reason. The polygenic partial prints the saved
+  score, inputs and ceiling names ("Capped by coverage"), which list only the ceilings that
+  lowered the tier in order; `runs card` lists every one by input. M14.3 (confidence
+  legend) is the place to give the pages the block.
 - **A ceiling's wording is the engine's.** `Ceiling.rule` in `engine/confidence.py` is
   printed by the CLI and the dashboard. Rewording one changes both and no saved run.
 
@@ -667,8 +674,23 @@ Three things were found by the tests while this was built. The score replay firs
 the unscored `hla_call` row, so no HLA card reproduced. `limiting` was first empty whenever
 the score's own band was the tier, which hid a ceiling sitting at that band (a refuted
 claim that also scores low); it now names that ceiling and the reason says a higher score
-would not raise the tier. And `engine/confidence.py` had been left with CRLF line endings
-by an edit, which six guard removals failed to match; it is LF again.
+would not raise the tier. And `engine/confidence.py` was CRLF in the working tree (LF in
+the index), which six guard removals failed to match; it is LF again. The cause was not
+established.
+
+The [session diff review](review_m134_session.md) (`f7f9294..a3d9a47`) found one defect in
+the replay. It summed each row's rounded `contribution`, and rounded rows can add up to a
+figure 0.0002 from the saved score, past the 0.00015 tolerance: 23 of 20,000 polygenic
+scores drawn with arbitrary decimals were reported as `not_reproduced`. The committed grids
+used round inputs and could not show it. The replay now sums the saved components times
+their weights. The review also stopped a rare call's rate being printed twice, in `runs
+card` text and on the card page; added a check of the ancestry-membership rule on a card
+saved through the real assembly; and corrected four statements in the docs, one schema
+description (wording only, still version 4) and a test docstring. The full native suite
+passes **4,235 tests with the same nine skips** in 907 s, with nothing but documentation
+and one module docstring changed between that run and the commit. All seven of the
+review's guards fail a test when removed. Full card lint (119 cards, 594 renders, 65/65
+keys), the four strict type targets (255 files), ruff, format and the fixture check pass.
 
 **Saved runs repeat their deep checks once.** This change edits Python source, so the first
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).

@@ -1,4 +1,5 @@
-"""Plain-text renderings shared by the agent's read commands (roadmap M13.1).
+"""Plain-text renderings shared by the agent's read commands (roadmap M13.1, M13.3,
+M13.4).
 
 Each takes saved or declared data as a mapping and returns lines, so ``genetics runs card``
 and ``genetics cards evidence`` say the same thing about the same evidence block. Read

@@ -262,7 +262,10 @@ score, each input with its weight and what it cost the score, every ceiling that
 which of them set the tier. A card with no tier says why. The block is this engine's reading
 of the saved inputs, checked against the saved tier before it is offered, and the saved card
 is unchanged. The agent schema is version 4. See
-[the confidence contract](docs/agent_cli.md#confidence-m134).
+[the confidence contract](docs/agent_cli.md#confidence-m134). The
+[M13.4 diff review](docs/review_m134_session.md) fixes a check that reported about one
+honest polygenic score in a thousand as saved under other rules, and a rare call's rate
+being printed twice.
 [M13.5, the CLI and dashboard parity test](docs/handoff.md#next-open-step-m135-parity-test)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
