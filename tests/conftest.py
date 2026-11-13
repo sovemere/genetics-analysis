@@ -481,8 +481,10 @@ def parity_check(agent_schema_check: Callable[[object], str]) -> Callable[[Path]
     Takes the bundle's directory, which must sit in a directory named ``runs`` under the
     test's data directory. Every document the commands printed is also checked against the
     agent schema, so the suites that build the only saved runs with HLA calls, guideline
-    cards, placed scores and a ClinVar lookup check both with one call. A fixture for the
-    reason ``agent_schema_check`` is one: ``tests/`` is not a package.
+    cards, placed scores and a ClinVar lookup check both with one call. Each card the run
+    shows is then changed one value at a time, and every change has to fail the comparison
+    (``parity.unnoticed``). A fixture for the reason ``agent_schema_check`` is one:
+    ``tests/`` is not a package.
     """
     from genetics.testing import parity
 
@@ -491,6 +493,15 @@ def parity_check(agent_schema_check: Callable[[object], str]) -> Callable[[Path]
         for words, document in report.documents.items():
             if words != ("version",):
                 agent_schema_check(document)
+        # The check on the check: no one-value change to a card this run shows may pass,
+        # bar what `parity.UNNOTICED` gives a reason for. Paths only, never a value.
+        _, passed = parity.unnoticed(report)
+        loose = sorted(passed - set(parity.UNNOTICED))
+        if loose:
+            # Raised, not asserted: pytest shortens an assertion's sets, and every path matters.
+            raise AssertionError(
+                f"a changed value passes the parity comparison: {', '.join(loose)}"
+            )
         return report
 
     return check

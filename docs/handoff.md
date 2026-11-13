@@ -14,6 +14,10 @@ JSON. The five commands that print a run's other saved records (`runs clinvar`, 
 secondary`, `runs imputation`, `pgx calls`, `hla calls`) now print the run envelope and a
 schema tag, and the agent schema is version 5. See
 [the parity section](agent_cli.md#parity-m135).
+The [M13.5 session review](review_m135_session.md) found that a figure changed to another
+figure in the same saved record passed the check, among them a polygenic score's coverage
+and a card's within-family attenuation, and made those comparisons exact. It added a probe
+that changes every value a card shows, which every suite's run now has to pass.
 **M13.4 machine-readable confidence is implemented.** `genetics runs card --json` adds
 `current_context.confidence`: one block for every kind of card, giving the saved tier and
 score, each input with its weight and what it cost the score, every ceiling that applies,
@@ -593,11 +597,16 @@ What M13.5 hands over:
   `parity.PROPERTIES`, or a reason in `parity.DISPLAY_ONLY`. M14 adds pages and fields and
   will meet each of these.
 - **`parity_check(run)` checks one saved run** against the commands and checks every
-  document it reads against the schema. A suite that builds a new kind of saved run should
-  call it, as `tests/hla`, `tests/refs` and `tests/health` do.
-- **What the check does not cover.** A property's arithmetic; what the CLI prints and no
-  page shows (a card's `ancestry_comparison` is the known case); text output; the real
-  imputed run. [The parity section](agent_cli.md#parity-m135) lists them.
+  document it reads against the schema. It then changes every value of every card the run
+  shows, one at a time, and fails if a change passes the comparison. A suite that builds a
+  new kind of saved run should call it, as `tests/hla`, `tests/refs` and `tests/health` do.
+- **A new field of a view held inside a card needs a key in `parity.READ`**, the saved key
+  it is read from, or a reason in `parity.APART`. A seventh row of the confidence table
+  needs a row in `parity.CONFIDENCE_ROWS`. M14.3 (confidence legend) will meet both.
+- **What the check does not cover.** A property's arithmetic; a method called on an object
+  the page holds; what the CLI prints and no page shows (a card's `ancestry_comparison` is
+  the known case); text output; the real imputed run.
+  [The parity section](agent_cli.md#parity-m135) lists them.
 
 What M13.4 left:
 
@@ -693,6 +702,18 @@ test; the thirty-first, an unplaced view field passing a run check, did not, and
 covers it. Full dbSNP card lint (119 cards, 594 renders, 65/65 keys), strict mypy on all
 four Windows/Linux x Python 3.11/3.13 targets (257 files), ruff, format and the fixture
 check pass. `genetics ci-local` passed before the push.
+
+The [M13.5 session review](review_m135_session.md), on 2026-11-13, re-read the diff and
+changed every value of every card view once. It found three P2 defects in the check
+itself, none in a command: nested views and the polygenic view's saved parts were compared
+by whether a value appeared anywhere in the record, so 38 of 170 changes to a placed
+score's view passed; `ancestry_matched` and a confidence row's saved input were declared
+display; and only the run page's shell was compared. All are fixed, with the probe kept as
+`parity.unnoticed` and run by the fixture. Nineteen guards were removed in turn, each
+caught. The full native suite passes **4,282 tests with the same nine skips** in
+898 s; after that run only documentation changed.
+Full dbSNP card lint, strict mypy on all four targets (257 files), ruff, format and the
+fixture check pass. No command's output, schema shape, bundle format or card changed.
 
 **Saved runs repeat their deep checks once.** This change edits Python source, so the first
 read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).

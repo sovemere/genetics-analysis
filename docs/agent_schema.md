@@ -328,6 +328,11 @@ reads against the schema, through the `parity_check` fixture. Removing the tag f
 the five, or `linked_cards_status` from the required list under version 5, fails a test.
 The full native suite passes 4,273 tests with the same nine skips.
 
+The [M13.5 session review](review_m135_session.md) extended the `runs imputation` scan
+test to the text branch, which it had not covered. It changed no command's output, so the
+document is still version 5 and its digest is unchanged. The suite passes 4,282
+tests after the review.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 

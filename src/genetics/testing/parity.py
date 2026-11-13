@@ -24,11 +24,18 @@ something new fails until it is placed:
   a command's document holds it, or is declared as display: an address, a label, paging or
   chart geometry. :func:`check_views` holds the tables to the classes, field for field.
 
+**The comparison is itself checked.** :func:`unnoticed` changes every value of every card
+view a run shows, one at a time, and reports each change the comparison lets pass. The
+``parity_check`` fixture requires that to be nothing beyond :data:`UNNOTICED` on every run
+a suite hands it, so a field compared loosely fails where a run makes it matter.
+
 **What this cannot see.** A view's *properties* word or arrange values the object already
 holds, and are listed in :data:`PROPERTIES` so that a new one is noticed. Nothing checks
 what a property computes. A calculation written inside a property or a template, from saved
-fields and no engine function, is found only by a person reading the diff. The rule for
-those is AGENTS.md 3's: an analysis belongs in the engine.
+fields and no engine function, is found only by a person reading the diff. So is one made
+by calling a method on an object the page already holds: the call list follows imported
+functions, not methods. The rule for those is AGENTS.md 3's: an analysis belongs in the
+engine.
 
 No message here quotes a compared value. A run is raw DNA (AGENTS.md 1.1), so a failure
 names the page, the card and the field and nothing else.
@@ -63,6 +70,8 @@ __all__ = [
     "check_routes",
     "check_run",
     "check_views",
+    "one_change",
+    "unnoticed",
 ]
 
 
@@ -148,8 +157,12 @@ def _command_words(command: str) -> list[str]:
     return [word for word in words[1:] if not word.startswith(("<", "-"))]
 
 
-def _takes_json(command: str) -> bool:
-    """Whether the named command exists in the CLI and has a ``--json`` option."""
+def _command_problem(command: str) -> str | None:
+    """Why ``command`` is not one the CLI runs as written, or ``None`` if it is.
+
+    The command must exist and take ``--json`` and every other option it is written with,
+    so that a table row naming ``--section`` fails when the option is renamed.
+    """
     import typer.main
 
     from genetics.cli.main import app
@@ -158,8 +171,13 @@ def _takes_json(command: str) -> bool:
     for word in _command_words(command):
         node = getattr(node, "commands", {}).get(word)
         if node is None:
-            return False
-    return any("--json" in parameter.opts for parameter in node.params)
+            return "is not a command that takes --json"
+    options = {option for parameter in node.params for option in parameter.opts}
+    written = [word for word in command.split() if word.startswith("-")]
+    if "--json" not in written or "--json" not in options:
+        return "is not a command that takes --json"
+    unknown = [word for word in written if word not in options]
+    return f"is written with {unknown[0]}, which the command does not take" if unknown else None
 
 
 def check_routes() -> None:
@@ -177,8 +195,9 @@ def check_routes() -> None:
         raise ParityError(f"parity.PAGES lists route(s) the app does not serve: {listed - served}")
     for page in PAGES:
         for command in page.commands:
-            if "--json" not in command.split() or not _takes_json(command):
-                raise ParityError(f"{page.route}: `{command}` is not a command that takes --json")
+            problem = _command_problem(command)
+            if problem is not None:
+                raise ParityError(f"{page.route}: `{command}` {problem}")
 
 
 # ---------------------------------------------------------------------------
@@ -232,14 +251,26 @@ def engine_functions(paths: Sequence[Path]) -> set[str]:
 
     Read from the source, so a call inside a function body counts: the dashboard's routes
     import their engine functions there. Classes and constants are not listed. A class
-    holds data here, and the functions that fill one are found where they are called.
+    holds data here, and the functions that fill one are found where they are called; a
+    method called on an object is not seen (the module docstring says what that leaves).
+
+    Two ways of importing cannot be followed by name, a relative import and a bare ``import
+    genetics.x``. Neither is used in ``genetics.web`` or ``genetics.cli``, and either one
+    fails here so that a call made through it is not passed over.
     """
     found: set[str] = set()
     for path in paths:
         tree = ast.parse(path.read_text(encoding="utf-8"))
         modules: dict[str, types.ModuleType] = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.ImportFrom) and (node.module or "").startswith("genetics"):
+            if isinstance(node, ast.ImportFrom):
+                if node.level:
+                    raise ParityError(
+                        f"{path.name}:{node.lineno}: a relative import cannot be followed to "
+                        "the functions it brings in; import from `genetics...` by name"
+                    )
+                if (node.module or "").split(".")[0] != "genetics":
+                    continue
                 assert node.module is not None
                 source = importlib.import_module(node.module)
                 for alias in node.names:
@@ -252,8 +283,14 @@ def engine_functions(paths: Sequence[Path]) -> set[str]:
                         found.add(name)
             elif isinstance(node, ast.Import):
                 for alias in node.names:
-                    if alias.name.startswith("genetics.") and alias.asname is not None:
-                        modules[alias.asname] = importlib.import_module(alias.name)
+                    if alias.name.split(".")[0] != "genetics":
+                        continue
+                    if alias.asname is None:
+                        raise ParityError(
+                            f"{path.name}:{node.lineno}: `import {alias.name}` cannot be "
+                            "followed to the functions called through it; use `from ... import`"
+                        )
+                    modules[alias.asname] = importlib.import_module(alias.name)
         for node in ast.walk(tree):
             if (
                 isinstance(node, ast.Attribute)
@@ -347,33 +384,6 @@ def dig(record: Any, *path: str) -> Any:
     return record
 
 
-def leaves(value: Any, path: str = "") -> Iterator[tuple[str, str | float]]:
-    """Every string and number ``value`` holds, each with where it sits.
-
-    ``None`` and booleans are skipped: neither says anything a document could be searched
-    for. A dataclass field listed in :data:`NESTED_DISPLAY` is skipped as display.
-    """
-    if value is None or isinstance(value, bool):
-        return
-    if isinstance(value, str):
-        if value:
-            yield path, value
-    elif isinstance(value, int | float):
-        yield path, float(value)
-    elif dataclasses.is_dataclass(value) and not isinstance(value, type):
-        for item in dataclasses.fields(value):
-            if (type(value), item.name) not in NESTED_DISPLAY:
-                yield from leaves(getattr(value, item.name), f"{path}.{item.name}")
-    elif isinstance(value, Mapping):
-        for key, item in value.items():
-            yield from leaves(item, f"{path}.{key}")
-    elif isinstance(value, list | tuple | set | frozenset):
-        for index, item in enumerate(value):
-            yield from leaves(item, f"{path}[{index}]")
-    else:
-        raise ParityError(f"{path}: a {type(value).__name__} cannot be compared with JSON")
-
-
 def same(command: str, source: Callable[[Any], Any]) -> Reached:
     """The value equals what ``source`` reads from the command's document."""
 
@@ -384,18 +394,105 @@ def same(command: str, source: Callable[[Any], Any]) -> Reached:
     return Reached(command, compare)
 
 
-def within(command: str, source: Callable[[Any], Any]) -> Reached:
-    """Every string and number the value holds is in what ``source`` reads.
+def _saved_text(saved: Any) -> str | None:
+    """A saved value as text, or ``None`` for one that is absent, blank or not a scalar."""
+    if isinstance(saved, bool) or not isinstance(saved, str | int | float):
+        return None
+    return str(saved).strip() or None
 
-    For a view that renames keys or keeps part of a record: the keys differ, so the values
-    are what is compared.
+
+def _present(saved: Any) -> bool:
+    """Whether the run saved a value here: not absent, and not blank text."""
+    return saved is not None and (not isinstance(saved, str) or bool(saved.strip()))
+
+
+def as_read(held: Any, saved: Any) -> bool:
+    """Whether ``held`` is ``saved`` as a view reads a saved value.
+
+    A view strips text, keeps a number as it is, and keeps the non-blank texts of a list.
+    Anything else it could have done to the value is a difference.
+    """
+    if isinstance(held, str):
+        return held == _saved_text(saved)
+    if isinstance(held, bool) or isinstance(saved, bool):
+        return held is saved
+    if isinstance(held, int | float):
+        return isinstance(saved, int | float) and held == saved
+    if isinstance(held, list | tuple):
+        return isinstance(saved, list | tuple) and list(held) == [
+            text for item in saved if (text := _saved_text(item)) is not None
+        ]
+    return False
+
+
+PLACEHOLDERS: Final[frozenset[str]] = frozenset({"", "?", "unknown", "Untitled reference"})
+"""What a view holds in place of a saved value that is absent or blank."""
+
+
+def _read_view(view: Any, saved: Any, where: str, command: str) -> None:
+    """One nested view against the saved record it was read from, as :data:`READ` maps it.
+
+    A field that holds nothing passes: the page then shows nothing. A field that holds a
+    value has to hold the saved one, or a placeholder where the run saved none.
+    """
+    if view is None:
+        return
+    table = READ.get(type(view))
+    if table is None:
+        raise ParityError(f"{where}: {type(view).__name__} is not in parity.READ")
+    if not isinstance(saved, Mapping):
+        raise ParityError(f"{where} is shown, and `{command}` prints no record for it")
+    for name, keys in table.items():
+        held = getattr(view, name)
+        found = next((item for key in keys if _present(item := dig(saved, *key.split(".")))), None)
+        here = f"{where}.{name}"
+        if dataclasses.is_dataclass(held) and not isinstance(held, type):
+            _read_view(held, found, here, command)
+        elif held is None or held == ():
+            continue
+        elif found is None:
+            if not (isinstance(held, str) and held in PLACEHOLDERS):
+                raise ParityError(f"{here} is shown, and `{command}` prints no value for it")
+        elif not as_read(held, found):
+            raise ParityError(f"{here} differs from what `{command}` prints")
+
+
+def read(command: str, source: Callable[[Any], Any]) -> Reached:
+    """A nested view, field for field, against the saved record ``source`` reads."""
+
+    def compare(value: Any, documents: Any, where: str) -> None:
+        _read_view(value, source(documents), where, command)
+
+    return Reached(command, compare)
+
+
+def read_each(command: str, source: Callable[[Any], Any]) -> Reached:
+    """A tuple of nested views, each against its entry of the saved list ``source`` reads."""
+
+    def compare(value: Any, documents: Any, where: str) -> None:
+        saved = source(documents) or []
+        if len(value) != len(saved):
+            raise ParityError(f"{where} has more or fewer entries than `{command}` prints")
+        for index, (view, record) in enumerate(zip(value, saved, strict=True)):
+            if not dataclasses.is_dataclass(view):
+                raise ParityError(f"{where}[{index}] is not a view parity.READ places")
+            _read_view(view, record, f"{where}[{index}]", command)
+
+    return Reached(command, compare)
+
+
+def kept(command: str, source: Callable[[Any], Any]) -> Reached:
+    """The value is the saved record ``source`` reads, whole and unchanged, or nothing.
+
+    For a view that hands a page part of a saved record as it is. Nothing, because a page
+    may leave a record out (a score that was not placed shows no coverage); what it does
+    show has to be the record, flags and absent values included.
     """
 
     def compare(value: Any, documents: Any, where: str) -> None:
-        held = {leaf for _, leaf in leaves(source(documents))}
-        for path, leaf in leaves(value, where):
-            if leaf not in held:
-                raise ParityError(f"{path} is not in what `{command}` prints")
+        held = plain(value)
+        if held not in (None, {}, []) and held != source(documents):
+            raise ParityError(f"{where} differs from what `{command}` prints")
 
     return Reached(command, compare)
 
@@ -433,6 +530,9 @@ class Report:
     documents: dict[tuple[str, ...], Any] = field(default_factory=dict, repr=False)
     """Every document the commands printed, by the words that asked for it. Not in the
     ``repr``: a card document states the reader's call."""
+    shown: list[tuple[Any, Any]] = field(default_factory=list, repr=False)
+    """Each card view of the run page with its ``runs card`` document, for
+    :func:`unnoticed`. Not in the ``repr``, for the same reason."""
 
 
 class Documents:
@@ -524,27 +624,113 @@ def _context(*path: str) -> Callable[[Any], Any]:
 
 _RUNS_CARD: Final = "runs card"
 
-NESTED_DISPLAY: Final[dict[tuple[type, str], str]] = {
-    (views.ScoreRow, "label"): "The dashboard's name for one confidence input.",
-    (views.ScoreRow, "observed"): (
-        "One confidence input's saved value, or two joined by a space. `runs card --json` "
-        "holds each under card.confidence.inputs."
-    ),
-}
-"""Fields of a nested view that are display. Every other field of a nested view is compared
-value by value with the part of the document its card field is placed in."""
 
-NESTED: Final[dict[type, str]] = {
-    views.VariantView: "CardView.variant",
-    views.EvidenceView: "CardView.evidence",
-    views.EffectView: "CardView.evidence",
-    views.ConfidenceView: "CardView.confidence",
-    views.ScoreRow: "CardView.confidence",
-    views.FrequencyView: "CardView.frequencies",
-    views.CitationLink: "CardView.citations",
-    views.CarrierView: "CardView.carrier",
+def _identity(*names: str) -> dict[str, tuple[str, ...]]:
+    return {name: (name,) for name in names}
+
+
+READ: Final[dict[type, dict[str, tuple[str, ...]]]] = {
+    views.VariantView: _identity("rsid", "chrom", "alleles") | {"position": ("pos_grch37",)},
+    views.EffectView: _identity("measure", "value", "units", "ci_low", "ci_high", "context"),
+    views.EvidenceView: _identity(
+        "tier", "replication", "sample_size", "within_family_attenuation", "effect"
+    )
+    | {"populations": ("ancestry",)},
+    views.FrequencyView: _identity("allele", "frequency", "population", "source"),
+    views.CitationLink: _identity("database", "note")
+    | {"kind": ("type",), "identifier": ("id",), "title": ("title", "id")},
+    views.CarrierView: _identity(
+        "state", "condition", "variant", "pathogenic_allele", "clinvar", "typed_scope"
+    ),
+    views.ConfidenceView: _identity("tier", "score")
+    | {
+        "ppv_estimate": ("empirical_ppv.estimate",),
+        "ppv_ceiling": ("empirical_ppv.population_frequency_ceiling",),
+        "ppv_applies_to": ("empirical_ppv.applies_to",),
+    },
 }
-"""Views held inside a card, and the card field each is compared through."""
+"""Each field of a view held inside a card, and the key of the saved record it is read
+from: a dotted path, or several where the view falls back from one to the next. The field
+has to hold that value (:func:`as_read`). Until the M13.5 review these views were compared
+by whether each value appeared anywhere in the record, which let a figure changed to another
+figure in the same record pass."""
+
+APART: Final[dict[tuple[type, str], str]] = {
+    (views.CitationLink, "url"): (
+        "A link built from type, id and database. `_citations` compares it with the one "
+        "current_context.citation_links gives for the same citation."
+    ),
+    (views.ConfidenceView, "rows"): "Compared row by row; see parity.CONFIDENCE_ROWS.",
+    (views.ConfidenceView, "decided"): (
+        "The sentence current_context.confidence.reason gives. `_confidence` compares it."
+    ),
+    (views.ScoreRow, "label"): "Display: the dashboard's name for one confidence input.",
+    (views.ScoreRow, "observed"): (
+        "One saved confidence input, or two joined by a space. Compared by row with the "
+        "keys of card.confidence.inputs that parity.CONFIDENCE_ROWS names."
+    ),
+    (views.ScoreRow, "score"): "Compared by row; see parity.CONFIDENCE_ROWS.",
+}
+"""Fields of a view held inside a card that :data:`READ` does not map: a label, or a field
+compared another way. Each says which."""
+
+NESTED: Final[frozenset[type]] = frozenset(READ) | {cls for cls, _ in APART}
+"""Views held inside a card. Each field is in :data:`READ` or :data:`APART`."""
+
+NOT_RECORDED: Final[str] = "not recorded"
+"""What a confidence row shows for an input the run did not save."""
+
+CONFIDENCE_ROWS: Final[tuple[tuple[str, tuple[str, ...]], ...]] = (
+    ("evidence_score", ("evidence_tier",)),
+    ("effect_score", ("effect_measure", "effect_value")),
+    ("replication_score", ("replication",)),
+    ("frequency_score", ("population_allele_frequency",)),
+    ("imputation_score", ("call_source", "imputation_quality")),
+    ("ancestry_score", ("ancestry_match",)),
+)
+"""The rows of a card's confidence table, in the dashboard's order: the key of
+``card.confidence.inputs`` that holds the row's score, and the keys whose values it shows."""
+
+
+def _confidence(value: Any, document: Any, where: str) -> None:
+    """A card's confidence: the saved tier, score and benchmark, the sentence ``runs card``
+    gives for what decided the tier, and each row of the table as
+    :data:`CONFIDENCE_ROWS` places it."""
+    if value is None:
+        return
+    _read_view(value, document["card"]["confidence"], where, _RUNS_CARD)
+    reason = document["current_context"]["confidence"]["reason"]
+    if value.decided is not None and value.decided != reason:
+        raise ParityError(f"{where}.decided is not the reason `runs card` prints")
+    inputs = dig(document["card"], "confidence", "inputs")
+    inputs = inputs if isinstance(inputs, Mapping) else {}
+    if len(value.rows) != len(CONFIDENCE_ROWS):
+        raise ParityError(f"{where}.rows has a row parity.CONFIDENCE_ROWS does not place")
+    for index, (row, (score, shown)) in enumerate(zip(value.rows, CONFIDENCE_ROWS, strict=True)):
+        texts = [text for key in shown if (text := _saved_text(inputs.get(key))) is not None]
+        if row.observed != (" ".join(texts) or NOT_RECORDED):
+            raise ParityError(
+                f"{where}.rows[{index}].observed is not the saved input `runs card` prints"
+            )
+        if row.score is not None and row.score != inputs.get(score):
+            raise ParityError(
+                f"{where}.rows[{index}].score is not the saved score `runs card` prints"
+            )
+
+
+_EACH_CITATION: Final = read_each("runs card", lambda document: document["card"]["citations"])
+
+
+def _citations(value: Any, document: Any, where: str) -> None:
+    """Each citation as saved, and each link the one ``runs card`` gives for it."""
+    _EACH_CITATION.compare(value, document, where)
+    links = document["current_context"]["citation_links"]
+    if len(links) != len(value):
+        raise ParityError(f"{where} has more or fewer links than `runs card` prints")
+    for index, (link, printed) in enumerate(zip(value, links, strict=True)):
+        if link.url is not None and link.url != printed["url"]:
+            raise ParityError(f"{where}[{index}].url is not the link `runs card` prints")
+
 
 CARD: Final[dict[str, Placed]] = {
     "card_id": same(_RUNS_CARD, _card("card_id")),
@@ -558,24 +744,12 @@ CARD: Final[dict[str, Placed]] = {
     "detail": same(_RUNS_CARD, _card("detail")),
     "impossibility_reason": same(_RUNS_CARD, _card("impossibility_reason")),
     "tier": same(_RUNS_CARD, _card("confidence_tier")),
-    "variant": within(_RUNS_CARD, _card("variant")),
-    "evidence": within(_RUNS_CARD, _card("evidence")),
-    "confidence": within(
-        _RUNS_CARD,
-        lambda document: [
-            document["card"]["confidence"],
-            document["current_context"]["confidence"]["reason"],
-        ],
-    ),
-    "frequencies": within(_RUNS_CARD, _card("frequencies")),
-    "confidence_frequency": within(_RUNS_CARD, _card("confidence_frequency")),
-    "citations": within(
-        _RUNS_CARD,
-        lambda document: [
-            document["card"]["citations"],
-            document["current_context"]["citation_links"],
-        ],
-    ),
+    "variant": read(_RUNS_CARD, _card("variant")),
+    "evidence": read(_RUNS_CARD, _card("evidence")),
+    "confidence": Reached(_RUNS_CARD, _confidence),
+    "frequencies": read_each(_RUNS_CARD, _card("frequencies")),
+    "confidence_frequency": read(_RUNS_CARD, _card("confidence_frequency")),
+    "citations": Reached(_RUNS_CARD, _citations),
     "authored_caveats": same(_RUNS_CARD, _card("authored_caveats")),
     "computed_caveats": same(_RUNS_CARD, _card("computed_caveats")),
     "observed_rsid": same(_RUNS_CARD, _card("match", "observed_rsid")),
@@ -590,7 +764,7 @@ CARD: Final[dict[str, Placed]] = {
     "risk_context": same(_RUNS_CARD, _card("risk_context")),
     "imputation_mode": same(_RUNS_CARD, _card("imputation_mode")),
     "imputation": same(_RUNS_CARD, _card("observation", "imputation")),
-    "carrier": within(_RUNS_CARD, _card("carrier")),
+    "carrier": read(_RUNS_CARD, _card("carrier")),
 }
 """Each field of :class:`~genetics.web.views.CardView`, against one ``runs card`` document."""
 
@@ -599,37 +773,48 @@ _DRAWN: Final = (
     "computation.result.position, which `runs card --json` holds."
 )
 
+
+def _ancestry_matched(card: Any) -> bool:
+    """Whether the score was compared with a reference matched to the reader's ancestry.
+
+    False where the saved result names no reference, as for a score that was not placed.
+    """
+    return bool(dig(card, "computation", "result", "reference", "ancestry_matched"))
+
+
+def _result(*path: str) -> Callable[[Any], Any]:
+    return lambda document: dig(document["card"], "computation", "result", *path)
+
+
 POLYGENIC: Final[dict[str, Placed]] = {
-    "pgs_id": within(_RUNS_CARD, _card("computation")),
-    "trait": within(_RUNS_CARD, _card("computation")),
+    "pgs_id": same(_RUNS_CARD, lambda d: str(_result("pgs_id")(d))),
+    "trait": same(_RUNS_CARD, lambda d: str(_result("authored", "trait")(d))),
     "placed": same(
         _RUNS_CARD, lambda d: dig(d["card"], "computation", "result", "position") is not None
     ),
-    "reason": within(_RUNS_CARD, _card("computation")),
+    "reason": kept(_RUNS_CARD, _card("computation", "reason")),
     "bars": Display(_DRAWN),
     "band_x": Display(_DRAWN),
     "band_width": Display(_DRAWN),
     "band_label": Display(_DRAWN),
     "ticks": Display(_DRAWN),
     "reference_label": Display("Words computation.result.reference's label and sample count."),
-    "ancestry_matched": Display(
-        "Whether computation.result.reference.ancestry_matched is set; false for a score "
-        "that was not placed."
-    ),
-    "reference_reason": within(_RUNS_CARD, _card("computation")),
+    "ancestry_matched": same(_RUNS_CARD, lambda d: _ancestry_matched(d["card"])),
+    "reference_reason": kept(_RUNS_CARD, _result("reference", "reason")),
     "phase_label": Display("Words computation.result.phase."),
-    "coverage": within(_RUNS_CARD, _card("computation")),
-    "quality": within(_RUNS_CARD, _card("computation")),
-    "portability": within(_RUNS_CARD, _card("computation")),
-    "deciles": within(_RUNS_CARD, _card("computation")),
+    "coverage": kept(_RUNS_CARD, _result("coverage")),
+    "quality": kept(_RUNS_CARD, _result("quality")),
+    "portability": kept(_RUNS_CARD, _result("portability")),
+    "deciles": kept(_RUNS_CARD, _result("authored", "decile_outcomes")),
     "decile_rows": Display(
         "Each saved decile rate as a percentage, from computation.result.authored.decile_outcomes."
     ),
-    "reliability": within(_RUNS_CARD, _card("computation")),
-    "licence": within(_RUNS_CARD, _card("computation")),
-    "phase_coverage": within(_RUNS_CARD, _card("computation")),
+    "reliability": kept(_RUNS_CARD, _card("computation", "reliability")),
+    "licence": kept(_RUNS_CARD, _result("licence")),
+    "phase_coverage": kept(_RUNS_CARD, _result("phase_coverage")),
 }
-"""Each field of the polygenic view a card builds from its saved computation."""
+"""Each field of the polygenic view a card builds from its saved computation. The view
+hands the page each saved part as it is, so each is compared with that part exactly."""
 
 
 def _check_card(card: views.CardView, documents: Documents) -> None:
@@ -641,6 +826,72 @@ def _check_card(card: views.CardView, documents: Documents) -> None:
         _apply(POLYGENIC, drawn, document, f"{where}.polygenic", documents.report)
         documents.report.drawn += 1
     documents.report.cards += 1
+
+
+def one_change(value: Any, where: str) -> Iterator[tuple[str, Any]]:
+    """Each way of changing one string, number, flag or absent value inside ``value``.
+
+    Also one entry added to each mapping and sequence. Yields where the change was made,
+    without indices, and the changed copy. The first two items of a sequence are changed.
+    """
+    if value is None:
+        yield where, "~"
+    elif isinstance(value, bool):
+        yield where, not value
+    elif isinstance(value, str):
+        yield where, value + "~"
+    elif isinstance(value, int | float):
+        yield where, value + 1
+    elif dataclasses.is_dataclass(value) and not isinstance(value, type):
+        for item in dataclasses.fields(value):
+            for inner, changed in one_change(getattr(value, item.name), f"{where}.{item.name}"):
+                yield inner, dataclasses.replace(value, **{item.name: changed})
+    elif isinstance(value, Mapping):
+        for key, item in value.items():
+            for inner, changed in one_change(item, f"{where}.{key}"):
+                yield inner, {**value, key: changed}
+        yield f"{where}.+", {**value, "added": "~"}
+    elif isinstance(value, list | tuple):
+        for index, item in enumerate(value[:2]):
+            for inner, changed in one_change(item, f"{where}[]"):
+                yield inner, type(value)([*value[:index], changed, *value[index + 1 :]])
+        yield f"{where}[+]", type(value)([*value, "~"])
+
+
+def unnoticed(report: Report) -> tuple[int, set[str]]:
+    """How many one-value changes to the run's card views were tried, and which passed.
+
+    The check on the check. A comparison that passes proves little, so every compared field
+    of every card view :func:`check_run` saw, and of the polygenic view a card draws, is
+    changed one value at a time (:func:`one_change`) and compared again with the same
+    document. A change that still passes is a value the dashboard could show wrongly
+    without this check failing. Returns where those were, as field paths with no values.
+    """
+    tried = 0
+    passed: set[str] = set()
+    for card, document in report.shown:
+        tables: list[tuple[Mapping[str, Placed], Any, str]] = [(CARD, card, "")]
+        if card.polygenic is not None:
+            tables.append((POLYGENIC, card.polygenic, "polygenic."))
+        for table, view, prefix in tables:
+            for item in dataclasses.fields(view):
+                if isinstance(table[item.name], Display):
+                    continue
+                for where, changed in one_change(getattr(view, item.name), prefix + item.name):
+                    tried += 1
+                    other = dataclasses.replace(view, **{item.name: changed})
+                    try:
+                        _apply(table, other, document, "a changed view", Report())
+                    except ParityError:
+                        continue
+                    passed.add(where)
+    return tried, passed
+
+
+UNNOTICED: Final[dict[str, str]] = {
+    "confidence.rows[].label": "Display: the dashboard's name for one confidence input.",
+}
+"""The one-value changes :func:`unnoticed` may report, each with why that is right."""
 
 
 # ---------------------------------------------------------------------------
@@ -1156,7 +1407,9 @@ def check_views() -> None:
             placed = set(TABLES[cls])
         elif cls in ARRANGED:
             placed = set(ARRANGED[cls])
-        elif cls in NESTED or cls in DRAWN:
+        elif cls in NESTED:
+            placed = set(READ.get(cls, ())) | {item for owner, item in APART if owner is cls}
+        elif cls in DRAWN:
             placed = fields
         else:
             raise ParityError(
@@ -1175,9 +1428,6 @@ def check_views() -> None:
                 "differ from parity.PROPERTIES. A property may word or arrange what its "
                 "object holds; an analysis belongs in the engine, where a command prints it"
             )
-    for cls, item in NESTED_DISPLAY:
-        if cls not in NESTED or item not in {f.name for f in dataclasses.fields(cls)}:
-            raise ParityError(f"parity.NESTED_DISPLAY names {cls.__name__}.{item}, which is gone")
 
 
 # ---------------------------------------------------------------------------
@@ -1204,11 +1454,38 @@ class _Recorder:
         # Set before any template is loaded, so every one the app renders is a Recording.
         application.state.environment.template_class = Recording
 
-    def page(self) -> tuple[str, dict[str, Any]]:
-        """The last template rendered: the page, after the two scanned partials."""
+    def page(self, address: str) -> tuple[str, dict[str, Any]]:
+        """The last template rendered: the page, after the two scanned partials.
+
+        A template rendered before the page is handed nothing the page is not, so that
+        placing the page's keys places every key the route handed anything.
+        """
         if not self.rendered:
-            raise ParityError("the route rendered no template")
-        return self.rendered[-1]
+            raise ParityError(f"{address} rendered no template")
+        template, context = self.rendered[-1]
+        for name, partial in self.rendered[:-1]:
+            alone = sorted(set(partial) - set(context))
+            if alone:
+                raise ParityError(
+                    f"{address} hands {name} {alone}, which {template} is not handed and "
+                    "so no table places"
+                )
+        return template, context
+
+
+def _same_shell(shell: Any, compared: Any, address: str) -> None:
+    """``shell`` is the one already compared field by field, bar the reader's arrangement.
+
+    Every page builds its own shell. Only the run page's two are compared with the
+    commands, so each other page's has to equal one of those. ``grid`` is left out: it
+    holds the query string, which differs by page.
+    """
+    for item in dataclasses.fields(shell):
+        if item.name != "grid" and getattr(shell, item.name) != getattr(compared, item.name):
+            raise ParityError(
+                f"{address} shell.{item.name} differs from the run page's, which is the "
+                "one compared with the commands"
+            )
 
 
 def check_run(run: Path) -> Report:
@@ -1216,7 +1493,8 @@ def check_run(run: Path) -> Report:
 
     ``run`` is the bundle's directory, inside a directory named ``runs``. Raises
     :class:`ParityError` at the first difference. The run is read through the real app and
-    the real commands; nothing is written.
+    the real commands, and the bundle is left as it was. As on any read, a run that passes
+    its deep checks is remembered outside the bundle (:mod:`genetics.run.checks`).
     """
     from fastapi.testclient import TestClient
 
@@ -1238,11 +1516,12 @@ def check_run(run: Path) -> Report:
             if response.status_code != 200:
                 raise ParityError(f"{address} answered {response.status_code}")
             report.pages += 1
-            return recorder.page()
+            return recorder.page(address)
 
-        def check(address: str, *, fragment: bool = False, whole: bool = False) -> dict[str, Any]:
-            """One page. ``whole`` also compares the shell, which is the same on every page."""
-            template, context = render(address, fragment=fragment)
+        compared: list[Any] = []
+
+        def place(address: str, template: str, context: Mapping[str, Any]) -> None:
+            """Every key the page is handed is placed, and each placed value is compared."""
             table = CONTEXT.get(template)
             if table is None:
                 raise ParityError(f"{address} renders {template}, which parity.CONTEXT omits")
@@ -1256,12 +1535,25 @@ def check_run(run: Path) -> Report:
                 if isinstance(handed, Handed):
                     handed.compare(value, documents, context, f"{address} `{key}`")
                     report.compared += 1
+            report.templates.add(template)
+
+        def check(address: str, *, fragment: bool = False, whole: bool = False) -> dict[str, Any]:
+            """One page of the run. ``whole`` compares its shell with the commands; any other
+            page's shell must equal the first one compared."""
+            template, context = render(address, fragment=fragment)
+            place(address, template, context)
             shell = context["shell"]
             if shell.selected_id != run.name or shell.problem is not None:
                 raise ParityError(f"{address} did not open the run")
             if whole:
                 _apply(SHELL, shell, documents, f"{address} shell", report)
-            report.templates.add(template)
+                if not compared:
+                    report.shown.extend(
+                        (card, documents.card(card.card_id)) for card in shell.cards
+                    )
+                compared.append(shell)
+            else:
+                _same_shell(shell, compared[0], address)
             return context
 
         health = client.get("/healthz").json()
@@ -1274,8 +1566,11 @@ def check_run(run: Path) -> Report:
                 placed.compare(value, documents, health, f"/healthz `{key}`")
                 report.compared += 1
 
-        # The index opens the newest run that `runs list` reports readable.
-        _, front = render("/")
+        # The index opens the newest run that `runs list` reports readable. That may be
+        # another run, so its keys are placed here and its shell is compared, below, only
+        # when it is this one.
+        template, front = render("/")
+        place("/", template, front)
         readable = [
             row["run_id"] for row in documents.listing["runs"] if row["status"] == "readable"
         ]
@@ -1284,6 +1579,8 @@ def check_run(run: Path) -> Report:
 
         context = check(base, whole=True)
         check(f"{base}?group=tier", whole=True)
+        if front["shell"].selected_id == run.name:
+            _same_shell(front["shell"], compared[0], "/")
         cards = context["shell"].cards
         for index, card in enumerate(cards):
             shown = check(card.url)

@@ -621,6 +621,25 @@ def test_saved_run_round_trips_through_bundle_cli_and_dashboard(
     # M13.5: the only saved run with a placed score. Its chart is drawn from the
     # distribution and position that `runs card` prints.
     assert parity_check(path).drawn == 2, "one placed score, grouped by section and by tier"
+    # Whether the score was compared with an ancestry-matched reference is a result, not
+    # chart geometry, so the page's flag is held to the saved one.
+    import dataclasses
+
+    from genetics.testing.parity import ParityError
+    from genetics.web.polygenic import PolygenicView
+
+    build = PolygenicView.of.__func__  # type: ignore[attr-defined]
+
+    def flipped(cls: type[PolygenicView], computation: Any) -> PolygenicView | None:
+        view: PolygenicView | None = build(cls, computation)
+        if view is None:
+            return None
+        return dataclasses.replace(view, ancestry_matched=not view.ancestry_matched)
+
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(PolygenicView, "of", classmethod(flipped))
+        with pytest.raises(ParityError, match=r"polygenic\.ancestry_matched differs"):
+            parity_check(path)
 
     config = WebConfig(runs_root=runs_dir())
     with TestClient(create_app(config), base_url="http://127.0.0.1:8765") as client:

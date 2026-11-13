@@ -81,7 +81,9 @@ genetics runs imputation <run-id> --dosages
 genetics runs show <run-id> --json
 ```
 
-`--json` returns saved execution and provenance. `--dosages` streams private JSON Lines;
+`--json` returns saved execution and provenance. Since M13.5 it starts with the run
+envelope and a schema tag ([the agent schema](agent_schema.md) describes it as
+`runs.imputation`), and it is checked for a genotype before it prints. `--dosages` streams private JSON Lines;
 it deliberately contains genotype-derived observations. Keep redirected output outside
 the checkout. `RunBundle.iter_dosages()` exposes the same native records for future score
 consumers and checks payload integrity again before streaming. A removed or unreadable

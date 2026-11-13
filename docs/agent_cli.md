@@ -543,21 +543,29 @@ writes, which the dashboard's footer and `/healthz` show.
 Each list is read from the dashboard's own code, so something new fails until it is placed.
 
 - **Routes.** Every route the app serves is in the table above, and every command in it
-  exists and takes `--json`.
+  exists and takes `--json` and each other option it is written with.
 - **Engine calls.** Every engine function a `genetics.web` module calls, at module level or
-  inside a route, is one the CLI's read side calls too. Two are exempt, each with its reason
+  inside a route, is one a `genetics.cli` module or the read side (`run/reads.py`,
+  `run/explain.py`, `pgx/presentation.py`) calls too. Two are exempt, each with its reason
   in `parity.DISPLAY_ONLY`: `phase_coverage_text`, which words a polygenic card's saved
   before-and-after coverage, and `run_signature`, the key for keeping one opened run in
-  memory.
+  memory. A relative import or a bare `import genetics.x` cannot be followed and fails.
 - **Values.** For a saved run, every page is rendered through the real app and what it
   hands its template is recorded: each context key, each of the nineteen fields of `Shell`,
   each of the 32 fields of every card's `CardView`, and the polygenic view a card draws.
   Each is compared with the place a command's document holds it, read through the real CLI.
-  A view that renames keys is compared value by value with the part of the document it was
-  built from.
+  A view held inside a card (variant, evidence, effect, frequency, citation, carrier,
+  confidence) is compared field for field with the key of the saved record it is read
+  from (`parity.READ`), and the six rows of the confidence table with the saved inputs
+  and scores they show (`parity.CONFIDENCE_ROWS`). The run page's shell is compared with
+  the commands; every other page's shell has to equal it.
 - **The tables themselves.** All 23 view classes in `genetics.web.views` and
   `genetics.web.polygenic` must be accounted for, field for field, and every property of
   every class must be listed.
+- **The comparison.** `parity.unnoticed` changes every value of every card view a run
+  shows, one at a time, and lists each change the comparison lets pass. The `parity_check`
+  fixture fails on any outside `parity.UNNOTICED`, which holds one: a confidence row's
+  label.
 
 A failure names the page, the card and the field. It never quotes a compared value, because
 a run is raw DNA (AGENTS.md §1.1).
@@ -590,6 +598,9 @@ record gives for that variation, and the ACMG policy link in the DOI the saved r
 - **The other direction.** The check is that the dashboard shows nothing the CLI lacks. It
   does not look for what the CLI prints and no page shows. One case is known: a card's
   `ancestry_comparison` is printed by `runs show` and `runs card` and is on no page.
+- **A method.** The call list follows imported functions. A method called on an object
+  the page already holds is not seen. The engine classes the dashboard imports are enums,
+  errors, `RunBundle` and the listing rows, and none of them computes a result.
 - **Text output.** Only `--json` is compared.
 - **The real imputed run.** Every run checked is synthetic.
 
@@ -673,6 +684,19 @@ kept out of the message). Thirty removals failed a test. An unplaced view field 
 run check did not, because only the structural check covered it; a test now does.
 The full native suite passes **4,273 tests with nine skips** in 874 s: the five existing Windows skips and the four published-classifier HIBAG tests. Strict mypy on all four Windows/Linux x Python 3.11/3.13 targets (257 files),
 full dbSNP card lint, ruff, format and the fixture check pass.
+
+The [session diff review](review_m135_session.md) changed every value of every card view
+once and found that a figure changed to another figure in the same record passed: the
+nested views and eleven fields of the polygenic view were compared by whether each value
+appeared anywhere in the record. On the run with a placed score, 38 of 170 changes to
+the polygenic view passed, among them weight coverage and imputation quality, and so did
+a changed within-family attenuation. Those views are now compared field for field. The
+review also found `ancestry_matched` and a confidence row's saved input declared display
+and uncompared, and every page's shell but the run page's assumed equal and unchecked;
+all three are compared now. `tests/test_parity.py` holds 43 tests, the probe is one of
+them, and the `parity_check` fixture runs it on every run a suite hands it. Nineteen more
+guards were removed in turn, each caught. No command's output and no schema shape
+changed. The full native suite passes 4,282 tests with the existing nine skips.
 
 ## Validation
 

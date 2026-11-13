@@ -840,6 +840,15 @@ def test_imputation_provenance_is_scanned_on_both_branches(
     assert result.exit_code != 0 and isinstance(result.exception, GenotypeLeakError)
     assert "rs4988235" not in result.stdout
 
+    # The text branch prints the saved status and stage values, read from the bundle itself.
+    from genetics.run import store
+
+    other = dataclasses.replace(saved, imputation_provenance={"status": row})
+    monkeypatch.setattr(store, "load_run", lambda *args, **kwargs: other)
+    text = runner.invoke(app, ["runs", "imputation", saved.path.name])
+    assert text.exit_code != 0 and isinstance(text.exception, GenotypeLeakError)
+    assert "rs4988235" not in text.stdout
+
 
 def test_version_json_states_the_bundle_format_this_engine_writes() -> None:
     """What the dashboard's footer and ``/healthz`` show, from a command (M13.5)."""

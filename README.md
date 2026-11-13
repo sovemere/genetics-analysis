@@ -273,7 +273,10 @@ command's JSON. It renders every page of a saved run and compares what each is h
 what the commands print. The commands that print a run's other saved records (`runs
 clinvar`, `runs secondary`, `runs imputation`, `pgx calls`, `hla calls`) are now described
 by the agent schema, which is version 5. See
-[the parity section](docs/agent_cli.md#parity-m135).
+[the parity section](docs/agent_cli.md#parity-m135). The
+[M13.5 diff review](docs/review_m135_session.md) fixes comparisons that let a figure
+changed to another figure in the same saved record pass, a polygenic score's coverage
+among them, and adds a probe that changes every value a card shows.
 [M13.6, the documented review workflow](docs/handoff.md#next-open-step-m136-review-workflow)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
@@ -401,6 +404,9 @@ genetics runs search <run-id> curly hair --json
 genetics schema
 genetics runs clinvar <run-id> --json
 genetics runs secondary <run-id> --json
+genetics runs imputation <run-id> --json
+genetics pgx calls <run-id> --json
+genetics hla calls <run-id> --json
 genetics serve
 ```
 

@@ -130,6 +130,13 @@ def test_a_listed_route_or_command_that_is_gone_fails(monkeypatch: pytest.Monkey
         monkeypatch.setattr(parity, "PAGES", (renamed, *pages[1:]))
         with pytest.raises(ParityError, match="is not a command that takes --json"):
             parity.check_routes()
+    # An option the table writes and the command has since lost or renamed.
+    renamed = dataclasses.replace(
+        pages[0], commands=("genetics runs show <run> --part <x> --json",)
+    )
+    monkeypatch.setattr(parity, "PAGES", (renamed, *pages[1:]))
+    with pytest.raises(ParityError, match="--part, which the command does not take"):
+        parity.check_routes()
 
 
 def test_the_route_table_is_the_one_the_documentation_gives() -> None:
@@ -187,6 +194,21 @@ def test_calls_are_read_from_function_bodies_and_through_modules(tmp_path: Path)
     }
 
 
+@pytest.mark.parametrize(
+    ("line", "match"),
+    [
+        ("from ..run import store", "page.py:1: a relative import cannot be followed"),
+        ("import genetics.run.store", r"page.py:1: `import genetics\.run\.store` cannot be"),
+    ],
+)
+def test_an_import_the_reader_cannot_follow_fails(tmp_path: Path, line: str, match: str) -> None:
+    """A call made through either form would not be listed, so the form itself fails."""
+    source = tmp_path / "page.py"
+    source.write_text(f"{line}\nimport json\nfrom pathlib import Path\n", encoding="utf-8")
+    with pytest.raises(ParityError, match=match):
+        parity.engine_functions([source])
+
+
 # ---------------------------------------------------------------------------
 # View classes
 # ---------------------------------------------------------------------------
@@ -227,11 +249,11 @@ def test_a_new_property_or_view_class_fails(monkeypatch: pytest.MonkeyPatch) -> 
         parity.check_views()
 
 
-def test_a_display_exemption_for_a_field_that_is_gone_fails(
+def test_a_nested_exemption_for_a_field_that_is_gone_fails(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setitem(parity.NESTED_DISPLAY, (views.ScoreRow, "weight"), "Removed.")
-    with pytest.raises(ParityError, match=r"ScoreRow\.weight, which is gone"):
+    monkeypatch.setitem(parity.APART, (views.ScoreRow, "weight"), "Removed.")
+    with pytest.raises(ParityError, match=r"ScoreRow: field\(s\) \['weight'\] are in the class or"):
         parity.check_views()
 
 
@@ -292,7 +314,7 @@ def test_a_value_inside_a_nested_view_fails(saved: Path, monkeypatch: pytest.Mon
         return dataclasses.replace(view, position=(view.position or 0) + 1)
 
     monkeypatch.setattr(views.VariantView, "of", classmethod(changed))
-    _fails(saved, r"\.variant\.position is not in what `runs card` prints")
+    _fails(saved, r"\.variant\.position differs from what `runs card` prints")
 
 
 def test_a_card_field_the_command_drops_fails(saved: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -391,6 +413,60 @@ def test_a_context_key_with_no_place_fails(
     _fails(saved, rf"hands {template} `{key}`, which is not placed")
 
 
+def test_the_index_s_keys_are_placed_too(saved: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """``/`` is rendered first, so a key only it were handed could not go unplaced."""
+    table = {k: v for k, v in parity.CONTEXT["dashboard.html"].items() if k != "engine_version"}
+    monkeypatch.setitem(parity.CONTEXT, "dashboard.html", table)
+    _fails(saved, r"^/ hands dashboard\.html `engine_version`, which is not placed")
+
+
+@pytest.mark.parametrize(
+    ("built_before", "match"),
+    [
+        # `/` builds the first shell, and the run page grouped two ways the next two.
+        (0, r"^/ shell\.card_count differs from the run page's"),
+        (3, r"/cards/\w+ shell\.card_count differs from the run page's"),
+    ],
+)
+def test_a_page_whose_shell_is_not_the_compared_one_fails(
+    saved: Path, monkeypatch: pytest.MonkeyPatch, built_before: int, match: str
+) -> None:
+    """Only the run page's shell is compared with the commands, so every other page's
+    must equal it. A page that built its own differently would otherwise pass."""
+    build = views.shell_for
+    built: list[views.Shell] = []
+
+    def other(*args: Any, **kwargs: Any) -> views.Shell:
+        shell = build(*args, **kwargs)
+        built.append(shell)
+        if len(built) == built_before + 1:
+            return dataclasses.replace(shell, card_count=shell.card_count + 1)
+        return shell
+
+    monkeypatch.setattr(views, "shell_for", other)
+    _fails(saved, match)
+
+
+def test_a_partial_handed_a_key_the_page_is_not_fails() -> None:
+    """The page's keys are the ones placed, so nothing rendered before it may hold another."""
+    from types import SimpleNamespace
+
+    recorder = parity._Recorder(
+        SimpleNamespace(state=SimpleNamespace(environment=SimpleNamespace()))
+    )
+    recorder.rendered = [
+        ("_qcbanner.html", {"shell": None, "relative_risk": 2.0}),
+        ("dashboard.html", {"shell": None, "qcbanner_html": ""}),
+    ]
+    with pytest.raises(ParityError, match=r"hands _qcbanner\.html \['relative_risk'\]"):
+        recorder.page("/runs/x")
+    recorder.rendered[0] = ("_qcbanner.html", {"shell": None})
+    assert recorder.page("/runs/x")[0] == "dashboard.html"
+    recorder.rendered.clear()
+    with pytest.raises(ParityError, match="/runs/x rendered no template"):
+        recorder.page("/runs/x")
+
+
 def test_a_view_field_with_no_place_fails_when_a_run_is_checked(
     saved: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -412,35 +488,116 @@ def test_a_run_outside_a_runs_directory_is_refused(tmp_path: Path) -> None:
         parity.check_run(tmp_path / "elsewhere" / "20260101T000000Z-00000000")
 
 
+def test_changing_any_one_value_a_card_shows_fails(saved: Path, parity_check: Check) -> None:
+    """Every compared field of every card, one change at a time (M13.5 review).
+
+    The tests above change a handful of values chosen by hand. ``parity.unnoticed`` changes
+    each string, number, flag and absent value that each of the 103 card views holds, nested
+    views and saved records included, and adds an entry to each mapping and list. Every
+    change has to fail, bar a confidence row's label, which is the dashboard's own name for
+    an input. ``parity_check`` asserts the same on every run another suite hands it.
+    """
+    report = parity_check(saved)
+    tried, passed = parity.unnoticed(report)
+    assert len(report.shown) == 103 and tried > 6000
+    assert passed == set(parity.UNNOTICED) == {"confidence.rows[].label"}
+    # A seventh row of the confidence table is a row no table places, whatever it holds.
+    card, document = next(pair for pair in report.shown if pair[0].confidence is not None)
+    rows = card.confidence.rows
+    longer = dataclasses.replace(card.confidence, rows=(*rows, rows[0]))
+    with pytest.raises(ParityError, match=r"a row parity\.CONFIDENCE_ROWS does not place"):
+        parity._apply(
+            parity.CARD, dataclasses.replace(card, confidence=longer), document, "card", Report()
+        )
+
+
+def test_the_fixture_fails_a_run_whose_comparison_would_miss_a_change(
+    saved: Path, parity_check: Check, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``parity_check`` probes every run a suite hands it, so a table that compares a field
+    loosely fails in the suite that builds a run where it matters."""
+    loose = parity.Reached("runs card", lambda value, document, where: None)
+    monkeypatch.setitem(parity.CARD, "evidence", loose)
+    with pytest.raises(AssertionError, match=r"evidence\.within_family_attenuation"):
+        parity_check(saved)
+
+
+def test_one_change_reaches_every_kind_of_value() -> None:
+    row = views.ScoreRow(label="Evidence tier", observed="gwas", score=0.5)
+    held = {"flag": True, "none": None, "rows": (row,)}
+    assert [where for where, _ in parity.one_change(held, "x")] == [
+        "x.flag",
+        "x.none",
+        "x.rows[].label",
+        "x.rows[].observed",
+        "x.rows[].score",
+        "x.rows[+]",
+        "x.+",
+    ]
+    changed = dict(parity.one_change(held, "x"))
+    assert changed["x.flag"]["flag"] is False and changed["x.none"]["none"] == "~"
+    assert changed["x.rows[].score"]["rows"][0].score == 1.5
+    assert held == {"flag": True, "none": None, "rows": (row,)}, "the original is left alone"
+
+
 # ---------------------------------------------------------------------------
 # The comparisons themselves
 # ---------------------------------------------------------------------------
 
 
-def test_leaves_are_strings_and_numbers_with_where_they_sit() -> None:
-    row = views.ScoreRow(label="Evidence tier", observed="gwas", score=0.5)
-    held = {"a": [1, "x", None, True, ""], "b": {"c": 2.5}, "row": row}
-    assert list(parity.leaves(held, "root")) == [
-        ("root.a[0]", 1.0),
-        ("root.a[1]", "x"),
-        ("root.b.c", 2.5),
-        # `label` and `observed` are display; see parity.NESTED_DISPLAY.
-        ("root.row.score", 0.5),
-    ]
-    with pytest.raises(ParityError, match="cannot be compared with JSON"):
-        list(parity.leaves({"a": object()}))
+def test_a_view_s_value_is_the_saved_one_as_a_view_reads_it() -> None:
+    assert parity.as_read("EUR", " EUR ") and parity.as_read("5", 5)
+    assert parity.as_read(0.5, 0.5) and parity.as_read(5.0, 5) and parity.as_read(5, 5)
+    assert parity.as_read(("A", "G"), ["A", " ", None, "G"])
+    assert not parity.as_read("EUR", "EAS") and not parity.as_read("EUR", None)
+    assert not parity.as_read(0.5, 1.5) and not parity.as_read(0.5, "0.5")
+    assert not parity.as_read(1, True) and not parity.as_read(("A",), ["A", "G"])
+    assert not parity.as_read({"a": 1}, {"a": 1}), "a view holds no mapping it read by key"
 
 
-def test_same_and_within_fail_on_a_difference_and_only_then() -> None:
-    document = {"card": {"gene": "WNT10A", "variant": {"rsid": "rs1", "pos_grch37": 5}}}
-    variant = views.VariantView(rsid="rs1", chrom=None, position=5, alleles=())
+def test_same_read_and_kept_fail_on_a_difference_and_only_then() -> None:
+    saved = {"rsid": "rs1", "pos_grch37": 5, "chrom": None, "alleles": ["A", "G"]}
+    document = {"card": {"gene": "WNT10A", "variant": saved, "list": [saved], "none": None}}
+    variant = views.VariantView(rsid="rs1", chrom=None, position=5, alleles=("A", "G"))
     parity.same("runs card", lambda d: d["card"]["gene"]).compare("WNT10A", document, "gene")
-    parity.within("runs card", lambda d: d["card"]["variant"]).compare(variant, document, "v")
     with pytest.raises(ParityError, match="gene differs from what `runs card` prints"):
         parity.same("runs card", lambda d: d["card"]["gene"]).compare("EDAR", document, "gene")
-    moved = dataclasses.replace(variant, position=6)
-    with pytest.raises(ParityError, match=r"v\.position is not in what `runs card` prints"):
-        parity.within("runs card", lambda d: d["card"]["variant"]).compare(moved, document, "v")
+
+    one = parity.read("runs card", lambda d: d["card"]["variant"])
+    one.compare(variant, document, "v")
+    one.compare(None, document, "v")
+    with pytest.raises(ParityError, match=r"v\.position differs from what `runs card` prints"):
+        one.compare(dataclasses.replace(variant, position=6), document, "v")
+    # A figure that is elsewhere in the same record is still the wrong figure. Comparing
+    # by whether a value appears anywhere in the record passed this until the review.
+    elsewhere = {**saved, "other": 6}
+    with pytest.raises(ParityError, match=r"v\.position differs"):
+        parity.read("runs card", lambda d: elsewhere).compare(
+            dataclasses.replace(variant, position=6), document, "v"
+        )
+    with pytest.raises(ParityError, match=r"v\.chrom is shown, and `runs card` prints no value"):
+        one.compare(dataclasses.replace(variant, chrom="7"), document, "v")
+    with pytest.raises(ParityError, match="v is shown, and `runs card` prints no record"):
+        parity.read("runs card", lambda d: d["card"]["none"]).compare(variant, document, "v")
+    # A placeholder stands for a saved value that is absent, and for nothing else.
+    blank = views.FrequencyView(allele="?", frequency=None, population=None, source=None)
+    parity.read("x", lambda d: {"allele": " "}).compare(blank, document, "f")
+    with pytest.raises(ParityError, match=r"f\.allele differs"):
+        parity.read("x", lambda d: {"allele": "A"}).compare(blank, document, "f")
+
+    each = parity.read_each("runs card", lambda d: d["card"]["list"])
+    each.compare((variant,), document, "vs")
+    with pytest.raises(ParityError, match="vs has more or fewer entries"):
+        each.compare((variant, variant), document, "vs")
+    with pytest.raises(ParityError, match=r"vs\[0\]\.rsid differs"):
+        each.compare((dataclasses.replace(variant, rsid="rs2"),), document, "vs")
+
+    whole = parity.kept("runs card", lambda d: d["card"]["variant"])
+    whole.compare(saved, document, "k")
+    whole.compare({}, document, "k")
+    whole.compare(None, document, "k")
+    with pytest.raises(ParityError, match="k differs from what `runs card` prints"):
+        whole.compare({**saved, "chrom": "7"}, document, "k")
     # A tuple the dashboard holds equals the list JSON gives back.
     parity.same("x", lambda d: [1, 2]).compare((1, 2), document, "pair")
     assert parity.dig(document, "card", "variant", "rsid") == "rs1"

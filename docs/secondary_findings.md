@@ -26,6 +26,9 @@ genetics runs secondary <run-id> --json
 genetics runs clinvar <run-id> --json
 ```
 
+Since M13.5 both JSON documents start with the run envelope and a schema tag;
+[the agent schema](agent_schema.md) describes them as `runs.secondary` and `runs.clinvar`.
+
 The manifest pins the complete public API payload by SHA256 and exact size. The
 payload is fetched into the ignored reference cache, never vendored. The API is
 rolling: changed content requires an explicit manifest update. Analysis performs
