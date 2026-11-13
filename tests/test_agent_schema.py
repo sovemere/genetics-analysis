@@ -45,7 +45,7 @@ from genetics.engine.matcher import MatchStatus, Strand, match_pack
 from genetics.engine.search import SearchField
 from genetics.engine.sections import SECTION_ORDER, Section
 from genetics.ingest.schema import NORMALIZED_SCHEMA, CallStatus, GenotypeTable
-from genetics.privacy import find_genotypes
+from genetics.privacy import GenotypeLeakError, find_genotypes
 from genetics.qc.report import QCReport
 from genetics.run.bundle import (
     BUNDLE_FORMAT_VERSION,
@@ -69,6 +69,7 @@ SHAPE_DIGESTS = {
     2: "8451a2298c73410063d93d775ed93ee1242b843ac35ead8dd47fbb26dc814e09",
     3: "642c1d7a1526da0f1202316b5223a03a620e0f7b2fcc5457df98573cc7069685",
     4: "eacffe68e489f07c1210b6751a793b767da2d638af1d01f1b14b4619950bc55a",
+    5: "7192fef8e60c8e02bae0066ac0489998e17a6516a36f905b259a24f7ff11a566",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
@@ -81,7 +82,10 @@ only; a key is never removed or given another meaning.
 ENVELOPE = {"schema", "run_id", "path"}
 """Top-level keys of a run-scoped document that describe the read, not the run."""
 
-RUN_SCOPED = ("runs.show", "runs.section", "runs.card", "runs.qc", "runs.search")
+RECORDS = ("runs.clinvar", "runs.secondary", "runs.imputation", "pgx.calls", "hla.calls")
+"""The saved records beside a run's cards, described since version 5 (M13.5)."""
+
+RUN_SCOPED = ("runs.show", "runs.section", "runs.card", "runs.qc", "runs.search", *RECORDS)
 
 
 # ---------------------------------------------------------------------------
@@ -315,6 +319,11 @@ def test_every_read_matches_the_schema_and_names_itself(
     assert agent_schema_check(_json(["runs", "show", run, "--json"])) == "runs.show"
     assert agent_schema_check(_json(["runs", "show", run, *sections, "--json"])) == "runs.section"
     assert agent_schema_check(_json(["runs", "qc", run, "--json"])) == "runs.qc"
+    for name in RECORDS:
+        group, command = name.split(".")
+        assert agent_schema_check(_json([group, command, run, "--json"])) == name
+    one_gene = _json(["pgx", "calls", run, "--gene", "CYP2C19", "--json"])
+    assert agent_schema_check(one_gene) == "pgx.calls" and list(one_gene["genes"]) == ["CYP2C19"]
     for card in saved.cards:
         view = _json(["runs", "card", run, card.card_id, "--json"])
         assert agent_schema_check(view) == "runs.card", card.card_id
@@ -430,6 +439,8 @@ def test_run_id_is_the_id_a_command_resolves_in_every_payload(saved: RunBundle) 
             ["runs", "clinvar", "renamed-run"],
             ["runs", "secondary", "renamed-run"],
             ["runs", "imputation", "renamed-run"],
+            ["pgx", "calls", "renamed-run"],
+            ["hla", "calls", "renamed-run"],
         ):
             assert _json([*args, "--json"])["run_id"] == "renamed-run", args
         listed = {row["run_id"] for row in _json(["runs", "list", "--json"])["runs"]}
@@ -471,7 +482,7 @@ def test_what_the_engine_adds_at_read_time_is_under_current_context(saved: RunBu
     defs = contract.document()["$defs"]
     for name in RUN_SCOPED:
         assert set(defs[name]["required"]) >= ENVELOPE, name
-    for name in ("runs.section", "runs.card", "runs.search"):
+    for name in ("runs.section", "runs.card", "runs.search", "pgx.calls"):
         context = defs[name]["properties"]["current_context"]
         assert context["properties"]["context"] == {"const": "current"}
         assert "context" in context["required"]
@@ -494,6 +505,10 @@ def test_the_payload_list_states_which_documents_hold_a_genotype(saved: RunBundl
         "runs.section",
         "runs.card",
         "runs.search",
+        "runs.clinvar",
+        "runs.secondary",
+        "pgx.calls",
+        "hla.calls",
     }
     assert all(
         entry["scanned"] != entry["holds_genotype"]
@@ -506,6 +521,7 @@ def test_the_payload_list_states_which_documents_hold_a_genotype(saved: RunBundl
     for args in (
         ["runs", "list"],
         ["runs", "qc", run],
+        ["runs", "imputation", run],
         ["cards", "evidence", "wnt10a_hair_curl"],
         ["cards", "search", "curly hair"],
     ):
@@ -758,3 +774,78 @@ def test_a_section_read_and_a_search_do_not_carry_the_block(saved: RunBundle) ->
     found = _json(["runs", "search", run, "hair", "--json"])
     assert "confidence" not in section["current_context"]
     assert "confidence" not in found["current_context"]
+
+
+# ---------------------------------------------------------------------------
+# Saved records beside the cards (M13.5)
+# ---------------------------------------------------------------------------
+
+
+def test_each_record_command_prints_what_the_whole_bundle_holds(saved: RunBundle) -> None:
+    """The five commands a section's ``saved_records`` names, against ``runs show``."""
+    run = saved.path.name
+    whole = _json(["runs", "show", run, "--json"])
+    read = {name: _json([*name.split("."), run, "--json"]) for name in RECORDS}
+    for name, document in read.items():
+        assert list(document)[:5] == ["schema", "run_id", "path", "format_version", "created_at"]
+        assert document["schema"] == {"name": name, "version": contract.AGENT_SCHEMA_VERSION}
+        assert (document["run_id"], document["path"]) == (run, whole["path"]), name
+    assert read["runs.clinvar"]["clinvar"] == whole["clinvar"]
+    assert read["runs.imputation"]["execution"] == whole["imputation"]
+    assert read["runs.imputation"]["provenance"] == whole["imputation_provenance"]
+    hla = read["hla.calls"]
+    assert {key: hla[key] for key in whole["hla"]} == whole["hla"]
+    assert (hla["linked_cards_status"], hla["linked_cards"]) == ("recorded", [])
+    pgx = read["pgx.calls"]
+    assert pgx["genes"] == whole["pgx"]["genes"] and pgx["status"] == whole["pgx"]["status"]
+    assert pgx["current_context"]["context"] == "current"
+    # This run's lookup did not run, so it has no locus to filter for ACMG genes.
+    assert whole["clinvar"]["loci"] == []
+    assert read["runs.secondary"]["secondary"] == {
+        "reference": whole["clinvar"].get("secondary_reference"),
+        "loci": [],
+    }
+
+
+def test_the_record_definitions_list_each_record_s_own_keys() -> None:
+    """``pgx.calls`` and ``hla.calls`` hold a saved record's keys beside the envelope, and
+    are closed. A key added to either record must reach the document, with a version."""
+    from genetics.hla import calling as hla
+    from genetics.pgx import calling as pgx
+
+    defs = contract.document()["$defs"]
+    envelope = {"schema", "run_id", "path", "format_version", "created_at"}
+    described = set(defs["hla.calls"]["properties"]) - envelope
+    assert described == hla.KEYS | {"selection", "linked_cards_status", "linked_cards"}
+    assert set(hla.report(None)) <= set(defs["hla.calls"]["required"])
+
+    # `pgx.report` projects the record; tests/refs checks a completed one against this.
+    recorded = {"schema_version", "status", "reason", "sex", "reference_sha256", "genes"}
+    recorded |= {"sources", "observations"}
+    added = {"current_context", "cyp2d6_limitation", "guideline_cards", "guideline_status"}
+    assert set(defs["pgx.calls"]["properties"]) - envelope == recorded | added | {"hla_cards"}
+    assert set(pgx.report(None)) <= set(defs["pgx.calls"]["required"])
+
+
+def test_imputation_provenance_is_scanned_on_both_branches(
+    saved: RunBundle, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """``runs.imputation`` says it holds no genotype, so the command checks before it prints."""
+    from genetics.run import reads
+
+    row = "\t".join(("rs4988235", "2", "136608646", "A", "G"))
+    build = reads.imputation_view
+    monkeypatch.setattr(reads, "imputation_view", lambda b: build(b) | {"execution": {"x": row}})
+    result = runner.invoke(app, ["runs", "imputation", saved.path.name, "--json"])
+    assert result.exit_code != 0 and isinstance(result.exception, GenotypeLeakError)
+    assert "rs4988235" not in result.stdout
+
+
+def test_version_json_states_the_bundle_format_this_engine_writes() -> None:
+    """What the dashboard's footer and ``/healthz`` show, from a command (M13.5)."""
+    from genetics import __version__
+
+    assert _json(["version", "--json"]) == {
+        "version": __version__,
+        "bundle_format_version": BUNDLE_FORMAT_VERSION,
+    }

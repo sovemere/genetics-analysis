@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 4 since M13.4 (2026-11-12), which added what decided a
-card's confidence tier to `runs.card`. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 5 since M13.5 (2026-11-13), which described the five
+commands that print a run's other saved records. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -27,24 +27,33 @@ rules around it. [The read-command contract](agent_cli.md) describes what each c
 | `runs.search` | `genetics runs search <run> <query> --json` | saved run | yes | no |
 | `cards.evidence` | `genetics cards evidence <card-id> --json` | knowledge pack | no | yes |
 | `cards.search` | `genetics cards search <query> --json` | knowledge pack | no | yes |
+| `runs.clinvar` | `genetics runs clinvar <run> --json` | saved run | yes | no |
+| `runs.secondary` | `genetics runs secondary <run> --json` | saved run | yes | no |
+| `runs.imputation` | `genetics runs imputation <run> --json` | saved run | no | yes |
+| `pgx.calls` | `genetics pgx calls <run> --json` | saved run | yes | no |
+| `hla.calls` | `genetics hla calls <run> --json` | saved run | yes | no |
 | `error` | a failing command with `--json` (listed below) | nothing | no | no |
 
 The same table is in the document as `x-payloads`. "Scanned" means the command checks its
-output for genotypes before printing. The four payloads that hold a genotype state the
-reader's own call, which is what a card says, and are not scanned
+output for genotypes before printing. The eight payloads that hold a genotype state the
+reader's own calls, which is what a card and a saved record say, and are not scanned
 ([why](agent_cli.md)). Find a card with `cards.search` and research it from
 `cards.evidence`, never from a run payload (AGENTS.md §1.3).
+
+The last five are the saved records beside a run's cards (M13.5), the ones a section's
+`saved_records` names. [The read-command contract](agent_cli.md#parity-m135) says which
+dashboard page each stands for.
 
 ## The tag
 
 Every described document starts with:
 
 ```json
-"schema": {"name": "runs.card", "version": 4}
+"schema": {"name": "runs.card", "version": 5}
 ```
 
-`name` is one of the nine above. `version` is the version of the schema document, which is
-the same for all nine. It is separate from `format_version`, which is the bundle format the
+`name` is one of the fourteen above. `version` is the version of the schema document, which is
+the same for all fourteen. It is separate from `format_version`, which is the bundle format the
 run was saved in.
 
 ## Rules for a reader
@@ -81,7 +90,8 @@ run was saved in.
 
 M13.1 kept the saved record apart from what the engine adds when it reads a run, as a
 convention. It is now the rule, and the document's structure states it. In a run-scoped
-payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`, `runs.search`):
+payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`, `runs.search`, and since
+version 5 `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla.calls`):
 
 - `schema`, `run_id` and `path` are the envelope. They describe this read.
 - `current_context` holds everything this engine adds at read time: section titles and
@@ -92,15 +102,22 @@ payload (`runs.show`, `runs.section`, `runs.card`, `runs.qc`, `runs.search`):
 
 `runs.show` and `runs.qc` have no `current_context`, because they add nothing. In
 `runs.search`, `results` holds each matched card's saved face and `current_context.hits`
-holds why it matched, in the same order. `pgx calls`
-follows the same rule but is outside this version (see below).
+holds why it matched, in the same order.
+
+`pgx.calls` and `hla.calls` hold a saved record's own keys beside the envelope (`status`,
+`genes` and the rest), where those commands have always printed them. `pgx.calls` has a
+`current_context` with the section's notice. Its `cyp2d6_limitation`, `guideline_cards` and
+`hla_cards` are parts of the run's saved cards, and `guideline_status` says whether the run
+holds any. `hla.calls` has `linked_cards`, the faces of the run's saved HLA-linked cards,
+and `linked_cards_status`, which is `not-recorded` for a run saved before those cards
+existed. `runs.clinvar`, `runs.secondary` and `runs.imputation` add nothing to the record.
 
 ## `run_id`
 
 `run_id` is the bundle's directory name in every payload and in the text output. That is the
 id every command resolves and `runs list` prints. Before M13.2, `runs show --json`,
 `runs clinvar`, `runs secondary` and `runs imputation` printed the manifest's own `run_id`
-instead. The two differ only when a bundle directory has been renamed. `runs.show` keeps the
+instead, and before M13.5 `pgx calls` and `hla calls` printed none. The two differ only when a bundle directory has been renamed. `runs.show` keeps the
 manifest's value as `recorded_run_id`, so nothing saved is lost.
 
 ## Errors and exit codes
@@ -109,7 +126,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 4},
+  "schema": {"name": "error", "version": 5},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -143,7 +160,7 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 | `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
 | `knowledge` | `cards evidence`, `cards search` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
-| `unknown-payload` | `schema` | Not one of the nine payload names |
+| `unknown-payload` | `schema` | Not one of the fourteen payload names |
 | `empty-query` | `cards search`, `runs search` | The query has no letter or digit to search for |
 | `genotype-in-query` | `cards search`, `runs search` | The query reads as a genotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
 | `confirmation-required` | `runs delete`, `runs prune` | `--json` cannot prompt; pass `--yes` |
@@ -181,6 +198,12 @@ Not unified, and recorded here so that nobody assumes otherwise:
   on a saved card, and the run-wide `qc`, `provenance`, `ancestry`, `clinvar`, `pgx`, `hla`,
   `imputation` and `imputation_provenance`. The document types each as an object, says when
   it is null, and names the document that describes it.
+- **Closed at the top, open below (version 5):** the five record payloads. Their top-level
+  keys are listed and closed, which for `pgx.calls` and `hla.calls` includes the saved
+  record's own keys. The values under them (`clinvar`, a gene's result, an observation, the
+  imputation provenance) are the same open records as above. What `pgx.calls` and
+  `hla.calls` add is closed: the section notice, the CYP2D6 limitation, and each listed
+  card.
 
 **A saved card keeps its confidence in one of two places, and the document describes
 both.** Interpretation and HLA cards hold `confidence`: the tier, the score and six scored
@@ -209,16 +232,17 @@ at least one citation, and that an assay-limit card has none (AGENTS.md §7.6).
 
 ## Not described
 
-These commands print JSON that the document does not describe yet. Their shapes are stable
-in practice and documented elsewhere, but they carry no tag:
+These commands print JSON that the document does not describe. They carry no tag:
 
-- `runs clinvar`, `runs secondary`, `runs imputation`, `pgx calls`, `hla calls`: the saved
-  records a section's `saved_records` names. Each record has its own `schema_version`.
 - `run`, `ingest`, `impute`, `serve`, `doctor`, `paths`, `adapters`, `version`, `roh`, `refs`,
   `tools`, `pgs`, `pgx inspect`, `pgx prepare`, `hla inspect`, `cards lint`, `cards carriers`,
   `cards carrier-scope`, `runs delete`, `runs prune`.
+- `runs imputation --dosages`, which prints the saved dosages as JSON Lines.
 
-M13.5's parity test is the natural place to decide which of these an agent needs described.
+M13.5 decided this list. Its parity check names the commands that stand for a dashboard
+page, and those are the ones an agent reads a run through; all of them are now described.
+None of the commands above reads a saved run's analysis. `version --json` is the one the
+check uses: it gives `version` and, since M13.5, `bundle_format_version`.
 
 ## Decisions
 
@@ -292,6 +316,18 @@ The [M13.4 session review](review_m134_session.md) reworded the description of
 rounded `contribution` figures can add up to a figure 0.0002 away. That is wording, so the
 document is still version 4 and its digest is unchanged.
 
+M13.5 took the document to version 5, and `tests/test_agent_schema.py` now holds 65 tests.
+The added checks: each of the five record commands against the document, on the saved run
+and with `--gene`; each one's record against what `runs show --json` holds; the five in the
+saved-versus-current, renamed-run and genotype tests; `hla.calls`' listed keys against the
+record's own key set in `genetics.hla.calling`; a genotype put into `runs imputation`'s
+output, which the command refuses to print; and `version --json`. The runs with completed
+PGx calls, HLA calls and cards, a ClinVar lookup and ACMG overlaps are built in
+`tests/refs`, `tests/hla` and `tests/health`, which check every document a parity run
+reads against the schema, through the `parity_check` fixture. Removing the tag from any of
+the five, or `linked_cards_status` from the required list under version 5, fails a test.
+The full native suite passes 4,273 tests with the same nine skips.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 
@@ -303,3 +339,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 2 | 2026-11-11 | `error.kind` may contain an underscore. Version 1's pattern refused two kinds `genetics run` prints, `run_parts` and `frequency_reference`. Found by the [session review](review_m132_session.md) |
 | 3 | 2026-11-12 | Two payloads, `cards.search` and `runs.search` (M13.3), with the `search_field` vocabulary and `card_face`, eight keys of the saved card. No existing payload changed |
 | 4 | 2026-11-12 | `runs.card` gains the required key `current_context.confidence` (M13.4): `confidence_explanation`, with the `confidence_basis` vocabulary. The saved card and every other payload are unchanged |
+| 5 | 2026-11-13 | Five payloads for the saved records beside a run's cards (M13.5): `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla.calls`. Each command already printed its record; it now prints the envelope and tag too. `hla.calls` gains `linked_cards_status` and `linked_cards`, and `pgx.calls` gains `current_context.context`. No existing payload changed |

@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M12 and M13.1–M13.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M12 and M13.1–M13.5 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -261,12 +261,20 @@ decided a card's confidence tier, in one shape for every kind of card: the saved
 score, each input with its weight and what it cost the score, every ceiling that applies and
 which of them set the tier. A card with no tier says why. The block is this engine's reading
 of the saved inputs, checked against the saved tier before it is offered, and the saved card
-is unchanged. The agent schema is version 4. See
+is unchanged. The agent schema became version 4. See
 [the confidence contract](docs/agent_cli.md#confidence-m134). The
 [M13.4 diff review](docs/review_m134_session.md) fixes a check that reported about one
 honest polygenic score in a thousand as saved under other rules, and a rare call's rate
 being printed twice.
-[M13.5, the CLI and dashboard parity test](docs/handoff.md#next-open-step-m135-parity-test)
+**M13.5, the CLI and dashboard parity test, is implemented.** A test fails when a
+dashboard page shows something no command prints: a route with no command beside it, an
+engine function only the dashboard calls, or a value on a page that is missing from a
+command's JSON. It renders every page of a saved run and compares what each is handed with
+what the commands print. The commands that print a run's other saved records (`runs
+clinvar`, `runs secondary`, `runs imputation`, `pgx calls`, `hla calls`) are now described
+by the agent schema, which is version 5. See
+[the parity section](docs/agent_cli.md#parity-m135).
+[M13.6, the documented review workflow](docs/handoff.md#next-open-step-m136-review-workflow)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

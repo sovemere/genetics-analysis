@@ -153,3 +153,8 @@ selects one from the run's ancestry placements and declines rather than guesses;
 explicit `--hla-classifier` still runs, recorded against that selection. New runs write
 HLA sample schema 2 in bundle format 22. See the
 [selection and confidence contract](hla_selection.md).
+
+Since M13.5 `genetics hla calls <run-id> --json` is described by
+[the agent schema](agent_schema.md) as `hla.calls`. It prints the record's keys as before,
+with the run envelope, `linked_cards` (the run's saved HLA-linked cards) and
+`linked_cards_status`.

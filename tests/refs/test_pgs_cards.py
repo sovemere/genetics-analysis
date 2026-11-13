@@ -602,7 +602,7 @@ def test_no_reference_panel_leaves_the_score_unplaced_but_recorded(
 
 
 def test_saved_run_round_trips_through_bundle_cli_and_dashboard(
-    setup: dict[str, Any], fake: MultiPlink
+    setup: dict[str, Any], fake: MultiPlink, parity_check: Any
 ) -> None:
     analysis = run(setup, fake)
     path = save(analysis)
@@ -618,6 +618,9 @@ def test_saved_run_round_trips_through_bundle_cli_and_dashboard(
     card_json = next(c for c in json.loads(shown.stdout)["cards"] if c["kind"] == "polygenic")
     assert card_json["computation"] == stored.computation
     assert card_json["citations"][0]["id"] == DOI
+    # M13.5: the only saved run with a placed score. Its chart is drawn from the
+    # distribution and position that `runs card` prints.
+    assert parity_check(path).drawn == 2, "one placed score, grouped by section and by tier"
 
     config = WebConfig(runs_root=runs_dir())
     with TestClient(create_app(config), base_url="http://127.0.0.1:8765") as client:

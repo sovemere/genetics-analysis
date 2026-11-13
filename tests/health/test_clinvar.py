@@ -315,6 +315,7 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
     sample_cards: tuple[AssembledCard, ...],
     with_frequency: bool,
     gene: str | None,
+    parity_check: Any,
 ) -> None:
     rows = (
         None
@@ -370,6 +371,9 @@ def test_bundle_cli_and_dashboard_share_the_snapshot(
     response = CliRunner().invoke(app, ["runs", "clinvar", path.name, "--json"])
     assert response.exit_code == 0
     assert json.loads(response.stdout)["clinvar"] == snapshot
+    # M13.5: the ClinVar page against `runs clinvar`, with and without the frequency
+    # screen whose benchmark link the page builds from the saved DOI.
+    assert parity_check(path).pages > 0
     if with_frequency:
         human = CliRunner().invoke(app, ["runs", "clinvar", path.name])
         assert human.exit_code == 0

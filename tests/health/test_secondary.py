@@ -320,6 +320,7 @@ def test_empty_view_never_claims_a_negative_clinical_screen(
     sample_cards: tuple[AssembledCard, ...],
     sample_pack: KnowledgePack,
     available: bool,
+    parity_check: Any,
 ) -> None:
     result = surface(
         lookup(tmp_path, info="GENEINFO=OTHER:999;CLNSIG=Benign"),
@@ -338,6 +339,9 @@ def test_empty_view_never_claims_a_negative_clinical_screen(
         lock_path=tmp_path / "absent.lock",
         tools_root=tmp_path / "tools",
     )
+    # M13.5: a lookup with no ACMG overlap, with and without the roster.
+    empty = parity_check(path).documents[("runs", "secondary", path.name)]
+    assert empty["secondary"]["loci"] == []
     with TestClient(
         create_app(WebConfig(runs_root=data / "runs")), base_url="http://127.0.0.1:8765"
     ) as client:
@@ -362,6 +366,7 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
     sample_cards: tuple[AssembledCard, ...],
     sample_pack: KnowledgePack,
     legacy: bool,
+    parity_check: Any,
 ) -> None:
     original = lookup(tmp_path, count=101, info="GENEINFO=TTN:7273;CLNSIG=Uncertain_significance")
     result = original if legacy else surface(original, reference())
@@ -392,6 +397,11 @@ def test_bundle_cli_dashboard_share_saved_overlaps_and_paginate_all_tiers(
     assert json.loads(full_json.stdout)["clinvar"] == snapshot
     human = CliRunner().invoke(app, ["runs", "secondary", path.name])
     assert human.exit_code == 0
+    # M13.5: 101 loci over two dashboard pages, against the one document each command
+    # prints, for a current lookup and for one saved before ACMG surfacing.
+    report = parity_check(path)
+    assert len(report.documents[("runs", "clinvar", path.name)]["clinvar"]["loci"]) == 101
+    assert report.pages >= 2 * 2 + (0 if legacy else 1)
     with TestClient(
         create_app(WebConfig(runs_root=data / "runs")), base_url="http://127.0.0.1:8765"
     ) as client:

@@ -675,6 +675,7 @@ def test_saved_cards_rebuild_from_frozen_evidence(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     agent_schema_check: Any,
+    parity_check: Any,
 ) -> None:
     from genetics.pgx.calling import unavailable as pgx_unavailable
     from genetics.run.bundle import CARDS_NAME, BundleError, read_bundle, write_bundle
@@ -753,6 +754,11 @@ def test_saved_cards_rebuild_from_frozen_evidence(
     ]
     pgx_text = CliRunner().invoke(app, ["pgx", "calls", path.name])
     assert "HLA-linked drug cards: 4 saved" in pgx_text.output
+    # M13.5: the only saved run with HLA-linked cards. Each card's page against `runs
+    # card`, and the HLA page's list against `hla calls`.
+    linked = parity_check(path).documents[("hla", "calls", path.name)]
+    assert linked["linked_cards_status"] == "recorded"
+    assert [entry["card_id"] for entry in linked["linked_cards"]] == list(saved)
     detail = client.get(f"/runs/{path.name}/cards/hla_b5701_abacavir")
     assert detail.status_code == 200 and "HLA classifier evidence" in detail.text
     assert "Frozen CPIC rows" in detail.text and "07:02 / 57:01" in detail.text

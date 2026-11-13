@@ -2,8 +2,10 @@
 
 ``agent_schema.json`` beside this module is the contract. It describes every document the
 agent read commands print (``runs list``, ``runs show``, ``runs show --section``, ``runs
-card``, ``runs qc``, ``runs search``, ``cards evidence``, ``cards search``) and the error
-document every ``--json`` command prints when it fails. ``genetics schema`` prints it, and
+card``, ``runs qc``, ``runs search``, ``cards evidence``, ``cards search``), the saved
+records beside a run's cards (``runs clinvar``, ``runs secondary``, ``runs imputation``, ``pgx
+calls``, ``hla calls``, since M13.5) and the error document every ``--json`` command prints
+when it fails. ``genetics schema`` prints it, and
 ``docs/agent_schema.md`` states the rules around it.
 
 **Every described document names itself.** :func:`tagged` puts
@@ -36,7 +38,7 @@ import typer
 if TYPE_CHECKING:
     from genetics.engine.search import Query
 
-AGENT_SCHEMA_VERSION: Final[int] = 4
+AGENT_SCHEMA_VERSION: Final[int] = 5
 """The version every tagged document carries. Bump it with any change to a described shape."""
 
 SCHEMA_PATH: Final[Path] = Path(__file__).with_name("agent_schema.json")

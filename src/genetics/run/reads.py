@@ -288,6 +288,71 @@ def qc_view(bundle: RunBundle) -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Saved records beside the cards (M13.5)
+# ---------------------------------------------------------------------------
+
+
+def clinvar_view(bundle: RunBundle) -> dict[str, Any]:
+    """The saved ClinVar reference lookup, whole (``genetics runs clinvar``)."""
+    return _header(bundle) | {"clinvar": _plain(bundle.clinvar)}
+
+
+def secondary_findings_view(bundle: RunBundle) -> dict[str, Any]:
+    """The lookup's ACMG gene-list overlaps (``genetics runs secondary``).
+
+    Filtered by :func:`genetics.health.secondary.secondary_view`, which the dashboard's page
+    calls too. ``None`` for a run that recorded no lookup.
+    """
+    from genetics.health.secondary import secondary_view
+
+    return _header(bundle) | {
+        "secondary": None if bundle.clinvar is None else secondary_view(bundle.clinvar)
+    }
+
+
+def imputation_view(bundle: RunBundle) -> dict[str, Any]:
+    """The imputation execution record and full provenance (``genetics runs imputation``)."""
+    return _header(bundle) | {
+        "execution": _plain(bundle.imputation),
+        "provenance": _plain(bundle.imputation_provenance),
+    }
+
+
+def pgx_view(bundle: RunBundle, gene: str | None = None) -> dict[str, Any]:
+    """Saved pharmacogenomic calls and what the section shows beside them (``pgx calls``).
+
+    Raises :class:`genetics.pgx.calling.CallingError` for a gene outside the eight.
+    """
+    from genetics.pgx.presentation import saved_report
+
+    return _header(bundle) | saved_report(bundle, gene)
+
+
+def hla_view(bundle: RunBundle) -> dict[str, Any]:
+    """Saved HLA classifier evidence and the run's HLA-linked cards (``hla calls``).
+
+    The record's own keys sit beside the envelope, as ``hla calls --json`` has always
+    printed them. ``linked_cards`` are the saved cards the HLA page lists. A run saved
+    before those cards existed says ``not-recorded``, which is different from a run that
+    recorded none; the dashboard's page draws the same line. Raises
+    :class:`genetics.hla.models.HLAError` for a record that does not validate.
+    """
+    from genetics.hla.calling import report
+    from genetics.hla.cards import cards_report
+    from genetics.run.bundle import HLA_CARD_FORMAT_VERSION
+
+    recorded = bundle.format_version >= HLA_CARD_FORMAT_VERSION
+    return (
+        _header(bundle)
+        | report(bundle.hla)
+        | {
+            "linked_cards_status": "recorded" if recorded else "not-recorded",
+            "linked_cards": cards_report(bundle.cards) if recorded else [],
+        }
+    )
+
+
+# ---------------------------------------------------------------------------
 # Search (M13.3)
 # ---------------------------------------------------------------------------
 

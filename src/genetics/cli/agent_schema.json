@@ -2,8 +2,8 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
-  "description": "Every JSON document the agent read and search commands print, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 4,
+  "description": "Every JSON document the agent read and search commands print, the saved records beside a run's cards, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
+  "version": 5,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -62,6 +62,41 @@
       "scanned": true
     },
     {
+      "name": "runs.clinvar",
+      "command": "genetics runs clinvar <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "runs.secondary",
+      "command": "genetics runs secondary <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "runs.imputation",
+      "command": "genetics runs imputation <run> --json",
+      "reads": "saved run",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
+      "name": "pgx.calls",
+      "command": "genetics pgx calls <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
+      "name": "hla.calls",
+      "command": "genetics hla calls <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
       "name": "error",
       "command": "a failing command with --json (docs/agent_schema.md lists them)",
       "reads": "nothing",
@@ -78,6 +113,11 @@
     { "$ref": "#/$defs/runs.search" },
     { "$ref": "#/$defs/cards.evidence" },
     { "$ref": "#/$defs/cards.search" },
+    { "$ref": "#/$defs/runs.clinvar" },
+    { "$ref": "#/$defs/runs.secondary" },
+    { "$ref": "#/$defs/runs.imputation" },
+    { "$ref": "#/$defs/pgx.calls" },
+    { "$ref": "#/$defs/hla.calls" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -493,6 +533,252 @@
       "required": ["schema", "query", "terms", "ignored", "searched", "total", "limit", "hits"],
       "additionalProperties": false
     },
+    "runs.clinvar": {
+      "description": "The saved ClinVar reference lookup, whole: what the dashboard's ClinVar page lists. Classifications are reference annotations, not calibrated findings. Each locus names the probes read there and their calls.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.clinvar" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "clinvar": {
+          "type": ["object", "null"],
+          "description": "The lookup record, with its own `schema_version`: `notice`, `status`, `reason`, `counts`, `provenance`, `loci`, and by version `coverage`, `frequency_reference` and `secondary_reference` (docs/clinvar_coverage.md, docs/health_frequencies.md, docs/secondary_findings.md). The same record as `clinvar` in runs.show. Null before format 7."
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "clinvar"],
+      "additionalProperties": false
+    },
+    "runs.secondary": {
+      "description": "The saved lookup's ACMG SF v3.3 gene-list overlaps: what the dashboard's secondary-findings page lists. Every overlap is listed, likely artifacts and unresolved calls included. An overlap is not a clinical finding, and no overlap is not a negative screen.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.secondary" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "secondary": {
+          "type": ["object", "null"],
+          "description": "Null when the run recorded no ClinVar lookup.",
+          "properties": {
+            "reference": {
+              "type": ["object", "null"],
+              "description": "The lookup's `secondary_reference`: `status`, `reason`, `notice`, `policy`, `counts`, `genes`, `provenance` (docs/secondary_findings.md). Null for a run saved before ACMG surfacing."
+            },
+            "loci": {
+              "type": "array",
+              "description": "The lookup's loci that hold a record in an ACMG gene, each with only those records. Saved order.",
+              "items": { "type": "object" }
+            }
+          },
+          "required": ["reference", "loci"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "secondary"],
+      "additionalProperties": false
+    },
+    "runs.imputation": {
+      "description": "A saved run's imputation execution record and full provenance: panel, maps, Beagle and Java versions, parameters and region jobs. Holds no genotype. `--dosages` prints something else: the saved dosages as JSON Lines, which this document does not describe.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.imputation" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "execution": { "$ref": "#/$defs/imputation" },
+        "provenance": {
+          "type": ["object", "null"],
+          "description": "Full imputation provenance: `schema_version`, `status`, `stage` (docs/imputation_provenance.md). The same record as `imputation_provenance` in runs.show. Null before format 16."
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "execution", "provenance"],
+      "additionalProperties": false
+    },
+    "pgx.calls": {
+      "description": "Saved pharmacogenomic sample calls for the eight SNP-tractable genes, or for one with `--gene`, and what the section shows beside them: what the dashboard's pharmacogenomics page shows. Not a prescribing tool. The call record's own keys sit beside the envelope.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.pgx.calls" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "schema_version": {
+          "type": ["integer", "null"],
+          "description": "The saved call record's own version (docs/pgx_calling.md). Null when the run recorded none."
+        },
+        "status": { "type": "string", "description": "The stage's status; `not-recorded` for a run saved before format 19." },
+        "reason": { "type": ["string", "null"] },
+        "sex": { "type": ["string", "null"], "description": "The QC sex the calls were made under. Absent when the run recorded no calls." },
+        "reference_sha256": { "type": ["string", "null"], "description": "Digest of the frozen CPIC/ClinPGx reference. Absent when the run recorded no calls." },
+        "genes": {
+          "type": "object",
+          "description": "Each gene's saved result: `status`, `candidates`, and where called `models`, `reliability`, `phase`, `phenotype_mapping_status`. With `--gene`, that gene only."
+        },
+        "sources": { "type": ["object", "null"], "description": "The CPIC and PharmGKB source records the reference was built from. Absent when the run recorded no calls." },
+        "observations": {
+          "type": "array",
+          "description": "The array observations the calls read. With `--gene`, those at that gene's loci. Absent when the run recorded no calls.",
+          "items": { "type": "object" }
+        },
+        "current_context": {
+          "type": "object",
+          "properties": {
+            "context": { "const": "current" },
+            "section_framing": {
+              "type": "object",
+              "description": "The section's standing notice (docs/pgx_framing.md).",
+              "properties": {
+                "context": { "const": "current" },
+                "section": { "const": "pharmacogenomics" },
+                "title": { "type": "string" },
+                "text": { "type": "string" }
+              },
+              "required": ["context", "section", "title", "text"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["context", "section_framing"],
+          "additionalProperties": false
+        },
+        "cyp2d6_limitation": {
+          "type": "object",
+          "description": "The run's own CYP2D6 assay-limit card, shown beside the calls whatever the card filters hide. `card` is null and `reason` says so when the run did not record it.",
+          "properties": {
+            "card_id": { "type": "string" },
+            "status": { "enum": ["recorded", "not-recorded"] },
+            "reason": { "type": ["string", "null"] },
+            "card": {
+              "type": ["object", "null"],
+              "properties": {
+                "title": { "type": "string" },
+                "summary": { "type": "string" },
+                "detail": { "type": "string" },
+                "impossibility_reason": { "type": "string" },
+                "authored_caveats": { "type": "array", "items": { "type": "string" } },
+                "computed_caveats": { "type": "array", "items": { "type": "string" } }
+              },
+              "required": ["title", "summary", "detail", "impossibility_reason", "authored_caveats", "computed_caveats"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["card_id", "status", "reason", "card"],
+          "additionalProperties": false
+        },
+        "guideline_status": { "enum": ["recorded", "not-recorded"], "description": "`not-recorded` when the run holds no guideline card, or none for the gene asked for." },
+        "guideline_cards": {
+          "type": "array",
+          "description": "The run's saved guideline cards, each with its frozen CPIC evidence. runs.card gives one in full.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "card_id": { "type": "string" },
+              "summary": { "type": "string" },
+              "computation": { "$ref": "#/$defs/computation" },
+              "citations": { "type": "array", "items": { "$ref": "#/$defs/citation" } }
+            },
+            "required": ["card_id", "summary", "computation", "citations"],
+            "additionalProperties": false
+          }
+        },
+        "hla_cards": {
+          "type": "array",
+          "description": "The run's saved HLA-linked drug cards, which sit in this section and key on HLA genes. Empty with `--gene`. hla.calls gives the calls.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "card_id": { "type": "string" },
+              "title": { "type": "string" },
+              "status": { "$ref": "#/$defs/card_status" },
+              "summary": { "type": "string" }
+            },
+            "required": ["card_id", "title", "status", "summary"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "run_id",
+        "path",
+        "format_version",
+        "created_at",
+        "schema_version",
+        "status",
+        "reason",
+        "genes",
+        "current_context",
+        "cyp2d6_limitation",
+        "guideline_status",
+        "guideline_cards",
+        "hla_cards"
+      ],
+      "additionalProperties": false
+    },
+    "hla.calls": {
+      "description": "Saved HLA classifier evidence and the run's HLA-linked cards: what the dashboard's HLA page shows. Two-field, unphased model predictions; a posterior is not clinical accuracy. The evidence record's own keys sit beside the envelope, and a run saved before format 21 has only `status`, `reason` and `genes`.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.hla.calls" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "schema_version": { "type": "integer", "description": "The saved evidence record's own version (docs/hla_imputation.md)." },
+        "status": { "type": "string", "description": "`completed`, `unavailable`, or `not-recorded` for a run saved before format 21." },
+        "reason": { "type": ["string", "null"] },
+        "genes": {
+          "type": "object",
+          "description": "Each locus's saved prediction: `status`, `alleles`, `posterior`, marker counts, `coverage`, `markers`, and from record version 2 `confidence`."
+        },
+        "selection": { "type": ["object", "null"], "description": "The classifier choice and the ancestry placement it was made from (docs/hla_selection.md). Record version 2." },
+        "reference": { "type": ["object", "null"], "description": "The frozen classifier's public metadata." },
+        "reference_sha256": { "type": ["string", "null"] },
+        "runtime": { "type": ["object", "null"], "description": "The R, platform and HIBAG versions that ran." },
+        "parameters": { "type": "object" },
+        "sample": { "type": ["string", "null"] },
+        "observations": { "type": "array", "items": { "type": "object" } },
+        "execution": { "type": ["object", "null"] },
+        "linked_cards_status": {
+          "enum": ["recorded", "not-recorded"],
+          "description": "`not-recorded` for a run saved before HLA-linked cards existed. No current card is substituted. A later run that holds none says `recorded` with an empty list."
+        },
+        "linked_cards": {
+          "type": "array",
+          "description": "The run's saved HLA-linked cards, in saved order. runs.card gives one in full.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "card_id": { "type": "string" },
+              "section": { "$ref": "#/$defs/section_name" },
+              "title": { "type": "string" },
+              "status": { "$ref": "#/$defs/card_status" },
+              "tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
+              "summary": { "type": "string" }
+            },
+            "required": ["card_id", "section", "title", "status", "tier", "summary"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "schema",
+        "run_id",
+        "path",
+        "format_version",
+        "created_at",
+        "status",
+        "reason",
+        "genes",
+        "linked_cards_status",
+        "linked_cards"
+      ],
+      "additionalProperties": false
+    },
     "error": {
       "description": "What a command prints on stdout when it fails under --json. The exit code is non-zero.",
       "type": "object",
@@ -518,55 +804,85 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 5 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.clinvar": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 5 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.secondary": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 5 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.imputation": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 5 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.pgx.calls": {
+      "type": "object",
+      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 5 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.hla.calls": {
+      "type": "object",
+      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 4 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 5 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },

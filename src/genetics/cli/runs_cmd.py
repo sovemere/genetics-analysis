@@ -9,10 +9,13 @@ versioned schema: each document is tagged by :func:`genetics.cli.contract.tagged
 which ranks the run's saved cards with the function ``cards search`` uses on the pack
 (:func:`genetics.engine.search.search`).
 
+M13.5 gave the saved records beside the cards (``clinvar``, ``secondary``, ``imputation``)
+the same envelope and tag, built by the same module.
+
 **The privacy split is inherited from the bundle format rather than reinvented.** ``runs
-list`` and ``runs qc`` are scanned with ``assert_no_genotype`` on both output paths; ``runs
-show``, ``runs card`` and ``runs search`` are not. That is a decision in both directions, not
-an oversight in one:
+list``, ``runs qc`` and ``runs imputation`` are scanned with ``assert_no_genotype`` on both
+output paths; ``runs show``, ``runs card``, ``runs search``, ``runs clinvar`` and ``runs
+secondary`` are not. That is a decision in both directions, not an oversight in one:
 
 * Listing is manifest-derived, and the manifest is the file a person pastes into a bug
   report. The writer already scans it, but that scan is a property of the writer -- a bundle
@@ -254,29 +257,29 @@ def runs_imputation(
         _fail(exc, as_json=as_json)
     record = bundle.imputation_provenance
     if as_json:
-        typer.echo(
-            json.dumps(
-                {
-                    "run_id": bundle.path.name,
-                    "execution": bundle.imputation,
-                    "provenance": record,
-                },
-                indent=2,
-            )
-        )
+        view = contract.tagged("runs.imputation", reads.imputation_view(bundle))
+        text = json.dumps(view, indent=2)
     elif record is None or record["status"] != "recorded":
-        typer.echo(f"Full imputation provenance: {record['status'] if record else 'not recorded'}")
+        text = f"Full imputation provenance: {record['status'] if record else 'not recorded'}"
     else:
         stage = record["stage"]
-        typer.echo(f"Panel: {stage['panel_source']['id']} / {stage['panel_source']['version']}")
-        typer.echo(f"Maps: {stage['map_source']['id']} / {stage['map_source']['version']}")
-        typer.echo(f"Beagle: {stage['contract']['beagle']['version']}")
-        typer.echo(f"Java: {stage['contract']['beagle']['java']['version']}")
-        typer.echo(f"Parameters: {json.dumps(stage['contract']['options'], sort_keys=True)}")
-        typer.echo(
-            f"Saved: {stage['records']} native dosage records / {len(stage['jobs'])} region jobs"
+        text = "\n".join(
+            (
+                f"Panel: {stage['panel_source']['id']} / {stage['panel_source']['version']}",
+                f"Maps: {stage['map_source']['id']} / {stage['map_source']['version']}",
+                f"Beagle: {stage['contract']['beagle']['version']}",
+                f"Java: {stage['contract']['beagle']['java']['version']}",
+                f"Parameters: {json.dumps(stage['contract']['options'], sort_keys=True)}",
+                f"Saved: {stage['records']} native dosage records / "
+                f"{len(stage['jobs'])} region jobs",
+                "Each region's phase/imputation parameters are in --json provenance.",
+            )
         )
-        typer.echo("Each region's phase/imputation parameters are in --json provenance.")
+    # Provenance names panels, tools and parameters and holds no genotype, so it is checked
+    # on both branches before it is printed, like `runs qc` (M13.5). `--dosages` above is
+    # the genotype-derived stream and is not.
+    assert_no_genotype(text, context="runs imputation output")
+    typer.echo(text)
 
 
 @runs_app.command("secondary")
@@ -298,13 +301,11 @@ def _show_clinvar(run_id: str, *, as_json: bool, secondary_only: bool) -> None:
     except (BundleError, OSError) as exc:
         _fail(exc, as_json=as_json)
     if as_json:
+        # Deliberately not scanned: a locus lists the probes read there and their calls.
         payload = (
-            {
-                "run_id": bundle.path.name,
-                "secondary": None if bundle.clinvar is None else secondary_view(bundle.clinvar),
-            }
+            contract.tagged("runs.secondary", reads.secondary_findings_view(bundle))
             if secondary_only
-            else {"run_id": bundle.path.name, "clinvar": bundle.clinvar}
+            else contract.tagged("runs.clinvar", reads.clinvar_view(bundle))
         )
         typer.echo(json.dumps(payload, indent=2))
         return

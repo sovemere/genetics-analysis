@@ -19,11 +19,9 @@ def calls(
     run_id: Annotated[str, typer.Argument(help="Saved run ID.")],
     as_json: Annotated[bool, typer.Option("--json", help="Private frozen HLA evidence.")] = False,
 ) -> None:
-    from genetics.hla.calling import report
-    from genetics.hla.cards import cards_report
     from genetics.hla.models import HLAError
-    from genetics.run import store
-    from genetics.run.bundle import HLA_CARD_FORMAT_VERSION, BundleError
+    from genetics.run import reads, store
+    from genetics.run.bundle import BundleError
 
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
@@ -32,12 +30,12 @@ def calls(
         # cannot be opened is not an HLA failure.
         contract.refuse(contract.run_error_kind(exc), str(exc), as_json=as_json)
     try:
-        data = report(bundle.hla)
+        data = reads.hla_view(bundle)
     except (HLAError, OSError, ValueError):
         _fail(as_json)
     else:
         if as_json:
-            typer.echo(json.dumps(data, indent=2, allow_nan=False))
+            typer.echo(json.dumps(contract.tagged("hla.calls", data), indent=2, allow_nan=False))
         else:
             typer.echo(f"HLA: {data['status']}")
             if data["reason"]:
@@ -69,13 +67,13 @@ def calls(
                 if "confidence" in row:
                     typer.echo("  " + _ceiling(row["confidence"]))
                 typer.echo("  Marker states: " + json.dumps(row["coverage"], sort_keys=True))
-            if bundle.format_version < HLA_CARD_FORMAT_VERSION:
+            if data["linked_cards_status"] != "recorded":
                 typer.echo(
                     f"HLA-linked cards: not recorded (bundle format {bundle.format_version}); "
                     "no current card is substituted."
                 )
                 return
-            linked = cards_report(bundle.cards)
+            linked = data["linked_cards"]
             typer.echo(f"HLA-linked cards: {len(linked)} saved")
             for card in linked:
                 typer.echo(

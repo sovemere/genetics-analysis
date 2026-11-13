@@ -86,7 +86,11 @@ def version(
 ) -> None:
     """Print the engine version."""
     if as_json:
-        typer.echo(json.dumps({"version": __version__}))
+        from genetics.run.bundle import BUNDLE_FORMAT_VERSION
+
+        # The bundle format this engine writes, which the dashboard's footer shows (M13.5).
+        payload = {"version": __version__, "bundle_format_version": BUNDLE_FORMAT_VERSION}
+        typer.echo(json.dumps(payload))
     else:
         typer.echo(__version__)
 

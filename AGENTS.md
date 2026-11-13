@@ -296,7 +296,14 @@ knowledge pack only, holds no genotype, and is what a web search starts from (§
 `cards search` finds a card id from a phrase such as "curly hair", also from the pack alone;
 `genetics runs search <run> <query>` searches one saved run and returns each card's result.
 Both refuse a query that reads as a genotype: search for the variant, never a call at it.
-What each command is for: [docs/agent_cli.md](docs/agent_cli.md). Their JSON is described by a
+`genetics runs clinvar`, `runs secondary`, `runs imputation`, `genetics pgx calls` and
+`genetics hla calls` print a run's other saved records, the ones the dashboard gives a page.
+**A test holds the two front-ends together** (`tests/test_parity.py`): a dashboard route
+with no command beside it, an engine function only the dashboard calls, or a value on a page
+that no command's JSON holds fails it. A new page, context key or view field has to be
+placed in `genetics.testing.parity`, and the failure says where.
+What each command is for, and which stands for which page:
+[docs/agent_cli.md](docs/agent_cli.md). Their JSON is described by a
 versioned JSON Schema that `genetics schema` prints. Each document starts with a `schema` tag
 naming its payload and version, and a failure under `--json` is one error document with a
 stable `kind`. Rules for readers and for changing it:

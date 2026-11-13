@@ -422,6 +422,7 @@ def test_saved_pgx_cli_dashboard_and_historical_parity(
     sample_pack: KnowledgePack,
     sample_cards: tuple[AssembledCard, ...],
     monkeypatch: pytest.MonkeyPatch,
+    parity_check: Any,
 ) -> None:
     from fastapi.testclient import TestClient
 
@@ -454,7 +455,12 @@ def test_saved_pgx_cli_dashboard_and_historical_parity(
     assert result.exit_code == 0, result.output
     from genetics.pgx.presentation import saved_report
 
-    assert json.loads(result.output) == saved_report(read_bundle(path), "CYP2C19")
+    printed = json.loads(result.output)
+    report = saved_report(read_bundle(path), "CYP2C19")
+    assert printed["schema"]["name"] == "pgx.calls" and printed["run_id"] == path.name
+    assert {key: printed[key] for key in report} == report
+    # M13.5: every page of the only saved run with completed calls, against the commands.
+    assert parity_check(path).pages > 0
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
     face = client.get(f"/runs/{path.name}")
     assert face.status_code == 200 and "compatible candidate(s)" in face.text
@@ -475,6 +481,9 @@ def test_saved_pgx_cli_dashboard_and_historical_parity(
     assert read_bundle(path).pgx is None
     historical = client.get(f"/runs/{path.name}/pgx?gene=CYP2C19")
     assert historical.status_code == 200 and "not-recorded" in historical.text
+    old = parity_check(path).documents
+    assert old[("pgx", "calls", path.name)]["status"] == "not-recorded"
+    assert old[("runs", "qc", path.name)]["format_version"] == 18
 
 
 @pytest.mark.parametrize("kind", ["sex", "imputation", "digest"])
@@ -1910,6 +1919,7 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     monkeypatch: pytest.MonkeyPatch,
     has_card: bool,
     stage: str,
+    parity_check: Any,
 ) -> None:
     """Filters, missing references and older formats cannot silently omit the gap."""
     from html import unescape
@@ -1994,7 +2004,7 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
     assert "Prescribing based on these findings" in framing["text"]
     assert "clinical confirmation" in framing["text"]
     assert "full clinical context" in framing["text"]
-    assert expected["current_context"] == {"section_framing": framing}
+    assert expected["current_context"] == {"context": "current"} | {"section_framing": framing}
     limitation = expected["cyp2d6_limitation"]
     assert limitation["status"] == ("recorded" if has_card else "not-recorded")
     if has_card:
@@ -2018,13 +2028,21 @@ def test_cyp2d6_limitation_stays_beside_saved_calls(
         args = ["pgx", "calls", path.name] + ([] if gene is None else ["--gene", gene])
         result = CliRunner().invoke(app, [*args, "--json"])
         assert result.exit_code == 0, result.output
-        assert json.loads(result.output) == saved_report(bundle, gene)
+        printed = json.loads(result.output)
+        report = saved_report(bundle, gene)
+        assert printed["schema"]["name"] == "pgx.calls" and printed["run_id"] == path.name
+        assert {key: printed[key] for key in report} == report
         text = CliRunner().invoke(app, args)
         assert text.exit_code == 0
         assert text.output.count(framing["text"]) == 1
         assert text.output.index(framing["text"]) < text.output.index("PGx:")
-        assert json.loads(result.output)["current_context"] == {"section_framing": framing}
+        assert json.loads(result.output)["current_context"] == {"context": "current"} | {
+            "section_framing": framing
+        }
         assert (cards[0].summary if has_card else limitation["reason"]) in text.output
+    # M13.5: the limitation the pages show is the one `pgx calls` prints, in every stage.
+    shown = parity_check(path).documents[("pgx", "calls", path.name)]
+    assert shown["cyp2d6_limitation"] == limitation
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
     urls = [
         "",
@@ -2459,6 +2477,7 @@ def test_guideline_saved_cli_dashboard_and_corruption(
     stage: str,
     display_schema: int,
     agent_schema_check: Any,
+    parity_check: Any,
 ) -> None:
     from html import unescape
 
@@ -2512,7 +2531,9 @@ def test_guideline_saved_cli_dashboard_and_corruption(
         args = ["pgx", "calls", path.name, *gene_args]
         cli = CliRunner().invoke(app, [*args, "--json"])
         assert cli.exit_code == 0, cli.output
-        assert json.loads(cli.output)["current_context"] == {"section_framing": framing}
+        assert json.loads(cli.output)["current_context"] == {"context": "current"} | {
+            "section_framing": framing
+        }
         assert json.loads(cli.output)["guideline_cards"] == [
             {
                 "card_id": saved.card_id,
@@ -2567,6 +2588,10 @@ def test_guideline_saved_cli_dashboard_and_corruption(
             assert "synthetic context only" in page.text
     before = {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
     read_bundle(path)
+    # M13.5: the guideline card's page against `runs card`, and the PGx page against
+    # `pgx calls`. Reading every page and every command leaves the bundle as it was.
+    guidelines = parity_check(path).documents[("pgx", "calls", path.name)]["guideline_cards"]
+    assert [entry["card_id"] for entry in guidelines] == [card.card_id]
     assert before == {p.name: p.read_bytes() for p in path.iterdir() if p.is_file()}
     from genetics.pgx.guidelines import validate_stored
 

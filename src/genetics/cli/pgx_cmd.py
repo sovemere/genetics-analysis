@@ -26,8 +26,7 @@ def calls(
     ] = False,
 ) -> None:
     from genetics.pgx.calling import CallingError
-    from genetics.pgx.presentation import saved_report
-    from genetics.run import store
+    from genetics.run import reads, store
     from genetics.run.bundle import BundleError
 
     try:
@@ -36,12 +35,12 @@ def calls(
         # The same kind as `genetics runs` for the same run (M13.2).
         contract.refuse(contract.run_error_kind(exc), str(exc), as_json=as_json)
     try:
-        result = saved_report(bundle, gene)
+        result = reads.pgx_view(bundle, gene)
     except (CallingError, BundleError, OSError, ValueError) as exc:
         _error(exc, as_json)
     else:
         if as_json:
-            typer.echo(json.dumps(result, indent=2))
+            typer.echo(json.dumps(contract.tagged("pgx.calls", result), indent=2))
         else:
             framing = result["current_context"]["section_framing"]
             typer.echo(f"{framing['title']}: {framing['text']}")

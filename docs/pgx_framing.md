@@ -21,6 +21,9 @@ once before the saved report. Its JSON exposes
 `current_context.section_framing`, whose `context: current` and
 `section: pharmacogenomics` identify presentation context separately from
 frozen `guideline_cards`, sample calls and saved CYP2D6 evidence.
+Since M13.5 `current_context` carries `context: current` at its own level too, as in every
+other run-scoped document, and the JSON is described by [the agent schema](agent_schema.md)
+as `pgx.calls`.
 `genetics runs show RUN --json` remains the frozen bundle inspection interface.
 Since M13.1, `genetics runs show RUN --section pharmacogenomics` prints the notice once in
 its section frame, and its JSON gives it as

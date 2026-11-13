@@ -68,7 +68,8 @@ def saved_report(bundle: RunBundle, gene: str | None = None) -> dict[str, Any]:
         c for c in bundle.cards if c.kind == "guideline" and (gene is None or c.gene == gene)
     ]
     return report(bundle.pgx, gene) | {
-        "current_context": {"section_framing": section_framing()},
+        # ``context`` at this level since M13.5, as in every other run-scoped document.
+        "current_context": {"context": "current", "section_framing": section_framing()},
         "cyp2d6_limitation": cyp2d6_limitation(bundle.cards),
         "guideline_cards": [
             {

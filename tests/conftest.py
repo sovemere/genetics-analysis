@@ -38,6 +38,7 @@ if TYPE_CHECKING:
     from genetics.engine.evidence import AssembledCard
     from genetics.external.plink2 import Plink2
     from genetics.qc.report import QCReport
+    from genetics.testing.parity import Report
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -469,5 +470,27 @@ def agent_schema_check() -> Callable[[object], str]:
         ]
         assert not problems, f"{name} does not match its schema:\n" + "\n".join(problems[:12])
         return name
+
+    return check
+
+
+@pytest.fixture(scope="session")
+def parity_check(agent_schema_check: Callable[[object], str]) -> Callable[[Path], Report]:
+    """Compare every dashboard page of one saved run with what the CLI prints (M13.5).
+
+    Takes the bundle's directory, which must sit in a directory named ``runs`` under the
+    test's data directory. Every document the commands printed is also checked against the
+    agent schema, so the suites that build the only saved runs with HLA calls, guideline
+    cards, placed scores and a ClinVar lookup check both with one call. A fixture for the
+    reason ``agent_schema_check`` is one: ``tests/`` is not a package.
+    """
+    from genetics.testing import parity
+
+    def check(run: Path) -> Report:
+        report = parity.check_run(run)
+        for words, document in report.documents.items():
+            if words != ("version",):
+                agent_schema_check(document)
+        return report
 
     return check

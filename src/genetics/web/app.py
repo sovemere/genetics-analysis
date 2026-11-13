@@ -215,6 +215,9 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         openapi_url=None,
     )
     app.state.config = settings
+    # Reachable so that the parity check (M13.5) can record what each page hands its
+    # template; see `genetics.testing.parity`. Nothing in this module reads it back.
+    app.state.environment = environment
 
     # Mounted before the middleware is declared for readability only -- Starlette applies
     # middleware around the whole app, mounts included, so the policy headers and the host

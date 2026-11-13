@@ -1,16 +1,24 @@
-# Handoff: M13.5 CLI and dashboard parity test
+# Handoff: M13.6 agent review workflow
 
-As of 2026-11-12, **M0-M12 and M13.1-M13.4 are implemented; M13.5 is next**. See
-[the M13.5 entry contract](#next-open-step-m135-parity-test),
+As of 2026-11-13, **M0-M12 and M13.1-M13.5 are implemented; M13.6 is next**. See
+[the M13.6 entry contract](#next-open-step-m136-review-workflow),
+[the M13.5 record](#accepted-m135-parity-test),
 [the M13.4 record](#accepted-m134-machine-readable-confidence),
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M13.5, the CLI and dashboard parity test, is implemented.** `tests/test_parity.py`
+fails when a dashboard page shows something no command prints: a route with no command, an
+engine function only the dashboard calls, or a value on a page that is not in a command's
+JSON. The five commands that print a run's other saved records (`runs clinvar`, `runs
+secondary`, `runs imputation`, `pgx calls`, `hla calls`) now print the run envelope and a
+schema tag, and the agent schema is version 5. See
+[the parity section](agent_cli.md#parity-m135).
 **M13.4 machine-readable confidence is implemented.** `genetics runs card --json` adds
 `current_context.confidence`: one block for every kind of card, giving the saved tier and
 score, each input with its weight and what it cost the score, every ceiling that applies,
 which of them set the tier, and a sentence saying so. The saved card is unchanged, and the
-agent schema is now version 4. See [the confidence contract](agent_cli.md#confidence-m134).
+agent schema became version 4. See [the confidence contract](agent_cli.md#confidence-m134).
 The [M13.4 session review](review_m134_session.md) fixed a replay that summed rounded
 figures, so that about one honest polygenic score in a thousand was reported as saved under
 other rules, and stopped a rare call's rate being printed twice.
@@ -540,58 +548,69 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
-<a id="next-open-step-m135-parity-test"></a>
+<a id="next-open-step-m136-review-workflow"></a>
 
-## Next open step: M13.5 parity test
+## Next open step: M13.6 review workflow
 
-M13.5 is a test that every analysis reachable from the dashboard is reachable from the CLI,
-wired into CI. Nothing has been selected or verified beyond what is listed here.
+M13.6 documents how an agent reviews a run, in `AGENTS.md` or a `docs/agent-usage.md`, with
+the worked example from the project brief: *"it says I'm predisposed to curly hair — review
+the cited information and give me 10 interesting facts"*. Nothing has been selected or
+verified beyond what is listed here.
 
 What already exists:
 
-- **The dashboard has eight routes.** `/`, `/runs/{run}`, `/runs/{run}/cards/{card}`,
-  `/runs/{run}/clinvar`, `/runs/{run}/secondary-findings`, `/runs/{run}/hla`,
-  `/runs/{run}/pgx` and `/healthz` (`web/app.py`).
-- **Pieces of a parity test, not the test.** `tests/test_cli_agent_reads.py` compares every
-  section's title, blurb, milestone, counts, empty reason and pointers with the dashboard's
-  views. `reads.SAVED_RECORDS` names the command for each record the dashboard links as a
-  page. `tests/web/test_dashboard.py` checks that the card page prints the sentence
-  `runs card` gives for what decided a tier.
-- **Two shared functions.** `reads.empty_reason` and `explain.explain_confidence` are
-  called by both front-ends. The dashboard builds its pointers (`views.related_links`) and
-  its card views (`CardView.of`) itself; a test compares the pointers with `reads.related`,
-  and nothing compares a card view with `reads.card_payload`. `reads.search_view` is what
-  M14.4's dashboard search is meant to call.
+- **Every command the example needs.** `cards search "curly hair"` finds the card id with
+  no run open. `runs card <run> wnt10a_hair_curl --json` gives the saved card, its
+  citations with links, and what decided its tier. `cards evidence wnt10a_hair_curl` gives
+  the claim with no genotype, which is what a web search starts from (AGENTS.md §1.3).
+  `runs qc` and `runs show --section` give the surroundings.
+- **A reference for each command, not a walk-through.** [The read-command
+  contract](agent_cli.md) says what each prints, and AGENTS.md §3 names the workflow in one
+  sentence.
+- **A table of which command stands for which dashboard page** (M13.5), in
+  [the parity section](agent_cli.md#parity-m135).
 
 What is open:
 
-- **What "reachable" is checked against.** A list of routes, a list of the view fields each
-  page renders, or the functions each page calls. The roadmap line does not say.
-- **Which untagged commands need describing.** `runs clinvar`, `runs secondary`,
-  `runs imputation`, `pgx calls` and `hla calls` print saved records the schema does not
-  describe. M13.2 left that decision to this item.
-- **What the dashboard draws that the CLI only points to.** `runs card` text gives one line
-  for polygenic, HLA, runs-of-homozygosity and multi-marker detail and points to `--json`,
-  which holds each in full. Whether JSON reachability is enough is this item's call.
-- **How it runs in CI.** The roadmap says to wire it in; `ci.yml` runs `pytest -q`, so a
-  test in the suite already runs there.
+- **Where it lives.** The roadmap allows either file. AGENTS.md is read first by every
+  agent and is already long.
+- **Which run the example uses.** The page is public, so it cannot state a real person's
+  result. Whether it shows output from a synthetic run, or the commands with no output.
+- **Whether the example is tested.** A walk-through whose commands are run by a test stays
+  true when a command changes; one that is prose does not.
+- **How much of "search the web" it states.** M13.7 owns the lint on outbound queries.
+  M13.6 has to say what may be searched without it.
 
-What M13.4 hands over:
+What M13.5 hands over:
 
-- **The schema is version 4, with nine payloads.** A new key or payload takes version 5:
-  bump `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to
+- **The schema is version 5, with fourteen payloads.** A new key or payload takes version
+  6: bump `AGENT_SCHEMA_VERSION` and the document's `version`, add the digest to
   `SHAPE_DIGESTS`, and add a line to the version history in
   [the agent schema](agent_schema.md).
+- **A new dashboard route, context key, view field, view property or engine call fails
+  `tests/test_parity.py` until it is placed.** The failure says where: a row in
+  `parity.PAGES`, a key in `parity.CONTEXT`, a field in a view's table, a name in
+  `parity.PROPERTIES`, or a reason in `parity.DISPLAY_ONLY`. M14 adds pages and fields and
+  will meet each of these.
+- **`parity_check(run)` checks one saved run** against the commands and checks every
+  document it reads against the schema. A suite that builds a new kind of saved run should
+  call it, as `tests/hla`, `tests/refs` and `tests/health` do.
+- **What the check does not cover.** A property's arithmetic; what the CLI prints and no
+  page shows (a card's `ancestry_comparison` is the known case); text output; the real
+  imputed run. [The parity section](agent_cli.md#parity-m135) lists them.
+
+What M13.4 left:
+
 - **The confidence block is on `runs card` only.** `runs show --section` and `runs search`
-  list each card's saved `confidence_tier` and nothing more. A parity test that compares a
-  section page with `runs.section` will find the tier on both and the block on neither.
+  list each card's saved `confidence_tier` and nothing more.
 - **The dashboard shows part of the block.** Its "Why this tier" section prints `reason`
   and the six rows for a card with a `confidence` block. It does not print weights, what
   each input lost, or the list of ceilings. Computed and guideline cards keep their own
   detail partials, which print the saved reason. The polygenic partial prints the saved
   score, inputs and ceiling names ("Capped by coverage"), which list only the ceilings that
   lowered the tier in order; `runs card` lists every one by input. M14.3 (confidence
-  legend) is the place to give the pages the block.
+  legend) is the place to give the pages the block. The parity check compares the sentence
+  and the saved inputs, which is what the page holds.
 - **A ceiling's wording is the engine's.** `Ceiling.rule` in `engine/confidence.py` is
   printed by the CLI and the dashboard. Rewording one changes both and no saved run.
 
@@ -605,7 +624,7 @@ What M13.2 left, for whichever later item needs it:
 What M13.3 left:
 
 - **The dashboard has no search yet.** M14.4 should call `reads.search_view`, which is what
-  `runs search` prints, so that the parity test can compare them.
+  `runs search` prints. Its route then needs a row in `parity.PAGES` naming `runs search`.
 - **Guideline recommendation rows and saved score records are not searched.** A guideline
   card is found by its gene, title and citation titles. A drug named only in its saved CPIC
   rows is not a search term for the card.
@@ -621,6 +640,98 @@ What M13.3 left:
 - **A genotype in a query is whatever `genetics.privacy` recognises.** An rsID followed by
   two bare alleles, with no chromosome, position, colon or equals sign, is not one of its
   shapes. M13.7 owns the outbound-query lint.
+
+<a id="accepted-m135-parity-test"></a>
+
+## Accepted M13.5 parity test
+
+Implemented on 2026-11-13 under [the parity section](agent_cli.md#parity-m135). No owner
+question was asked: each of the entry contract's four open points follows something
+already settled, and that section lists them.
+
+- **The check is a library, `genetics.testing.parity`, run by `tests/test_parity.py`.** It
+  compares three things, each listed from the dashboard's own code. Routes: all eight are
+  in `parity.PAGES` with the commands whose JSON holds what they show. Engine calls: every
+  engine function `genetics.web` calls is one the CLI's read side calls, with two stated
+  exemptions. Values: for a saved run, every page is rendered through the real app, what it
+  hands its template is recorded, and each context key, each `Shell` field and each field
+  of every card is compared with what the real commands print.
+- **Reachable means in a command's JSON** (AGENTS.md §0). Text output is not compared.
+- **The five record commands are described.** `runs clinvar`, `runs secondary`,
+  `runs imputation`, `pgx calls` and `hla calls` print the run envelope and a schema tag,
+  as `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls` and `hla.calls`.
+  Agent schema version 5. `reads.py` builds all five.
+- **What the check found.** `hla calls --json` did not say whether HLA-linked cards were
+  recorded; it now gives `linked_cards_status` and `linked_cards`. The bundle format the
+  dashboard's footer shows was in no command; `version --json` gives it. `pgx calls`'
+  `current_context` had no `context` key of its own. One engine function,
+  `phase_coverage_text`, was called by the dashboard alone, to word saved figures. No page
+  showed a value missing from every command.
+- **`runs imputation` is scanned.** Its provenance holds no genotype, so both branches are
+  checked for one before printing, like `runs qc`.
+- **It runs in CI inside the suite.** `tests/test_parity.py` needs no native tool and no
+  reference. The same check runs on the saved runs with completed PGx calls, guideline
+  cards, HLA calls and cards, a placed polygenic score, a ClinVar lookup with a frequency
+  screen, 101 ACMG overlaps over two pages, and three historical formats, through the
+  `parity_check` fixture in the suites that build them.
+
+Changed for a caller: the five record commands print `schema`, `path`, `format_version` and
+`created_at` under `--json`, and `pgx calls` and `hla calls` print `run_id`; `hla calls`
+adds `linked_cards_status` and `linked_cards`; `pgx calls` adds `current_context.context`;
+`version --json` adds `bundle_format_version`; every tagged document says `"version": 5`.
+No key was removed, and no text output changed. `create_app` keeps its template environment
+on `app.state.environment`. No bundle format, knowledge schema, card or saved-file type
+changed. No personal export or saved real run was opened; all checks used synthetic runs
+and the committed pack.
+
+Validation on 2026-11-13, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle tools
+configured. The full native suite passes **4,273 tests with nine skips** in 874 s: the five existing Windows skips and the four published-classifier HIBAG tests. After that run only documentation changed. The 38 new tests are 34 in
+`tests/test_parity.py` and four in `tests/test_agent_schema.py`; nine existing tests in
+`tests/hla`, `tests/refs` and `tests/health` now run the check on their saved runs.
+Thirty-one guards were each removed in turn. Thirty removals failed a
+test; the thirty-first, an unplaced view field passing a run check, did not, and a test now
+covers it. Full dbSNP card lint (119 cards, 594 renders, 65/65 keys), strict mypy on all
+four Windows/Linux x Python 3.11/3.13 targets (257 files), ruff, format and the fixture
+check pass. `genetics ci-local` passed before the push.
+
+**Saved runs repeat their deep checks once.** This change edits Python source, so the first
+read of each saved run repeats its deep checks (about 54 minutes for the real imputed run).
+Run `genetics runs list --verify`, or the launcher's verify-first shortcut, first.
+
+<a id="next-open-step-m135-parity-test"></a>
+
+## M13.5 entry contract (implemented; retained for review)
+
+M13.5 is a test that every analysis reachable from the dashboard is reachable from the CLI,
+wired into CI.
+
+What already existed:
+
+- **The dashboard has eight routes.** `/`, `/runs/{run}`, `/runs/{run}/cards/{card}`,
+  `/runs/{run}/clinvar`, `/runs/{run}/secondary-findings`, `/runs/{run}/hla`,
+  `/runs/{run}/pgx` and `/healthz` (`web/app.py`).
+- **Pieces of a parity test, not the test.** `tests/test_cli_agent_reads.py` compares every
+  section's title, blurb, milestone, counts, empty reason and pointers with the dashboard's
+  views. `reads.SAVED_RECORDS` names the command for each record the dashboard links as a
+  page. `tests/web/test_dashboard.py` checks that the card page prints the sentence
+  `runs card` gives for what decided a tier.
+- **Two shared functions.** `reads.empty_reason` and `explain.explain_confidence` are
+  called by both front-ends. The dashboard builds its pointers (`views.related_links`) and
+  its card views (`CardView.of`) itself; a test compared the pointers with `reads.related`,
+  and nothing compared a card view with `reads.card_payload`.
+
+What was open:
+
+- **What "reachable" is checked against.** A list of routes, a list of the view fields each
+  page renders, or the functions each page calls. The roadmap line does not say.
+- **Which untagged commands need describing.** `runs clinvar`, `runs secondary`,
+  `runs imputation`, `pgx calls` and `hla calls` printed saved records the schema did not
+  describe. M13.2 left that decision to this item.
+- **What the dashboard draws that the CLI only points to.** `runs card` text gives one line
+  for polygenic, HLA, runs-of-homozygosity and multi-marker detail and points to `--json`,
+  which holds each in full. Whether JSON reachability is enough was this item's call.
+- **How it runs in CI.** The roadmap says to wire it in; `ci.yml` runs `pytest -q`, so a
+  test in the suite already runs there.
 
 <a id="accepted-m134-machine-readable-confidence"></a>
 

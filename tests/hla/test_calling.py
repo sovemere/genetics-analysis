@@ -528,6 +528,7 @@ def test_bundle_cli_dashboard_offline_and_historical(
     sample_cards: Any,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    parity_check: Any,
 ) -> None:
     from genetics.ancestry.context import AncestryContext
     from genetics.run.bundle import HLA_NAME, BundleError, read_bundle, write_bundle
@@ -560,7 +561,12 @@ def test_bundle_cli_dashboard_offline_and_historical(
     monkeypatch.setattr(hibag, "probe", lambda **_: pytest.fail("Saved reading must not probe R"))
     assert read_bundle(path).hla == record
     result = CliRunner().invoke(app, ["hla", "calls", path.name, "--json"])
-    assert result.exit_code == 0 and json.loads(result.output) == record
+    printed = json.loads(result.output)
+    assert result.exit_code == 0 and {key: printed[key] for key in record} == record
+    assert printed["schema"]["name"] == "hla.calls" and printed["run_id"] == path.name
+    assert (printed["linked_cards_status"], printed["linked_cards"]) == ("recorded", [])
+    # M13.5: the HLA page of a run with completed calls, against `hla calls`.
+    assert parity_check(path).pages > 0
     full = CliRunner().invoke(app, ["runs", "show", path.name, "--json"])
     assert full.exit_code == 0 and json.loads(full.output)["hla"] == record
     client = TestClient(create_app(WebConfig(runs_root=root)), base_url="http://127.0.0.1")
@@ -604,6 +610,8 @@ def test_bundle_cli_dashboard_offline_and_historical(
     header_path.write_text(json.dumps(header))
     assert read_bundle(path).hla is None
     assert "not-recorded" in client.get(f"/runs/{path.name}/hla").text
+    old = parity_check(path).documents[("hla", "calls", path.name)]
+    assert (old["status"], old["linked_cards_status"]) == ("not-recorded", "not-recorded")
 
 
 def test_dashboard_and_cli_render_every_selection_outcome(
