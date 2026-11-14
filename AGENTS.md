@@ -288,7 +288,13 @@ The CLI is the contract. `genetics run --input X`, `genetics runs list`,
 `genetics cards search <query>` cover the workflow:
 *"review this run, look at the curly hair card, check the cited papers, search the web, give
 me ten facts."* Card JSON must include the citations so the agent can verify rather than
-confabulate. `runs card` also says what decided the card's confidence tier
+confabulate.
+**Before reviewing a run, read [docs/agent_usage.md](docs/agent_usage.md).** It walks that
+workflow through step by step: the keys to read, what an answer has to carry, and the
+curly-hair example with real output. Its rule for §1.3 is that everything that leaves the
+machine (a search, a fetch, a file) is written from `cards` output and from papers already
+read, never from a `runs`, `pgx` or `hla` command. A test runs every command on that page.
+`runs card` also says what decided the card's confidence tier
 (`current_context.confidence`): each input with its weight, every ceiling that applies and
 which of them set the tier, so "why is this low confidence" has an answer an agent can read.
 Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence` reads the

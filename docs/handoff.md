@@ -1,12 +1,19 @@
-# Handoff: M13.6 agent review workflow
+# Handoff: M13.7 outbound-query lint
 
-As of 2026-11-13, **M0-M12 and M13.1-M13.5 are implemented; M13.6 is next**. See
-[the M13.6 entry contract](#next-open-step-m136-review-workflow),
+As of 2026-11-15, **M0-M12 and M13.1-M13.6 are implemented; M13.7 is next**. See
+[the M13.7 entry contract](#next-open-step-m137-outbound-query-lint),
+[the M13.6 record](#accepted-m136-review-workflow),
 [the M13.5 record](#accepted-m135-parity-test),
 [the M13.4 record](#accepted-m134-machine-readable-confidence),
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M13.6, the agent review walk-through, is implemented.**
+[Reviewing a run as an agent](agent_usage.md) gives the eight steps of a review, the keys
+to read, the rule for what may leave the machine and what an answer has to carry, and
+works the brief's curly-hair example through with real output from a run that is nobody's.
+`tests/test_agent_usage.py` runs every command on the page. No command, schema, bundle
+format or card changed.
 **M13.5, the CLI and dashboard parity test, is implemented.** `tests/test_parity.py`
 fails when a dashboard page shows something no command prints: a route with no command, an
 engine function only the dashboard calls, or a value on a page that is not in a command's
@@ -552,38 +559,64 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
-<a id="next-open-step-m136-review-workflow"></a>
+<a id="next-open-step-m137-outbound-query-lint"></a>
 
-## Next open step: M13.6 review workflow
+## Next open step: M13.7 outbound-query lint
 
-M13.6 documents how an agent reviews a run, in `AGENTS.md` or a `docs/agent-usage.md`, with
-the worked example from the project brief: *"it says I'm predisposed to curly hair — review
-the cited information and give me 10 interesting facts"*. Nothing has been selected or
-verified beyond what is listed here.
+M13.7 reinforces AGENTS.md §1.3 (an agent researches the variant, never the reader's
+genotype at it) and adds a lint or test for genotype strings in outbound query
+construction. Nothing has been selected or verified beyond what is listed here.
 
 What already exists:
 
-- **Every command the example needs.** `cards search "curly hair"` finds the card id with
-  no run open. `runs card <run> wnt10a_hair_curl --json` gives the saved card, its
-  citations with links, and what decided its tier. `cards evidence wnt10a_hair_curl` gives
-  the claim with no genotype, which is what a web search starts from (AGENTS.md §1.3).
-  `runs qc` and `runs show --section` give the surroundings.
-- **A reference for each command, not a walk-through.** [The read-command
-  contract](agent_cli.md) says what each prints, and AGENTS.md §3 names the workflow in one
-  sentence.
-- **A table of which command stands for which dashboard page** (M13.5), in
-  [the parity section](agent_cli.md#parity-m135).
+- **A scanner with five shapes.** `genetics.privacy` recognises an export row in three
+  separator forms, an identifier with a call attached by a colon or equals sign, and keyed
+  fields. `assert_no_genotype` names outbound web queries as one of its boundaries.
+- **Two commands that refuse a genotype as a query.** `cards search` and `runs search`
+  check the query with that scanner before anything is read (`engine/search.parse_query`,
+  kind `genotype-in-query`).
+- **A stated rule.** [The walk-through](agent_usage.md#what-may-leave-the-machine) says
+  that whatever leaves the machine is written from `cards` output and from papers already
+  read, and that each query is written as if the result were unknown.
+- **One test of that rule, on four example queries.** `tests/test_agent_usage.py` checks
+  that every word of each example query is a word `cards evidence --json` prints for the
+  card, and that a query holding the run's call, its tier or the word "heterozygous" is
+  not.
 
 What is open:
 
-- **Where it lives.** The roadmap allows either file. AGENTS.md is read first by every
-  agent and is already long.
-- **Which run the example uses.** The page is public, so it cannot state a real person's
-  result. Whether it shows output from a synthetic run, or the commands with no output.
-- **Whether the example is tested.** A walk-through whose commands are run by a test stays
-  true when a command changes; one that is prose does not.
-- **How much of "search the web" it states.** M13.7 owns the lint on outbound queries.
-  M13.6 has to say what may be searched without it.
+- **What there is to lint.** The engine builds no web search. Its only network path is
+  `refs/fetcher.py`, which downloads the manifest's pinned URLs. An agent builds its own
+  queries outside this code. The lint needs something of the engine's to stand on: a
+  command an agent passes a query through, a command that prints queries built from a
+  card's evidence, or a function the tests hold to the rule.
+- **Shapes or sources.** The scanner matches shapes, and a result has shapes it does not
+  know: an rsID followed by two bare alleles, a zygosity word, a star-allele diplotype,
+  an HLA type, a haplogroup. The M13.6 test checks sources instead (words `cards evidence`
+  does not print). Which one M13.7 builds, or both.
+- **Where §1.3 is reinforced.** AGENTS.md §3 now points to the walk-through and repeats
+  its rule in a sentence. §1.3 itself is unchanged.
+- **A hosted agent reading a run.** §1.3 lists "a prompt to a remote model" among the
+  places a genotype must not go, and §0 says an agent can be pointed at a saved run. The
+  walk-through settles it as: the owner's request covers the cards asked about, read
+  with the narrowest command. The owner has not confirmed that reading.
+
+What M13.6 hands over:
+
+- **The page is tested through markers.** `<!-- run: command -->` before a fenced output,
+  `<!-- keys: command -->` before a table of keys, `<!-- queries: card-id -->` before a
+  list of queries. A marker with nothing after it, or a sixth marker, fails
+  `test_the_page_marks_what_it_shows` until that test lists it.
+- **A change to the four hair-curl cards' wording or evidence fails the page's test.**
+  That is the prompt to re-read the page's comparison with the papers, which is prose.
+  Run the command the failure names and correct the page.
+- **`parity.command_problem(command, needs_json=False)`** checks any command line written
+  in documentation: the subcommand exists and takes each option written.
+- **`uv run` rewrites `uv.lock`.** The committed lock predates the `jsonschema` and
+  `types-jsonschema` development dependencies in `pyproject.toml`, so `uv run` adds them
+  and leaves the file modified. CI installs with `uv pip install -e ".[dev]"` and does
+  not read the lock. The lock was left as committed; `.venv/Scripts/python -m pytest`
+  does not touch it.
 
 What M13.5 hands over:
 
@@ -649,6 +682,90 @@ What M13.3 left:
 - **A genotype in a query is whatever `genetics.privacy` recognises.** An rsID followed by
   two bare alleles, with no chromosome, position, colon or equals sign, is not one of its
   shapes. M13.7 owns the outbound-query lint.
+
+<a id="accepted-m136-review-workflow"></a>
+
+## Accepted M13.6 review workflow
+
+Implemented on 2026-11-15 as [Reviewing a run as an agent](agent_usage.md). No owner
+question was asked: three of the entry contract's four open points follow something
+already settled, and the page's Decisions section lists them. The fourth produced one
+reading the owner has not confirmed, which is flagged there and in the M13.7 contract.
+
+- **It lives in `docs/agent_usage.md`, with a pointer in AGENTS.md §3.** AGENTS.md is read
+  at the start of every session; the walk-through is several hundred lines.
+- **Eight steps, each with its command:** pick the run, check its QC, find the card, read
+  the result, read the claim without the result, read the cited papers, search further,
+  answer. Then what an answer carries, which command starts each other kind of question,
+  and what to do when a step fails.
+- **What may leave the machine is stated as a rule about sources.** A table says which
+  commands state the reader's results. A search, a fetch or a file is written from `cards`
+  output and from papers already read, and each query as if the result were unknown.
+- **The example shows real output from a run that is nobody's:** the four hair-curl cards
+  and one assay-limit card, matched against an invented table that holds one of each
+  allele a card declares.
+- **The card was checked against its sources.** Both papers cited by `wnt10a_hair_curl`
+  were read in full text from PubMed Central (PMC2891811, PMC5886212). The marker, the
+  allele counted, the 0.193 effect and its scale, the sample of 5,385, its ancestry and
+  the independent replication all agree with the card. The later paper's lead marker at
+  the locus is a different one; the card's note says the locus was confirmed, which is
+  what that paper's main text shows. Its Supplementary Table S6 was not opened.
+- **Ten facts, each naming the table or section it was read in.** Two figures in them are
+  sums this review made from a published table, and say so.
+
+Changed for a caller: nothing. No command's output, schema shape, bundle format, knowledge
+schema or card changed. `genetics.testing.parity._command_problem` is now
+`command_problem`, with a `needs_json` flag; the parity check's behaviour is unchanged.
+No personal export or saved real run was opened: every command ran against a synthetic run
+and the committed pack. The requests to NCBI carried a DOI or a PMC number.
+
+Validation on 2026-11-15, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle
+tools configured. The full native suite passes **4,294 tests with nine skips** in 1,071 s: the five existing
+Windows skips and the four published-classifier HIBAG tests. After that run the page gained
+its QC step and the test its check of that step's keys, and documentation changed;
+`tests/test_agent_usage.py` was run again and passes. Its 12 tests are the new ones. The
+page was changed in ten ways, one at a time (a shown line reworded, the search order, a
+key that is gone from each of two tables, a query built from the result, a result command marked safe to send
+out, a marker removed, a command that is gone, an option that is gone, the sentence about
+a fifth card); each change failed a test. Strict mypy on all four Windows/Linux x Python
+3.11/3.13 targets (258 files), ruff and format pass.
+
+**Saved runs repeat their deep checks once.** This change edits Python source
+(`testing/parity.py`), so the first read of each saved run repeats its deep checks (about
+54 minutes for the real imputed run). Run `genetics runs list --verify`, or the launcher's
+verify-first shortcut, first.
+
+<a id="next-open-step-m136-review-workflow"></a>
+
+## M13.6 entry contract (implemented; retained for review)
+
+M13.6 documents how an agent reviews a run, in `AGENTS.md` or a `docs/agent-usage.md`, with
+the worked example from the project brief: *"it says I'm predisposed to curly hair — review
+the cited information and give me 10 interesting facts"*.
+
+What already existed:
+
+- **Every command the example needs.** `cards search "curly hair"` finds the card id with
+  no run open. `runs card <run> wnt10a_hair_curl --json` gives the saved card, its
+  citations with links, and what decided its tier. `cards evidence wnt10a_hair_curl` gives
+  the claim with no genotype, which is what a web search starts from (AGENTS.md §1.3).
+  `runs qc` and `runs show --section` give the surroundings.
+- **A reference for each command, not a walk-through.** [The read-command
+  contract](agent_cli.md) says what each prints, and AGENTS.md §3 named the workflow in one
+  sentence.
+- **A table of which command stands for which dashboard page** (M13.5), in
+  [the parity section](agent_cli.md#parity-m135).
+
+What was open:
+
+- **Where it lives.** The roadmap allows either file. AGENTS.md is read first by every
+  agent and is already long.
+- **Which run the example uses.** The page is public, so it cannot state a real person's
+  result. Whether it shows output from a synthetic run, or the commands with no output.
+- **Whether the example is tested.** A walk-through whose commands are run by a test stays
+  true when a command changes; one that is prose does not.
+- **How much of "search the web" it states.** M13.7 owns the lint on outbound queries.
+  M13.6 had to say what may be searched without it.
 
 <a id="accepted-m135-parity-test"></a>
 

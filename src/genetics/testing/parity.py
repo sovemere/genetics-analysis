@@ -149,33 +149,41 @@ STATIC_MOUNT: Final[str] = "/static"
 """Stylesheets and scripts. No run is read to serve them."""
 
 
-def _command_words(command: str) -> list[str]:
-    """``genetics runs card <run> <card-id> --json`` as the subcommand path ``runs card``."""
-    words = command.split()
-    if words[0] != "genetics":
-        raise ParityError(f"{command!r} does not start with `genetics`")
-    return [word for word in words[1:] if not word.startswith(("<", "-"))]
-
-
-def _command_problem(command: str) -> str | None:
+def command_problem(command: str, *, needs_json: bool = True) -> str | None:
     """Why ``command`` is not one the CLI runs as written, or ``None`` if it is.
 
-    The command must exist and take ``--json`` and every other option it is written with,
-    so that a table row naming ``--section`` fails when the option is renamed.
+    The command must exist and take every option it is written with, so that a table row
+    naming ``--section`` fails when the option is renamed. With ``needs_json`` it must also
+    be written with ``--json`` and take it, which is what a page's data needs. Without, the
+    command may be written in its text form, as docs/agent_usage.md writes some (M13.6).
+
+    The words up to the first that is not a subcommand are the command's path; the rest
+    are its arguments, so ``genetics cards search curly hair`` is ``cards search``.
     """
     import typer.main
 
     from genetics.cli.main import app
 
+    words = command.split()
+    if words[0] != "genetics":
+        raise ParityError(f"{command!r} does not start with `genetics`")
+    missing = "is not a command that takes --json" if needs_json else "is not a command"
     node: Any = typer.main.get_command(app)
-    for word in _command_words(command):
-        node = getattr(node, "commands", {}).get(word)
-        if node is None:
-            return "is not a command that takes --json"
+    for word in words[1:]:
+        commands = getattr(node, "commands", None)
+        if commands is None:
+            break
+        if word.startswith("-"):
+            continue
+        if word not in commands:
+            return missing
+        node = commands[word]
+    if getattr(node, "commands", None) is not None:
+        return missing
     options = {option for parameter in node.params for option in parameter.opts}
-    written = [word for word in command.split() if word.startswith("-")]
-    if "--json" not in written or "--json" not in options:
-        return "is not a command that takes --json"
+    written = [word for word in words if word.startswith("-")]
+    if needs_json and ("--json" not in written or "--json" not in options):
+        return missing
     unknown = [word for word in written if word not in options]
     return f"is written with {unknown[0]}, which the command does not take" if unknown else None
 
@@ -195,7 +203,7 @@ def check_routes() -> None:
         raise ParityError(f"parity.PAGES lists route(s) the app does not serve: {listed - served}")
     for page in PAGES:
         for command in page.commands:
-            problem = _command_problem(command)
+            problem = command_problem(command)
             if problem is not None:
                 raise ParityError(f"{page.route}: `{command}` {problem}")
 

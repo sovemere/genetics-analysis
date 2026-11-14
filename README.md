@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M12 and M13.1–M13.5 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M12 and M13.1–M13.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -277,7 +277,14 @@ by the agent schema, which is version 5. See
 [M13.5 diff review](docs/review_m135_session.md) fixes comparisons that let a figure
 changed to another figure in the same saved record pass, a polygenic score's coverage
 among them, and adds a probe that changes every value a card shows.
-[M13.6, the documented review workflow](docs/handoff.md#next-open-step-m136-review-workflow)
+**M13.6, the agent review walk-through, is implemented.**
+[Reviewing a run as an agent](docs/agent_usage.md) gives the steps for reviewing a saved
+run, the keys to read, what may be searched online and what an answer has to carry. It
+works the brief's example through, a curly-hair card checked against its two cited papers
+and answered with ten sourced facts, on a run built from committed cards and an invented
+table. A test runs every command on the page and compares each output shown with what the
+command prints. No command, schema, bundle format or card changed.
+[M13.7, the outbound-query lint](docs/handoff.md#next-open-step-m137-outbound-query-lint)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
