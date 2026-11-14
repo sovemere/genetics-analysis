@@ -612,6 +612,12 @@ What M13.6 hands over:
   Run the command the failure names and correct the page.
 - **`parity.command_problem(command, needs_json=False)`** checks any command line written
   in documentation: the subcommand exists and takes each option written.
+- **`ubuntu-latest` is Ubuntu 26.04 since 2026-11-14, and it broke the Linux jobs once.**
+  The first push of M13.6 failed both, in the privacy suite's OS-isolation fixture: that
+  image's `sudo` ignores `-E`, so the isolated child lost its environment and the probe
+  refused it. `Isolation.command` (`testing/isolation.py`) now asks for the environment
+  by name with `--preserve-env`. `genetics ci-local` cannot reproduce a Linux runner, so
+  after a push read both Linux jobs, not only the run's first minutes.
 - **`uv run` rewrites `uv.lock`.** The committed lock predates the `jsonschema` and
   `types-jsonschema` development dependencies in `pyproject.toml`, so `uv run` adds them
   and leaves the file modified. CI installs with `uv pip install -e ".[dev]"` and does

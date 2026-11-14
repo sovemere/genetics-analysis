@@ -59,8 +59,8 @@ def isolation() -> Isolation:
 
     ``allow_sudo`` is tied to the same flag that says isolation is required here, so a
     developer running the suite with cached sudo credentials never has part of it silently
-    run as root, while CI -- where GitHub's Ubuntu 24.04 refuses the unprivileged namespace
-    outright -- still gets the real thing.
+    run as root, while CI -- where GitHub's Ubuntu 24.04 and 26.04 refuse the unprivileged
+    namespace outright -- still gets the real thing.
     """
     found = find_isolation(allow_sudo=bool(os.environ.get(REQUIRE_ENV)))
     if isinstance(found, Isolation):
@@ -286,6 +286,62 @@ def test_isolation_that_isolated_but_dropped_the_environment_is_refused(
     found = find_isolation(allow_sudo=True)
     assert isinstance(found, Unavailable)
     assert "did not pass the environment through" in found.reason
+
+
+def test_under_sudo_the_environment_is_asked_for_by_name() -> None:
+    """``sudo -E`` is not enough: the sudo-rs of Ubuntu 26.04 accepts it and ignores it.
+
+    That is what failed both Linux jobs on 2026-11-14, the day ``ubuntu-latest`` moved to
+    26.04. ``--preserve-env=NAME,...`` is honoured by both implementations, so the command
+    names every variable it was handed. Names only: a value on a command line is readable
+    by every process on the machine.
+    """
+    sudo = Isolation(("sudo", "-n", "unshare", "--net", "--"), "x")
+    env = {"GENETICS_DATA_DIR": "/somewhere/private", "PATH": "/bin", "BASH_FUNC_f%%": "() {}"}
+    command = sudo.command(["python", "-c", "pass"], env)
+    assert command == [
+        "sudo",
+        "-n",
+        "--preserve-env=GENETICS_DATA_DIR,PATH",
+        "unshare",
+        "--net",
+        "--",
+        "python",
+        "-c",
+        "pass",
+    ]
+    assert "-E" not in command
+    assert not any("/somewhere/private" in word for word in command)
+    # With no environment given the child inherits this one, so this one is named.
+    inherited = sudo.command(["true"])
+    assert inherited[2].startswith("--preserve-env=")
+    assert set(inherited[2].split("=", 1)[1].split(",")) <= set(os.environ)
+    assert sudo.command(["true"], {}) == ["sudo", "-n", "unshare", "--net", "--", "true"]
+    # The unprivileged candidate keeps its environment without being asked.
+    plain = Isolation(("unshare", "--map-root-user", "--net", "--"), "x")
+    assert plain.command(["true"], env) == ["unshare", "--map-root-user", "--net", "--", "true"]
+
+
+def test_the_sudo_candidate_is_the_one_whose_environment_is_named(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The candidate list and ``command`` have to agree on where ``-n`` sits."""
+    from genetics.testing import isolation as module
+
+    (sudo,) = [prefix for prefix, _ in module._CANDIDATES if prefix[0] == "sudo"]
+    assert sudo[:2] == ("sudo", "-n") and "-E" not in sudo
+    seen: list[list[str]] = []
+
+    def record(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        seen.append(command)
+        return subprocess.CompletedProcess(args=command, returncode=1, stdout="", stderr="no\n")
+
+    monkeypatch.setattr("genetics.testing.isolation.platform.system", lambda: "Linux")
+    monkeypatch.setattr("genetics.testing.isolation.subprocess.run", record)
+    assert isinstance(find_isolation(allow_sudo=True), Unavailable)
+    assert [command[0] for command in seen] == ["unshare", "sudo"]
+    assert seen[1][2].startswith("--preserve-env=") and seen[1][3:6] == ["unshare", "--net", "--"]
+    assert "GENETICS_ISOLATION_PROBE" in seen[1][2].split("=", 1)[1].split(",")
 
 
 def test_sudo_is_not_tried_unless_isolation_was_required(monkeypatch: pytest.MonkeyPatch) -> None:

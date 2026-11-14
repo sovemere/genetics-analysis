@@ -24,6 +24,16 @@ did nothing -- which is precisely the machine the probe exists to detect. The pr
 asks the child which network interfaces it can see: inside a fresh namespace that is
 loopback and nothing else, and the answer arrives without a single byte leaving.
 
+**The environment is carried by name, because one ``sudo`` ignores ``-E``.** On 2026-11-14
+``ubuntu-latest`` became Ubuntu 26.04, and ``sudo -n -E unshare --net`` stopped passing
+the environment: the child came back isolated and without the probe's token, and the
+probe's second question is what turned that into a named failure. sudo-rs, Ubuntu's
+default ``sudo`` since 25.10, accepts ``-E`` and ignores it, and the replacement Ubuntu's
+bug reports give is ``--preserve-env=NAME,...``, which the C sudo takes too. So
+:meth:`Isolation.command` lists the names of the environment it was handed. Names only: a
+value never reaches a command line. Linux is not reproducible on the development machine,
+so the runner's own probe is what says whether this holds.
+
 There is no Windows equivalent, and that is a limitation rather than an oversight. Every
 OS-level mechanism Windows offers for this -- a firewall rule, a Hyper-V sandbox -- needs
 administrator rights, and a check that only runs for administrators is a check that does not
@@ -36,6 +46,7 @@ from __future__ import annotations
 import json
 import os
 import platform
+import re
 import subprocess
 import sys
 import uuid
@@ -69,12 +80,32 @@ Both are asked in one child so neither can be answered by a different process th
 """
 
 
+_NAMEABLE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+"""An environment name that can sit in a comma-separated ``--preserve-env`` list. Anything
+else (an exported shell function's ``BASH_FUNC_x%%``, for one) is left out, since a comma or
+an equals sign in a name would change what the list means."""
+
+
 @dataclass(frozen=True)
 class Isolation:
     """A command prefix that runs anything with no network, and a name for what it is."""
 
     prefix: tuple[str, ...]
     description: str
+
+    def command(self, argv: Sequence[str], env: Mapping[str, str] | None = None) -> list[str]:
+        """The command line :meth:`run` executes for ``argv``.
+
+        Under ``sudo`` the environment has to be asked for variable by variable, so the
+        names of ``env`` (of this process's environment when it is ``None``, which is what
+        the child would inherit) go into ``--preserve-env``, after ``-n``.
+        """
+        if self.prefix[0] != "sudo":
+            return [*self.prefix, *argv]
+        handed = os.environ if env is None else env
+        names = sorted(name for name in handed if _NAMEABLE.fullmatch(name))
+        keep = [f"--preserve-env={','.join(names)}"] if names else []
+        return [*self.prefix[:2], *keep, *self.prefix[2:], *argv]
 
     def run(
         self,
@@ -85,7 +116,7 @@ class Isolation:
     ) -> subprocess.CompletedProcess[str]:
         """Run ``argv`` with the network removed. Never raises on a non-zero exit."""
         return subprocess.run(
-            [*self.prefix, *argv],
+            self.command(argv, env),
             capture_output=True,
             text=True,
             env=dict(env) if env is not None else None,
@@ -117,12 +148,15 @@ _CANDIDATES: tuple[tuple[tuple[str, ...], str], ...] = (
     #
     # ``-n`` is what keeps this from being a surprise: it makes sudo fail immediately rather
     # than prompt, so on a machine without passwordless sudo this costs one failed exec and
-    # nothing else. ``-E`` is what keeps the child's environment, and the probe checks that
-    # it actually did rather than trusting the flag. It is still only tried when the caller
+    # nothing else. The child's environment is kept by ``--preserve-env=<names>``, which
+    # :meth:`Isolation.command` adds after ``-n``, and the probe checks that it actually
+    # was kept rather than trusting the flag. Until 2026-11-14 this was ``-E``, which the
+    # sudo-rs of Ubuntu 26.04 accepts and ignores. It is still only tried when the caller
     # says isolation is required here -- see :func:`find_isolation`.
     (
-        ("sudo", "-n", "-E", "unshare", "--net", "--"),
-        "Linux network namespace via passwordless sudo (sudo -n -E unshare --net)",
+        ("sudo", "-n", "unshare", "--net", "--"),
+        "Linux network namespace via passwordless sudo "
+        "(sudo -n --preserve-env=<names> unshare --net)",
     ),
 )
 
