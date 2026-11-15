@@ -9,7 +9,7 @@ child process and everything that child starts.
 
 **Availability is probed, never assumed, and the first CI run proved why.** The mechanism is
 a Linux network namespace, and whether an unprivileged process may create one is a
-per-machine question. GitHub's ``ubuntu-latest`` is Ubuntu 24.04, which restricts
+per-machine question. GitHub's ``ubuntu-latest`` was Ubuntu 24.04 then, which restricts
 unprivileged user namespaces through AppArmor: ``unshare --map-root-user --net`` gets far
 enough to create the namespace and is then refused the uid mapping --
 ``unshare: write failed /proc/self/uid_map: Operation not permitted``. A detector that
@@ -24,15 +24,17 @@ did nothing -- which is precisely the machine the probe exists to detect. The pr
 asks the child which network interfaces it can see: inside a fresh namespace that is
 loopback and nothing else, and the answer arrives without a single byte leaving.
 
-**The environment is carried by name, because one ``sudo`` ignores ``-E``.** On 2026-11-14
-``ubuntu-latest`` became Ubuntu 26.04, and ``sudo -n -E unshare --net`` stopped passing
-the environment: the child came back isolated and without the probe's token, and the
-probe's second question is what turned that into a named failure. sudo-rs, Ubuntu's
-default ``sudo`` since 25.10, accepts ``-E`` and ignores it, and the replacement Ubuntu's
-bug reports give is ``--preserve-env=NAME,...``, which the C sudo takes too. So
-:meth:`Isolation.command` lists the names of the environment it was handed. Names only: a
-value never reaches a command line. Linux is not reproducible on the development machine,
-so the runner's own probe is what says whether this holds.
+**The environment is carried by name, because one ``sudo`` ignores ``-E``.** Between this
+repository's CI runs of 2026-11-13 and 2026-11-14 (UTC), ``ubuntu-latest`` moved from
+Ubuntu 24.04 to 26.04. The unprivileged namespace is refused there as before, and
+``sudo -n -E unshare --net`` stopped passing the environment: the child came back isolated
+and without the probe's token, and the probe's second question is what turned that into a
+named failure. sudo-rs, Ubuntu's default ``sudo`` since 25.10, accepts ``-E`` and ignores
+it, and the replacement Ubuntu's bug reports give is ``--preserve-env=NAME,...``, which the
+C sudo takes too. So :meth:`Isolation.command` lists the names of the environment it was
+handed. Names only: a value never reaches a command line. Linux is not reproducible on the
+development machine, so the runner's own probe is what says whether this holds. It held on
+26.04 (the CI run of ``dc78ac0``); no 24.04 runner has run it.
 
 There is no Windows equivalent, and that is a limitation rather than an oversight. Every
 OS-level mechanism Windows offers for this -- a firewall rule, a Hyper-V sandbox -- needs
@@ -142,7 +144,7 @@ _CANDIDATES: tuple[tuple[tuple[str, ...], str], ...] = (
     ),
     # Second choice, and it exists because the first one does not work on the machine this
     # guarantee most needs to hold: **GitHub's ubuntu-latest refuses it**. Ubuntu 24.04
-    # restricts unprivileged user namespaces through AppArmor, so the namespace is created
+    # (and 26.04 after it) restricts unprivileged user namespaces, so the namespace is created
     # and then the uid mapping is denied -- `unshare: write failed /proc/self/uid_map:
     # Operation not permitted`, which is what CI reported on the first run of M4.10.
     #
@@ -150,7 +152,7 @@ _CANDIDATES: tuple[tuple[tuple[str, ...], str], ...] = (
     # than prompt, so on a machine without passwordless sudo this costs one failed exec and
     # nothing else. The child's environment is kept by ``--preserve-env=<names>``, which
     # :meth:`Isolation.command` adds after ``-n``, and the probe checks that it actually
-    # was kept rather than trusting the flag. Until 2026-11-14 this was ``-E``, which the
+    # was kept rather than trusting the flag. Until 2026-11-15 this was ``-E``, which the
     # sudo-rs of Ubuntu 26.04 accepts and ignores. It is still only tried when the caller
     # says isolation is required here -- see :func:`find_isolation`.
     (

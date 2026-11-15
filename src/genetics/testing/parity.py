@@ -180,7 +180,12 @@ def command_problem(command: str, *, needs_json: bool = True) -> str | None:
         node = commands[word]
     if getattr(node, "commands", None) is not None:
         return missing
-    options = {option for parameter in node.params for option in parameter.opts}
+    # A flag's off form (``--no-access-log``) is an option the command takes too.
+    options = {
+        option
+        for parameter in node.params
+        for option in (*parameter.opts, *parameter.secondary_opts)
+    }
     written = [word for word in words if word.startswith("-")]
     if needs_json and ("--json" not in written or "--json" not in options):
         return missing

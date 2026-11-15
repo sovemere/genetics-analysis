@@ -291,8 +291,8 @@ def test_isolation_that_isolated_but_dropped_the_environment_is_refused(
 def test_under_sudo_the_environment_is_asked_for_by_name() -> None:
     """``sudo -E`` is not enough: the sudo-rs of Ubuntu 26.04 accepts it and ignores it.
 
-    That is what failed both Linux jobs on 2026-11-14, the day ``ubuntu-latest`` moved to
-    26.04. ``--preserve-env=NAME,...`` is honoured by both implementations, so the command
+    That is what failed both Linux jobs of the first CI run on ``ubuntu-latest`` as 26.04
+    (2026-11-14 UTC). ``--preserve-env=NAME,...`` is taken by both implementations, so the command
     names every variable it was handed. Names only: a value on a command line is readable
     by every process on the machine.
     """
@@ -361,8 +361,9 @@ def test_a_kernel_that_refuses_the_namespace_is_reported_with_its_own_words(
     """A distribution can ship ``unshare`` and forbid the call. The reason has to survive.
 
     The message here is the real one CI produced on the first run of M4.10: GitHub's
-    ubuntu-latest is Ubuntu 24.04, which restricts unprivileged user namespaces through
-    AppArmor, so the namespace is created and the uid mapping is then denied. That failure
+    ubuntu-latest was Ubuntu 24.04, which restricts unprivileged user namespaces through
+    AppArmor, so the namespace is created and the uid mapping is then denied. Ubuntu 26.04
+    printed the same message on 2026-11-14. That failure
     is what put the ``sudo`` candidate in the list, and losing the kernel's own words would
     have left it looking like `unshare` was simply missing.
     """

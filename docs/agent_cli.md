@@ -726,6 +726,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   [Parity with the dashboard](#parity-m135).
 - **M13.6** (done 2026-11-15) is the review walk-through with the worked curly-hair
   example, [Reviewing a run as an agent](agent_usage.md). A test runs every command on it.
+  The [session diff review](review_m136_session.md) found that its query check reads
+  words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** the outbound-query lint.
 - **M14** the dashboard does not show a card's `ancestry_comparison`, which `runs show` and
   `runs card` print. A page added in M14 needs a row in `parity.PAGES`, and a new view field

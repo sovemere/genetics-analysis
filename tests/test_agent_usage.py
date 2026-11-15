@@ -20,6 +20,7 @@ import pytest
 from typer.testing import CliRunner
 
 from genetics.ancestry.context import AncestryContext
+from genetics.cli import contract
 from genetics.cli.main import app
 from genetics.engine.cards import KnowledgePack, default_knowledge_dir
 from genetics.engine.evidence import assemble_pack
@@ -29,8 +30,14 @@ from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
 from genetics.paths import runs_dir
 from genetics.privacy import find_genotypes
 from genetics.qc.report import QCReport
-from genetics.run.bundle import write_bundle
+from genetics.run.bundle import (
+    BundleError,
+    BundleIntegrityError,
+    BundleVersionError,
+    write_bundle,
+)
 from genetics.run.pipeline import observations
+from genetics.run.store import RunNotFoundError
 from genetics.testing.parity import command_problem
 
 runner = CliRunner()
@@ -53,6 +60,8 @@ GAP = "..."
 _MARKER = re.compile(r"<!-- (run|keys|queries): (.+?) -->")
 FENCE = "```"
 _WRITTEN = re.compile(r"`(genetics [^`\n]+)`")
+_SHORT = re.compile(r"`((?:runs|cards|pgx|hla) [^`\n]+)`")
+"""A command the page writes without its first word, as in ``runs show --section``."""
 _RESULT_COMMANDS = (
     "runs card",
     "runs show",
@@ -193,12 +202,14 @@ def run(command: str, run_id: str) -> str:
 
 
 def test_every_command_the_page_writes_is_one_the_cli_runs() -> None:
-    written = set(_WRITTEN.findall(page())) | {
-        f"genetics {command.removeprefix('genetics ')}"
-        for kind in ("run", "keys")
-        for command, _ in marked(kind)
-    }
-    assert len(written) >= 20, "the page's commands were not found"
+    short = {f"genetics {command}" for command in _SHORT.findall(page())}
+    assert {"genetics runs show --json", "genetics cards evidence --json"} <= short
+    written = (
+        set(_WRITTEN.findall(page()))
+        | short
+        | {command for kind in ("run", "keys") for command, _ in marked(kind)}
+    )
+    assert len(written) >= 30, "the page's commands were not found"
     problems = {
         command: problem
         for command in sorted(written)
@@ -219,6 +230,8 @@ def test_a_command_or_an_option_that_is_gone_is_found(command: str, problem: str
     found = command_problem(command, needs_json=False)
     assert found is not None and problem in found
     assert command_problem("genetics cards search curly hair --limit 4", needs_json=False) is None
+    # A flag's off form is an option too.
+    assert command_problem("genetics serve --no-access-log", needs_json=False) is None
     # A page's data must be in JSON, so the parity table keeps the stricter reading.
     assert command_problem("genetics cards search curly hair --limit 4") is not None
 
@@ -260,6 +273,43 @@ def test_the_page_holds_no_genotype_and_sends_no_result_out() -> None:
 
 def test_agents_md_points_to_the_page() -> None:
     assert "(docs/agent_usage.md)" in (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+
+
+def test_the_values_the_page_names_in_prose_are_ones_a_command_prints(run_id: str) -> None:
+    """Statuses, bases and error kinds that no shown output holds, so no block checks them."""
+    text = page()
+    defs = contract.document()["$defs"]
+    assert "whose `status` is `readable`" in text
+    assert "readable" in defs["run_status"]["enum"]
+    assert "`matched` here. Any other status" in text
+    assert "matched" in defs["card_status"]["enum"]
+
+    def named(row: str) -> list[str]:
+        found = re.search(rf"^\| `{re.escape(row)}` \| (.+) \|$", text, re.MULTILINE)
+        assert found is not None, row
+        return re.findall(r"`(\w+)`", found.group(1))
+
+    assert named("current_context.confidence.basis") == defs["confidence_basis"]["enum"]
+    assert named("card.observation.call_source") == defs["call_source"]["enum"]
+
+    # Under "When a step fails", a bullet headed by kinds alone names what a command reports.
+    failing = text.split("## When a step fails")[1].split("\n## ")[0]
+    headed = [
+        re.findall(r"`([a-z-]+)`", head.group(1))
+        for head in re.finditer(r"^- \*\*((?:`[a-z-]+`(?:, )?)+)\.\*\*", failing, re.MULTILINE)
+    ]
+    assert [kinds[0] for kinds in headed] == ["card-not-found", "not-found", "genotype-in-query"]
+    cannot_open = (
+        BundleVersionError("x"),
+        RunNotFoundError("x"),
+        BundleIntegrityError("x"),
+        OSError("x"),
+        BundleError("x"),
+    )
+    assert sorted(headed[1]) == sorted(contract.run_error_kind(exc) for exc in cannot_open)
+    absent = runner.invoke(app, ["runs", "card", run_id, "curly_hair", "--json"])
+    assert absent.exit_code == 1
+    assert json.loads(absent.stdout)["error"]["kind"] == "card-not-found"
 
 
 # ---------------------------------------------------------------------------
@@ -313,7 +363,6 @@ def test_each_key_the_page_names_is_in_the_document(
     assert dig(qc, "qc.warnings") == []
     assert dig(qc, "qc.build.verdict") == "indeterminate"
     assert dig(qc, "imputation.status") == "not_recorded"
-    # What the page says of the example run is what the run holds.
     assert dig(document, "card.status") == "matched"
     assert dig(document, "card.observation.call_source") == "direct"
     assert dig(document, "current_context.confidence.basis") == "ceiling"
@@ -347,14 +396,20 @@ def test_each_example_query_is_written_from_the_evidence_alone(run_id: str) -> N
     for query in queries:
         assert not find_genotypes(query), "an example query reads as a genotype"
         assert not strangers(query), f"{query!r} uses words `cards evidence` does not print"
-        refused = runner.invoke(app, ["cards", "search", *query.split(), "--json"])
-        assert refused.exit_code == 0, query
+        accepted = runner.invoke(app, ["cards", "search", *query.split(), "--json"])
+        assert accepted.exit_code == 0, query
 
     # The rule has teeth: words that only the run's result holds are strangers.
     card = json.loads(run(f"genetics runs card <run> {card_id} --json", run_id))["card"]
     assert strangers(f"rs7349332 {card['match']['genotype']}")
     assert strangers(f"WNT10A {card['confidence_tier']} hair curl")
     assert strangers("rs7349332 heterozygous hair curl")
+    # And a limit, which the page states: a result told in words the evidence also prints
+    # passes this check and the scanner. Only the rule stops it until M13.7. When one of
+    # these starts failing, the page's sentence about them is the thing to correct.
+    for told in ("rs7349332 one copy", "rs7349332 " + " ".join(card["match"]["genotype"])):
+        assert not strangers(told) and not find_genotypes(told)
+    assert "pass that check" in page()
     # And a result in the scanner's own shape is refused by the search commands.
     call = "=".join(("rs7349332", card["match"]["genotype"]))
     for words in (["cards", "search"], ["runs", "search", run_id]):

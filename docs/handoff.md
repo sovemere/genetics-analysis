@@ -14,6 +14,11 @@ to read, the rule for what may leave the machine and what an answer has to carry
 works the brief's curly-hair example through with real output from a run that is nobody's.
 `tests/test_agent_usage.py` runs every command on the page. No command, schema, bundle
 format or card changed.
+The [M13.6 session review](review_m136_session.md) found the page claimed more for its
+query check than the check does: a result told in words the card's evidence prints
+("one copy") passes it. The page now states that limit, a test pins it, and M13.7
+inherits it. The review also holds the statuses, error kinds and short-form commands the
+page names to the code.
 **M13.5, the CLI and dashboard parity test, is implemented.** `tests/test_parity.py`
 fails when a dashboard page shows something no command prints: a route with no command, an
 engine function only the dashboard calls, or a value on a page that is not in a command's
@@ -594,6 +599,12 @@ What is open:
   know: an rsID followed by two bare alleles, a zygosity word, a star-allele diplotype,
   an HLA type, a haplogroup. The M13.6 test checks sources instead (words `cards evidence`
   does not print). Which one M13.7 builds, or both.
+- **Two queries neither check catches today.** The marker with "one copy", and the marker
+  followed by its two alleles written apart. Every word of each is one the card's
+  evidence prints, and the scanner knows neither shape.
+  `test_each_example_query_is_written_from_the_evidence_alone` asserts both pass, and
+  [the page](agent_usage.md#how-this-page-is-kept-true) says they do. A lint that catches
+  either fails that assertion, which is the prompt to correct the page's sentence.
 - **Where §1.3 is reinforced.** AGENTS.md §3 now points to the walk-through and repeats
   its rule in a sentence. §1.3 itself is unchanged.
 - **A hosted agent reading a run.** §1.3 lists "a prompt to a remote model" among the
@@ -611,12 +622,15 @@ What M13.6 hands over:
   That is the prompt to re-read the page's comparison with the papers, which is prose.
   Run the command the failure names and correct the page.
 - **`parity.command_problem(command, needs_json=False)`** checks any command line written
-  in documentation: the subcommand exists and takes each option written.
-- **`ubuntu-latest` is Ubuntu 26.04 since 2026-11-14, and it broke the Linux jobs once.**
-  The first push of M13.6 failed both, in the privacy suite's OS-isolation fixture: that
-  image's `sudo` ignores `-E`, so the isolated child lost its environment and the probe
+  in documentation: the subcommand exists and takes each option written, a flag's off
+  form included. It does not check arguments: a missing one or a stray word passes.
+- **`ubuntu-latest` is Ubuntu 26.04 now, and the move broke the Linux jobs once.** The run
+  of 2026-11-13 used the 24.04 image and the first push of M13.6, on 2026-11-14 UTC, the
+  26.04 one. That push failed both Linux jobs in the privacy suite's OS-isolation fixture:
+  the image's `sudo` ignores `-E`, so the isolated child lost its environment and the probe
   refused it. `Isolation.command` (`testing/isolation.py`) now asks for the environment
-  by name with `--preserve-env`. `genetics ci-local` cannot reproduce a Linux runner, so
+  by name with `--preserve-env`, and the next run passed all five jobs on 26.04. No 24.04
+  runner has run that form. `genetics ci-local` cannot reproduce a Linux runner, so
   after a push read both Linux jobs, not only the run's first minutes.
 - **`uv run` rewrites `uv.lock`.** The committed lock predates the `jsonschema` and
   `types-jsonschema` development dependencies in `pyproject.toml`, so `uv run` adds them
@@ -736,10 +750,27 @@ out, a marker removed, a command that is gone, an option that is gone, the sente
 a fifth card); each change failed a test. Strict mypy on all four Windows/Linux x Python
 3.11/3.13 targets (258 files), ruff and format pass.
 
-**Saved runs repeat their deep checks once.** This change edits Python source
-(`testing/parity.py`), so the first read of each saved run repeats its deep checks (about
-54 minutes for the real imputed run). Run `genetics runs list --verify`, or the launcher's
-verify-first shortcut, first.
+**The first push failed both Linux CI jobs, in code M13.6 did not touch.** `ubuntu-latest`
+had moved to Ubuntu 26.04, whose `sudo` ignores `-E`. The fix (`dc78ac0`) asks for the
+environment by name, two tests pin the command line on every platform, and its CI run
+passed all five jobs. The roadmap's progress log has the account.
+
+The [M13.6 session review](review_m136_session.md), on 2026-11-15, re-read the diff and
+the CI fix, and read the ten facts again in the papers' saved text. The page had said a
+query built from the run's result fails its word check; the marker with "one copy", or
+followed by its two alleles apart, passes it and the scanner. The page states that now and
+the test asserts it. A new test holds the run status, tier bases, call sources and error
+kinds the page names in prose to the agent schema and `contract.run_error_kind`; the
+twelve commands written without `genetics` are checked; `command_problem` reads a flag's
+off form; fact 7 names where its fourth signal is; and the statements about when the
+runner image moved say what the logs show. Fifteen guards or statements were changed in
+turn and each failed a test. The full native suite passes **4,297 tests with nine skips**
+in 962 s; strict mypy on four targets (258 files), ruff and format pass.
+
+**Saved runs repeat their deep checks once.** M13.6, the CI fix and the review each edit
+Python source (`testing/parity.py`, `testing/isolation.py`), so the first read of each
+saved run repeats its deep checks (about 54 minutes for the real imputed run). Run
+`genetics runs list --verify`, or the launcher's verify-first shortcut, first.
 
 <a id="next-open-step-m136-review-workflow"></a>
 

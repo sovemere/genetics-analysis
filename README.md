@@ -284,6 +284,10 @@ works the brief's example through, a curly-hair card checked against its two cit
 and answered with ten sourced facts, on a run built from committed cards and an invented
 table. A test runs every command on the page and compares each output shown with what the
 command prints. No command, schema, bundle format or card changed.
+The [M13.6 diff review](docs/review_m136_session.md) corrects what the page said its
+query check catches (a result worded as "one copy" passes it), holds the statuses, error
+kinds and short-form commands the page names to the code, and records the fix for the
+Linux CI jobs after `ubuntu-latest` moved to Ubuntu 26.04.
 [M13.7, the outbound-query lint](docs/handoff.md#next-open-step-m137-outbound-query-lint)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations

@@ -257,7 +257,9 @@ Queries that could follow, each written from the output of step 5:
 `genetics cards search` refuses a query that reads as a genotype, with
 `error.kind: genotype-in-query`, and so does `genetics runs search`. Nothing checks a web
 search yet: M13.7 owns that lint. Until then the rule is the one above, and the test
-behind this page holds these four examples to it.
+behind this page holds these four examples to a part of it: their words. `rs7349332 one
+copy` is made of words step 5 prints and tells a result all the same, so the rule is
+still the reader's to keep.
 
 This example needed no search beyond the two cited papers.
 
@@ -281,8 +283,8 @@ al. 2010 (doi:10.1371/journal.pgen.1000993) and facts 9 and 10 from Liu et al. 2
 >    was one of 22 traits tested in the same paper, alongside asparagus anosmia and the
 >    photic sneeze reflex. (Table 1)
 > 3. **T is the less common allele.** Its frequency in the study was 0.14. (Table 2)
-> 4. **The size of the effect is 0.193 points per T**, about a fifth of one step on the
->    six-step scale. Its score, the negative log₁₀ of the p-value, was 13.48; the paper
+> 4. **The size of the effect is 0.193 points per T**, about a fifth of the distance from
+>    one answer to the next. Its score, the negative log₁₀ of the p-value, was 13.48; the paper
 >    called a locus significant above 8.4. (Table 2; the threshold is in Table 1's note)
 > 5. **Straight hair was reported by 36.1% of people with no T, 28.3% with one and 26.3%
 >    with two.** Only 95 people had two. (Table 7)
@@ -291,8 +293,10 @@ al. 2010 (doi:10.1371/journal.pgen.1000993) and facts 9 and 10 from Liu et al. 2
 >    marker moves the odds and cannot classify anyone's hair. (Table 7; the sums are this
 >    review's)
 > 7. **It is the second-largest of the paper's four hair-curl signals.** The largest, near
->    *TCHH*, is 0.294 points per allele toward straighter hair. All four together explained
->    about 6% of the variance in hair curl among northern Europeans. (Table 2; Discussion)
+>    *TCHH*, is 0.294 points per allele toward straighter hair. The smallest, near *OFCC1*,
+>    is 0.1 points and fell short of the paper's significance line. All four together
+>    explained about 6% of the variance in hair curl among northern Europeans. (Table 2
+>    for three; Results, "Hair curl", for *OFCC1*; Discussion)
 > 8. **The marker sits in an intron of *WNT10A*.** The authors point out that mutations in
 >    the gene cause odonto-onycho-dermal dysplasia, whose signs include dry, misformed
 >    hair, and that the gene is switched on in hair follicles at the start of a growth
@@ -371,7 +375,7 @@ it as: the owner's request covers the cards asked about, read narrowly.
 `tests/test_agent_usage.py` reads this file.
 
 - **Every `genetics` command written on the page exists** and takes each option it is
-  written with.
+  written with, the ones written short (`runs show --section`) included.
 - **Each block marked `run:` is run** against a saved run built as described above, and
   its lines must appear in the command's output, in order. A line of `...` stands for
   lines left out.
@@ -379,7 +383,12 @@ it as: the owner's request covers the cards asked about, read narrowly.
   and the document is checked against the agent schema.
 - **Each query in the list marked `queries:` is made only of words that
   `cards evidence --json` prints** for that card, and none reads as a genotype. A fifth
-  query built from the run's result fails the first check.
+  query holding the run's genotype, its tier or the word "heterozygous" fails the first
+  check. That check reads words and not meaning: the marker with "one copy", or followed
+  by its two alleles apart, uses only words the evidence prints, so both pass that check
+  and the scanner. The test asserts they do, so this sentence fails when M13.7 closes it.
+- **The statuses, tier bases and error kinds the page names in prose** are the agent
+  schema's, and the kinds are the ones the commands report.
 - **The page holds nothing the privacy scanner reads as a genotype**, and no command that
   prints a result is marked as safe to send out.
 - **AGENTS.md links here.**
