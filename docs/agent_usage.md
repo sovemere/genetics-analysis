@@ -366,6 +366,7 @@ Only the first paragraph is about the run.
 | What are my HLA types? | `genetics hla calls <run> --json` |
 | Where does the run sit among reference populations? What are its haplogroups? | `genetics runs ancestry <run> --json`: the placement, every population's distance, ancient affinity, and each haplogroup with its supporting markers (M14.2) |
 | Why is there no card for a test I read about? | `genetics cards search <query>`. An assay-limit card says why the array cannot determine it (AGENTS.md §3.2) |
+| The reader searched the dashboard. What did it find? | `genetics runs search <run> <query> --json`: the cards the search page lists, in its order, with what each matched (M14.4). A query the page refused, the command refuses in the same words |
 | What does the page I am looking at show? | [Which command stands for which page](agent_cli.md#parity-m135) |
 
 ## When a step fails

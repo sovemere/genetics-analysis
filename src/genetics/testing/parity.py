@@ -53,6 +53,7 @@ from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
+from urllib.parse import urlencode
 
 from genetics.engine.sections import SECTION_ORDER
 from genetics.web import polygenic, views
@@ -143,6 +144,13 @@ PAGES: Final[tuple[Page, ...]] = (
         ("genetics runs ancestry <run> --json",),
         "the saved ancestry record: the PCA scatter, the nearest populations, ancient "
         "affinity and both haplogroups with their marker counts",
+    ),
+    Page(
+        "/runs/{run_id}/search",
+        ("genetics runs search <run> <query> --json",),
+        "the run's cards that match a query, ranked as `runs search` ranks them, each with its "
+        "saved face; a query that reads as a genotype is refused as the command refuses it "
+        "(M14.4)",
     ),
     Page(
         "/runs/{run_id}/hla",
@@ -626,6 +634,27 @@ class Documents:
     def guide(self) -> Any:
         """``cards guide``: reads the committed pack, as the dashboard's ``/guide`` does."""
         return self.cli("cards", "guide")
+
+    def search(self, query: str) -> Any:
+        """``runs search`` for ``query``, as the search page is given it (M14.4)."""
+        return self.cli("runs", "search", self.name, query)
+
+    def refusal(self, *args: str) -> Any:
+        """The error document a command prints for a command line it refuses (exit 2)."""
+        from typer.testing import CliRunner
+
+        from genetics.cli.main import app
+
+        if args not in self.report.documents:
+            result = CliRunner().invoke(app, [*args, "--json"], env=self._environment)
+            if result.exit_code != 2:
+                raise ParityError(
+                    f"`genetics {args[0]} {args[1]} ... --json` exited {result.exit_code}, "
+                    "not 2, for a command line it should refuse"
+                )
+            self.report.documents[args] = json.loads(result.stdout)
+            self.report.commands += 1
+        return self.report.documents[args]
 
     def pgx(self, gene: str | None = None) -> Any:
         return self.cli("pgx", "calls", self.name, *(() if gene is None else ("--gene", gene)))
@@ -1271,6 +1300,39 @@ def _the_card(value: Any, documents: Documents, context: Mapping[str, Any], wher
         raise ParityError(f"{where} is not one of the run's cards")
 
 
+def _search(value: Any, documents: Documents, context: Mapping[str, Any], where: str) -> None:
+    """What ``runs search`` prints for the query the page searched, whole."""
+    if value is None:
+        return
+    printed = documents.search(value["current_context"]["query"])
+    if plain(value) != {key: item for key, item in printed.items() if key != "schema"}:
+        raise ParityError(f"{where} differs from what `runs search` prints")
+
+
+def _search_cards(value: Any, documents: Documents, context: Mapping[str, Any], where: str) -> None:
+    """The faces shown are the run's own cards, in the order ``runs search`` lists them."""
+    found = context["search"]
+    listed = [] if found is None else [card["card_id"] for card in found["results"]]
+    if [card.card_id for card in value] != listed:
+        raise ParityError(f"{where} are not the cards `runs search` lists, in its order")
+    if any(card not in context["shell"].cards for card in value):
+        raise ParityError(f"{where} holds a card the run does not")
+
+
+SEARCHED: Final[str] = "zygomorphic"
+"""A word no card uses, so the search page's no-match state is visited."""
+
+
+REFUSED_RSID: Final[str] = "rs1000001"
+"""Invented. No card reads it, so the refused page holding it would be the query shown again."""
+
+
+def refused_query() -> str:
+    """A query that reads as a genotype: :data:`REFUSED_RSID` with a call attached.
+    Assembled at runtime so that this file holds none."""
+    return REFUSED_RSID + ": " + "A" + "/" + "G"
+
+
 Template = dict[str, Handed | Display]
 
 _FRAME: Final[Template] = {
@@ -1323,6 +1385,15 @@ CONTEXT: Final[dict[str, Template]] = {
     },
     "ancestry.html": _FRAME
     | {"ancestry_report": _report_keys("runs ancestry", lambda documents, _: documents.ancestry)},
+    "search.html": _FRAME
+    | {
+        "search": Handed("runs search", _search),
+        "search_cards": Handed("runs search; runs card", _search_cards),
+        "search_refused": Display(
+            "Why nothing was searched. check_run compares it with the error `runs search` "
+            "prints for the same query."
+        ),
+    },
     "hla.html": _FRAME
     | {
         "hla_report": _report_keys("hla calls", lambda documents, _: documents.hla),
@@ -1566,6 +1637,7 @@ def check_run(run: Path) -> Report:
     base = f"/runs/{run.name}"
 
     with TestClient(application, base_url=LOCAL) as client:
+        served: list[str] = []
 
         def render(address: str, *, fragment: bool = False) -> tuple[str, dict[str, Any]]:
             recorder.rendered.clear()
@@ -1574,6 +1646,7 @@ def check_run(run: Path) -> Report:
             if response.status_code != 200:
                 raise ParityError(f"{address} answered {response.status_code}")
             report.pages += 1
+            served[:] = [response.text]
             return recorder.page(address)
 
         compared: list[Any] = []
@@ -1662,6 +1735,24 @@ def check_run(run: Path) -> Report:
                 check(f"{address}?page={number}")
         check(f"{base}/hla")
         check(f"{base}/ancestry")
+
+        # Search (M14.4): no query; the first card's title, which matches at least that
+        # card and usually some others in part; a word no card uses; and a refused query,
+        # whose page says what `runs search` says and never shows the query again.
+        check(f"{base}/search")
+        for query in (*(card.title for card in cards[:1]), SEARCHED):
+            searched = check(f"{base}/search?{urlencode({'q': query})}")
+            if searched["search"] is None:
+                raise ParityError(f"{base}/search did not search {query!r}")
+        refused = refused_query()
+        page = check(f"{base}/search?{urlencode({'q': refused})}")
+        error = documents.refusal("runs", "search", run.name, refused)["error"]
+        if page["search"] is not None or page["search_cards"]:
+            raise ParityError(f"{base}/search searched a query `runs search` refuses")
+        if page["search_refused"] != error["message"]:
+            raise ParityError(f"{base}/search refuses a query in other words from `runs search`")
+        if REFUSED_RSID in served[0]:
+            raise ParityError(f"{base}/search shows a refused query again")
         overview = check(f"{base}/pgx")
         for gene in overview["pgx_report"]["genes"]:
             first = check(f"{base}/pgx?gene={gene}")

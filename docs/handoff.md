@@ -1,6 +1,8 @@
-# Handoff: M14.4 global search
+# Handoff: M14.5 QC and provenance page
 
-As of 2026-11-19, **M0-M13 and M14.1-M14.3 are implemented; M14.4 is next**. See
+As of 2026-11-19, **M0-M13 and M14.1-M14.4 are implemented; M14.5 is next**. See
+[the M14.5 entry contract](#next-open-step-m145-qc-provenance-page),
+[the M14.4 record](#accepted-m144-global-search),
 [the M14.4 entry contract](#next-open-step-m144-global-search),
 [the M14.3 record](#accepted-m143-reading-guide),
 [the M14.3 entry contract](#next-open-step-m143-confidence-legend),
@@ -16,6 +18,11 @@ As of 2026-11-19, **M0-M13 and M14.1-M14.3 are implemented; M14.4 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.4, the dashboard's search, is implemented.** A box at the top of every open run's nav
+opens `/runs/{run_id}/search`, which lists what `genetics runs search <run> <query> --json`
+prints: the same cards in the same order, from `reads.search_view`, each as the face the
+grid shows with the words it matched. A query that reads as a genotype is refused in the
+command's words and never shown again. See [the record](#accepted-m144-global-search).
 **M14.3, the reading guide, is implemented.** `/guide` and `genetics cards guide` give the
 six badges and what earns each, how a tier is decided, why rarity lowers confidence, what
 a polygenic score can say and what the array cannot tell, with every threshold read from
@@ -591,9 +598,95 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m145-qc-provenance-page"></a>
+
+## Next open step: M14.5 QC and provenance page
+
+M14.5: a QC / provenance page showing reference versions, tool versions, imputation
+parameters and coverage stats. Nothing has been selected or verified beyond what is listed
+here.
+
+What already exists:
+
+- **The commands.** `genetics runs qc <run> --json` prints the saved QC report, the
+  imputation execution record, the imputation provenance status and the manifest's
+  `provenance` (knowledge pack, references from the lock, tools), from `reads.qc_view`.
+  `genetics runs imputation <run> --json` prints the execution record and full imputation
+  provenance (`reads.imputation_view`). A page built from those two needs no new payload.
+- **The banner.** `views.QCBanner` already shows a slice of both on every run page: vendor,
+  markers, call rate, sex, duplicates, build verdict, warnings, imputation mode, status,
+  panel and Beagle versions. `parity.BANNER` places each field.
+- **Per-card coverage** is on the polygenic cards (`computation.result`), not in a run-wide
+  record.
+
+What is open:
+
+- What "coverage stats" means for a run as a whole: per-score coverage collected from the
+  polygenic cards, ClinVar position coverage, or both. Each comes from a different saved
+  record.
+- **The real imputed run's provenance is large** (per-region parameters): whether the page
+  pages it, as `/clinvar` pages loci, or summarises it.
+- **Parity.** A new route needs a `parity.PAGES` row, a `parity.CONTEXT` table and a visit
+  in `check_run`. A page holding no run is visited before the run page (see M14.3's
+  hand-over below), a page of the run after it.
+
+What M14.4 hands over:
+
+- **`_open(run_id, query)` in `web.app`** returns the shell and the bundle it was built
+  from. A route that calls a `reads` function on the bundle uses it rather than opening the
+  run again.
+- **The nav has a form first** (`.navsearch`). A test that takes the first `<form>` on a run
+  page now gets the search box; find a form by its class.
+- **A page whose route takes a query string** is visited in `check_run` with fixed values:
+  the search page uses the first card's title, `parity.SEARCHED` and `parity.refused_query()`.
+- **`Documents.refusal(*args)`** returns the error document a command prints when it exits 2,
+  for a page that refuses what a command refuses.
+
+<a id="accepted-m144-global-search"></a>
+
+## Accepted M14.4 global search
+
+Implemented on 2026-11-19. No owner question was asked: each open point of the entry
+contract follows from something already settled, and
+[the dashboard search section](agent_cli.md#dashboard-search-m144) gives the reasoning.
+
+- **A page per run, a box in every open run's nav.** `/runs/{run_id}/search?q=<query>`
+  searches the open run's cards. The box is at the top of the nav on every page of an open
+  run. A page with no run open has no box: there is nothing of a run to search, and a pack
+  card has no page to link to (`genetics cards search` covers the pack).
+- **One function.** The route calls `reads.search_view(bundle, parse_query(q))`, which is
+  what `runs search <run> <query> --json` prints without `--limit`. The parity check
+  compares the page's document with the command's, key for key, and the faces shown with
+  the command's `results`, in order.
+- **Faces as the grid shows them**, tier badge first, from the run's own `CardView`s. Full
+  matches are listed under "Matching every word" and partial ones below them under
+  "Matching some of the words"; each says which of the query's words it matched in which
+  fields. Every section is searched whatever the grid's filters say, and no card is ranked
+  or left out for its tier or status. The grid's arrangement rides along in hidden fields.
+- **A refused query.** The route catches `QueryError` and hands the template only the
+  engine's sentence, which names the rule and never the text; the query itself is never
+  handed to the template. The box is left empty and the title never holds a query. The page
+  answers 200, as every page that explains why it shows nothing does; the command exits 2.
+  The parity check compares the page's sentence with the error document `runs search`
+  prints for the same query, and fails if the query's rsID appears on the page.
+- **A blank box** (whitespace only) shows the prompt rather than the `empty-query` sentence:
+  submitting an empty box is not a malformed query. A query of punctuation alone gets the
+  `empty-query` sentence, as the command gives it.
+
+Changed for a caller: a new route and a form at the top of every open run's nav. No command,
+agent schema, bundle format, knowledge schema or card changed.
+
+The [M14.4 session review](review_m144_session.md) found, in the browser, that the matched
+line overflowed its grid cell onto the next panel, and fixed it. Nine guards were removed in
+turn and each failed a test. Validation on 2026-11-19: the full native suite passes **4,426
+tests with nine skips** in 962 s; the overflow fix and its test landed during that run, and the
+web, parity and walk-through suites pass on the final tree (326 tests). Strict mypy on four
+targets, ruff and format pass. No personal export or saved real run was opened. Python source
+changed, so saved runs repeat their deep checks once.
+
 <a id="next-open-step-m144-global-search"></a>
 
-## Next open step: M14.4 global search
+## M14.4 entry contract (implemented; retained for review)
 
 M14.4: global search across cards on the dashboard. Nothing has been selected or verified
 beyond what is listed here.
@@ -1012,6 +1105,7 @@ What M13.3 left:
 
 - **The dashboard has no search yet.** M14.4 should call `reads.search_view`, which is what
   `runs search` prints. Its route then needs a row in `parity.PAGES` naming `runs search`.
+  *Done at M14.4: `/runs/{run_id}/search`.*
 - **Guideline recommendation rows and saved score records are not searched.** A guideline
   card is found by its gene, title and citation titles. A drug named only in its saved CPIC
   rows is not a search term for the card.

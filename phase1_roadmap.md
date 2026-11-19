@@ -16,9 +16,16 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.4, global search across cards, is next.** M0–M13 and M14.1–M14.3 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m144-global-search) records what it
-inherits.
+**M14.5, the QC / provenance page, is next.** M0–M13 and M14.1–M14.4 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m145-qc-provenance-page) records what
+it inherits.
+
+M14.4 adds the dashboard's search: a box at the top of every open run's nav opens
+`/runs/{run_id}/search`, which lists what `genetics runs search <run> <query> --json`
+prints, the same cards in the same order from the same function, each as the face the grid
+shows with the words it matched. Partial matches are listed below full ones; the grid's
+filters do not narrow it. A query that reads as a genotype is refused in the command's
+words and never shown again. No command, schema or bundle format changed.
 
 M14.3 adds the reading guide: `/guide` and `genetics cards guide`, which prints what the
 page shows. It gives the six badges and what earns each, how a tier is decided (the
@@ -3140,8 +3147,8 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       - **Agent schema version 3:** payloads `cards.search` and `runs.search`. No existing
         payload changed.
       - **Left for later:** the dashboard's search (M14.4) should call
-        `reads.search_view`; guideline recommendation rows and saved score records are not
-        searched.
+        `reads.search_view` (done at M14.4); guideline recommendation rows and saved score
+        records are not searched.
       - **The [M13.3 diff review](docs/review_m133_session.md)** fixed a stemming rule that
         cut `note` to `not`, so that `cards search note` listed 109 of 119 cards, and made
         the side-by-side bonus read the query as typed, dropped words included.
@@ -3323,12 +3330,20 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         version 8 (`cards.guide`). The tier labels moved to `genetics.run.guide`.
       - **Left for later:** the card page still prints the sentence and six rows M13.4 gave
         it, not each card's weights and ceiling list, which `runs card --json` holds.
-- [ ] **M14.4** Global search across cards.
-      - **The engine exists (M13.3).** Call `genetics.run.reads.search_view`, which is what
-        `genetics runs search` prints, so the dashboard and the CLI rank identically
-        ([AGENTS.md §3](AGENTS.md)).
-      - **From M14.3:** a page rendered through `_render` gets the nav legend and is placed
-        by `_FRAME`; see the [handoff](docs/handoff.md#next-open-step-m144-global-search).
+- [x] **M14.4** Global search across cards.
+      - **Done 2026-11-19** as `/runs/{run_id}/search` and a search box at the top of every
+        open run's nav. See [Dashboard search](docs/agent_cli.md#dashboard-search-m144).
+      - **One function.** The route calls `reads.search_view`, which `genetics runs search
+        <run> <query> --json` prints, so the dashboard and the CLI rank identically
+        ([AGENTS.md §3](AGENTS.md)); the parity check compares them key for key.
+      - **Faces as the grid shows them**, tier first, with the words each matched. Partial
+        matches are listed below full ones; every section is searched whatever the grid's
+        filters say (§0.1A).
+      - **A refused query is not shown again.** The page gives the engine's sentence, which
+        names the rule and not the text, and leaves the box empty; the parity check compares
+        it with the error `runs search` prints.
+      - **Left for later:** a page with no run open (the guide, an empty store) has no box;
+        the pack is searched by `genetics cards search`, and a pack card has no page here.
 - [ ] **M14.5** QC / provenance page: reference versions, tool versions, imputation
       parameters, coverage stats.
 - [ ] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
@@ -3392,6 +3407,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-19 | M14.4 | The dashboard's search: `/runs/{run_id}/search` and a box at the top of every open run's nav. **One function:** the route calls `reads.search_view(bundle, parse_query(q))`, what `genetics runs search <run> <query> --json` prints without `--limit`; `web.app._open` returns the bundle the shell was built from so both read one copy. **Faces as the grid shows them**, tier first, under "Matching every word" and, below, "Matching some of the words", each with the words it matched and where; every section is searched whatever the grid's filters say, which ride along in hidden fields. **A refused query** (`QueryError`) hands the template only the engine's sentence: the box is empty, the title holds no query, the page answers 200 where the command exits 2. A blank box shows the prompt. No box on a page with no run open. **Parity:** `PAGES` row, `CONTEXT["search.html"]`, and four visits in `check_run` (no query, the first card's title, a word no card uses, a refused query whose sentence is compared with the error `runs search` prints and whose rsID must not appear). No command, agent schema, bundle format or card changed. **Review** ([session review](docs/review_m144_session.md)): in the browser, the matched line overflowed its grid cell onto the next panel; fixed and pinned. Nine guards removed in turn, each caught. **Validation:** the full native suite passes **4,426 tests with nine skips** in 962 s; the overflow fix and its test landed during that run, and the web, parity and walk-through suites pass on the final tree (326 tests). Strict mypy on four targets, ruff and format pass. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.3 second review | A diff-driven pass over `f5df3dd`, checking each sentence of the guide against the code it describes. **P3:** the polygenic paragraph described a point inside a wider distribution, where the chart draws a 95% band and never a point; the indel sentence implied a card could need an indel, where `Indel excluded` is what a card says when the array records its marker as one. Both reworded. `docs/agent_schema.md` was brought up to version 8. The guide, guide-page, schema, walk-through and parity suites pass (147 tests); strict mypy, ruff and format pass. See [the review](docs/review_m143_session.md#second-pass-after-the-commit). |
 | 2026-11-19 | M14.3 | The reading guide: `/guide` and `genetics cards guide [--json]`, one document from `genetics.run.guide`. **Six badges** with what earns each (the score band, and every ceiling that caps there); **how a tier is decided** (six inputs and weights, the bands, every ceiling with the words `runs card` uses); **rarity lowers confidence** (the frequency components, Weedon 2021's 16% and 4.2% as "about 5 to 1" and "about 23 to 1 against", 20 of 21 PGP participants, Tandy-Connor 2018's 40%); **what a polygenic score can say** (coverage, portability with Ding 2023's -0.95 and 14%, EA4's within-family "roughly half", and position not prediction, with the pack's polygenic cards); **what the array cannot tell** (six limits and the pack's twelve impossibility cards by section). **No threshold written twice:** the frequency, quality and share bounds became tables in `engine/confidence.py` that both calculators and the guide read; ceilings are listed by calling the functions that apply them, and a test over a grid of inputs fails on one the guide misses; `engine.ppv.benchmark` gives both benchmarks. No tier changed. **The legend** is in every page's nav, each badge linking to `/guide#tier-<key>`; tier headings and "Why this tier" link in. The guide page lists runs and opens none. Agent schema version 8 (`cards.guide`); `parity.PAGES` has `/guide`. **Review** ([session review](docs/review_m143_session.md)): the confidence section overstated the ancestry ceilings for membership-compared cards, and one sentence read Tandy-Connor's 40% as of patients; both fixed. Seven guards removed in turn, each caught. **Validation:** the full native suite passes **4,412 tests with nine skips** in 977 s (25 new); strict mypy, ruff and format pass. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.2 diff review | Reviewed the M14.2 working tree before its commit. **P2, found while writing the tests:** every saved centroid was the sample's own position, because the cross join in `populations.place_many` suffixes the centroid's columns with `_c`; a test that the distance from the scaled sample to each centroid equals the saved distance caught it. **P3:** each of a hundred reference rings took a tab stop (now only the five nearest and the run); `region_index` was unused once regions lost their colours (removed from the unshipped schema 7); the panel size lacked a separator and a missing-value case. Two guards removed in turn each failed a test. **Validation:** the full native suite passes **4,387 tests with nine skips** in 765 s (nine new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m142_session.md). |

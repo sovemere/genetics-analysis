@@ -405,20 +405,31 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         )
 
     def _shell(run_id: str | None, query: views.GridQuery | None = None) -> views.Shell:
-        """Resolve what to display, turning every failure into a sentence.
+        """Resolve what to display, turning every failure into a sentence."""
+        return _open(run_id, query)[0]
 
-        Four states reach this page and all four are ordinary: the store is unusable, the
+    def _open(
+        run_id: str | None, query: views.GridQuery | None = None
+    ) -> tuple[views.Shell, RunBundle | None]:
+        """The shell and the bundle it was built from, or ``None`` where none opened.
+
+        Four states reach a page and all four are ordinary: the store is unusable, the
         store is empty, the requested id names nothing, and the requested bundle will not
         open. None is an exception the user caused, and a dashboard that 500s on any of them
         is a dashboard that cannot explain itself -- ``doctor``'s rule (M0.6), and the same
         one ``/healthz`` and ``runs list`` follow.
+
+        The bundle is returned for the search page (M14.4), which calls the function ``runs
+        search`` calls on it. Opening it a second time could hand that function another copy
+        from the one the shell's cards came from, if the files changed in between.
         """
         try:
             listing = store.list_runs(settings.runs_root)
         except (UnsafeDataDirError, OSError) as exc:
-            return views.shell_for(
+            shell = views.shell_for(
                 _unlisted(), None, selected_id=run_id, problem=str(exc), query=query
             )
+            return shell, None
 
         readable = [summary for summary in listing.runs if summary.ok]
         if run_id is None:
@@ -428,7 +439,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
                     if listing.runs
                     else "No runs have been saved yet."
                 )
-                return views.shell_for(listing, None, problem=problem, query=query)
+                return views.shell_for(listing, None, problem=problem, query=query), None
             # Newest first is `list_runs`' own order, so "the default run" is the most
             # recent readable one. Not the most recent *run*: defaulting to a damaged
             # bundle would open the dashboard on an error for someone whose last save
@@ -438,7 +449,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         try:
             bundle: RunBundle = opened.load(run_id, settings.runs_root)
         except RunNotFoundError:
-            return views.shell_for(
+            missing = views.shell_for(
                 listing,
                 None,
                 selected_id=run_id,
@@ -448,14 +459,18 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
                 ),
                 query=query,
             )
+            return missing, None
         except (BundleError, OSError) as exc:
             # BundleVersionError included: it is a BundleError, and its message already
             # explains that a newer engine wrote the bundle. Re-deriving that distinction
             # here would be a third copy of a sentence `runs list` and `runs show` already
             # get right.
-            return views.shell_for(listing, None, selected_id=run_id, problem=str(exc), query=query)
+            failed = views.shell_for(
+                listing, None, selected_id=run_id, problem=str(exc), query=query
+            )
+            return failed, None
 
-        return views.shell_for(listing, bundle, query=query)
+        return views.shell_for(listing, bundle, query=query), bundle
 
     # Declared `def`, not `async def`: both routes below do synchronous filesystem work --
     # `list_runs` walks the store and `load_run` digests every payload -- which inside a
@@ -558,6 +573,50 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         if not shell.has_selection:
             return _render(shell)
         return _render(shell, "ancestry.html", ancestry_report=ancestry_report(shell.ancestry))
+
+    @app.get("/runs/{run_id}/search", response_class=HTMLResponse)
+    def search(run_id: str, request: Request, q: str | None = None) -> Response:
+        """The run's cards that match ``q``, best first (M14.4).
+
+        Ranked by :func:`genetics.run.reads.search_view`, which is what ``genetics runs
+        search <run> <query> --json`` prints, so the page and the command list the same cards
+        in the same order. Every section is searched whatever the grid's filters say, and no
+        card is ranked or left out for its tier or status (AGENTS.md 0.1A).
+
+        **A refused query is never shown again.** :func:`parse_query` refuses text that reads
+        as a genotype before anything is searched, as ``runs search`` does, and its message
+        names the rule, not the text. The page shows that message and an empty box, and its
+        title never holds the query. A query that was searched is shown in the box and the
+        heading: it is the reader's own words, and it passed the same check.
+        """
+        from genetics.engine.search import QueryError, parse_query
+        from genetics.run.reads import search_view
+
+        shell, bundle = _open(run_id, _query(request))
+        if bundle is None or not shell.has_selection:
+            return _render(shell)
+        found: dict[str, Any] | None = None
+        refused: str | None = None
+        cards: list[views.CardView] = []
+        if q is not None and q.strip():
+            try:
+                parsed = parse_query(q)
+            except QueryError as exc:
+                refused = str(exc)
+            else:
+                found = search_view(bundle, parsed)
+                for result in found["results"]:
+                    shown = views.find_card(shell.cards, result["card_id"])
+                    if shown is None:  # pragma: no cover - the shell holds every saved card
+                        raise LookupError("a search result is not among the run's cards")
+                    cards.append(shown)
+        return _render(
+            shell,
+            "search.html",
+            search=found,
+            search_cards=cards,
+            search_refused=refused,
+        )
 
     @app.get("/runs/{run_id}/pgx", response_class=HTMLResponse)
     def pgx(run_id: str, request: Request, gene: str | None = None, page: int = 1) -> Response:

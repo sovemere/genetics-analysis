@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M13 and M14.1–M14.3 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M13 and M14.1–M14.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -307,7 +307,12 @@ the six confidence badges and what earns each, how a tier is decided, why rarity
 confidence (with the published benchmarks), what a polygenic score can say and what the
 array cannot tell. Every threshold is read from the confidence engine, and every page's nav
 carries the legend.
-[M14.4, global search](docs/handoff.md#next-open-step-m144-global-search) is next.
+**M14.4, the dashboard's search, is implemented.** A box in every open run's nav lists the
+run's cards that match a query, ranked exactly as `genetics runs search` ranks them, with
+partial matches below full ones and none left out for its confidence. A query that reads as
+a genotype is refused and never shown again.
+[M14.5, the QC and provenance page](docs/handoff.md#next-open-step-m145-qc-provenance-page)
+is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

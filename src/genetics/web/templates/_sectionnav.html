@@ -8,7 +8,25 @@
   to prevent, arriving through the one control that is supposed to be reversible.
 
   All thirteen render whatever the run contains, for the reason `section_views` gives.
+
+  The search box (M14.4) is first, on every page of an open run. It searches that run's
+  cards on a page of its own; a page with no run open has nothing to search, so it has no
+  box. The grid's arrangement rides along in hidden fields, so a card opened from the
+  results and "Back to the run" keep it.
 #}
+{% if shell.has_selection %}
+  <form class="navsearch" role="search" method="get" action="{{ shell.run_url }}/search">
+    {% for name, value in shell.grid.query.parameters %}
+      <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+    <label class="navhead" for="nav-search">Search this run's cards</label>
+    <div class="searchrow">
+      <input id="nav-search" type="search" name="q" autocomplete="off"
+             placeholder="curly hair, CYP2C19, rs…">
+      <button type="submit">Search</button>
+    </div>
+  </form>
+{% endif %}
 <ol class="sections">
   {% for view in shell.sections %}
     <li class="section {% if view.is_empty %}section-empty{% endif %}">

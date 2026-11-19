@@ -105,7 +105,7 @@ def saved(sample_qc: QCReport, tmp_path_factory: pytest.TempPathFactory) -> Iter
 
 def test_every_route_names_the_commands_that_print_what_it_shows() -> None:
     parity.check_routes()
-    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 10
+    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 11
 
 
 def test_a_route_with_no_commands_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -273,10 +273,16 @@ def test_a_saved_run_shows_nothing_the_commands_do_not_print(
     genes = list(report.documents[("pgx", "calls", saved.name)]["genes"])
     assert len(genes) == 8, "a run with no PGx stage still records each gene as unavailable"
     # healthz, the index, the guide, two groupings, each card's page, one fragment, a
-    # missing card, the ClinVar, secondary, HLA, ancestry and PGx pages, then each gene's.
-    assert report.pages == 3 + 2 + len(cards) + 2 + 5 + len(genes)
-    # One `runs card` each, one `pgx calls --gene` each, and the twelve other documents.
-    assert report.commands == len(report.documents) == len(cards) + len(genes) + 12
+    # missing card, the ClinVar, secondary, HLA, ancestry and PGx pages, four searches (no
+    # query, one card's title, a word no card uses, a refused query), then each gene's.
+    assert report.pages == 3 + 2 + len(cards) + 2 + 5 + 4 + len(genes)
+    # One `runs card` each, one `pgx calls --gene` each, the twelve other documents, two
+    # `runs search` documents and the error `runs search` prints for the refused query.
+    assert report.commands == len(report.documents) == len(cards) + len(genes) + 12 + 3
+    searches = [words for words in report.documents if words[:2] == ("runs", "search")]
+    assert len(searches) == 3
+    refused = report.documents[searches[-1]]
+    assert refused["error"]["kind"] == "genotype-in-query"
     assert report.compared > 5000
 
 

@@ -1,0 +1,97 @@
+{#
+  Search across one run's cards (M14.4).
+
+  Everything listed is `search`, which is what `genetics runs search <run> <query> --json`
+  prints: the saved faces under `results` and, in the same order, the ranking under
+  `current_context.hits`. `search_cards` are the run's own card views for those results,
+  so each face here is the face the grid shows, tier badge first (AGENTS.md 0.1A).
+
+  **A refused query is not repeated.** `search_refused` is the engine's sentence, which
+  names the rule and never the text, and the box below is then left empty. The page title
+  never holds a query, refused or not.
+
+  Every section is searched whatever the grid's filters say, and a card that matches some
+  of the words is listed below the cards that match all of them, never left out.
+#}
+{% extends "base.html" %}
+{% block title %}Search · {{ shell.selected_id }}{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block content %}
+<section class="panel" aria-labelledby="h-search">
+  <h1 id="h-search">Search this run's cards</h1>
+  <p><a href="{{ shell.run_url }}{{ shell.grid.query.query_string }}">Back to the run</a></p>
+  <form class="searchform" role="search" method="get" action="{{ shell.run_url }}/search">
+    {% for name, value in shell.grid.query.parameters %}
+      <input type="hidden" name="{{ name }}" value="{{ value }}">
+    {% endfor %}
+    <label for="search-query">A trait, gene, rsID or phrase</label>
+    <div class="searchrow">
+      <input id="search-query" type="search" name="q" autocomplete="off"
+             value="{{ search.current_context.query if search else '' }}">
+      <button type="submit">Search</button>
+    </div>
+  </form>
+  <p class="muted">
+    Searches every section of this run: each card's title, gene, rsIDs, the summary and detail
+    it saved, caveats and citations. Cards are ranked by the query alone, never by confidence
+    or result. Search for a variant, gene or trait, never for a genotype: a query that reads as
+    one is refused and not shown again. The same search is
+    <code>genetics runs search {{ shell.selected_id }} &lt;query&gt; --json</code>.
+  </p>
+
+  {% if search_refused %}
+    <p class="notice notice-refused" role="alert">{{ search_refused }}</p>
+  {% elif search %}
+    {% set ranking = search.current_context %}
+    {% set wanted = ranking.terms | length %}
+    <p role="status">
+      <strong>{{ ranking.total }} of {{ ranking.searched }} card(s)</strong> match
+      “{{ ranking.query }}”{% if ranking.total %}, best first{% endif %}.
+      {% if ranking.ignored %}
+        Common words left out of the search: {{ ranking.ignored | join(", ") }}.
+      {% endif %}
+    </p>
+    {% if not ranking.total %}
+      <p class="empty">No card in this run mentions any of those words. Try a gene symbol,
+        an rsID, or a shorter phrase.</p>
+    {% endif %}
+  {% endif %}
+</section>
+
+{% if search and search.results %}
+  {% set ranking = search.current_context %}
+  {% set wanted = ranking.terms | length %}
+  {% set full = ranking.hits | selectattr("terms_matched", "equalto", wanted) | list | length %}
+  {% for part in (("all", 0, full), ("some", full, search.results | length)) if part[2] > part[1] %}
+    <section class="panel" aria-labelledby="h-search-{{ part[0] }}">
+      <div class="panelhead">
+        <h2 id="h-search-{{ part[0] }}">
+          {% if part[0] == "all" %}Matching every word{% else %}Matching some of the words{% endif %}
+        </h2>
+        <span class="panelcount">{{ part[2] - part[1] }}</span>
+      </div>
+      {% if part[0] == "some" and wanted > 1 %}
+        <p class="muted">Listed below the full matches rather than left out; each says which
+          words it matched.</p>
+      {% endif %}
+      <ul class="cards">
+        {% for index in range(part[1], part[2]) %}
+          {% set card = search_cards[index] %}
+          {% set hit = ranking.hits[index] %}
+          <li class="searchhit">
+            {% include "_cardface.html" %}
+            <p class="searchmatched muted">
+              Matched {{ hit.terms_matched }} of {{ wanted }} word(s) in
+              {% for match in hit.matched -%}
+                {{ match.field | replace("_", " ") }} ({{ match.terms | join(", ") }}){% if not loop.last %}; {% endif %}
+              {%- endfor %}.
+            </p>
+          </li>
+        {% endfor %}
+      </ul>
+    </section>
+  {% endfor %}
+{% endif %}
+{% endblock %}

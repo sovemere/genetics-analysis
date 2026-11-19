@@ -1215,8 +1215,9 @@ def test_the_controls_are_a_plain_get_form(client: TestClient, interpreted: Path
     body = client.get("/").text
     controls = body.split('class="controls"')[1].split("</form>")[0]
 
-    form = body.split("<form", 1)[1].split(">", 1)[0]
-    assert 'method="get"' in form and 'class="controls"' in form
+    opening = [tag.split(">", 1)[0] for tag in body.split("<form")[1:]]
+    form = next(tag for tag in opening if 'class="controls"' in tag)
+    assert 'method="get"' in form
     assert '<button type="submit">Apply</button>' in controls
 
 

@@ -310,7 +310,8 @@ which of them set the tier, so "why is this low confidence" has an answer an age
 Run-scoped reads live under `runs`, beside `list` and `delete`; `cards evidence` reads the
 knowledge pack only, holds no genotype, and is what a web search starts from (§1.3).
 `cards search` finds a card id from a phrase such as "curly hair", also from the pack alone;
-`genetics runs search <run> <query>` searches one saved run and returns each card's result.
+`genetics runs search <run> <query>` searches one saved run and returns each card's result;
+the dashboard's search page (`/runs/<run>/search`) lists exactly what it prints.
 Both refuse a query that reads as a genotype: search for the variant, never a call at it.
 `genetics cards check-query` is run on every web search before it is sent (§1.3).
 `genetics cards guide` prints how to read the results, which the dashboard's `/guide`

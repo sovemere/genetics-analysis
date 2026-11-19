@@ -1,4 +1,4 @@
-# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2, M14.3)
+# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2, M14.3, M14.4)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
@@ -11,7 +11,9 @@ run's other saved records; see [Parity with the dashboard](#parity-m135). M13.7
 (2026-11-19) added `cards check-query`, which says whether a query may leave the machine;
 see [Query check](#query-check-m137). M14.2 (2026-11-19) added `runs ancestry`, the ancestry
 page's command; see [Ancestry](#ancestry-m142). M14.3 (2026-11-19) added `cards guide`, the
-reading guide and confidence legend; see [Reading guide](#reading-guide-m143).
+reading guide and confidence legend; see [Reading guide](#reading-guide-m143). M14.4
+(2026-11-19) gave the dashboard a search page, which calls what `runs search` prints; see
+[Dashboard search](#dashboard-search-m144).
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -441,11 +443,11 @@ follows something already settled:
   qualities and term coverage are enough to put the card a phrase names first, and an agent
   can explain a hit from `matched`.
 
-### For M14.4
+### For M14.4 (done)
 
-The dashboard's search should call `genetics.run.reads.search_view(bundle, query, limit)`,
-which is what `runs search` prints, and `genetics.engine.search.parse_query` for the query.
-M13.5's parity test can then compare the two directly.
+The dashboard's search calls `genetics.run.reads.search_view(bundle, query)`, which is what
+`runs search` prints, and `genetics.engine.search.parse_query` for the query. The parity
+test compares the two directly; see [Dashboard search](#dashboard-search-m144).
 
 ### Validation
 
@@ -500,6 +502,7 @@ points to `--json`, which holds each in full.
 | `/runs/{run_id}/clinvar` | The saved ClinVar reference lookup | `genetics runs clinvar <run> --json` |
 | `/runs/{run_id}/secondary-findings` | The lookup's ACMG gene-list overlaps | `genetics runs secondary <run> --json` |
 | `/runs/{run_id}/ancestry` | The PCA scatter, the nearest reference populations, ancient affinity and both haplogroups with their marker counts (M14.2) | `genetics runs ancestry <run> --json` |
+| `/runs/{run_id}/search` | The run's cards that match a query, ranked as `runs search` ranks them, each with its saved face; a query that reads as a genotype is refused in the command's words (M14.4) | `genetics runs search <run> <query> --json` |
 | `/runs/{run_id}/hla` | Saved HLA classifier calls and the HLA-linked cards | `genetics hla calls <run> --json` |
 | `/runs/{run_id}/pgx` | Saved pharmacogenomic calls, one gene's candidates, the section's notices | `genetics pgx calls <run> --json`, `genetics pgx calls <run> --gene <gene> --json` |
 
@@ -809,6 +812,39 @@ figure) are computed when the guide is built.
 - **The card page is unchanged** beyond its link: it prints the sentence and the six rows
   M13.4 gave it, and the weights and the ceiling list are on the guide.
 
+<a id="dashboard-search-m144"></a>
+
+## Dashboard search (M14.4)
+
+Every page of an open run has a search box at the top of its nav. It opens
+`/runs/{run_id}/search?q=<query>`, which lists the run's cards that match, best first, each
+as the face the grid shows: tier badge, status, summary, and a line saying which of the
+query's words it matched in which fields. The page holds what
+`genetics runs search <run> <query> --json` prints, with no `--limit`: the same cards in the
+same order, from the same function (`reads.search_view`), and the parity test compares them
+field for field.
+
+- **Every section is searched, whatever the grid's filters say.** Search finds cards; a tier
+  filter arranges the grid. No card is ranked or left out for its tier or status (AGENTS.md
+  §0.1A), and a card matching some of the words is listed under "Matching some of the
+  words", below every card that matches all of them.
+- **A refused query is not shown again.** A query that reads as a genotype is refused by
+  `parse_query` before anything is searched, as `runs search` refuses it. The page shows the
+  engine's sentence, which names the rule and not the text, leaves the box empty, and its
+  title never holds a query. The command exits 2 with kind `genotype-in-query`; the page
+  answers 200, as every other page that explains why it shows nothing does. A query of
+  punctuation alone gets the `empty-query` sentence the same way.
+- **A searched query is shown** in the box and the heading. It is the reader's own words and
+  passed the same check. It is in the address too, because the form is a plain GET that
+  works without JavaScript, can be bookmarked and comes back with the back button; the
+  `Referrer-Policy: no-referrer` header keeps it out of any request a citation link causes.
+- **The grid's arrangement rides along.** The box carries the grid's group, sort and filters
+  as hidden fields, so a card opened from the results and "Back to the run" keep them. They
+  do not narrow the search.
+- **No box on a page with no run open** (the guide, an empty store). There is nothing to
+  search, and the knowledge pack has `genetics cards search`; a pack card has no page here to
+  link to.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
@@ -890,6 +926,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** (done 2026-11-19) is `cards check-query`, described under
   [Query check](#query-check-m137). It closes the two queries M13.6 left open.
+- **M14.4** (done 2026-11-19) is the dashboard's search page, described under
+  [Dashboard search](#dashboard-search-m144). No command or schema changed.
 - **M14.3** (done 2026-11-19) is `cards guide` and the `/guide` page, described under
   [Reading guide](#reading-guide-m143).
 - **M14.2** (done 2026-11-19) is `runs ancestry` and the ancestry page, described under
