@@ -371,6 +371,27 @@ def test_saved_cli_dashboard_and_iterator_share_provenance(
     assert stage.metadata["contract"]["target_sha256"] not in body
 
 
+def test_the_qc_page_shows_the_stage_that_was_used(
+    prepared: tuple[pipeline.Analysis, ImputationResult], parity_check: Any
+) -> None:
+    """M14.5: parameters, a row per region and per job, the command's document whole."""
+    analysis, stage = prepared
+    path = pipeline.save(analysis)
+    assert parity_check(path).pages > 0
+    jobs = stage.metadata["jobs"]
+    regions = stage.metadata["regions"]
+    assert jobs and regions
+    with TestClient(create_app(WebConfig()), base_url="http://127.0.0.1") as client:
+        body = client.get(f"/runs/{path.name}/qc").text
+    assert "seed-8606" in body and "synthetic-beagle" in body
+    used = jobs[0]["impute"]["contract"]["options"]
+    assert f"<code>{used['chrom']}</code>" in body
+    assert f'<td class="num">{used["seed"]}</td>' in body
+    for region in regions:
+        assert f'<th scope="row">{region["region"]}</th>' in body
+    assert stage.metadata["contract"]["target_sha256"] not in body
+
+
 @pytest.mark.parametrize(
     "damage",
     [

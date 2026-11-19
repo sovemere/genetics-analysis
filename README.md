@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M13 and M14.1–M14.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M13 and M14.1–M14.5 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -311,7 +311,12 @@ carries the legend.
 run's cards that match a query, ranked exactly as `genetics runs search` ranks them, with
 partial matches below full ones and none left out for its confidence. A query that reads as
 a genotype is refused and never shown again.
-[M14.5, the QC and provenance page](docs/handoff.md#next-open-step-m145-qc-provenance-page)
+**M14.5, the QC and provenance page, is implemented.** `/runs/<run>/qc` shows the whole QC
+report, every polygenic score's coverage on the array and after imputation beside ClinVar's,
+the imputation parameters with a row per region and per job, and the reference, tool and
+knowledge-pack versions the run recorded. `genetics runs qc` and `runs imputation` print
+the same (agent schema 9).
+[M14.6, impossibility cards in their sections](docs/handoff.md#next-open-step-m146-impossibility-cards)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

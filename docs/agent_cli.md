@@ -1,4 +1,4 @@
-# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2, M14.3, M14.4)
+# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2, M14.3, M14.4, M14.5)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
@@ -126,10 +126,15 @@ imputation_provenance_status    "recorded", another status, or null; the full re
                                 `genetics runs imputation <run>`
 provenance                      engine version, knowledge digest, reference and tool versions,
                                 input vendor and marker count
+current_context                 (M14.5, agent schema 9)
+  context                       "current"
+  coverage                      polygenic[], polygenic_counts, clinvar_status,
+                                clinvar_reason, clinvar
 ```
 
 The text form lists every QC warning in QC's order. A field another version did not write
-prints as `-`.
+prints as `-`. `current_context.coverage` is described under
+[QC and provenance page](#qc-and-provenance-page-m145).
 
 ### `cards evidence`
 
@@ -501,6 +506,7 @@ points to `--json`, which holds each in full.
 | `/runs/{run_id}/cards/{card_id}` | One card in full, with what decided its tier | `genetics runs card <run> <card-id> --json` |
 | `/runs/{run_id}/clinvar` | The saved ClinVar reference lookup | `genetics runs clinvar <run> --json` |
 | `/runs/{run_id}/secondary-findings` | The lookup's ACMG gene-list overlaps | `genetics runs secondary <run> --json` |
+| `/runs/{run_id}/qc` | The QC report, the run's coverage (each polygenic score's before and after imputation, and ClinVar's), the imputation parameters and region jobs, and the reference, tool and knowledge-pack versions (M14.5) | `genetics runs qc <run> --json`, `genetics runs imputation <run> --json` |
 | `/runs/{run_id}/ancestry` | The PCA scatter, the nearest reference populations, ancient affinity and both haplogroups with their marker counts (M14.2) | `genetics runs ancestry <run> --json` |
 | `/runs/{run_id}/search` | The run's cards that match a query, ranked as `runs search` ranks them, each with its saved face; a query that reads as a genotype is refused in the command's words (M14.4) | `genetics runs search <run> <query> --json` |
 | `/runs/{run_id}/hla` | Saved HLA classifier calls and the HLA-linked cards | `genetics hla calls <run> --json` |
@@ -848,6 +854,44 @@ field for field.
   search, and the knowledge pack has `genetics cards search`; a pack card has no page here to
   link to.
 
+## QC and provenance page (M14.5)
+
+`/runs/{run_id}/qc`, linked from the nav of every run page, shows two documents whole:
+what `genetics runs qc <run> --json` prints and what `genetics runs imputation <run> --json`
+prints. The parity check compares each with its command, key for key. Both commands scan
+their output for genotypes, and the route scans the whole page too.
+
+- **The export:** every field of the QC report, the call rate by chromosome, the sex
+  inference's evidence and notes, the build check's anchors, and every warning in QC's order.
+- **Coverage** is `current_context.coverage` on `runs qc` (agent schema 9), collected from
+  the two records that hold coverage, each with its own denominator and never combined:
+
+  ```text
+  polygenic[]           every polygenic card in saved order, placed or not: card_id, title,
+                        section, status, confidence_tier, pgs_id, trait, placed, phase,
+                        phase_coverage {before, after}, comparable_weight_fraction, reason
+  polygenic_counts      scores, placed, with_phase_coverage
+  clinvar_status        "recorded"; "no-lookup"; "lookup-not-run" (the lookup did not run);
+                        or "not-recorded" (a lookup that ran, saved before format 13)
+  clinvar_reason        the lookup's reason when it did not run, else null
+  clinvar               the saved ClinVar coverage record (M7.6), whole, or null
+  ```
+
+  `phase_coverage` is what the card's result saved: for the original array and after
+  imputation, the variants the data could dose and the share of the score's weight they
+  carry (AGENTS.md §4.3). A score that was never computed, or a result saved under display
+  schema 1, has none, and the page says so. Nothing is recounted.
+- **Imputation:** the execution record (mode, status, card input, jobs, records, sources,
+  unsupported positions), then the full provenance: panel and map sources, Beagle, Java and
+  bref versions, the requested parameters, a row per region (status, ploidy, typed
+  positions and their outcomes) and a row per job (interval, ploidy, seed, threads, heap,
+  and each Beagle run's elapsed time). A full run has about 25 regions, so nothing is paged.
+  Each region's position-level `decisions`, and every input, output and tool digest, stay in
+  the command's document.
+- **References, tools and knowledge pack:** what the manifest recorded as installed at save
+  time, with each reference's licence and each tool's digest. The imputation stage records
+  what it used, which can differ after an install changes; the page says so.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
@@ -929,6 +973,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** (done 2026-11-19) is `cards check-query`, described under
   [Query check](#query-check-m137). It closes the two queries M13.6 left open.
+- **M14.5** (done 2026-11-20) is the QC and provenance page and `runs qc`'s coverage,
+  described under [QC and provenance page](#qc-and-provenance-page-m145). Agent schema 9.
 - **M14.4** (done 2026-11-19) is the dashboard's search page, described under
   [Dashboard search](#dashboard-search-m144). No command or schema changed.
 - **M14.3** (done 2026-11-19) is `cards guide` and the `/guide` page, described under

@@ -64,6 +64,7 @@ from genetics.pgs.runner import PolygenicStage, locate_scoring_file
 from genetics.pgs.scoring import ScoringFile
 from genetics.qc.report import InferredSex
 from genetics.refs import lock as refs_lock
+from genetics.run import reads
 from genetics.run.bundle import (
     CARDS_NAME,
     MANIFEST_NAME,
@@ -653,6 +654,21 @@ def test_saved_run_round_trips_through_bundle_cli_and_dashboard(
         assert "Why this tier" in html and "Comparable weight" in html
         assert "Before and after coverage" in html
         assert "After imputation: unavailable (disabled)" in html
+        # M14.5: the run's QC page lists the placed score's coverage as its card saved it.
+        qc = client.get(f"/runs/{bundle.run_id}/qc")
+        assert qc.status_code == 200
+        assert 'href="/runs/' + bundle.run_id + '/cards/synthetic_polygenic"' in qc.text
+    assert stored.computation is not None
+    result = stored.computation["result"]
+    before = result["phase_coverage"]["before"]
+    row = reads.coverage_report(bundle)["polygenic"][0]
+    assert row["card_id"] == "synthetic_polygenic" and row["placed"] is True
+    assert row["pgs_id"] == result["pgs_id"] and row["phase"] == result["phase"]
+    assert row["phase_coverage"] == result["phase_coverage"]
+    assert row["comparable_weight_fraction"] == result["coverage"]["comparable_weight_fraction"]
+    assert row["reason"] is None
+    shown_fraction = f"{before['variant_fraction'] * 100:.1f}%"
+    assert shown_fraction in qc.text and "unavailable: disabled" in qc.text
 
 
 def test_health_pack_on_synthetic_scores_preserves_scope_and_missing_absolute_rates(

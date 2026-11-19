@@ -122,6 +122,7 @@ run id.
 | `qc.sex.inferred` | The inferred sex, which decides how X and Y calls are read |
 | `imputation.status` | Whether imputation ran. `not_recorded` here; the example run imputed nothing |
 | `provenance.knowledge.digest` | The knowledge pack the run's cards were written from |
+| `current_context.coverage` | The run's coverage: each polygenic score's saved share of its variants and weight, on the array and after imputation, and the saved ClinVar fractions (M14.5). The dashboard's QC page shows it |
 
 None of this goes into a search or a file. It decides how much weight the cards can bear:
 a low call rate or a build that was not confirmed is stated in the answer before any card.

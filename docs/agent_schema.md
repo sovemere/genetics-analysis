@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 8 since M14.3 (2026-11-19), which described `genetics cards
-guide`. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 9 since M14.5 (2026-11-20), which added the run's coverage
+to `genetics runs qc`. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -353,6 +353,11 @@ level. `tests/run/test_guide.py` checks `cards guide --json` against it with the
 compares the `/guide` page and every page's legend with it. Editing the document under
 version 8 without a new digest fails the digest test.
 
+M14.5 took it to version 9: `runs.qc` gains the required key `current_context.coverage`
+(`run_coverage`, with one `score_coverage` per polygenic card), collected from the saved
+records for the dashboard's QC and provenance page. `tests/web/test_qc_page.py` checks the
+command against it, and the parity check compares the page with both commands it shows.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 
@@ -368,3 +373,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 6 | 2026-11-19 | One payload, `cards.check-query` (M13.7), with the `query_rule` vocabulary. No existing payload changed |
 | 7 | 2026-11-19 | One payload, `runs.ancestry` (M14.2): the saved ancestry record and the `ancestry_pca` scatter. The record itself is open, as in `runs.show`; from bundle format 29 its placement holds `scale` and each fit a `centroid`. No existing payload changed |
 | 8 | 2026-11-19 | One payload, `cards.guide` (M14.3): the reading guide and confidence legend, with `guide_paragraphs`. It reads the knowledge pack and the engine's rules, no run. No existing payload changed |
+| 9 | 2026-11-20 | `runs.qc` gains the required key `current_context` (M14.5): `coverage`, a `run_coverage` holding every polygenic card's `score_coverage` (both phases' saved coverage), their counts, and the saved ClinVar coverage record with a `clinvar_status`. Every other payload is unchanged |

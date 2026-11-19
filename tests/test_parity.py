@@ -19,6 +19,7 @@ guideline cards, placed polygenic scores and a ClinVar lookup are built by ``tes
 from __future__ import annotations
 
 import dataclasses
+import inspect
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -105,7 +106,7 @@ def saved(sample_qc: QCReport, tmp_path_factory: pytest.TempPathFactory) -> Iter
 
 def test_every_route_names_the_commands_that_print_what_it_shows() -> None:
     parity.check_routes()
-    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 11
+    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 12
 
 
 def test_a_route_with_no_commands_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -273,9 +274,9 @@ def test_a_saved_run_shows_nothing_the_commands_do_not_print(
     genes = list(report.documents[("pgx", "calls", saved.name)]["genes"])
     assert len(genes) == 8, "a run with no PGx stage still records each gene as unavailable"
     # healthz, the index, the guide, two groupings, each card's page, one fragment, a
-    # missing card, the ClinVar, secondary, HLA, ancestry and PGx pages, four searches (no
-    # query, one card's title, a word no card uses, a refused query), then each gene's.
-    assert report.pages == 3 + 2 + len(cards) + 2 + 5 + 4 + len(genes)
+    # missing card, the ClinVar, secondary, HLA, ancestry, QC and PGx pages, four searches
+    # (no query, one card's title, a word no card uses, a refused query), then each gene's.
+    assert report.pages == 3 + 2 + len(cards) + 2 + 6 + 4 + len(genes)
     # One `runs card` each, one `pgx calls --gene` each, the twelve other documents, two
     # `runs search` documents and the error `runs search` prints for the refused query.
     assert report.commands == len(report.documents) == len(cards) + len(genes) + 12 + 3
@@ -395,6 +396,36 @@ def test_a_context_value_that_differs_fails(saved: Path, monkeypatch: pytest.Mon
     assert "0.0.0-other" not in message
 
 
+@pytest.mark.parametrize(
+    ("view", "match"),
+    [
+        ("qc_view", r"/qc `qc_report` differs from what `runs qc` prints"),
+        ("imputation_view", r"/qc `imputation_report` differs from what `runs imputation` prints"),
+    ],
+)
+def test_the_qc_page_showing_less_than_its_command_fails(
+    saved: Path, monkeypatch: pytest.MonkeyPatch, view: str, match: str
+) -> None:
+    """M14.5: the QC page holds each command's document whole; a key it drops fails."""
+    original = getattr(reads, view)
+    calls: list[int] = []
+
+    def fewer(bundle: Any) -> dict[str, Any]:
+        document = dict(original(bundle))
+        # Only the page's copy: the command, run in the same process, must keep its own.
+        if any(
+            frame.function == "qc" and frame.filename.endswith("app.py")
+            for frame in inspect.stack()
+        ):
+            calls.append(1)
+            document.pop("path")
+        return document
+
+    monkeypatch.setattr(reads, view, fewer)
+    _fails(saved, match)
+    assert calls
+
+
 def test_healthz_is_compared_too(saved: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(web_app, "BUNDLE_FORMAT_VERSION", 1)
     _fails(saved, r"/healthz `bundle_format_version` differs from what `version` prints")
@@ -404,6 +435,7 @@ def test_healthz_is_compared_too(saved: Path, monkeypatch: pytest.MonkeyPatch) -
     ("template", "key"),
     [
         ("hla.html", "hla_report"),
+        ("qc.html", "qc_report"),
         ("pgx.html", "pgx_candidates"),
         ("clinvar.html", "clinvar_loci"),
         ("card.html", "card"),

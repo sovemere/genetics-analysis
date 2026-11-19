@@ -88,13 +88,18 @@ def _environment() -> Environment:
     it prevents is a QC banner that silently loses its call rate after a field is renamed,
     which looks like a data problem and is not.
     """
-    return Environment(
+    environment = Environment(
         loader=FileSystemLoader(TEMPLATE_DIR),
         autoescape=select_autoescape(("html", "xml")),
         undefined=StrictUndefined,
         trim_blocks=True,
         lstrip_blocks=True,
     )
+    # `dig(record, "a", "b")` reads a saved record's nested field, or None where another
+    # version wrote a different shape -- the same reading the banner and `runs qc` give.
+    # StrictUndefined stays strict for context keys; a saved record is data, not context.
+    environment.globals["dig"] = views.dig
+    return environment
 
 
 SECURITY_HEADERS: dict[str, str] = {
@@ -335,6 +340,7 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         template: str = "dashboard.html",
         *,
         headers: Mapping[str, str] | None = None,
+        scanned: bool = False,
         **extra: Any,
     ) -> HTMLResponse:
         """Render a full page, scanning the two regions that must hold no genotype.
@@ -349,6 +355,10 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         renderer is what keeps the scan attached to *every* page carrying a banner and a run
         selector: a second render path would have been a second place to remember, and the
         one that forgot would be the page nobody thought about.
+
+        ``scanned`` scans the whole page too, for a page that holds no genotype anywhere
+        (the QC and provenance page, M14.5, which shows what the scanned ``runs qc`` and
+        ``runs imputation`` print).
         """
         context: dict[str, Any] = {
             "shell": shell,
@@ -364,10 +374,10 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             key = name.removeprefix("_").removesuffix(".html")
             context[f"{key}_html"] = Markup(markup)
 
-        return HTMLResponse(
-            environment.get_template(template).render(context),
-            headers={**SECURITY_HEADERS, **(headers or {})},
-        )
+        page = environment.get_template(template).render(context)
+        if scanned:
+            assert_no_genotype(page, context=f"dashboard page {template}")
+        return HTMLResponse(page, headers={**SECURITY_HEADERS, **(headers or {})})
 
     def _fragment(template: str, **context: Any) -> HTMLResponse:
         """Render a partial for htmx to swap in.
@@ -573,6 +583,30 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         if not shell.has_selection:
             return _render(shell)
         return _render(shell, "ancestry.html", ancestry_report=ancestry_report(shell.ancestry))
+
+    @app.get("/runs/{run_id}/qc", response_class=HTMLResponse)
+    def qc(run_id: str, request: Request) -> Response:
+        """Quality control and provenance (M14.5): the QC report, the run's coverage, the
+        imputation parameters, and the reference, tool and knowledge-pack versions.
+
+        Two documents, whole: :func:`genetics.run.reads.qc_view`, which ``genetics runs qc
+        <run> --json`` prints, and :func:`genetics.run.reads.imputation_view`, which ``runs
+        imputation <run> --json`` prints. Both commands scan what they print for genotypes,
+        and so does this page. Per-region imputation is summarised a row per region; each
+        region's position-level decisions stay in the command's document.
+        """
+        from genetics.run.reads import imputation_view, qc_view
+
+        shell, bundle = _open(run_id, _query(request))
+        if bundle is None or not shell.has_selection:
+            return _render(shell)
+        return _render(
+            shell,
+            "qc.html",
+            scanned=True,
+            qc_report=qc_view(bundle),
+            imputation_report=imputation_view(bundle),
+        )
 
     @app.get("/runs/{run_id}/search", response_class=HTMLResponse)
     def search(run_id: str, request: Request, q: str | None = None) -> Response:

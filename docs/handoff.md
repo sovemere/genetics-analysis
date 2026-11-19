@@ -1,6 +1,8 @@
-# Handoff: M14.5 QC and provenance page
+# Handoff: M14.6 impossibility cards in their sections
 
-As of 2026-11-19, **M0-M13 and M14.1-M14.4 are implemented; M14.5 is next**. See
+As of 2026-11-20, **M0-M13 and M14.1-M14.5 are implemented; M14.6 is next**. See
+[the M14.6 entry contract](#next-open-step-m146-impossibility-cards),
+[the M14.5 record](#accepted-m145-qc-provenance-page),
 [the M14.5 entry contract](#next-open-step-m145-qc-provenance-page),
 [the M14.4 record](#accepted-m144-global-search),
 [the M14.4 entry contract](#next-open-step-m144-global-search),
@@ -18,6 +20,12 @@ As of 2026-11-19, **M0-M13 and M14.1-M14.4 are implemented; M14.5 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.5, the QC and provenance page, is implemented.** `/runs/{run_id}/qc` shows what
+`genetics runs qc <run> --json` and `runs imputation <run> --json` print, whole, and the
+route scans the page for genotypes as both commands do. `runs qc` gains the run's coverage
+(`current_context.coverage`, agent schema 9): every polygenic score's saved coverage before
+and after imputation, and the saved ClinVar fractions. See
+[the record](#accepted-m145-qc-provenance-page).
 **M14.4, the dashboard's search, is implemented.** A box at the top of every open run's nav
 opens `/runs/{run_id}/search`, which lists what `genetics runs search <run> <query> --json`
 prints: the same cards in the same order, from `reads.search_view`, each as the face the
@@ -598,9 +606,95 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m146-impossibility-cards"></a>
+
+## Next open step: M14.6 impossibility cards in their sections
+
+M14.6: impossibility cards surfaced in their relevant sections, not hidden in an appendix.
+Nothing has been selected or verified beyond what is listed here.
+
+What already exists:
+
+- **Twelve impossibility cards** in `knowledge/impossibilities/`, each assigned to a section:
+  three in ancestry (Y-STR haplotypes, mtDNA heteroplasmy, relative matching), five in
+  physical health (methylation and epigenetic age, somatic variants, telomere length,
+  de novo mutations, RhD zygosity), two in reproductive (SMN1, alpha-globin deletions), one
+  in genome structure and one in pharmacogenomics (CYP2D6, placed beside the PGx calls at
+  M10.3). They render in their section's grid as cards of kind `impossibility`, with no
+  tier ("No tier"), and the reading guide lists them by section (M14.3).
+- **The ancestry section holds only assay-limit cards**, and M14.1's empty state says so.
+- **The QC page (M14.5)** and the reading guide name the array's limits; neither lists a
+  section's impossibility cards beside its findings.
+
+What is open:
+
+- Whether "surfaced" needs more than the grid already gives. Not checked: where an
+  impossibility card lands when the grid is grouped or sorted by tier, and whether it then
+  sits apart from its section's findings.
+- Whether every AGENTS.md §3.2 register entry has its card; compare the register with the
+  twelve before deciding that none is missing.
+- **Parity.** A new view field needs a place in `parity`'s tables; a new page needs the
+  five places M14.2's hand-over lists.
+
+What M14.5 hands over:
+
+- **`dig` is a template global** (`views.dig`): a saved record's nested field, or None where
+  another version wrote a different shape. Use it for saved records; context keys stay
+  strict.
+- **`_render(..., scanned=True)`** scans the whole page for genotypes, for a page that holds
+  none. The QC page is the only one that does.
+- **A page that shows a command's document whole** is placed with `parity._whole(command,
+  document)`, which compares every key and fails on one the page lacks.
+- **Agent schema version 9.** A shape change takes version 10, by M14.2's steps below; the
+  shape digest is printed by `tests/test_agent_schema.py::_shape_digest(contract.document())`.
+- **For M14.7 (accessibility):** the QC page's tables have captions and row headers; its
+  "On this page" list is a `nav` landmark, a second one beside the section nav.
+
+<a id="accepted-m145-qc-provenance-page"></a>
+
+## Accepted M14.5 QC and provenance page
+
+Implemented on 2026-11-20. No owner question was asked: each open point of the entry
+contract follows from something already settled, and
+[the QC page section](agent_cli.md#qc-and-provenance-page-m145) gives the reasoning.
+
+- **A page per run, linked from every run page's nav.** `/runs/{run_id}/qc` shows two
+  documents whole: `reads.qc_view` (`runs qc --json`) and `reads.imputation_view` (`runs
+  imputation --json`). The parity check compares each with its command, key for key, and
+  visits the page on every saved run it checks: the plain one, the placed-score run
+  (`tests/refs/test_pgs_cards.py`) and a recorded-imputation run
+  (`tests/run/test_imputation_snapshot.py`).
+- **Coverage stats means both records, kept apart.** `runs qc` gains `current_context.coverage`
+  (`reads.coverage_report`): every polygenic card in saved order, placed or not, with its
+  saved `phase_coverage` (original array and after imputation) and comparable weight, and
+  the saved ClinVar coverage record. `clinvar_status` names four states, because a low-level
+  writer saves a lookup that did not run, which is not the same as one saved before format
+  13. Nothing is recounted. Agent schema 9; the text form prints the same.
+- **Imputation is summarised, not paged.** A run has about 25 regions (one per autosome and
+  X's split), so the page gives the requested parameters, a row per region (status, ploidy,
+  typed positions, outcome counts) and a row per job (interval, seed, threads, heap, each
+  Beagle run's time). Each region's position-level `decisions` and every digest stay in the
+  command's document.
+- **Scanned whole.** The page holds what two scanned commands print, so `_render` scans it;
+  a test injects a genotype-shaped warning and gets a 500 whose body does not hold it.
+- **Read defensively.** Every saved record is read with `dig`; a test renders a sparse
+  record and gets `-` and each "not recorded" sentence.
+
+Changed for a caller: agent schema version 9 (`runs.qc` gains `current_context`); a new
+route and a nav link on every run page. No bundle format, knowledge schema or card changed.
+
+The [M14.5 session review](review_m145_session.md) gave a ClinVar lookup that did not run
+its own state (it was first called "saved before format 13") and fixed two layout faults
+found in the browser. Five guards were removed in turn and each failed a test. Validation on
+2026-11-20: the full native suite passed **4,435 tests with nine skips** in 1,024 s and
+failed one, a walk-through pin on the number of `runs qc` keys it names, since updated;
+that file and three parity tests added after the run pass. Strict mypy, ruff and format
+pass. No personal export or saved real run was opened. Python source changed, so saved runs
+repeat their deep checks once.
+
 <a id="next-open-step-m145-qc-provenance-page"></a>
 
-## Next open step: M14.5 QC and provenance page
+## M14.5 entry contract (implemented; retained for review)
 
 M14.5: a QC / provenance page showing reference versions, tool versions, imputation
 parameters and coverage stats. Nothing has been selected or verified beyond what is listed

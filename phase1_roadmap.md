@@ -16,9 +16,17 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.5, the QC / provenance page, is next.** M0–M13 and M14.1–M14.4 are implemented.
-The [current handoff](docs/handoff.md#next-open-step-m145-qc-provenance-page) records what
-it inherits.
+**M14.6, impossibility cards in their sections, is next.** M0–M13 and M14.1–M14.5 are
+implemented. The [current handoff](docs/handoff.md#next-open-step-m146-impossibility-cards)
+records what it inherits.
+
+M14.5 adds the QC and provenance page, `/runs/{run_id}/qc`, which shows what `genetics runs
+qc <run> --json` and `runs imputation <run> --json` print, whole: every QC field and warning
+with the call rate by chromosome; the run's coverage, every polygenic score's on the
+original array and after imputation and the saved ClinVar fractions, never combined; the
+imputation execution, parameters and a row per region and per job; and the reference, tool
+and knowledge-pack versions. Coverage is new on `runs qc` (`current_context.coverage`,
+agent schema 9). The route scans the whole page for genotypes, as both commands do.
 
 M14.4 adds the dashboard's search: a box at the top of every open run's nav opens
 `/runs/{run_id}/search`, which lists what `genetics runs search <run> <query> --json`
@@ -3344,8 +3352,23 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         it with the error `runs search` prints.
       - **Left for later:** a page with no run open (the guide, an empty store) has no box;
         the pack is searched by `genetics cards search`, and a pack card has no page here.
-- [ ] **M14.5** QC / provenance page: reference versions, tool versions, imputation
+- [x] **M14.5** QC / provenance page: reference versions, tool versions, imputation
       parameters, coverage stats.
+      - **Done 2026-11-20** as `/runs/{run_id}/qc`, linked from every run page's nav. See
+        [QC and provenance page](docs/agent_cli.md#qc-and-provenance-page-m145).
+      - **Two documents, whole.** The page holds what `genetics runs qc <run> --json` and
+        `runs imputation <run> --json` print; the parity check compares each key for key.
+        Both commands scan for genotypes, and the route scans the whole page.
+      - **Coverage is both records, kept apart** (`runs qc`'s `current_context.coverage`,
+        agent schema 9): every polygenic card's saved coverage before and after imputation,
+        placed or not (§0.1A), and the saved ClinVar coverage record, with a status naming
+        which of four states a run is in. Nothing is recounted.
+      - **Imputation is summarised, not paged.** A full run has about 25 regions; the page
+        gives the parameters, a row per region and a row per job. Position-level decisions
+        and every digest stay in the command's document.
+      - **Left for later:** the page shows what the manifest recorded as installed at save
+        time beside what the imputation stage used; it does not compare either with today's
+        installation.
 - [ ] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
       appendix.
 - [ ] **M14.7** Accessibility pass: keyboard navigation, contrast, screen-reader labels.
@@ -3407,6 +3430,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-20 | M14.5 | The QC and provenance page, `/runs/{run_id}/qc`, linked from every run page's nav. **Two documents, whole:** `reads.qc_view` (`runs qc --json`) and `reads.imputation_view` (`runs imputation --json`); `parity.CONTEXT["qc.html"]` compares each with its command key for key, and `check_run` visits the page. `_render(..., scanned=True)` scans the whole page, which holds no genotype. **Coverage** is new on `runs qc`: `current_context.coverage` (`reads.coverage_report`) lists every polygenic card's saved `phase_coverage` and comparable weight, placed or not, and the saved ClinVar coverage record with `clinvar_status` (`recorded`, `no-lookup`, `lookup-not-run`, `not-recorded`); agent schema 9. The text form of `runs qc` prints the same. **Imputation:** execution record, then panel, map, Beagle, Java and bref versions, requested parameters, a row per region and per job; about 25 regions, so not paged; position-level decisions stay in the command's document. Saved records are read with `dig` in the template, so a field another version did not write renders `-`. **Review** ([session review](docs/review_m145_session.md)): a ClinVar lookup that did not run was first called "saved before format 13"; it now has its own state and reason. In the browser, the tier badge wrapped and a not-placed reason inherited the row header's bold; both fixed. Five guards removed in turn, each caught. **Validation:** the full native suite passed **4,435 tests with nine skips** in 1,024 s and failed one, a walk-through key-count pin, since updated (that file passes, 14 tests); three parity tests added after the run pass with the affected suites. Strict mypy, ruff and format pass. No bundle format, knowledge schema or card changed. No personal export or saved real run was opened. |
 | 2026-11-20 | M14.4 second review | A diff-driven pass over `e42f268`. **P3, stale documentation:** the `engine/search.py` docstring and this file's M13.3 summary still said the dashboard's search "must call" the ranking; `agent_cli.md`'s list of display values lacked the refusal sentence and how `check_run` compares it. All three updated. No code defect found: every saved card has a view, so the route's lookup cannot fail, and a run that does not open never reaches `search_view`. **Handed to M14.7:** two `role="search"` forms with the same label on the search page, and the `empty-query` sentence's backticks. The search, CLI search, engine search, parity and walk-through suites pass (179 tests); ruff and format pass. See [the review](docs/review_m144_session.md#second-pass-after-the-commit). |
 | 2026-11-19 | M14.4 | The dashboard's search: `/runs/{run_id}/search` and a box at the top of every open run's nav. **One function:** the route calls `reads.search_view(bundle, parse_query(q))`, what `genetics runs search <run> <query> --json` prints without `--limit`; `web.app._open` returns the bundle the shell was built from so both read one copy. **Faces as the grid shows them**, tier first, under "Matching every word" and, below, "Matching some of the words", each with the words it matched and where; every section is searched whatever the grid's filters say, which ride along in hidden fields. **A refused query** (`QueryError`) hands the template only the engine's sentence: the box is empty, the title holds no query, the page answers 200 where the command exits 2. A blank box shows the prompt. No box on a page with no run open. **Parity:** `PAGES` row, `CONTEXT["search.html"]`, and four visits in `check_run` (no query, the first card's title, a word no card uses, a refused query whose sentence is compared with the error `runs search` prints and whose rsID must not appear). No command, agent schema, bundle format or card changed. **Review** ([session review](docs/review_m144_session.md)): in the browser, the matched line overflowed its grid cell onto the next panel; fixed and pinned. Nine guards removed in turn, each caught. **Validation:** the full native suite passes **4,426 tests with nine skips** in 962 s; the overflow fix and its test landed during that run, and the web, parity and walk-through suites pass on the final tree (326 tests). Strict mypy on four targets, ruff and format pass. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.3 second review | A diff-driven pass over `f5df3dd`, checking each sentence of the guide against the code it describes. **P3:** the polygenic paragraph described a point inside a wider distribution, where the chart draws a 95% band and never a point; the indel sentence implied a card could need an indel, where `Indel excluded` is what a card says when the array records its marker as one. Both reworded. `docs/agent_schema.md` was brought up to version 8. The guide, guide-page, schema, walk-through and parity suites pass (147 tests); strict mypy, ruff and format pass. See [the review](docs/review_m143_session.md#second-pass-after-the-commit). |

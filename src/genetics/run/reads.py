@@ -402,7 +402,9 @@ def qc_view(bundle: RunBundle) -> dict[str, Any]:
     """The saved QC report, imputation execution record and provenance. No genotype.
 
     Full imputation provenance (per-region parameters) has its own command, ``runs
-    imputation``; only its status is repeated here.
+    imputation``; only its status is repeated here. ``current_context.coverage`` collects
+    the run's coverage figures from the records that hold them (M14.5); see
+    :func:`coverage_report`.
     """
     provenance = bundle.imputation_provenance
     return _header(bundle) | {
@@ -410,6 +412,87 @@ def qc_view(bundle: RunBundle) -> dict[str, Any]:
         "imputation": _plain(bundle.imputation),
         "imputation_provenance_status": None if provenance is None else provenance.get("status"),
         "provenance": dict(bundle.provenance),
+        "current_context": {"context": "current", "coverage": coverage_report(bundle)},
+    }
+
+
+# ---------------------------------------------------------------------------
+# Coverage (M14.5)
+# ---------------------------------------------------------------------------
+
+
+def _dig(record: Any, *path: str) -> Any:
+    for key in path:
+        if not isinstance(record, Mapping):
+            return None
+        record = record.get(key)
+    return record
+
+
+def score_coverage(card: StoredCard) -> dict[str, Any]:
+    """One polygenic card's coverage, as its saved result records it.
+
+    ``phase_coverage`` is both phases' counts (the original array, and after imputation),
+    saved on every result from display schema 2; ``None`` on a card that recorded none,
+    which includes a score that was never computed. ``comparable_weight_fraction`` is the
+    share of the score's weight the placement compared with the reference, and exists only
+    for a placed score. ``reason`` is why a score was not placed, in the engine's words.
+    """
+    result = _dig(card.computation, "result")
+    phases = _dig(result, "phase_coverage")
+    return {
+        "card_id": card.card_id,
+        "title": card.title,
+        "section": card.section,
+        "status": card.status,
+        "confidence_tier": card.confidence_tier,
+        "pgs_id": _dig(result, "pgs_id"),
+        "trait": _dig(result, "authored", "trait"),
+        "placed": _dig(result, "position") is not None,
+        "phase": _dig(result, "phase"),
+        "phase_coverage": dict(phases) if isinstance(phases, Mapping) else None,
+        "comparable_weight_fraction": _dig(result, "coverage", "comparable_weight_fraction"),
+        "reason": _dig(card.computation, "reason"),
+    }
+
+
+def coverage_report(bundle: RunBundle) -> dict[str, Any]:
+    """How much of each reference the run's data reached, collected in one place (M14.5).
+
+    Two records hold coverage and each has its own denominator, so they are kept apart:
+
+    * ``polygenic``: every polygenic card, in saved order, with what fraction of its
+      score's variants and weight the original array and the imputed data each covered
+      (AGENTS.md 4.3). Every card is listed, placed or not (AGENTS.md 0.1A).
+    * ``clinvar``: the saved ClinVar coverage record (M7.6), whole, or ``None`` for a run
+      that recorded none. ``clinvar_status`` says which: ``recorded``; ``no-lookup`` (the
+      run saved no ClinVar lookup at all); ``lookup-not-run`` (the lookup did not run, and
+      ``clinvar_reason`` is its reason); or ``not-recorded`` (a lookup that ran, saved
+      before format 13 recorded coverage).
+
+    Nothing is recounted: each figure is the one the run saved.
+    """
+    scores = [score_coverage(card) for card in bundle.cards if card.kind == "polygenic"]
+    lookup = bundle.clinvar
+    record = None if lookup is None else lookup.get("coverage")
+    if lookup is None:
+        status = "no-lookup"
+    elif record is not None:
+        status = "recorded"
+    elif lookup.get("status") == "not_run":
+        status = "lookup-not-run"
+    else:
+        status = "not-recorded"
+    return {
+        "polygenic": scores,
+        "polygenic_counts": {
+            "scores": len(scores),
+            "placed": sum(1 for score in scores if score["placed"]),
+            "with_phase_coverage": sum(1 for score in scores if score["phase_coverage"]),
+        },
+        "clinvar_status": status,
+        "clinvar_reason": _dig(lookup, "reason") if status == "lookup-not-run" else None,
+        "clinvar": None if record is None else dict(record),
     }
 
 

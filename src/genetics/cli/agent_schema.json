@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read and search commands print, the saved records beside a run's cards, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 8,
+  "version": 9,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -328,7 +328,7 @@
       "additionalProperties": false
     },
     "runs.qc": {
-      "description": "A saved run's QC report, imputation execution record and provenance. Holds no genotype.",
+      "description": "A saved run's QC report, imputation execution record and provenance, and the run's coverage figures collected under `current_context` (M14.5). Holds no genotype.",
       "type": "object",
       "properties": {
         "schema": { "$ref": "#/$defs/tag.runs.qc" },
@@ -342,7 +342,17 @@
           "type": ["string", "null"],
           "description": "`recorded` when full imputation provenance was saved, another status when it was not, null before format 16. `genetics runs imputation <run>` prints the record."
         },
-        "provenance": { "$ref": "#/$defs/provenance" }
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "current_context": {
+          "type": "object",
+          "description": "What this engine collects from the saved records at read time (M14.5).",
+          "properties": {
+            "context": { "const": "current" },
+            "coverage": { "$ref": "#/$defs/run_coverage" }
+          },
+          "required": ["context", "coverage"],
+          "additionalProperties": false
+        }
       },
       "required": [
         "schema",
@@ -353,7 +363,8 @@
         "qc",
         "imputation",
         "imputation_provenance_status",
-        "provenance"
+        "provenance",
+        "current_context"
       ],
       "additionalProperties": false
     },
@@ -1140,103 +1151,103 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.clinvar": {
       "type": "object",
-      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.secondary": {
       "type": "object",
-      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.imputation": {
       "type": "object",
-      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.pgx.calls": {
       "type": "object",
-      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.hla.calls": {
       "type": "object",
-      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.ancestry": {
       "type": "object",
-      "properties": { "name": { "const": "runs.ancestry" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "runs.ancestry" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.check-query": {
       "type": "object",
-      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.guide": {
       "type": "object",
-      "properties": { "name": { "const": "cards.guide" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "cards.guide" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 8 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 9 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -1316,6 +1327,83 @@
     "run_status": {
       "description": "`future-version` is intact and needs the version of the tool that wrote it. `damaged` could not be read.",
       "enum": ["readable", "future-version", "damaged"]
+    },
+    "run_coverage": {
+      "description": "A run's coverage figures, collected from the records that hold them (M14.5). Each keeps its own denominator; nothing is recounted.",
+      "type": "object",
+      "properties": {
+        "polygenic": {
+          "type": "array",
+          "description": "Every polygenic card, in saved order, placed or not.",
+          "items": { "$ref": "#/$defs/score_coverage" }
+        },
+        "polygenic_counts": {
+          "type": "object",
+          "properties": {
+            "scores": { "type": "integer", "minimum": 0 },
+            "placed": { "type": "integer", "minimum": 0 },
+            "with_phase_coverage": { "type": "integer", "minimum": 0, "description": "Scores whose result records both phases' coverage." }
+          },
+          "required": ["scores", "placed", "with_phase_coverage"],
+          "additionalProperties": false
+        },
+        "clinvar_status": {
+          "description": "`recorded`: `clinvar` is the saved coverage record. `no-lookup`: the run saved no ClinVar lookup. `lookup-not-run`: the lookup did not run; `clinvar_reason` says why. `not-recorded`: a lookup that ran, saved before format 13 recorded coverage.",
+          "enum": ["recorded", "no-lookup", "lookup-not-run", "not-recorded"]
+        },
+        "clinvar_reason": {
+          "type": ["string", "null"],
+          "description": "The saved lookup's reason when `clinvar_status` is `lookup-not-run`; null otherwise."
+        },
+        "clinvar": {
+          "type": ["object", "null"],
+          "description": "The saved ClinVar coverage record (M7.6), as `runs clinvar` prints it under `clinvar.coverage`: the status, chip, reference and overlap counts, both ratios, the counting policy and the source's provenance."
+        }
+      },
+      "required": ["polygenic", "polygenic_counts", "clinvar_status", "clinvar_reason", "clinvar"],
+      "additionalProperties": false
+    },
+    "score_coverage": {
+      "description": "One polygenic card's coverage, as its saved result records it.",
+      "type": "object",
+      "properties": {
+        "card_id": { "type": "string" },
+        "title": { "type": "string" },
+        "section": { "type": "string" },
+        "status": { "type": "string" },
+        "confidence_tier": { "anyOf": [{ "$ref": "#/$defs/confidence_tier" }, { "type": "null" }] },
+        "pgs_id": { "type": ["string", "null"], "description": "Null for a score that was never computed." },
+        "trait": { "type": ["string", "null"] },
+        "placed": { "type": "boolean", "description": "Whether the score was placed in a reference distribution." },
+        "phase": {
+          "type": ["string", "null"],
+          "description": "The phase the placement used: `before` (the original array) or `after` (imputation). Null when not placed."
+        },
+        "phase_coverage": {
+          "type": ["object", "null"],
+          "description": "`before` and `after`, each with `status`, `reason`, `rows_scored`, `rows_total`, `variants_covered`, `variants_total`, `variant_fraction` and `weight_fraction`. Null for a score never computed and for a result saved under display schema 1."
+        },
+        "comparable_weight_fraction": {
+          "type": ["number", "null"],
+          "description": "The share of the score's absolute weight compared with the reference. Null when not placed."
+        },
+        "reason": { "type": ["string", "null"], "description": "Why the score was not placed, in the engine's words; null when placed." }
+      },
+      "required": [
+        "card_id",
+        "title",
+        "section",
+        "status",
+        "confidence_tier",
+        "pgs_id",
+        "trait",
+        "placed",
+        "phase",
+        "phase_coverage",
+        "comparable_weight_fraction",
+        "reason"
+      ],
+      "additionalProperties": false
     },
     "ancestry_pca": {
       "description": "The scatter: this run and each present-day reference population on the first two components, in pooled within-population standard deviations (M14.2). Computed at read time from the saved placement; a run saved before format 29 has no reference positions and is not drawn.",

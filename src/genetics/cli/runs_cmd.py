@@ -874,8 +874,10 @@ def runs_qc(
     """Print a saved run's QC report, imputation record and provenance. No genotype.
 
     Call rates, inferred sex and its evidence, the build check, duplicates and every QC
-    warning, then which engine, knowledge pack, references and tools produced the run.
-    Checked for genotypes before printing, like ``runs list``.
+    warning; the run's coverage, each polygenic score's before and after imputation and
+    ClinVar's (M14.5); then which engine, knowledge pack, references and tools produced the
+    run. Checked for genotypes before printing, like ``runs list``. The dashboard's QC page
+    shows this and ``runs imputation``.
     """
     try:
         bundle = store.load_run(run_id, progress=store.report_to_console)
@@ -955,6 +957,8 @@ def _qc_lines(view: Mapping[str, Any]) -> list[str]:
         f"  full provenance {_shown(view['imputation_provenance_status'])}; "
         f"`genetics runs imputation {view['run_id']}` prints it",
         "",
+        *_coverage_lines(view["current_context"]["coverage"]),
+        "",
         "Provenance",
         f"  engine       {_shown(_get(provenance, 'engine_version'))}",
         f"  knowledge    {_shown(_get(provenance, 'knowledge', 'card_count'))} card(s), digest "
@@ -978,6 +982,54 @@ def _qc_lines(view: Mapping[str, Any]) -> list[str]:
         )
     else:
         lines.append("  tools        none recorded")
+    return lines
+
+
+def _phase_text(phase: Any) -> str:
+    if not isinstance(phase, Mapping):
+        return "not recorded"
+    if phase.get("status") in {"unavailable", "unsupported_model"}:
+        return "unavailable"
+    return (
+        f"{_shown(phase.get('variants_covered'), ',')}/{_shown(phase.get('variants_total'), ',')}"
+        f" variants ({_shown(phase.get('variant_fraction'), '.1%')}), "
+        f"{_shown(phase.get('weight_fraction'), '.1%')} of weight"
+    )
+
+
+def _coverage_lines(coverage: Mapping[str, Any]) -> list[str]:
+    """The run's coverage (M14.5): every polygenic score's, then ClinVar's two fractions."""
+    counts = coverage["polygenic_counts"]
+    lines = [
+        "Coverage",
+        f"  polygenic scores  {counts['scores']} ({counts['placed']} placed); "
+        "original array | after imputation",
+    ]
+    for score in coverage["polygenic"]:
+        phases = score["phase_coverage"] or {}
+        lines.append(
+            f"    {_shown(score['pgs_id'])}  {score['card_id']}  "
+            f"{_phase_text(phases.get('before'))} | {_phase_text(phases.get('after'))}"
+        )
+    status = coverage["clinvar_status"]
+    if status != "recorded":
+        if status == "no-lookup":
+            lines.append("  ClinVar  no lookup saved")
+        elif status == "lookup-not-run":
+            lines.append(f"  ClinVar  lookup not run: {_shown(coverage['clinvar_reason'])}")
+        else:
+            lines.append("  ClinVar  coverage not recorded (saved before format 13)")
+        return lines
+    ratios = _get(coverage["clinvar"], "ratios") or {}
+    for key, label in (
+        ("reference_position_coverage", "reference positions covered"),
+        ("chip_position_annotation_share", "chip positions annotated"),
+    ):
+        ratio = _get(ratios, key)
+        lines.append(
+            f"  ClinVar  {label}  {_shown(_get(ratio, 'numerator'), ',')}/"
+            f"{_shown(_get(ratio, 'denominator'), ',')} ({_shown(_get(ratio, 'fraction'), '.2%')})"
+        )
     return lines
 
 

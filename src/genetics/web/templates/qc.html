@@ -1,0 +1,371 @@
+{#
+  The QC and provenance page (M14.5): what the export measured, how much of each reference
+  the run's data reached, how imputation ran, and which engine, knowledge pack, references
+  and tools produced the run.
+
+  Two documents, whole, and nothing else of the run: `qc_report` is what `genetics runs qc
+  <run> --json` prints and `imputation_report` is what `genetics runs imputation <run>
+  --json` prints. Both commands scan their output for genotypes, and the route scans this
+  page. Saved records are read with `dig`, which gives None where another version wrote a
+  different shape, so an old run renders "-" rather than failing.
+
+  Per-region imputation is a row per region (about 25 on a full run); each region's
+  position-level decisions stay in the command's document. Every polygenic card is listed,
+  placed or not (AGENTS.md 0.1A), and each coverage figure is the one the run saved.
+#}
+{% extends "base.html" %}
+{% block title %}Quality control and provenance · genetics{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% macro n(value) %}{% if value is none or value is boolean %}-{% elif value is number %}{{ "{:,}".format(value) }}{% else %}{{ value }}{% endif %}{% endmacro %}
+{% macro pct(value, digits=1) %}{% if value is number and value is not boolean %}{{ ("%." ~ digits ~ "f%%") | format(value * 100) }}{% else %}-{% endif %}{% endmacro %}
+{% macro rate(value) %}{% if value is number and value is not boolean %}{{ "%.4f" | format(value) }}{% else %}-{% endif %}{% endmacro %}
+{% macro text(value) %}{{ "-" if value is none else value }}{% endmacro %}
+{% macro phase_cell(phase) %}
+  {% if phase is none %}<span class="muted">not recorded</span>
+  {% elif dig(phase, "status") in ("unavailable", "unsupported_model") %}
+    <span class="muted">unavailable{% if dig(phase, "reason") %}: {{ dig(phase, "reason") }}{% endif %}</span>
+  {% else %}
+    {{ n(dig(phase, "variants_covered")) }} of {{ n(dig(phase, "variants_total")) }} variants
+    ({{ pct(dig(phase, "variant_fraction")) }}); {{ pct(dig(phase, "weight_fraction")) }} of the weight
+  {% endif %}
+{% endmacro %}
+{% block content %}
+{% set qc = qc_report.qc %}
+{% set provenance = qc_report.provenance %}
+{% set coverage = qc_report.current_context.coverage %}
+{% set execution = imputation_report.execution %}
+{% set full = imputation_report.provenance %}
+{% set stage = dig(full, "stage") %}
+<section class="panel" aria-labelledby="h-qc">
+  <h1 id="h-qc">Quality control and provenance</h1>
+  <p class="backlink"><a href="{{ shell.run_url }}">Back to the run</a></p>
+  <p class="muted">
+    Run <code>{{ qc_report.run_id }}</code>, saved {{ qc_report.created_at }} in bundle format
+    {{ qc_report.format_version }} by engine {{ text(dig(provenance, "engine_version")) }}.
+    <code>genetics runs qc {{ qc_report.run_id }} --json</code> and
+    <code>genetics runs imputation {{ qc_report.run_id }} --json</code> print everything on
+    this page.
+  </p>
+  <nav aria-label="On this page">
+    <ul class="plainlist">
+      <li><a href="#h-export">The export</a></li>
+      <li><a href="#h-coverage">Coverage</a></li>
+      <li><a href="#h-imputation">Imputation</a></li>
+      <li><a href="#h-provenance">References, tools and knowledge pack</a></li>
+    </ul>
+  </nav>
+</section>
+
+<section class="panel" aria-labelledby="h-export">
+  <h2 id="h-export">The export</h2>
+  <dl class="facts">
+    <div><dt>Vendor</dt><dd>{{ text(dig(qc, "vendor")) }}</dd></div>
+    <div><dt>File</dt><dd><code>{{ text(dig(qc, "source_path")) }}</code></dd></div>
+    <div><dt>Markers</dt><dd>{{ n(dig(qc, "call_rates", "total_markers")) }}</dd></div>
+    <div><dt>Called</dt><dd>{{ n(dig(qc, "call_rates", "called")) }} ({{ pct(dig(qc, "call_rates", "call_rate"), 2) }})</dd></div>
+    <div><dt>No-calls</dt><dd>{{ n(dig(qc, "call_rates", "no_call")) }}</dd></div>
+    <div><dt>Indel markers</dt><dd>{{ n(dig(qc, "indels", "indel_markers")) }}
+      <span class="muted">excluded from allele matching</span></dd></div>
+    <div><dt>Autosomal heterozygosity</dt><dd>{{ rate(dig(qc, "heterozygosity", "autosomal_het_rate")) }}
+      over {{ n(dig(qc, "heterozygosity", "autosomal_loci")) }} loci</dd></div>
+    <div><dt>Inferred sex</dt><dd>{{ text(dig(qc, "sex", "inferred")) }}</dd></div>
+    <div><dt>X heterozygosity (non-PAR)</dt><dd>{{ rate(dig(qc, "sex", "x_het_rate")) }}
+      over {{ n(dig(qc, "sex", "x_nonpar_loci")) }} loci</dd></div>
+    <div><dt>Y call rate</dt><dd>{{ rate(dig(qc, "sex", "y_call_rate")) }}
+      over {{ n(dig(qc, "sex", "y_loci")) }} loci</dd></div>
+    <div><dt>Het calls at haploid loci</dt><dd>{{ n(dig(qc, "het_haploid_calls")) }}</dd></div>
+    <div><dt>Duplicate rsIDs / positions</dt><dd>{{ n(dig(qc, "duplicates", "duplicate_rsids")) }} /
+      {{ n(dig(qc, "duplicates", "duplicate_positions")) }}</dd></div>
+    <div><dt>Build</dt><dd>declared {{ text(dig(qc, "build", "declared")) }}, verdict
+      <strong>{{ text(dig(qc, "build", "verdict")) }}</strong></dd></div>
+    <div><dt>Build anchors</dt><dd>{{ n(dig(qc, "build", "anchors_found")) }} of
+      {{ n(dig(qc, "build", "anchors_available")) }} found; {{ n(dig(qc, "build", "anchors_matching_37")) }}
+      at GRCh37, {{ n(dig(qc, "build", "anchors_matching_38")) }} at GRCh38</dd></div>
+  </dl>
+  {% set notes = dig(qc, "sex", "notes") %}
+  {% if notes is iterable and notes is not string and notes %}
+    <ul class="plainlist" aria-label="Sex inference notes">{% for note in notes %}<li>{{ note }}</li>{% endfor %}</ul>
+  {% endif %}
+  {% set warnings = dig(qc, "warnings") %}
+  {% if warnings is iterable and warnings is not string and warnings %}
+    <ul class="warnings" aria-label="QC warnings">
+      {% for warning in warnings %}<li class="warning">{{ warning }}</li>{% endfor %}
+    </ul>
+  {% else %}
+    <p class="muted">QC raised no warning.</p>
+  {% endif %}
+  {% set chroms = dig(qc, "call_rates", "by_chrom") %}
+  {% if chroms is iterable and chroms is not string and chroms %}
+    <div class="tablescroll">
+      <table class="breakdown">
+        <caption class="muted">Call rate by chromosome</caption>
+        <thead><tr><th scope="col">Chromosome</th><th scope="col" class="num">Markers</th><th scope="col" class="num">Called</th><th scope="col" class="num">Call rate</th></tr></thead>
+        <tbody>
+          {% for row in chroms %}
+            <tr><th scope="row">{{ text(dig(row, "chrom")) }}</th><td class="num">{{ n(dig(row, "total")) }}</td>
+              <td class="num">{{ n(dig(row, "called")) }}</td><td class="num">{{ pct(dig(row, "call_rate"), 2) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="h-coverage">
+  <h2 id="h-coverage">Coverage</h2>
+  <p class="muted">
+    Two references, each with its own denominator, so they are not combined. Every figure is
+    the one the run saved; nothing is recounted.
+  </p>
+
+  <h3>Polygenic scores</h3>
+  {% set counts = coverage.polygenic_counts %}
+  {% if not coverage.polygenic %}
+    <p class="empty">This run holds no polygenic card.</p>
+  {% else %}
+    <p>
+      {{ counts.scores }} polygenic score(s): {{ counts.placed }} placed in a reference
+      distribution, {{ counts.scores - counts.placed }} not. Coverage is the share of each
+      score's variants the data could dose, and the share of its absolute weight they carry,
+      on the original array and after imputation (AGENTS.md 4.3).
+      {% if counts.with_phase_coverage < counts.scores %}
+        {{ counts.scores - counts.with_phase_coverage }} recorded no coverage: a score that
+        was not computed has none, and a run saved before both phases were recorded shows only
+        the comparable weight.
+      {% endif %}
+    </p>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <caption class="muted">Each polygenic card, in saved order</caption>
+        <thead><tr>
+          <th scope="col">Score</th><th scope="col">Tier</th><th scope="col">Original array</th>
+          <th scope="col">After imputation</th><th scope="col" class="num">Weight compared with the reference</th>
+        </tr></thead>
+        <tbody>
+          {% for score in coverage.polygenic %}
+            {% set view = shell.cards | selectattr("card_id", "equalto", score.card_id) | first %}
+            <tr>
+              <th scope="row">
+                <a href="{{ view.url }}">{{ score.title }}</a>
+                {% if score.pgs_id %}<span class="muted">{{ score.pgs_id }}</span>{% endif %}
+                {% if not score.placed %}<br><span class="muted rowreason">Not placed: {{ text(score.reason) }}</span>{% endif %}
+              </th>
+              <td class="nowrap"><span class="tier tier-{{ view.tier_key }}">{{ view.tier_label }}</span></td>
+              <td>{{ phase_cell(dig(score, "phase_coverage", "before")) }}</td>
+              <td>{{ phase_cell(dig(score, "phase_coverage", "after")) }}</td>
+              <td class="num">{{ pct(score.comparable_weight_fraction) }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% endif %}
+
+  <h3>ClinVar</h3>
+  {% set clinvar = coverage.clinvar %}
+  {% if coverage.clinvar_status == "no-lookup" %}
+    <p class="empty">This run saved no ClinVar lookup, so its ClinVar coverage is unknown.</p>
+  {% elif coverage.clinvar_status == "lookup-not-run" %}
+    <p class="empty">The ClinVar lookup did not run, so ClinVar coverage is unknown:
+      {{ text(coverage.clinvar_reason) }}</p>
+  {% elif coverage.clinvar_status == "not-recorded" %}
+    <p class="empty">This run's ClinVar lookup was saved before coverage was recorded (bundle
+      format 13); saved results are not recounted.</p>
+  {% else %}
+    <p>Status: {{ text(dig(clinvar, "status")) }}.
+      {% if dig(clinvar, "provenance") %}ClinVar {{ text(dig(clinvar, "provenance", "version")) }},
+        {{ text(dig(clinvar, "provenance", "build")) }}.{% endif %}
+      {{ text(dig(clinvar, "notice")) }}</p>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <caption class="muted">Each fraction has its own denominator</caption>
+        <thead><tr><th scope="col">Measure</th><th scope="col" class="num">Overlap / denominator</th><th scope="col" class="num">Percent</th></tr></thead>
+        <tbody>
+          {% for key, label in [("reference_position_coverage", "ClinVar reference positions covered"), ("chip_position_annotation_share", "Chip positions annotated by ClinVar")] %}
+            {% set ratio = dig(clinvar, "ratios", key) %}
+            <tr><th scope="row">{{ label }}</th>
+              <td class="num">{{ n(dig(ratio, "numerator")) }} / {{ n(dig(ratio, "denominator")) }}</td>
+              <td class="num">{{ pct(dig(ratio, "fraction"), 2) if dig(ratio, "fraction") is not none else "undefined" }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <p class="muted">Positional coverage, not clinical sensitivity.
+      <a href="{{ shell.run_url }}/clinvar">The ClinVar reference lookup</a> gives every count
+      behind these two fractions.</p>
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="h-imputation">
+  <h2 id="h-imputation">Imputation</h2>
+  {% if execution is none %}
+    <p class="empty">This run recorded no imputation execution: it was saved before bundle
+      format 14.</p>
+  {% else %}
+    {% set summary = dig(execution, "summary") %}
+    <dl class="facts">
+      <div><dt>Mode</dt><dd>{{ text(dig(execution, "mode")) | replace("_", " ") }}</dd></div>
+      <div><dt>Status</dt><dd>{{ text(dig(execution, "status")) | replace("_", " ") }}</dd></div>
+      <div><dt>Card input</dt><dd>{{ text(dig(execution, "card_input")) | replace("_", " ") }}</dd></div>
+      <div><dt>Region jobs</dt><dd>{{ n(dig(summary, "jobs")) }}</dd></div>
+      <div><dt>Dosage records</dt><dd>{{ n(dig(summary, "records")) }}</dd></div>
+      <div><dt>Ploidy conflicts</dt><dd>{{ n(dig(summary, "ploidy_conflicts")) }}</dd></div>
+      <div><dt>Resumed from a checkpoint</dt><dd>{{ "yes" if dig(summary, "resumed") is sameas true else "no" if dig(summary, "resumed") is sameas false else "-" }}</dd></div>
+    </dl>
+    {% set sources = dig(summary, "sources") %}
+    {% if sources is mapping and sources %}
+      <p>Dosage records by source: {% for name, count in sources.items() %}{{ name | replace("_", " ") }} {{ n(count) }}{{ "; " if not loop.last }}{% endfor %}.</p>
+    {% endif %}
+    {% set unsupported = dig(summary, "unsupported_positions") %}
+    {% if unsupported is mapping and unsupported %}
+      <p>Not imputed (no panel for the chromosome): {% for chrom, count in unsupported.items() %}{{ chrom }} {{ n(count) }} position(s){{ "; " if not loop.last }}{% endfor %}.</p>
+    {% endif %}
+  {% endif %}
+
+  <h3>Full provenance</h3>
+  {% if full is none %}
+    <p class="empty">Not recorded: this run was saved before full imputation provenance
+      existed (bundle format 16).</p>
+  {% elif dig(full, "status") != "recorded" or stage is none %}
+    <p class="empty">{{ "Imputation was explicitly disabled for this run (--no-impute), so there is no stage to describe." if dig(full, "status") == "disabled" else "Not recorded: the writer that saved this run supplied no completed imputation stage." }}</p>
+  {% else %}
+    {% set contract = dig(stage, "contract") %}
+    {% set beagle = dig(contract, "beagle") %}
+    {% set options = dig(contract, "options") %}
+    <dl class="facts">
+      <div><dt>Reference panel</dt><dd>{{ text(dig(stage, "panel_source", "id")) }} · {{ text(dig(stage, "panel_source", "version")) }}</dd></div>
+      <div><dt>Genetic maps</dt><dd>{{ text(dig(stage, "map_source", "id")) }} · {{ text(dig(stage, "map_source", "version")) }}</dd></div>
+      <div><dt>Beagle</dt><dd>{{ text(dig(beagle, "version")) }}</dd></div>
+      <div><dt>Java (Beagle)</dt><dd>{{ text(dig(beagle, "java", "version")) }}</dd></div>
+      <div><dt>bref3 / unbref3</dt><dd>{{ text(dig(contract, "bref", "bref3", "version")) }} / {{ text(dig(contract, "bref", "unbref3", "version")) }}</dd></div>
+      <div><dt>Target sex</dt><dd>{{ text(dig(contract, "sex")) }}</dd></div>
+      <div><dt>Policy</dt><dd>{{ text(dig(contract, "policy")) }}</dd></div>
+    </dl>
+    {% if options is mapping %}
+      <div class="tablescroll">
+        <table class="breakdown">
+          <caption class="muted">Requested parameters; each region job overrides the interval and ploidy below</caption>
+          <thead><tr><th scope="col">Parameter</th><th scope="col">Value</th></tr></thead>
+          <tbody>
+            {% for key, value in options | dictsort %}
+              <tr><th scope="row"><code>{{ key }}</code></th><td><code>{{ text(value) }}</code></td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+    {% set jobs = dig(stage, "jobs") %}
+    {% set regions = dig(stage, "regions") %}
+    {% if regions is iterable and regions is not string and regions %}
+      <div class="tablescroll">
+        <table class="breakdown">
+          <caption class="muted">Each region, as the stage decided it</caption>
+          <thead><tr>
+            <th scope="col">Region</th><th scope="col">Status</th><th scope="col" class="num">Ploidy</th>
+            <th scope="col" class="num">Typed positions</th><th scope="col" class="num">Written</th>
+            <th scope="col" class="num">Called</th><th scope="col">Outcomes</th>
+          </tr></thead>
+          <tbody>
+            {% for region in regions %}
+              {% set outcomes = dig(region, "outcomes") %}
+              <tr><th scope="row">{{ text(dig(region, "region")) }}</th>
+                <td>{{ text(dig(region, "status")) | replace("_", " ") }}</td>
+                <td class="num">{{ n(dig(region, "ploidy")) }}</td>
+                <td class="num">{{ n(dig(region, "positions")) }}</td>
+                <td class="num">{{ n(dig(region, "written")) }}</td>
+                <td class="num">{{ n(dig(region, "called")) }}</td>
+                <td>{% if outcomes is mapping %}{% for name, count in outcomes.items() %}{{ name | replace("_", " ") }} {{ n(count) }}{{ "; " if not loop.last }}{% endfor %}{% else %}-{% endif %}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% endif %}
+    {% if jobs is iterable and jobs is not string and jobs %}
+      <div class="tablescroll">
+        <table class="breakdown">
+          <caption class="muted">Each region job's two Beagle runs: phasing, then imputation</caption>
+          <thead><tr>
+            <th scope="col">Region</th><th scope="col">Interval</th><th scope="col" class="num">Ploidy</th>
+            <th scope="col" class="num">Seed</th><th scope="col" class="num">Threads</th><th scope="col" class="num">Heap (MiB)</th>
+            <th scope="col" class="num">Phasing (s)</th><th scope="col" class="num">Imputation (s)</th>
+          </tr></thead>
+          <tbody>
+            {% for job in jobs %}
+              {% set used = dig(job, "impute", "contract", "options") %}
+              <tr><th scope="row">{{ text(dig(job, "region", "name")) }}</th>
+                <td><code>{{ text(dig(used, "chrom")) }}</code></td>
+                <td class="num">{{ n(dig(used, "target_ploidy")) }}</td>
+                <td class="num">{{ text(dig(used, "seed")) }}</td>
+                <td class="num">{{ n(dig(used, "nthreads")) }}</td>
+                <td class="num">{{ n(dig(used, "memory_mb")) }}</td>
+                <td class="num">{{ "%.1f" | format(dig(job, "phase", "elapsed_seconds")) if dig(job, "phase", "elapsed_seconds") is number else "-" }}</td>
+                <td class="num">{{ "%.1f" | format(dig(job, "impute", "elapsed_seconds")) if dig(job, "impute", "elapsed_seconds") is number else "-" }}</td></tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      <p class="muted">Every input, output and tool digest of each job, and the position-level
+        decisions behind each region's outcomes, are in <code>genetics runs imputation {{ qc_report.run_id }} --json</code>.</p>
+    {% endif %}
+    {% set limitations = dig(stage, "limitations") %}
+    {% if limitations is iterable and limitations is not string and limitations %}
+      <p>Limitations the stage records:</p>
+      <ul class="plainlist">{% for item in limitations %}<li>{{ item }}</li>{% endfor %}</ul>
+    {% endif %}
+  {% endif %}
+</section>
+
+<section class="panel" aria-labelledby="h-provenance">
+  <h2 id="h-provenance">References, tools and knowledge pack</h2>
+  <p class="muted">What was installed when the run was saved, as the run recorded it. The
+    imputation stage above records what it actually used, which can differ after an install
+    changes.</p>
+  {% set knowledge = dig(provenance, "knowledge") %}
+  <dl class="facts">
+    <div><dt>Engine</dt><dd>{{ text(dig(provenance, "engine_version")) }}</dd></div>
+    <div><dt>Knowledge pack</dt><dd>{{ n(dig(knowledge, "card_count")) }} card(s), card schema
+      {{ text(dig(knowledge, "card_schema_version")) }}</dd></div>
+    <div><dt>Pack digest</dt><dd><code class="digest">{{ text(dig(knowledge, "digest")) }}</code></dd></div>
+  </dl>
+
+  <h3>References</h3>
+  {% set references = dig(provenance, "references") %}
+  {% set sources = dig(references, "sources") %}
+  {% if sources is mapping and sources %}
+    <div class="tablescroll">
+      <table class="breakdown">
+        <caption class="muted">{{ sources | length }} reference source(s) in the lock at save time</caption>
+        <thead><tr><th scope="col">Source</th><th scope="col">Version</th><th scope="col">Licence</th></tr></thead>
+        <tbody>
+          {% for name, entry in sources.items() %}
+            <tr><th scope="row"><code>{{ name }}</code></th><td>{{ text(dig(entry, "version")) }}</td><td>{{ text(dig(entry, "license")) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No reference recorded: {{ text(dig(references, "reason")) }}</p>
+  {% endif %}
+
+  <h3>Tools</h3>
+  {% set tools = dig(provenance, "tools") %}
+  {% if tools is mapping and tools %}
+    <div class="tablescroll">
+      <table class="breakdown">
+        <caption class="muted">Pinned tools the installer had recorded at save time</caption>
+        <thead><tr><th scope="col">Tool</th><th scope="col">Version</th><th scope="col">Reported by the binary</th><th scope="col">SHA-256</th></tr></thead>
+        <tbody>
+          {% for name, entry in tools.items() %}
+            <tr><th scope="row"><code>{{ name }}</code></th><td>{{ text(dig(entry, "version")) }}</td>
+              <td>{{ text(dig(entry, "reported_version")) }}</td><td><code class="digest">{{ text(dig(entry, "sha256")) }}</code></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="empty">No tool was recorded as installed when this run was saved.</p>
+  {% endif %}
+</section>
+{% endblock %}

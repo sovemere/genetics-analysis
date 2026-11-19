@@ -319,6 +319,8 @@ page shows: what each confidence tier means and what earns it, every ceiling, th
 rarity inversion with its benchmarks, and the array's limits, read from the engine.
 `genetics runs clinvar`, `runs secondary`, `runs imputation`, `genetics pgx calls` and
 `genetics hla calls` print a run's other saved records, the ones the dashboard gives a page.
+The QC and provenance page (`/runs/<run>/qc`) shows what `runs qc` and `runs imputation`
+print, including the run's coverage, which `runs qc` collects from the saved records.
 **A test holds the two front-ends together** (`tests/test_parity.py`): a dashboard route
 with no command beside it, an engine function only the dashboard calls, or a value on a page
 that no command's JSON holds fails it. A new page, context key or view field has to be

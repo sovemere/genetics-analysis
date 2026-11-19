@@ -609,6 +609,13 @@ a { color: var(--accent); }
 
 .tablescroll { overflow-x: auto; }
 
+/* A SHA-256 is 64 characters with no break opportunity; let it wrap rather than widen the
+   page (the QC and provenance page, M14.5). */
+.digest { overflow-wrap: anywhere; word-break: break-all; }
+.breakdown caption { text-align: left; padding-bottom: 0.25rem; }
+.breakdown .rowreason { font-weight: normal; }
+.breakdown .nowrap { white-space: nowrap; }
+
 .breakdown { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
 .breakdown th, .breakdown td { text-align: left; padding: 0.35rem 0.6rem; border-bottom: 1px solid var(--line); }
 .breakdown thead th { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }

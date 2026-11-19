@@ -79,6 +79,7 @@ __all__ = [
     "banner_for",
     "card_path",
     "card_views",
+    "dig",
     "filterable_sections",
     "filterable_tiers",
     "find_card",
@@ -135,6 +136,10 @@ def _get(mapping: Mapping[str, Any] | None, *path: str) -> Any:
             return None
         current = current.get(key)
     return current
+
+
+dig = _get
+"""The same walk, for templates reading a saved record (the QC page, M14.5)."""
 
 
 def _number(value: Any) -> float | None:

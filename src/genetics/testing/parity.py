@@ -140,6 +140,13 @@ PAGES: Final[tuple[Page, ...]] = (
         "the lookup's ACMG gene-list overlaps",
     ),
     Page(
+        "/runs/{run_id}/qc",
+        ("genetics runs qc <run> --json", "genetics runs imputation <run> --json"),
+        "the QC report, the run's coverage (each polygenic score's, before and after "
+        "imputation, and ClinVar's), the imputation parameters and region jobs, and the "
+        "reference, tool and knowledge-pack versions (M14.5)",
+    ),
+    Page(
         "/runs/{run_id}/ancestry",
         ("genetics runs ancestry <run> --json",),
         "the saved ancestry record: the PCA scatter, the nearest populations, ancient "
@@ -1283,6 +1290,17 @@ def _report_keys(command: str, document: Callable[[Documents, Mapping[str, Any]]
     return Handed(command, compare)
 
 
+def _whole(command: str, document: Callable[[Documents], Any]) -> Handed:
+    """A command's document, whole: every key it prints is on the page, and no other."""
+
+    def compare(value: Any, documents: Documents, context: Mapping[str, Any], where: str) -> None:
+        printed = {key: item for key, item in document(documents).items() if key != "schema"}
+        if plain(value) != printed:
+            raise ParityError(f"{where} differs from what `{command}` prints")
+
+    return Handed(command, compare)
+
+
 def _pgx_document(documents: Documents, context: Mapping[str, Any]) -> Any:
     return documents.pgx(context["pgx_gene"])
 
@@ -1385,6 +1403,11 @@ CONTEXT: Final[dict[str, Template]] = {
     },
     "ancestry.html": _FRAME
     | {"ancestry_report": _report_keys("runs ancestry", lambda documents, _: documents.ancestry)},
+    "qc.html": _FRAME
+    | {
+        "qc_report": _whole(_QC, lambda documents: documents.qc),
+        "imputation_report": _whole(_IMPUTATION, lambda documents: documents.imputation),
+    },
     "search.html": _FRAME
     | {
         "search": Handed("runs search", _search),
@@ -1735,6 +1758,7 @@ def check_run(run: Path) -> Report:
                 check(f"{address}?page={number}")
         check(f"{base}/hla")
         check(f"{base}/ancestry")
+        check(f"{base}/qc")
 
         # Search (M14.4): no query; the first card's title, which matches at least that
         # card and usually some others in part; a word no card uses; and a refused query,

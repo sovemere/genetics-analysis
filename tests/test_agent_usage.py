@@ -359,7 +359,7 @@ def test_each_key_the_page_names_is_in_the_document(
     run_id: str, agent_schema_check: Callable[[object], str]
 ) -> None:
     documents: dict[str, Any] = {}
-    for (command, table), count in zip(marked("keys"), (6, 18), strict=True):
+    for (command, table), count in zip(marked("keys"), (7, 18), strict=True):
         document = json.loads(run(command, run_id))
         documents[agent_schema_check(document)] = document
         keys = first_cells(table)
@@ -374,6 +374,7 @@ def test_each_key_the_page_names_is_in_the_document(
     assert dig(qc, "qc.warnings") == []
     assert dig(qc, "qc.build.verdict") == "indeterminate"
     assert dig(qc, "imputation.status") == "not_recorded"
+    assert dig(qc, "current_context.coverage.clinvar_status") == "lookup-not-run"
     assert dig(document, "card.status") == "matched"
     assert dig(document, "card.observation.call_source") == "direct"
     assert dig(document, "current_context.confidence.basis") == "ceiling"
