@@ -1,4 +1,4 @@
-# Reviewing a run as an agent (M13.6)
+# Reviewing a run as an agent (M13.6, M13.7)
 
 Written 2026-11-15. This page is the walk-through for an agent asked to review a saved run:
 which command to run at each step, which keys to read, what may be searched online, and
@@ -20,13 +20,14 @@ Read this before the first command. A run is one person's DNA ([AGENTS.md §1](.
 |---|---|---|
 | `genetics cards search <query>` | no | yes |
 | `genetics cards evidence <card-id>` | no | yes |
+| `genetics cards check-query <query>` | no | yes |
 | `genetics schema`, `genetics version --json` | no | yes |
 | `genetics runs list` | no, but it names the runs | no |
 | `genetics runs qc <run>` | no genotype; it holds the inferred sex and call rates | no |
 | `genetics runs card`, `runs show`, `runs search`, `runs clinvar`, `runs secondary`, `pgx calls`, `hla calls` | yes | no |
 | `genetics runs imputation <run> --dosages` | yes, the whole imputed genome | no, and a review never needs it |
 
-Three rules follow.
+Four rules follow.
 
 - **Everything that leaves the machine is written from `cards` output.** A search query,
   a URL, a file, an issue, a commit message and a memory note are built from
@@ -37,6 +38,10 @@ Three rules follow.
   question about a variant. The same words with the reader's alleles, or narrowed to
   "one copy", tell a search engine a result. If the reader's result makes one question
   more interesting than another, ask both.
+- **Check each query before it is sent.** `genetics cards check-query <query> --card
+  <card-id>` refuses a call written out and a result told in words, and exits 1. It also
+  lists each word the card's evidence does not print. Such a word may be sent only if it
+  came from a paper already read. See [step 7](#7-search-further).
 - **Read the narrowest run command that answers the question.** An agent on a hosted model
   sends what it reads to that model's provider, and AGENTS.md §1.3 lists a prompt to a
   remote model among the places a genotype must not go. The owner asking a hosted agent
@@ -70,8 +75,9 @@ The answer itself goes to the reader, in the terminal. It states their result pl
    effect size and its units, the sample size and population, and whether a second paper
    really is an independent replication. Read the table the number comes from. An abstract
    often rounds it or leaves it out.
-7. **Search further, if the question needs it.** Queries follow the rules above. A fact
-   from a search result is a lead, not a source: open the paper and read it there.
+7. **Search further, if the question needs it.** Queries follow the rules above, and
+   each passes `genetics cards check-query` before it is sent. A fact from a search
+   result is a lead, not a source: open the paper and read it there.
 8. **Answer.** See [What an answer carries](#what-an-answer-carries).
 
 ## What an answer carries
@@ -254,12 +260,40 @@ Queries that could follow, each written from the output of step 5:
 - `WNT10A hair shape meta-analysis`
 - `WNT10A intronic marker hair shape`
 
-`genetics cards search` refuses a query that reads as a genotype, with
-`error.kind: genotype-in-query`, and so does `genetics runs search`. Nothing checks a web
-search yet: M13.7 owns that lint. Until then the rule is the one above, and the test
-behind this page holds these four examples to a part of it: their words. `rs7349332 one
-copy` is made of words step 5 prints and tells a result all the same, so the rule is
-still the reader's to keep.
+Each one is checked before it is sent:
+
+<!-- run: genetics cards check-query rs7349332 WNT10A hair curl --card wnt10a_hair_curl -->
+```text
+clean: no rule refuses this query, and every word is in the cards' evidence.
+```
+
+`cards check-query` refuses a query, exits 1 and never repeats it, when one of these rules
+finds something:
+
+| Rule | Finds | Kind |
+|---|---|---|
+| `genotype-shape` | Any shape the privacy scanner knows, such as an rsID with a call attached by an equals sign | call |
+| `marker-with-alleles` | An rsID beside two alleles: merged, apart, or joined by a slash, pipe, semicolon or comma | call |
+| `diplotype` | Two star or HLA alleles joined by a slash | call |
+| `zygosity` | "heterozygous", "homozygote" and the like | result |
+| `allele-count` | "one copy", "two copies", "one T allele" | result |
+| `first-person` | "my", "do I", "I have" | result |
+| `run-id` | A run id in the engine's format | result |
+| `confidence-tier` | A tier, such as "likely artifact" or "moderate confidence" | result |
+
+A variant's alleles written as a change, `C>T`, are a variant and pass. `rs7349332 one
+copy` is made of words step 5 prints, and `allele-count` refuses it. `genetics cards
+search` and `genetics runs search` refuse the three `call` rules, with `error.kind:
+genotype-in-query`. They search the `result` words, because nothing they read leaves the
+machine and a reader may want the cards that say "homozygous".
+
+With `--card`, the check also lists each query word that card's evidence does not
+print, as `unsourced`. That is advice and not a refusal. `WNT10A odonto-onycho-dermal
+dysplasia` lists four words, and each comes from Eriksson et al., read in step 6. A
+haplogroup, an HLA type or a tier has no shape of its own, so this list is where one
+shows up. A word that came from the run is never sent.
+
+No rule list is complete, so the rules above still apply to a query the check passes.
 
 This example needed no search beyond the two cited papers.
 
@@ -363,9 +397,10 @@ No owner question was asked. The M13.6 entry contract listed four open points:
 - **The example is tested.** A walk-through that is only prose goes stale when a command
   changes. See below.
 - **What may be searched is stated as a rule about sources**, not as a list of forbidden
-  strings: what leaves the machine is written from `cards` output. M13.7 owns the lint.
+  strings: what leaves the machine is written from `cards` output. M13.7 added the lint
+  (`cards check-query`) under that rule; it does not replace it.
 
-One thing here is new and the owner may want it otherwise. The third rule under
+One thing here is new and the owner may want it otherwise. The fourth rule under
 [What may leave the machine](#what-may-leave-the-machine) reads AGENTS.md §1.3's "a prompt
 to a remote model" beside §0's "a CLI agent can be pointed at a saved run", and settles
 it as: the owner's request covers the cards asked about, read narrowly.
@@ -382,11 +417,13 @@ it as: the owner's request covers the cards asked about, read narrowly.
 - **Each key in a table marked `keys:` exists** in the document that command prints,
   and the document is checked against the agent schema.
 - **Each query in the list marked `queries:` is made only of words that
-  `cards evidence --json` prints** for that card, and none reads as a genotype. A fifth
-  query holding the run's genotype, its tier or the word "heterozygous" fails the first
-  check. That check reads words and not meaning: the marker with "one copy", or followed
-  by its two alleles apart, uses only words the evidence prints, so both pass that check
-  and the scanner. The test asserts they do, so this sentence fails when M13.7 closes it.
+  `cards evidence --json` prints** for that card, and `cards check-query --card` calls it
+  clean. A fifth query holding the run's genotype, its tier or the word "heterozygous"
+  fails. So do the two that M13.6 left open: the marker with "one copy", and the marker
+  followed by its two alleles apart. Their words are all ones the evidence prints, and
+  `cards check-query` refuses both.
+- **The rule table under step 7 is the lint's own**: its rules, in order, with each
+  one's kind.
 - **The statuses, tier bases and error kinds the page names in prose** are the agent
   schema's, and the kinds are the ones the commands report.
 - **The page holds nothing the privacy scanner reads as a genotype**, and no command that

@@ -141,6 +141,25 @@ def test_a_query_that_reads_as_a_genotype_is_refused_without_being_repeated() ->
     assert parse_query("rs4988235").terms == ("rs4988235",)
 
 
+@pytest.mark.privacy
+@pytest.mark.parametrize(
+    "text",
+    ["rs4988235 " + "C T", "rs4988235 " + "CT", "CYP2C19 " + "*1/*17", "rs4988235(" + "C;T)"],
+)
+def test_a_call_the_scanner_does_not_know_is_refused_too(text: str) -> None:
+    """Since M13.7 a search refuses every call shape the outbound lint knows."""
+    assert find_genotypes(text) == []
+    with pytest.raises(engine.GenotypeQueryError):
+        parse_query(text)
+
+
+def test_a_result_told_in_words_is_still_searched() -> None:
+    """Nothing leaves the machine, and "homozygous" can be what a reader wants to find."""
+    assert parse_query("homozygous").terms == ("homozygous",)
+    assert parse_query("rs4988235 one copy").terms == ("rs4988235", "one", "copy")
+    assert parse_query("rs4988235 " + "C>T").terms == ("rs4988235", "c", "t")
+
+
 # ---------------------------------------------------------------------------
 # Ranking
 # ---------------------------------------------------------------------------
@@ -411,7 +430,12 @@ def test_no_pack_search_result_holds_a_genotype(pack: KnowledgePack) -> None:
         if card.match is not None:
             for variant in card.match.variants:
                 queries.add(variant.rsid)
-                queries.add(f"{variant.rsid} {' '.join(variant.key.alleles)}")
+                # A variant's alleles written as a change. Written apart they read as a
+                # call at it, and since M13.7 the search refuses them (below).
+                queries.add(f"{variant.rsid} {'>'.join(variant.key.alleles)}")
+                apart = f"{variant.rsid} {' '.join(variant.key.alleles[:2])}"
+                with pytest.raises(engine.GenotypeQueryError):
+                    parse_query(apart)
     for text in sorted(queries):
         view = engine.pack_view(pack.cards, parse_query(text))
         assert find_genotypes(json.dumps(view, indent=2, ensure_ascii=False)) == [], text

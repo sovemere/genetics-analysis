@@ -46,6 +46,7 @@ from enum import StrEnum
 from pathlib import Path
 from typing import IO, Any, Protocol
 
+from genetics.outbound import check_url
 from genetics.refs import lock as lockfile
 from genetics.refs import postprocess
 from genetics.refs.manifest import Manifest, RemoteFile, Source
@@ -95,6 +96,7 @@ class UrllibTransport:
         self._timeout = timeout
 
     def open(self, url: str, *, offset: int = 0) -> Chunked:
+        check_url(url)
         request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT})
         if offset > 0:
             request.add_header("Range", f"bytes={offset}-")
@@ -907,6 +909,7 @@ class UrllibProber:
         return result
 
     def _ask(self, url: str, *, method: str, first_byte_only: bool = False) -> HeadResult:
+        check_url(url)
         request = urllib.request.Request(url, method=method, headers={"User-Agent": USER_AGENT})
         if first_byte_only:
             request.add_header("Range", "bytes=0-0")

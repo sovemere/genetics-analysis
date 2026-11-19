@@ -1,6 +1,8 @@
-# Handoff: M13.7 outbound-query lint
+# Handoff: M14.1 sections and empty states
 
-As of 2026-11-15, **M0-M12 and M13.1-M13.6 are implemented; M13.7 is next**. See
+As of 2026-11-19, **M0-M13 are implemented; M14.1 is next**. See
+[the M14.1 entry contract](#next-open-step-m141-sections-and-empty-states),
+[the M13.7 record](#accepted-m137-outbound-query-lint),
 [the M13.7 entry contract](#next-open-step-m137-outbound-query-lint),
 [the M13.6 record](#accepted-m136-review-workflow),
 [the M13.5 record](#accepted-m135-parity-test),
@@ -8,6 +10,13 @@ As of 2026-11-15, **M0-M12 and M13.1-M13.6 are implemented; M13.7 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M13.7, the outbound-query lint, is implemented.** `genetics cards check-query` is what an
+agent runs on every web search before sending it. It refuses a genotype written out and a
+result told in words, exits 1, never prints the query, and with `--card` lists each word
+the card's evidence does not print. The search commands refuse the same call shapes, the
+fetcher checks every URL, and agent schema version 6 describes the verdict. The
+[M13.7 session review](review_m137_session.md) closed full-width and punctuation
+bypasses before the commit.
 **M13.6, the agent review walk-through, is implemented.**
 [Reviewing a run as an agent](agent_usage.md) gives the eight steps of a review, the keys
 to read, the rule for what may leave the machine and what an answer has to carry, and
@@ -564,9 +573,79 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m141-sections-and-empty-states"></a>
+
+## Next open step: M14.1 sections and empty states
+
+M14.1: all thirteen sections wired, each with an explicit empty state explaining *why* it
+is empty when it is. Nothing has been selected or verified beyond what is listed here.
+
+What already exists:
+
+- **All thirteen sections render** in the nav and the grid whatever a run holds (M4.5,
+  `views.section_views`, `_section_groups`), and an empty one carries a sentence from
+  `reads.empty_reason`, which `runs show --section` prints too.
+- **That sentence is out of date.** For a section with no card it says "Not built yet —
+  roadmap M…", and since M12 every section has cards in the committed pack. A run with no
+  card in a section was saved before the pack had them, or with a pack that held none. For
+  a section whose cards all failed to interpret it says only that each card states its
+  reason.
+- **The parity test compares the nav's and the grid's sentence with `runs show
+  --section`.** A changed sentence has to come from one function.
+
+What is open:
+
+- What a total-zero section says now that every section is built.
+- How much of the cards' statuses an empty section summarises, and which reasons it may
+  quote. A `not_run` card's reason is the engine's own sentence; a failed match's is about
+  the call.
+- The ancestry section holds three assay-limit cards and no result: the ancestry analysis
+  is a run-wide record no page shows. M14.2 gives it a page.
+
+<a id="accepted-m137-outbound-query-lint"></a>
+
+## Accepted M13.7 outbound-query lint
+
+Implemented on 2026-11-19. No owner question was asked: the entry contract's open points
+are settled in [the Query check section](agent_cli.md#query-check-m137)'s Decisions.
+
+- **What there is to lint:** a command, `genetics cards check-query <query> [--card ID]
+  [--json]`, because the engine builds no web search and an agent writes its own. It reads
+  the pack only, exits 1 on `refused`, and never prints the query.
+- **Shapes and sources, both.** Eight rules on `genetics.outbound`: three `call` rules (the
+  privacy scanner's shapes, an rsID beside two alleles, a diplotype) and five `result`
+  rules (zygosity, a count of copies, the first person, a run id, a confidence tier). With
+  `--card`, every query word the cards' evidence does not print is listed as `unsourced`.
+  That is advice: a word from a cited paper is fair to search.
+- **The two queries M13.6 left open are refused**, and the walk-through's test asserts it.
+- **The search commands refuse the call rules** (`engine.search.parse_query` calls
+  `outbound.reads_as_call`) and still search result words.
+- **The engine's own requests are checked.** The fetcher calls `outbound.check_url` before
+  each request, and a test reads the source for every request a module builds.
+- **Where §1.3 is reinforced:** AGENTS.md §1.3 itself now says to run every outbound query
+  through the check and that its rules are a floor; §3 and the walk-through repeat it.
+- **The hosted-agent reading stays as M13.6 wrote it**, still unconfirmed by the owner.
+
+Changed for a caller: agent schema version 6 (one payload, `cards.check-query`, and the
+`query_rule` vocabulary). `cards search` and `runs search` refuse an rsID beside two
+alleles, which they searched before; write a variant's alleles as `C>T`. No bundle format,
+knowledge schema or card changed.
+
+The [M13.7 session review](review_m137_session.md) closed two bypasses (full-width
+characters, punctuation between the rsID and the pair), stopped listing question words as
+unsourced, and pointed the zygosity advice at DOIs after finding that one cited title in
+the pack holds "Homozygous".
+
+Validation on 2026-11-19, Windows, Python 3.13, with Java 17 and the pinned PLINK/Beagle
+tools configured: the full native suite passed 4,358 tests with nine skips in 778 s before
+the review, and **4,365 with nine skips** in 752 s after it. Strict mypy, ruff and
+format pass.
+
+**Saved runs repeat their deep checks once**, since Python source changed.
+
 <a id="next-open-step-m137-outbound-query-lint"></a>
 
-## Next open step: M13.7 outbound-query lint
+## M13.7 entry contract (implemented; retained for review)
 
 M13.7 reinforces AGENTS.md §1.3 (an agent researches the variant, never the reader's
 genotype at it) and adds a lint or test for genotype strings in outbound query

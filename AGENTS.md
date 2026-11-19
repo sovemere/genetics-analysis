@@ -112,6 +112,16 @@ messages, not issue text, not a web search, not a prompt to a remote model, not 
 artifact. When an agent needs to research a card online, it searches the *variant*
 (`rs17822931`, ABCC11, earwax), never the *user's genotype at that variant*.
 
+That includes a result told in words. "One copy", "heterozygous", "my", the two alleles
+written apart, a diplotype, the tier a card earned and a run id each tell a search engine
+the result as surely as the genotype does. **Run every outbound query through
+`genetics cards check-query <query> --card <card-id>` before sending it.** It refuses
+those, exits 1, and lists each word the card's evidence does not print; such a word may be
+sent only if it came from a paper already read. Its rules are a floor, not the rule: a
+query it passes can still tell a result, and the rule above still decides. Every request
+the engine itself makes passes `genetics.outbound.check_url`, and a test fails a new
+network call that skips it.
+
 **1.4 — Reference data is fetched, never vendored.** See §5.
 
 **1.5 — Default to writing outside the repo.** Analysis runs default to an OS user-data
@@ -302,6 +312,7 @@ knowledge pack only, holds no genotype, and is what a web search starts from (§
 `cards search` finds a card id from a phrase such as "curly hair", also from the pack alone;
 `genetics runs search <run> <query>` searches one saved run and returns each card's result.
 Both refuse a query that reads as a genotype: search for the variant, never a call at it.
+`genetics cards check-query` is run on every web search before it is sent (§1.3).
 `genetics runs clinvar`, `runs secondary`, `runs imputation`, `genetics pgx calls` and
 `genetics hla calls` print a run's other saved records, the ones the dashboard gives a page.
 **A test holds the two front-ends together** (`tests/test_parity.py`): a dashboard route

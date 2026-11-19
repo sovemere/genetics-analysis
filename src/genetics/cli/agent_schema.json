@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read and search commands print, the saved records beside a run's cards, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 5,
+  "version": 6,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -97,6 +97,13 @@
       "scanned": false
     },
     {
+      "name": "cards.check-query",
+      "command": "genetics cards check-query <query> --json",
+      "reads": "knowledge pack",
+      "holds_genotype": false,
+      "scanned": true
+    },
+    {
       "name": "error",
       "command": "a failing command with --json (docs/agent_schema.md lists them)",
       "reads": "nothing",
@@ -118,6 +125,7 @@
     { "$ref": "#/$defs/runs.imputation" },
     { "$ref": "#/$defs/pgx.calls" },
     { "$ref": "#/$defs/hla.calls" },
+    { "$ref": "#/$defs/cards.check-query" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -779,6 +787,56 @@
       ],
       "additionalProperties": false
     },
+    "cards.check-query": {
+      "description": "Whether a query may leave the machine (M13.7). It reads the knowledge pack only and never repeats the query. The command exits 1 when `status` is `refused`, with this document and not an error document: the check ran, and its answer is no.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.cards.check-query" },
+        "status": {
+          "description": "`refused`: a rule found a call or a result; do not send the query. `unsourced`: no rule refused it, but some words are not in the named cards' evidence. `clean`: no rule refused it and, where cards were named, every word is in their evidence.",
+          "enum": ["refused", "unsourced", "clean"]
+        },
+        "length": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Characters in the query as checked: NFKC-normalised, with each run of whitespace made one space. The problems' offsets count in this."
+        },
+        "problems": {
+          "type": "array",
+          "description": "Each refused span, in order. Empty unless `status` is `refused`.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rule": { "$ref": "#/$defs/query_rule" },
+              "kind": {
+                "description": "`call` for a genotype written out, `result` for a result told in words. Card search refuses `call` only.",
+                "enum": ["call", "result"]
+              },
+              "start": { "type": "integer", "minimum": 0 },
+              "end": { "type": "integer", "minimum": 1 },
+              "advice": {
+                "type": "string",
+                "description": "How to ask the same question about the variant. It never quotes the query."
+              }
+            },
+            "required": ["rule", "kind", "start", "end", "advice"],
+            "additionalProperties": false
+          }
+        },
+        "cards": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "The cards named with --card, whose evidence the words were checked against."
+        },
+        "unsourced": {
+          "type": ["array", "null"],
+          "items": { "type": "string" },
+          "description": "Lowercased query words the cards' evidence does not print; each has to come from a paper already read. Null when no card was named, and when the query was refused: a refused query's words are not listed."
+        }
+      },
+      "required": ["schema", "status", "length", "problems", "cards", "unsourced"],
+      "additionalProperties": false
+    },
     "error": {
       "description": "What a command prints on stdout when it fails under --json. The exit code is non-zero.",
       "type": "object",
@@ -804,85 +862,91 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.clinvar": {
       "type": "object",
-      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.secondary": {
       "type": "object",
-      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.imputation": {
       "type": "object",
-      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.pgx.calls": {
       "type": "object",
-      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.hla.calls": {
       "type": "object",
-      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 6 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.cards.check-query": {
+      "type": "object",
+      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 5 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 6 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -962,6 +1026,19 @@
     "run_status": {
       "description": "`future-version` is intact and needs the version of the tool that wrote it. `damaged` could not be read.",
       "enum": ["readable", "future-version", "damaged"]
+    },
+    "query_rule": {
+      "description": "Why `cards check-query` refused a query. `genotype-shape`, `marker-with-alleles` and `diplotype` find a genotype written out; the rest find a result told in words. docs/agent_usage.md says what each finds.",
+      "enum": [
+        "genotype-shape",
+        "marker-with-alleles",
+        "diplotype",
+        "zygosity",
+        "allele-count",
+        "first-person",
+        "run-id",
+        "confidence-tier"
+      ]
     },
     "search_field": {
       "description": "Where in a card a query term was found. `variant` is an rsID the card reads, never a call at it. `summary` is the card face: in the pack, any outcome's; in a saved run, the one that run recorded.",

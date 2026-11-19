@@ -27,8 +27,11 @@ Nothing is weighted by confidence tier, status or result. A search finds cards; 
 card says is read from the card.
 
 **A query is a variant, gene or trait, never a call at one.** :func:`parse_query` refuses
-text the privacy scanner reads as a genotype, before anything is searched or echoed
-(AGENTS.md 1.3).
+text that holds a genotype written out, before anything is searched or echoed (AGENTS.md
+1.3): the privacy scanner's shapes, and since M13.7 an rsID beside two alleles and a
+diplotype (:func:`genetics.outbound.reads_as_call`). A result told in words, such as
+"homozygous", is still searched: nothing leaves the machine, and a reader may want the
+cards that use the word. ``genetics cards check-query`` refuses both before a web search.
 """
 
 from __future__ import annotations
@@ -43,7 +46,7 @@ from typing import Any, Final
 
 from genetics.engine import sections
 from genetics.engine.cards import Card
-from genetics.privacy import looks_like_genotype
+from genetics.outbound import reads_as_call
 
 
 class SearchField(StrEnum):
@@ -196,11 +199,11 @@ class Query:
 def parse_query(text: str) -> Query:
     """Split ``text`` into search terms.
 
-    Raises :class:`GenotypeQueryError` for text the privacy scanner reads as a genotype, and
+    Raises :class:`GenotypeQueryError` for text that holds a genotype written out, and
     :class:`EmptyQueryError` for text with no letter or digit in it.
     """
     text = " ".join(text.split())
-    if looks_like_genotype(text):
+    if reads_as_call(text):
         raise GenotypeQueryError(
             "The query reads as a genotype, so it was not searched or repeated. Search for "
             "the variant, gene or trait on its own (an rsID, a gene symbol, a phrase), never "

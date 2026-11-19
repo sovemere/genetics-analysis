@@ -242,13 +242,14 @@ def test_the_page_marks_what_it_shows() -> None:
         "genetics cards search curly hair --limit 4",
         "genetics runs card <run> wnt10a_hair_curl",
         "genetics cards evidence wnt10a_hair_curl",
+        "genetics cards check-query rs7349332 WNT10A hair curl --card wnt10a_hair_curl",
     ]
     assert [command for command, _ in marked("keys")] == [
         "genetics runs qc <run> --json",
         "genetics runs card <run> wnt10a_hair_curl --json",
     ]
     assert [card for card, _ in marked("queries")] == ["wnt10a_hair_curl"]
-    assert page().count("<!--") == 6
+    assert page().count("<!--") == 7
 
 
 def test_the_page_holds_no_genotype_and_sends_no_result_out() -> None:
@@ -259,16 +260,24 @@ def test_the_page_holds_no_genotype_and_sends_no_result_out() -> None:
         for line in text.split("## The steps")[0].split("\n")
         if line.startswith("| `genetics")
     ]
-    assert len(rows) == 7
-    # Only output that states no result may be sent out, and that is the three pack reads.
+    assert len(rows) == 8
+    # Only output that states no result may be sent out: the pack reads and the query check.
     safe = [commands for commands, _, may_leave in rows if may_leave == "yes"]
-    assert len(safe) == 3
+    assert len(safe) == 4
     assert all(states == "no" for _, states, may_leave in rows if may_leave == "yes")
     assert not any(word in " ".join(safe) for word in ("runs", "pgx", "hla"))
     assert all(may_leave.startswith("no") for _, _, may_leave in rows if may_leave != "yes")
     # Every command that states a result is in a row that says so.
     stating = " ".join(commands for commands, states, _ in rows if states.startswith("yes"))
     assert all(name in stating for name in _RESULT_COMMANDS)
+
+
+def test_the_rule_table_is_the_lint_s_own() -> None:
+    from genetics.outbound import Rule
+
+    step = page().split("### 7. Search further")[1].split("\n### ")[0]
+    rows = re.findall(r"^\| `([a-z-]+)` \| .+ \| (call|result) \|$", step, re.MULTILINE)
+    assert rows == [(rule.value, rule.kind) for rule in Rule]
 
 
 def test_agents_md_points_to_the_page() -> None:
@@ -393,9 +402,16 @@ def test_each_example_query_is_written_from_the_evidence_alone(run_id: str) -> N
     def strangers(query: str) -> set[str]:
         return set(tokenize(query)) - known
 
+    def checked(query: str) -> tuple[int, str]:
+        result = runner.invoke(
+            app, ["cards", "check-query", *query.split(), "--card", card_id, "--json"]
+        )
+        return result.exit_code, json.loads(result.stdout)["status"]
+
     for query in queries:
         assert not find_genotypes(query), "an example query reads as a genotype"
         assert not strangers(query), f"{query!r} uses words `cards evidence` does not print"
+        assert checked(query) == (0, "clean"), query
         accepted = runner.invoke(app, ["cards", "search", *query.split(), "--json"])
         assert accepted.exit_code == 0, query
 
@@ -404,12 +420,15 @@ def test_each_example_query_is_written_from_the_evidence_alone(run_id: str) -> N
     assert strangers(f"rs7349332 {card['match']['genotype']}")
     assert strangers(f"WNT10A {card['confidence_tier']} hair curl")
     assert strangers("rs7349332 heterozygous hair curl")
-    # And a limit, which the page states: a result told in words the evidence also prints
-    # passes this check and the scanner. Only the rule stops it until M13.7. When one of
-    # these starts failing, the page's sentence about them is the thing to correct.
+    # The two that M13.6 left open: a result told in words the evidence also prints. The
+    # word check and the scanner pass both; the query check refuses both (M13.7).
     for told in ("rs7349332 one copy", "rs7349332 " + " ".join(card["match"]["genotype"])):
         assert not strangers(told) and not find_genotypes(told)
-    assert "pass that check" in page()
+        assert checked(told) == (1, "refused"), "the page says `cards check-query` refuses it"
+    assert "`cards check-query` refuses both" in page()
+    # A word the page says came from a paper is unsourced, not refused.
+    assert checked("WNT10A odonto-onycho-dermal dysplasia") == (0, "unsourced")
+    assert "`WNT10A odonto-onycho-dermal\ndysplasia` lists four words" in page()
     # And a result in the scanner's own shape is refused by the search commands.
     call = "=".join(("rs7349332", card["match"]["genotype"]))
     for words in (["cards", "search"], ["runs", "search", run_id]):

@@ -1,4 +1,4 @@
-# Agent read commands (M13.1, M13.3, M13.4, M13.5)
+# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
@@ -7,7 +7,9 @@ agent can find a card without knowing its id. M13.4 (2026-11-12) made `runs card
 decided a card's confidence tier, in one shape for every kind of card; see
 [Confidence](#confidence-m134). M13.5 (2026-11-13) added a test that every analysis a
 dashboard page shows is in a command's JSON, and described the five commands that print a
-run's other saved records; see [Parity with the dashboard](#parity-m135).
+run's other saved records; see [Parity with the dashboard](#parity-m135). M13.7
+(2026-11-19) added `cards check-query`, which says whether a query may leave the machine;
+see [Query check](#query-check-m137).
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -17,6 +19,7 @@ run's other saved records; see [Parity with the dashboard](#parity-m135).
 | `genetics cards evidence <card-id> [--json]` | knowledge pack | no | both branches |
 | `genetics cards search <query> [--limit N] [--json]` (M13.3) | knowledge pack | no | both branches |
 | `genetics runs search <run> <query> [--limit N] [--json]` (M13.3) | saved run | yes | no |
+| `genetics cards check-query <query> [--card ID] [--json]` (M13.7) | knowledge pack | no | both branches |
 
 `genetics runs list` (M4.2) and `genetics refs licenses` (M2.6) are the rest of M13.1's list.
 The two search commands are described under [Search](#search-m133).
@@ -357,11 +360,14 @@ match at quality 0.75; it cannot change what a card says. Two limits to know:
 
 ### A query is never a genotype
 
-A query that the privacy scanner reads as a genotype (an rsID with a call attached, or an
-export row) is refused before anything is searched, with `error.kind: genotype-in-query` and
-exit 2. The message does not repeat the query. Search for the variant, gene or trait
-(AGENTS.md §1.3). Both commands refuse it, so that the habit is the same in each. The scanner
-knows the shapes listed in `genetics/privacy.py`; M13.7 owns anything beyond them.
+A query that holds a call is refused before anything is searched, with `error.kind:
+genotype-in-query` and exit 2. The message does not repeat the query. Search for the
+variant, gene or trait (AGENTS.md §1.3). Both commands refuse it, so that the habit is the
+same in each. A call is what the outbound lint's three `call` rules find
+(`genetics.outbound.reads_as_call`): the privacy scanner's shapes, and since M13.7 an rsID
+beside two alleles and a diplotype. A result told in words ("homozygous", "one copy") is
+searched, since nothing a search reads leaves the machine; `cards check-query` refuses it
+before a web search. See [Query check](#query-check-m137).
 
 ### `cards search`
 
@@ -698,6 +704,55 @@ them, and the `parity_check` fixture runs it on every run a suite hands it. Nine
 guards were removed in turn, each caught. No command's output and no schema shape
 changed. The full native suite passes 4,282 tests with the existing nine skips.
 
+## Query check (M13.7)
+
+`genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
+query leaves the machine (AGENTS.md §1.3). The engine builds no web search; an agent
+writes its own, and this is what it runs them through. The rules, what each finds and the
+worked example are in [the walk-through](agent_usage.md#7-search-further).
+
+```text
+status       refused, unsourced or clean; exit 1 for refused, 0 otherwise
+length       characters checked (NFKC, whitespace folded); problems count in it
+problems[]   rule, kind (call or result), start, end, advice
+cards        the --card ids
+unsourced    query words the cards' evidence does not print; null without --card,
+             and null when refused
+```
+
+**It never prints the query.** A problem carries the rule and the character span, as the
+privacy scanner's `Hit` does, and advice that quotes nothing. A refused query's words are
+not listed as unsourced, since they may hold the call. The output is scanned like the
+other pack reads.
+
+**Shapes and sources.** The rules match shapes, and favour recall over precision, the
+opposite of the file scanner: a query is rewritten in a second, and a file scanner that
+cries wolf gets bypassed. A haplogroup, an HLA type or a tier word has no shape, so
+`--card` adds a check of sources: each word the named cards' `cards evidence` does not
+print is listed. That is advice, not refusal, because a word read in a cited paper is a
+fair word to search and only the agent knows which papers it read.
+
+**Every request the engine makes is checked too.** `genetics.outbound.check_url` runs on
+each URL the fetcher opens or probes, and `tests/privacy/test_outbound.py` reads the source
+for every call that builds or opens a request and fails one without it. The fetcher is the
+only network path; the dashboard's listening socket sends nothing.
+
+### Decisions
+
+- **A command, not only a test.** The roadmap asked for "a lint/test for genotype strings
+  in outbound query construction", and the engine constructs no query. An agent writes
+  them, so the lint has to be something an agent can run. The tests hold the command, the
+  fetcher's URLs, and the walk-through's example queries to it.
+- **Under `cards`.** It reads the pack and nothing of a run, which is what `cards` means
+  (M13.1). The verdict is a payload, `cards.check-query`, not an error document: the
+  check ran. Exit 1 on `refused` lets a script stop on it without reading JSON.
+- **The search commands refuse calls, not results.** "Homozygous" and "carrier" are words
+  a reader may want to find cards by, and a local search sends nothing anywhere.
+- **`C>T` passes; `C/T` does not.** dbSNP writes a variant's alleles with a slash, and so
+  does a genotype. A change written with `>` is only ever a variant, so the advice names it.
+- **A nucleotide never pairs with an indel code.** `AD` and `CD` are diseases far more
+  often than an impossible genotype.
+
 ## Validation
 
 `tests/test_cli_agent_reads.py` builds a saved run from six committed cards matched against an
@@ -728,7 +783,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   example, [Reviewing a run as an agent](agent_usage.md). A test runs every command on it.
   The [session diff review](review_m136_session.md) found that its query check reads
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
-- **M13.7** the outbound-query lint.
+- **M13.7** (done 2026-11-19) is `cards check-query`, described under
+  [Query check](#query-check-m137). It closes the two queries M13.6 left open.
 - **M14** the dashboard does not show a card's `ancestry_comparison`, which `runs show` and
   `runs card` print. A page added in M14 needs a row in `parity.PAGES`, and a new view field
   a place in its table; the tests say which.

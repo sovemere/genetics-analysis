@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M12 and M13.1–M13.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M13 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -288,7 +288,13 @@ The [M13.6 diff review](docs/review_m136_session.md) corrects what the page said
 query check catches (a result worded as "one copy" passes it), holds the statuses, error
 kinds and short-form commands the page names to the code, and records the fix for the
 Linux CI jobs after `ubuntu-latest` moved to Ubuntu 26.04.
-[M13.7, the outbound-query lint](docs/handoff.md#next-open-step-m137-outbound-query-lint)
+**M13.7, the outbound-query lint, is implemented.** `genetics cards check-query` is what
+an agent runs on every web search before sending it: it refuses a genotype written out and
+a result told in words ("one copy", "heterozygous", "my", a tier, a run id), never prints
+the query back, and with `--card` lists each word the card's evidence does not print. The
+search commands refuse the same call shapes, and every request the fetcher makes passes
+the check. See [Query check](docs/agent_cli.md#query-check-m137).
+[M14.1, every section wired with an explicit empty state](docs/handoff.md#next-open-step-m141-sections-and-empty-states)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

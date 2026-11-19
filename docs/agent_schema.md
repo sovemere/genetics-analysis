@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 5 since M13.5 (2026-11-13), which described the five
-commands that print a run's other saved records. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 6 since M13.7 (2026-11-19), which described the verdict
+`genetics cards check-query` prints. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -32,6 +32,7 @@ rules around it. [The read-command contract](agent_cli.md) describes what each c
 | `runs.imputation` | `genetics runs imputation <run> --json` | saved run | no | yes |
 | `pgx.calls` | `genetics pgx calls <run> --json` | saved run | yes | no |
 | `hla.calls` | `genetics hla calls <run> --json` | saved run | yes | no |
+| `cards.check-query` | `genetics cards check-query <query> --json` | knowledge pack | no | yes |
 | `error` | a failing command with `--json` (listed below) | nothing | no | no |
 
 The same table is in the document as `x-payloads`. "Scanned" means the command checks its
@@ -40,9 +41,13 @@ reader's own calls, which is what a card and a saved record say, and are not sca
 ([why](agent_cli.md)). Find a card with `cards.search` and research it from
 `cards.evidence`, never from a run payload (AGENTS.md §1.3).
 
-The last five are the saved records beside a run's cards (M13.5), the ones a section's
-`saved_records` names. [The read-command contract](agent_cli.md#parity-m135) says which
-dashboard page each stands for.
+`runs.clinvar` to `hla.calls` are the saved records beside a run's cards (M13.5), the ones
+a section's `saved_records` names. [The read-command contract](agent_cli.md#parity-m135)
+says which dashboard page each stands for.
+
+`cards.check-query` (M13.7) is a verdict on a query an agent is about to send, and is
+printed with exit 1 when the verdict is `refused`. It is not an error document: the check
+ran, and its answer is no. It never holds the query's text.
 
 ## The tag
 
@@ -52,8 +57,8 @@ Every described document starts with:
 "schema": {"name": "runs.card", "version": 5}
 ```
 
-`name` is one of the fourteen above. `version` is the version of the schema document, which is
-the same for all fourteen. It is separate from `format_version`, which is the bundle format the
+`name` is one of the fifteen above. `version` is the version of the schema document, which is
+the same for all fifteen. It is separate from `format_version`, which is the bundle format the
 run was saved in.
 
 ## Rules for a reader
@@ -126,7 +131,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 5},
+  "schema": {"name": "error", "version": 6},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -136,7 +141,8 @@ Branch on `error.kind`. `message` is for a person and may be reworded.
 
 Before M13.2 the `pgx` and `pgs` groups printed `error` as a bare string. Every command that
 printed an error document now prints this one, through `contract.refuse`: all of `runs`,
-`cards evidence`, `cards search`, `pgx`, `pgs`, `hla`, `run`, `impute`, `serve` and `schema`.
+`cards evidence`, `cards search`, `cards check-query`, `pgx`, `pgs`, `hla`, `run`, `impute`,
+`serve` and `schema`.
 
 `runs`, `pgx calls` and `hla calls` give the same kind for a run that cannot be opened,
 through `contract.run_error_kind`. Before the [session review](review_m132_session.md),
@@ -146,23 +152,23 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 
 | Exit | Meaning | Kinds |
 |---|---|---|
-| 0 | Success | |
-| 1 | The command was well formed but could not be carried out | `not-found`, `card-not-found`, `version`, `integrity`, `io`, `bundle`, `knowledge` |
+| 0 | Success. For `cards check-query`, a verdict of `clean` or `unsourced` | |
+| 1 | The command was well formed but could not be carried out, or `cards check-query` refused the query (with its own document, not an error) | `not-found`, `card-not-found`, `version`, `integrity`, `io`, `bundle`, `knowledge` |
 | 2 | The command line was wrong | `unknown-section`, `unknown-payload`, `confirmation-required`, `empty-query`, `genotype-in-query` |
 
 | Kind | From | Means |
 |---|---|---|
 | `not-found` | any command that takes a run id | No run with that id is saved. `pgx calls` and `hla calls` give the same kind |
-| `card-not-found` | `runs card`, `cards evidence` | The run or the pack has no card with that id |
+| `card-not-found` | `runs card`, `cards evidence`, `cards check-query --card` | The run or the pack has no card with that id |
 | `version` | `runs`, `pgx calls`, `hla calls` | The run was saved by a newer version of the tool. It is intact |
 | `integrity` | `runs`, `pgx calls`, `hla calls` | A saved file does not match its recorded digest |
 | `io` | `runs`, `pgx calls`, `hla calls` | The disk refused: a locked file, a permission, a missing drive |
 | `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
-| `knowledge` | `cards evidence`, `cards search` | The knowledge pack could not be loaded |
+| `knowledge` | `cards evidence`, `cards search`, `cards check-query --card` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
-| `unknown-payload` | `schema` | Not one of the fourteen payload names |
-| `empty-query` | `cards search`, `runs search` | The query has no letter or digit to search for |
-| `genotype-in-query` | `cards search`, `runs search` | The query reads as a genotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
+| `unknown-payload` | `schema` | Not one of the fifteen payload names |
+| `empty-query` | `cards search`, `runs search`, `cards check-query` | The query has no letter or digit to search for |
+| `genotype-in-query` | `cards search`, `runs search` | The query holds a call: a shape the privacy scanner knows, or since M13.7 an rsID beside two alleles or a diplotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
 | `confirmation-required` | `runs delete`, `runs prune` | `--json` cannot prompt; pass `--yes` |
 
 A command line Typer itself rejects (a missing argument, an unknown option) exits 2 with a
@@ -185,8 +191,8 @@ Not unified, and recorded here so that nobody assumes otherwise:
 ## How closely each part is described
 
 - **Closed, key for key:** the envelope, `current_context` (the confidence block
-  included), the run listing, the evidence declaration, both search payloads, the error
-  document, and the saved card's 26 keys. A saved card always has all 26; a key its
+  included), the run listing, the evidence declaration, both search payloads, the query
+  check, the error document, and the saved card's 26 keys. A saved card always has all 26; a key its
   bundle's format did not have is null.
 - **Closed, inside the saved card:** `variant`, `match`, `confidence`, `evidence`,
   `observation`, `frequencies` and `citations`. Their keys were checked against the first
@@ -345,3 +351,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 3 | 2026-11-12 | Two payloads, `cards.search` and `runs.search` (M13.3), with the `search_field` vocabulary and `card_face`, eight keys of the saved card. No existing payload changed |
 | 4 | 2026-11-12 | `runs.card` gains the required key `current_context.confidence` (M13.4): `confidence_explanation`, with the `confidence_basis` vocabulary. The saved card and every other payload are unchanged |
 | 5 | 2026-11-13 | Five payloads for the saved records beside a run's cards (M13.5): `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla.calls`. Each command already printed its record; it now prints the envelope and tag too. `hla.calls` gains `linked_cards_status` and `linked_cards`, and `pgx.calls` gains `current_context.context`. No existing payload changed |
+| 6 | 2026-11-19 | One payload, `cards.check-query` (M13.7), with the `query_rule` vocabulary. No existing payload changed |

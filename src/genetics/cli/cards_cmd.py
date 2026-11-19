@@ -1,8 +1,10 @@
-"""CLI for reviewing the committed knowledge pack (roadmap M3.5, M13.1, M13.3).
+"""CLI for reviewing the committed knowledge pack (roadmap M3.5, M13.1, M13.3, M13.7).
 
 ``lint``, ``carriers`` and ``carrier-scope`` review the pack. ``evidence`` and ``search``
 are agent reads: they open no run, hold no genotype, and scan their output to keep that
 true. ``search`` finds a card id from a phrase; ``evidence`` prints what that card rests on.
+``check-query`` is the agent's last step before a web search: it says whether a query
+written from that evidence may leave the machine.
 """
 
 from __future__ import annotations
@@ -319,6 +321,131 @@ def search(
     text = search_text(view)
     assert_no_genotype(text, context="cards search output")
     typer.echo(text)
+
+
+@cards_app.command("check-query")
+def check_query(
+    query: Annotated[
+        list[str],
+        typer.Argument(help="The search query, URL or text about to leave the machine."),
+    ],
+    card: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--card",
+            help="A card the query was written from. Repeatable. Lists each query word "
+            "its `cards evidence` does not print.",
+        ),
+    ] = None,
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """Check a query before it leaves the machine (M13.7, AGENTS.md 1.3).
+
+    Run this on every web search, URL or text an agent is about to send while researching
+    a card. It refuses a genotype written out (an rsID beside two alleles, a diplotype, any
+    shape the privacy scanner knows) and a result told in words (zygosity, a count of
+    copies, the first person, a run id, a confidence tier), and exits 1. With ``--card``,
+    it also lists each word the cards' evidence does not print: such a word has to come
+    from a paper already read.
+
+    Reads the knowledge pack only. The query is never printed back.
+    """
+    from genetics import outbound
+    from genetics.cli import contract
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.engine.declaration import declaration
+    from genetics.privacy import assert_no_genotype
+
+    text = " ".join(" ".join(query).split())
+    if not outbound.words(text):
+        contract.refuse(
+            "empty-query",
+            "The query has no letter or digit to check.",
+            as_json=as_json,
+            code=2,
+        )
+    evidence: list[str] = []
+    card_ids = list(dict.fromkeys(card or ()))
+    if card_ids:
+        try:
+            pack = KnowledgePack.load(knowledge)
+        except CardError as exc:
+            contract.refuse("knowledge", f"error: {exc}", as_json=as_json)
+        for card_id in card_ids:
+            authored = pack.by_id(card_id)
+            if authored is None:
+                contract.refuse(
+                    "card-not-found",
+                    f"No card called {card_id!r} is in the knowledge pack at {pack.source_dir}.",
+                    as_json=as_json,
+                )
+            evidence.append(json.dumps(declaration(authored), ensure_ascii=False))
+    view = check_view(outbound.check_query(text, evidence), card_ids)
+
+    if as_json:
+        out = json.dumps(contract.tagged("cards.check-query", view), indent=2, ensure_ascii=False)
+        assert_no_genotype(out, context="cards check-query JSON output")
+    else:
+        out = check_text(view)
+        assert_no_genotype(out, context="cards check-query output")
+    typer.echo(out)
+    if view["status"] == "refused":
+        raise typer.Exit(code=1)
+
+
+def check_view(check: Any, card_ids: list[str]) -> dict[str, Any]:
+    """``cards check-query`` as data, from :class:`genetics.outbound.QueryCheck`."""
+    return {
+        "status": check.status,
+        "length": check.length,
+        "problems": [
+            {
+                "rule": problem.rule.value,
+                "kind": problem.rule.kind,
+                "start": problem.start,
+                "end": problem.end,
+                "advice": problem.advice,
+            }
+            for problem in check.problems
+        ],
+        "cards": card_ids,
+        "unsourced": None if check.unsourced is None else list(check.unsourced),
+    }
+
+
+def check_text(view: Mapping[str, Any]) -> str:
+    """``cards check-query`` as text. Never repeats the query."""
+    status = view["status"]
+    if status == "refused":
+        lines = ["refused: do not send this query."]
+        for problem in view["problems"]:
+            lines.append(
+                f"  {problem['rule']} at characters {problem['start']}-{problem['end']}: "
+                f"{problem['advice']}"
+            )
+        return "\n".join(lines)
+    if status == "unsourced":
+        listed = ", ".join(view["unsourced"])
+        return (
+            f"unsourced: no rule refuses this query, but `cards evidence` for "
+            f"{', '.join(view['cards'])} does not print: {listed}. Send it only if each "
+            "word comes from a paper already read."
+        )
+    if view["cards"]:
+        return "clean: no rule refuses this query, and every word is in the cards' evidence."
+    return (
+        "clean: no rule refuses this query. Pass --card to check its words against the "
+        "evidence it was written from."
+    )
 
 
 def search_text(view: Mapping[str, Any]) -> str:

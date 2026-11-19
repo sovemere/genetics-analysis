@@ -70,6 +70,7 @@ SHAPE_DIGESTS = {
     3: "642c1d7a1526da0f1202316b5223a03a620e0f7b2fcc5457df98573cc7069685",
     4: "eacffe68e489f07c1210b6751a793b767da2d638af1d01f1b14b4619950bc55a",
     5: "7192fef8e60c8e02bae0066ac0489998e17a6516a36f905b259a24f7ff11a566",
+    6: "9a0d586e8db06b75eb80543311bea23ace2f1c6a8c9943000b0bb2785c20ecc0",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
