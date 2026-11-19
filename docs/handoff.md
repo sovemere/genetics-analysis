@@ -614,6 +614,29 @@ What is open:
   in `parity.APART`; a seventh confidence row needs `parity.CONFIDENCE_ROWS`.
 - Where the legend sits: on every run page, or once with links from each tier badge.
 
+What M14.2 hands over:
+
+- **A new page touches five places in `genetics.testing.parity`**, as the ancestry page
+  did: a `PAGES` row naming its command; a `Documents` property that runs the command; a
+  `CONTEXT` entry for its template (start from `_FRAME`); a `SHELL` entry for any field
+  added to `Shell`; and a `check(...)` visit at the end of `check_run`. `check_run` visits
+  pages of one run. A page that holds no run is visited like `/healthz` and `/` near the
+  top of `check_run`, not in the list of run pages at its end.
+- **The agent schema is version 7** (`contract.AGENT_SCHEMA_VERSION`). A new payload takes
+  version 8: bump the constant and the document's `version`, add the digest to
+  `SHAPE_DIGESTS` in `tests/test_agent_schema.py`, and add a row to the history in
+  [agent_schema.md](agent_schema.md#version-history). Edit `agent_schema.json` as text: it
+  is hand-formatted, and `json.dump` rewrites every line.
+- **Bundle format 29.** A page that only explains needs no format change. A format change
+  means updating the `BUNDLE_FORMAT_VERSION` assertions across the suite (M14.2 changed
+  seven test files).
+- **Run-page nav links** are in `templates/_sectionnav.html`; the ancestry link was added
+  there. A legend reached from every tier badge needs no nav link.
+- **Colour tokens** for both modes are on `:root` in `static/app.css`: `--tier-*-bg` and
+  `--tier-*-ink` for the six tier badges, and `--pgs-bar`/`--pgs-band`, the two hues the
+  polygenic chart and the ancestry scatter share. A legend shows a tier with the badge
+  markup the card face uses (`<span class="tier tier-{{ key }}">`), not new hues.
+
 <a id="accepted-m142-ancestry-visualisations"></a>
 
 ## Accepted M14.2 ancestry visualisations
