@@ -524,6 +524,15 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             and shell.format_version >= HLA_CARD_FORMAT_VERSION,
         )
 
+    @app.get("/runs/{run_id}/ancestry", response_class=HTMLResponse)
+    def ancestry(run_id: str, request: Request) -> Response:
+        from genetics.run.reads import ancestry_report
+
+        shell = _shell(run_id, _query(request))
+        if not shell.has_selection:
+            return _render(shell)
+        return _render(shell, "ancestry.html", ancestry_report=ancestry_report(shell.ancestry))
+
     @app.get("/runs/{run_id}/pgx", response_class=HTMLResponse)
     def pgx(run_id: str, request: Request, gene: str | None = None, page: int = 1) -> Response:
         from genetics.pgx.calling import CallingError, report

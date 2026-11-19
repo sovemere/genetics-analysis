@@ -24,7 +24,7 @@ Read this before the first command. A run is one person's DNA ([AGENTS.md §1](.
 | `genetics schema`, `genetics version --json` | no | yes |
 | `genetics runs list` | no, but it names the runs | no |
 | `genetics runs qc <run>` | no genotype; it holds the inferred sex and call rates | no |
-| `genetics runs card`, `runs show`, `runs search`, `runs clinvar`, `runs secondary`, `pgx calls`, `hla calls` | yes | no |
+| `genetics runs card`, `runs show`, `runs search`, `runs clinvar`, `runs secondary`, `runs ancestry`, `pgx calls`, `hla calls` | yes | no |
 | `genetics runs imputation <run> --dosages` | yes, the whole imputed genome | no, and a review never needs it |
 
 Four rules follow.
@@ -362,6 +362,7 @@ Only the first paragraph is about the run.
 | What does the run say about a drug or a gene? | `genetics runs search <run> <query>`, then `genetics pgx calls <run> --gene <gene> --json` |
 | What does a ClinVar hit mean? | `genetics runs clinvar <run> --json` and `genetics runs secondary <run> --json`. A rare hit is more likely an array artifact than a finding (AGENTS.md §4.1); give the benchmark figure the card gives |
 | What are my HLA types? | `genetics hla calls <run> --json` |
+| Where does the run sit among reference populations? What are its haplogroups? | `genetics runs ancestry <run> --json`: the placement, every population's distance, ancient affinity, and each haplogroup with its supporting markers (M14.2) |
 | Why is there no card for a test I read about? | `genetics cards search <query>`. An assay-limit card says why the array cannot determine it (AGENTS.md §3.2) |
 | What does the page I am looking at show? | [Which command stands for which page](agent_cli.md#parity-m135) |
 

@@ -1907,6 +1907,9 @@ class Shell(NoGenotypeRepr):
     """Frozen CYP2D6 limitation, shown independently of knowledge-card filters."""
     carrier_scope: Mapping[str, str] | None = None
     """The reproductive section's scope statement, shown whatever the filters hide (M11.6)."""
+    ancestry: Mapping[str, Any] | None = None
+    """The saved ancestry record, which the ancestry page draws (M14.2). ``None`` with no
+    run open and for a run saved before the record existed."""
 
 
 def shell_for(
@@ -1970,6 +1973,7 @@ def shell_for(
         pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         carrier_scope=None if bundle is None else section_notice(bundle.cards),
+        ancestry=None if bundle is None else bundle.ancestry,
         grid=grid_for(cards, query or GridQuery(), reasons),
         problem=problem,
     )

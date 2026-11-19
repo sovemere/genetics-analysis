@@ -71,6 +71,7 @@ SHAPE_DIGESTS = {
     4: "eacffe68e489f07c1210b6751a793b767da2d638af1d01f1b14b4619950bc55a",
     5: "7192fef8e60c8e02bae0066ac0489998e17a6516a36f905b259a24f7ff11a566",
     6: "9a0d586e8db06b75eb80543311bea23ace2f1c6a8c9943000b0bb2785c20ecc0",
+    7: "6e28fd871bb87466d8a4e0bfecd7357b85d0a67d07e6d1e9f67a6d22b6e0fc2b",
 }
 """The shape of each schema version that has shipped, descriptions left out.
 
@@ -86,7 +87,15 @@ ENVELOPE = {"schema", "run_id", "path"}
 RECORDS = ("runs.clinvar", "runs.secondary", "runs.imputation", "pgx.calls", "hla.calls")
 """The saved records beside a run's cards, described since version 5 (M13.5)."""
 
-RUN_SCOPED = ("runs.show", "runs.section", "runs.card", "runs.qc", "runs.search", *RECORDS)
+RUN_SCOPED = (
+    "runs.show",
+    "runs.section",
+    "runs.card",
+    "runs.qc",
+    "runs.search",
+    "runs.ancestry",
+    *RECORDS,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -510,6 +519,7 @@ def test_the_payload_list_states_which_documents_hold_a_genotype(saved: RunBundl
         "runs.secondary",
         "pgx.calls",
         "hla.calls",
+        "runs.ancestry",
     }
     assert all(
         entry["scanned"] != entry["holds_genotype"]

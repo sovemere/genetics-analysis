@@ -1,0 +1,168 @@
+{#
+  The ancestry page (M14.2): where the run sits among present-day reference populations,
+  its affinity to ancient groups, and its mt and Y haplogroups with their marker counts.
+
+  Everything here is `ancestry_report`, which is what `genetics runs ancestry --json`
+  prints: the saved record under `ancestry`, and the scatter under
+  `current_context.pca`. The scatter uses three marks and no more (the dataviz rule for
+  scatters): reference populations in a neutral ring, the five nearest filled in the
+  first series colour, this run as a larger cross-in-ring in the second. Only the nearest
+  population and this run are labelled on the plot, so labels cannot collide; a
+  population's name and region are in its hover text and in the table below, never in a
+  colour. Every point carries a <title>, and the table is the scatter's table view.
+#}
+{% extends "base.html" %}
+{% block title %}Ancestry{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block content %}
+{% set record = ancestry_report.ancestry %}
+{% set pca = ancestry_report.current_context.pca %}
+<section class="panel" aria-labelledby="h-ancestry">
+  <h1 id="h-ancestry">Ancestry</h1>
+  <p><a href="{{ shell.run_url }}">Back to the run</a></p>
+  {% if record is none %}
+    <p class="empty">{{ pca.why_not }}</p>
+  {% else %}
+  {% set population = record.population %}
+
+  <h2>Present-day reference populations</h2>
+  <p>
+    Placement: <strong>{{ population.status }}</strong>{% if population.status == "placed" %}
+    — nearest fitting population {{ population.population }} ({{ population.region }}){% endif %}.
+    {% if population.reason %}{{ population.reason }}{% endif %}
+  </p>
+  <p class="muted">
+    Continuous coordinates, not percentages. Distances are in {{ pca.units }}; a fit of 1 is
+    a typical member of that population. A population is named only when the sample fits
+    one (the bar is {{ "%.2f"|format(population.decline_threshold) if population.decline_threshold is not none else "unrecorded" }});
+    otherwise none is, and no region either.
+  </p>
+
+  {% if pca.drawn %}
+  {% set b = pca.bounds %}
+  {% set w, h, left, top = 576, 360, 56, 12 %}
+  <figure class="pcachart">
+    <svg viewBox="0 0 648 420" role="img"
+         aria-labelledby="pca-caption">
+      <line class="pcaaxis" x1="{{ left }}" x2="{{ left + w }}" y1="{{ top + h + 0.5 }}" y2="{{ top + h + 0.5 }}" />
+      <line class="pcaaxis" x1="{{ left - 0.5 }}" x2="{{ left - 0.5 }}" y1="{{ top }}" y2="{{ top + h }}" />
+      <text class="pcatick" x="{{ left }}" y="{{ top + h + 16 }}" text-anchor="start">{{ "%.1f"|format(b.x[0]) }}</text>
+      <text class="pcatick" x="{{ left + w }}" y="{{ top + h + 16 }}" text-anchor="end">{{ "%.1f"|format(b.x[1]) }}</text>
+      <text class="pcalabel" x="{{ left + w / 2 }}" y="{{ top + h + 34 }}" text-anchor="middle">{{ pca.axes[0] }}</text>
+      <text class="pcatick" x="{{ left - 6 }}" y="{{ top + h }}" text-anchor="end">{{ "%.1f"|format(b.y[0]) }}</text>
+      <text class="pcatick" x="{{ left - 6 }}" y="{{ top + 10 }}" text-anchor="end">{{ "%.1f"|format(b.y[1]) }}</text>
+      <text class="pcalabel" x="14" y="{{ top + h / 2 }}" text-anchor="middle" transform="rotate(-90 14 {{ top + h / 2 }})">{{ pca.axes[1] }}</text>
+      {% for ref in pca.references | reverse %}
+        {% set px = left + (ref.point[0] - b.x[0]) / (b.x[1] - b.x[0]) * w %}
+        {% set py = top + (1 - (ref.point[1] - b.y[0]) / (b.y[1] - b.y[0])) * h %}
+        <circle class="{{ 'pcanear' if ref.rank <= 5 else 'pcaref' }}" cx="{{ '%.2f'|format(px) }}" cy="{{ '%.2f'|format(py) }}" r="{{ 5 if ref.rank <= 5 else 4 }}"{% if ref.rank <= 5 %} tabindex="0"{% endif %}>
+          <title>{{ ref.population }} ({{ ref.region }}), {{ ref.n_samples }} samples: distance {{ "%.2f"|format(ref.distance) }}, fit {{ "%.2f"|format(ref.fit) }}, rank {{ ref.rank }}</title>
+        </circle>
+        {% if ref.rank == 1 %}
+          {% set flip = px > left + w * 0.75 %}
+          <text class="pcanearlabel" x="{{ '%.2f'|format(px - 8 if flip else px + 8) }}" y="{{ '%.2f'|format(py - 8) }}" text-anchor="{{ 'end' if flip else 'start' }}">{{ ref.population }} (nearest)</text>
+        {% endif %}
+      {% endfor %}
+      {% set sx = left + (pca.sample[0] - b.x[0]) / (b.x[1] - b.x[0]) * w %}
+      {% set sy = top + (1 - (pca.sample[1] - b.y[0]) / (b.y[1] - b.y[0])) * h %}
+      <g class="pcasample" tabindex="0">
+        <title>This run</title>
+        <circle cx="{{ '%.2f'|format(sx) }}" cy="{{ '%.2f'|format(sy) }}" r="8" />
+        <line x1="{{ '%.2f'|format(sx - 5) }}" x2="{{ '%.2f'|format(sx + 5) }}" y1="{{ '%.2f'|format(sy) }}" y2="{{ '%.2f'|format(sy) }}" />
+        <line x1="{{ '%.2f'|format(sx) }}" x2="{{ '%.2f'|format(sx) }}" y1="{{ '%.2f'|format(sy - 5) }}" y2="{{ '%.2f'|format(sy + 5) }}" />
+      </g>
+      {% set sflip = sx > left + w * 0.75 %}
+      <text class="pcasamplelabel" x="{{ '%.2f'|format(sx - 11 if sflip else sx + 11) }}" y="{{ '%.2f'|format(sy + 18) }}" text-anchor="{{ 'end' if sflip else 'start' }}">This run</text>
+    </svg>
+    <ul class="pcalegend">
+      <li><span class="pcakey pcakey-sample" aria-hidden="true"></span>This run</li>
+      <li><span class="pcakey pcakey-near" aria-hidden="true"></span>The five nearest populations</li>
+      <li><span class="pcakey pcakey-ref" aria-hidden="true"></span>Other reference populations ({{ pca.references | length - 5 if pca.references | length > 5 else 0 }})</li>
+    </ul>
+    <figcaption id="pca-caption" class="muted">
+      This run and the centre of each of {{ pca.references | length }} reference populations
+      ({{ pca.regions | length }} regions) on the first two of {{ population.n_components }}
+      components, in {{ pca.units }}. Nearness on two components is not nearness on all of
+      them: the table ranks by the full distance. Panel: {{ population.panel.name or population.panel.labels_source }},
+      {{ "{:,}".format(population.panel.n_samples) if population.panel.n_samples is not none else "an unrecorded number of" }} individuals.
+    </figcaption>
+  </figure>
+  {% else %}
+    <p class="empty">{{ pca.why_not }}</p>
+  {% endif %}
+
+  {% if pca.references %}
+  <table class="pcatable">
+    <caption>Nearest reference populations, by distance on all components</caption>
+    <thead><tr><th scope="col">Rank</th><th scope="col">Population</th><th scope="col">Region</th><th scope="col">Samples</th><th scope="col">Distance</th><th scope="col">Fit</th><th scope="col">Farther than (of its members)</th></tr></thead>
+    <tbody>
+    {% for ref in pca.references[:10] %}
+      <tr{% if ref.named %} class="pcarow-named"{% endif %}><td>{{ ref.rank }}</td><td>{{ ref.population }}{% if ref.named %} (named){% endif %}</td><td>{{ ref.region }}</td><td>{{ ref.n_samples }}</td><td>{{ "%.2f"|format(ref.distance) }}</td><td>{{ "%.2f"|format(ref.fit) }}</td><td>{{ "%.1f"|format(ref.percentile * 100) }}%</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p class="muted">{{ pca.references | length }} populations in all; <code>genetics runs ancestry {{ shell.selected_id }} --json</code> lists every one.</p>
+  {% endif %}
+  {% if population.panel and population.panel.gaps %}
+  <p>What this panel cannot answer for:</p>
+  <ul class="plainlist">{% for gap in population.panel.gaps %}<li>{{ gap.region }}: {{ gap.note }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <h2>Haplogroups</h2>
+  <p class="muted">
+    The array carries a subset of mtDNA and Y sites, so these are coarse clades, not fine
+    subclades (AGENTS.md §4.7). A branch with no typed marker is silence, not evidence
+    against. Each call names the markers that support it beside the number of this array's
+    markers that sit on a defining site at all; the second number is the same for every run
+    on this chip.
+  </p>
+  <dl class="lineages">
+  {% for name, label in (("mt", "Mitochondrial (maternal line)"), ("y", "Y chromosome (paternal line)")) %}
+    {% set lineage = record[name] %}
+    <div>
+      <dt>{{ label }}</dt>
+      {% if lineage.haplogroup %}
+      <dd><strong>{{ lineage.haplogroup }}</strong>, {{ lineage.depth }} branch(es) below the root.
+        {{ lineage.supporting }} supporting and {{ lineage.contradicting }} contradicting marker(s);
+        {{ lineage.markers_typed }} typed of {{ lineage.markers_on_array }} on this array's defining sites.
+        {% if lineage.stopped_because %}Stopped because {{ lineage.stopped_because }}.{% endif %}
+        {% if lineage.path %}
+        <details><summary>The path from the root</summary>
+          <ol class="plainlist">{% for step in lineage.path %}<li>{{ step.name }}: {{ step.supporting }} supporting, {{ step.contradicting }} contradicting, {{ step.typed }} typed</li>{% endfor %}</ol>
+        </details>
+        {% endif %}
+      </dd>
+      {% else %}
+      <dd>{{ lineage.status }}{% if lineage.reason %}: {{ lineage.reason }}{% endif %}</dd>
+      {% endif %}
+    </div>
+  {% endfor %}
+  </dl>
+
+  <h2>Ancient affinity</h2>
+  {% set ancient = record.ancient %}
+  {% if ancient.groups %}
+  <p class="muted">
+    Distance from this run to the centre of each ancient group with enough individuals, in
+    the same space as above. It is affinity, not ancestry proportions: a nearer group shares
+    more drift with the sample, and says nothing about descent from it. {{ ancient.n_scored_markers }}
+    markers scored; {{ ancient.n_ancient_individuals }} ancient individuals;
+    {{ ancient.n_dropped_groups }} group(s) dropped as too small.
+  </p>
+  <table class="pcatable">
+    <caption>Nearest ancient groups</caption>
+    <thead><tr><th scope="col">Group</th><th scope="col">Individuals</th><th scope="col">Median date (years BP)</th><th scope="col">Distance</th></tr></thead>
+    <tbody>
+    {% for group in ancient.groups[:10] %}
+      <tr><td>{{ group.group }}</td><td>{{ group.n_individuals }}</td><td>{{ group.date_bp_median }}</td><td>{{ "%.2f"|format(group.distance) }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="empty">{{ ancient.status }}{% if ancient.reason %}: {{ ancient.reason }}{% endif %}</p>
+  {% endif %}
+  {% endif %}
+</section>
+{% endblock %}

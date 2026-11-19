@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read and search commands print, the saved records beside a run's cards, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 6,
+  "version": 7,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -97,6 +97,13 @@
       "scanned": false
     },
     {
+      "name": "runs.ancestry",
+      "command": "genetics runs ancestry <run> --json",
+      "reads": "saved run",
+      "holds_genotype": true,
+      "scanned": false
+    },
+    {
       "name": "cards.check-query",
       "command": "genetics cards check-query <query> --json",
       "reads": "knowledge pack",
@@ -125,6 +132,7 @@
     { "$ref": "#/$defs/runs.imputation" },
     { "$ref": "#/$defs/pgx.calls" },
     { "$ref": "#/$defs/hla.calls" },
+    { "$ref": "#/$defs/runs.ancestry" },
     { "$ref": "#/$defs/cards.check-query" },
     { "$ref": "#/$defs/error" }
   ],
@@ -787,6 +795,32 @@
       ],
       "additionalProperties": false
     },
+    "runs.ancestry": {
+      "description": "A saved run's ancestry record and the scatter the dashboard's ancestry page draws from it (M14.2). States an inference about the reader, as a card does, and is not scanned.",
+      "type": "object",
+      "properties": {
+        "schema": { "$ref": "#/$defs/tag.runs.ancestry" },
+        "run_id": { "$ref": "#/$defs/run_id" },
+        "path": { "$ref": "#/$defs/run_path" },
+        "format_version": { "$ref": "#/$defs/format_version" },
+        "created_at": { "$ref": "#/$defs/created_at" },
+        "ancestry": {
+          "type": ["object", "null"],
+          "description": "The saved record, as `runs show` prints it under `ancestry`: `population`, `mt`, `y`, `ancient`, and from format 18 `reference_population`. From format 29 a placement holds `scale` and each fit a `centroid`. Null before format 3."
+        },
+        "current_context": {
+          "type": "object",
+          "properties": {
+            "context": { "const": "current" },
+            "pca": { "$ref": "#/$defs/ancestry_pca" }
+          },
+          "required": ["context", "pca"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["schema", "run_id", "path", "format_version", "created_at", "ancestry", "current_context"],
+      "additionalProperties": false
+    },
     "cards.check-query": {
       "description": "Whether a query may leave the machine (M13.7). It reads the knowledge pack only and never repeats the query. The command exits 1 when `status` is `refused`, with this document and not an error document: the check ran, and its answer is no.",
       "type": "object",
@@ -862,91 +896,97 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.clinvar": {
       "type": "object",
-      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.secondary": {
       "type": "object",
-      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.imputation": {
       "type": "object",
-      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.pgx.calls": {
       "type": "object",
-      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.hla.calls": {
       "type": "object",
-      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 7 } },
+      "required": ["name", "version"],
+      "additionalProperties": false
+    },
+    "tag.runs.ancestry": {
+      "type": "object",
+      "properties": { "name": { "const": "runs.ancestry" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.check-query": {
       "type": "object",
-      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 6 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 7 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -1026,6 +1066,57 @@
     "run_status": {
       "description": "`future-version` is intact and needs the version of the tool that wrote it. `damaged` could not be read.",
       "enum": ["readable", "future-version", "damaged"]
+    },
+    "ancestry_pca": {
+      "description": "The scatter: this run and each present-day reference population on the first two components, in pooled within-population standard deviations (M14.2). Computed at read time from the saved placement; a run saved before format 29 has no reference positions and is not drawn.",
+      "type": "object",
+      "properties": {
+        "status": {
+          "description": "The placement's status, or `not_recorded` when the run has no ancestry record.",
+          "enum": ["placed", "declined", "not_run", "not_recorded"]
+        },
+        "drawn": { "type": "boolean", "description": "Whether `sample`, every reference `point` and `bounds` are present." },
+        "why_not": { "type": ["string", "null"], "description": "Why the scatter is not drawn; null when it is." },
+        "axes": { "type": "array", "items": { "type": "string" } },
+        "units": { "type": "string" },
+        "sample": {
+          "type": ["array", "null"],
+          "items": { "type": "number" },
+          "description": "This run's first two coordinates divided by the placement's scale."
+        },
+        "references": {
+          "type": "array",
+          "description": "Every reference population, nearest first, as the saved fits order them.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "rank": { "type": "integer", "minimum": 1 },
+              "population": { "type": "string" },
+              "region": { "type": "string" },
+              "n_samples": { "type": "integer" },
+              "distance": { "type": "number" },
+              "fit": { "type": "number", "description": "Distance over radius. Infinite for a zero-radius population." },
+              "percentile": { "type": "number" },
+              "named": { "type": "boolean" },
+              "point": { "type": ["array", "null"], "items": { "type": "number" } }
+            },
+            "required": ["rank", "population", "region", "n_samples", "distance", "fit", "percentile", "named", "point"],
+            "additionalProperties": false
+          }
+        },
+        "regions": { "type": "array", "items": { "type": "string" } },
+        "bounds": {
+          "type": ["object", "null"],
+          "properties": {
+            "x": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+            "y": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 }
+          },
+          "required": ["x", "y"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["status", "drawn", "why_not", "axes", "units", "sample", "references", "regions", "bounds"],
+      "additionalProperties": false
     },
     "query_rule": {
       "description": "Why `cards check-query` refused a query. `genotype-shape`, `marker-with-alleles` and `diplotype` find a genotype written out; the rest find a result told in words. docs/agent_usage.md says what each finds.",

@@ -68,6 +68,7 @@ _RESULT_COMMANDS = (
     "runs search",
     "runs clinvar",
     "runs secondary",
+    "runs ancestry",
     "pgx calls",
     "hla calls",
 )

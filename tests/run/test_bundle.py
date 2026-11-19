@@ -1194,6 +1194,7 @@ def test_the_whole_nested_ancestry_shape_is_pinned(
         "coverage",
         "n_scored_markers",
         "coordinates",
+        "scale",
         "fits",
         "fits[].population",
         "fits[].region",
@@ -1202,6 +1203,7 @@ def test_the_whole_nested_ancestry_shape_is_pinned(
         "fits[].radius",
         "fits[].fit",
         "fits[].percentile",
+        "fits[].centroid",
     ]
     lineage = [
         "status",

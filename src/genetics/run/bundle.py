@@ -92,8 +92,13 @@ if TYPE_CHECKING:
     from genetics.imputation import ImputationResult
     from genetics.imputation.dosages import DosageRecord
 
-BUNDLE_FORMAT_VERSION: Final[int] = 28
+BUNDLE_FORMAT_VERSION: Final[int] = 29
 """Bumped whenever a reader of the previous version would misread the payload.
+
+Version 29 (M14.2) records where the reference populations sit: the ancestry record's
+placement gains ``scale`` and each fit a ``centroid``, so the ancestry page draws a saved
+run against the reference it was placed in. Formats 3-28 hold neither and are read
+unchanged; the page lists their fits without a scatter. One that claims either is refused.
 
 Version 28 (M11.7) lets a polygenic card sit in the reproductive section. Its record and card
 are otherwise unchanged. A previous reader refuses the format. Formats 1-27 hold no such card,
@@ -308,6 +313,9 @@ CARRIER_SCOPE_FORMAT_VERSION: Final[int] = 27
 """The first format that may hold the carrier-screening scope card (M11.6)."""
 
 REPRODUCTIVE_POLYGENIC_FORMAT_VERSION: Final[int] = 28
+
+ANCESTRY_POSITIONS_FORMAT_VERSION: Final[int] = 29
+"""The first format whose ancestry record holds reference positions (M14.2)."""
 """The first format that may hold a polygenic card in the reproductive section (M11.7)."""
 
 INCOMING_PREFIX: Final[str] = ".incoming-"
@@ -528,6 +536,37 @@ def _card_payload(assembled: AssembledCard) -> dict[str, Any]:
         "ancestry_comparison": assembled.ancestry_comparison,
         "carrier": None if assembled.carrier is None else dict(assembled.carrier),
     }
+
+
+def _check_ancestry_positions(ancestry: Mapping[str, Any], version: int) -> None:
+    """Reference positions are a format-29 record (M14.2). A placement's ``scale`` and its
+    fits' ``centroid`` are lists of numbers, one per component, or absent before 29."""
+    for part in ("population", "reference_population"):
+        placement = ancestry.get(part)
+        if not isinstance(placement, Mapping):
+            continue
+        raw_fits = placement.get("fits")
+        fits: list[Any] = raw_fits if isinstance(raw_fits, list) else []
+        vectors = [
+            placement.get("scale"),
+            *(fit.get("centroid") for fit in fits if isinstance(fit, Mapping)),
+        ]
+        present = [vector for vector in vectors if vector is not None]
+        if present and version < ANCESTRY_POSITIONS_FORMAT_VERSION:
+            raise BundleError(
+                f"Reference positions in {ANCESTRY_NAME}.{part} require bundle format "
+                f"{ANCESTRY_POSITIONS_FORMAT_VERSION}"
+            )
+        for vector in present:
+            if (
+                not isinstance(vector, list)
+                or not vector
+                or not all(
+                    isinstance(value, int | float) and not isinstance(value, bool)
+                    for value in vector
+                )
+            ):
+                raise BundleError(f"{ANCESTRY_NAME}.{part} holds a malformed reference position")
 
 
 def _check_card_ancestry(
@@ -1894,6 +1933,7 @@ def read_bundle(
         )
         for key in sorted(ANCESTRY_KEYS):
             _mapping(_require(ancestry, key, ANCESTRY_NAME), f"{ANCESTRY_NAME}.{key}")
+        _check_ancestry_positions(ancestry, declared)
     _check_card_ancestry(entries, ancestry, declared)
     _check_polygenic_section_format(entries, declared)
     _check_carriers(entries, declared)

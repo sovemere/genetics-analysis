@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 6 since M13.7 (2026-11-19), which described the verdict
-`genetics cards check-query` prints. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 7 since M14.2 (2026-11-19), which described `genetics runs
+ancestry`. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -32,11 +32,12 @@ rules around it. [The read-command contract](agent_cli.md) describes what each c
 | `runs.imputation` | `genetics runs imputation <run> --json` | saved run | no | yes |
 | `pgx.calls` | `genetics pgx calls <run> --json` | saved run | yes | no |
 | `hla.calls` | `genetics hla calls <run> --json` | saved run | yes | no |
+| `runs.ancestry` | `genetics runs ancestry <run> --json` | saved run | yes | no |
 | `cards.check-query` | `genetics cards check-query <query> --json` | knowledge pack | no | yes |
 | `error` | a failing command with `--json` (listed below) | nothing | no | no |
 
 The same table is in the document as `x-payloads`. "Scanned" means the command checks its
-output for genotypes before printing. The eight payloads that hold a genotype state the
+output for genotypes before printing. The nine payloads that hold a genotype state the
 reader's own calls, which is what a card and a saved record say, and are not scanned
 ([why](agent_cli.md)). Find a card with `cards.search` and research it from
 `cards.evidence`, never from a run payload (AGENTS.md §1.3).
@@ -57,8 +58,8 @@ Every described document starts with:
 "schema": {"name": "runs.card", "version": 5}
 ```
 
-`name` is one of the fifteen above. `version` is the version of the schema document, which is
-the same for all fifteen. It is separate from `format_version`, which is the bundle format the
+`name` is one of the sixteen above. `version` is the version of the schema document, which is
+the same for all sixteen. It is separate from `format_version`, which is the bundle format the
 run was saved in.
 
 ## Rules for a reader
@@ -131,7 +132,7 @@ A failing command prints this on stdout under `--json`, and a sentence on stderr
 
 ```json
 {
-  "schema": {"name": "error", "version": 6},
+  "schema": {"name": "error", "version": 7},
   "ok": false,
   "error": {"kind": "not-found", "message": "no run '...' under ..."}
 }
@@ -166,7 +167,7 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 | `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
 | `knowledge` | `cards evidence`, `cards search`, `cards check-query --card` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
-| `unknown-payload` | `schema` | Not one of the fifteen payload names |
+| `unknown-payload` | `schema` | Not one of the sixteen payload names |
 | `empty-query` | `cards search`, `runs search`, `cards check-query` | The query has no letter or digit to search for |
 | `genotype-in-query` | `cards search`, `runs search` | The query holds a call: a shape the privacy scanner knows, or since M13.7 an rsID beside two alleles or a diplotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
 | `confirmation-required` | `runs delete`, `runs prune` | `--json` cannot prompt; pass `--yes` |
@@ -352,3 +353,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 4 | 2026-11-12 | `runs.card` gains the required key `current_context.confidence` (M13.4): `confidence_explanation`, with the `confidence_basis` vocabulary. The saved card and every other payload are unchanged |
 | 5 | 2026-11-13 | Five payloads for the saved records beside a run's cards (M13.5): `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla.calls`. Each command already printed its record; it now prints the envelope and tag too. `hla.calls` gains `linked_cards_status` and `linked_cards`, and `pgx.calls` gains `current_context.context`. No existing payload changed |
 | 6 | 2026-11-19 | One payload, `cards.check-query` (M13.7), with the `query_rule` vocabulary. No existing payload changed |
+| 7 | 2026-11-19 | One payload, `runs.ancestry` (M14.2): the saved ancestry record and the `ancestry_pca` scatter. The record itself is open, as in `runs.show`; from bundle format 29 its placement holds `scale` and each fit a `centroid`. No existing payload changed |

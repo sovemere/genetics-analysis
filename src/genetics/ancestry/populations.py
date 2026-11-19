@@ -1209,6 +1209,13 @@ class PopulationFit(NoGenotypeRepr):
     percentile: float
     """Fraction of this population's own members closer to its centroid than the sample."""
 
+    centroid: tuple[float, ...] = ()
+    """The population's centre in the model's space, in the same pooled within-population
+    standard deviations as :attr:`distance` (M14.2). Panel metadata, not the sample's: the
+    dashboard draws the scatter from these and the sample's scaled coordinates, so a saved
+    run is drawn against the reference it was placed in rather than whatever is installed
+    when it is opened. Empty for a fit built without a model."""
+
     @property
     def fit(self) -> float:
         """``distance / radius``. One is a typical member of this population."""
@@ -1254,6 +1261,9 @@ class Placement(NoGenotypeRepr):
     panel_coverage: PanelCoverage | None
     labels_source: str
     n_panel_samples: int
+    scale: tuple[float, ...] = ()
+    """The model's per-component scale (:attr:`PopulationModel.scale`). :attr:`coordinates`
+    divided by it is the sample in the units of :attr:`PopulationFit.centroid` (M14.2)."""
 
     @property
     def region(self) -> str | None:
@@ -1341,6 +1351,7 @@ def place_many(
                 distance=float(row["distance"]),
                 radius=model.radius(str(row["population"])),
                 percentile=model.percentile(str(row["population"]), float(row["distance"])),
+                centroid=tuple(float(row[f"{name}_c"]) for name in pcs),
             )
             for row in group.iter_rows(named=True)
         )
@@ -1368,6 +1379,7 @@ def place_many(
                 panel_coverage=model.coverage,
                 labels_source=model.labels_source,
                 n_panel_samples=model.n_panel_samples,
+                scale=tuple(model.scale),
             )
         )
     return tuple(out)

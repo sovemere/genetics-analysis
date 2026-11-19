@@ -105,7 +105,7 @@ def saved(sample_qc: QCReport, tmp_path_factory: pytest.TempPathFactory) -> Iter
 
 def test_every_route_names_the_commands_that_print_what_it_shows() -> None:
     parity.check_routes()
-    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 8
+    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 9
 
 
 def test_a_route_with_no_commands_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -117,12 +117,12 @@ def test_a_route_with_no_commands_fails(monkeypatch: pytest.MonkeyPatch) -> None
 
 def test_a_listed_route_or_command_that_is_gone_fails(monkeypatch: pytest.MonkeyPatch) -> None:
     pages = parity.PAGES
-    gone = parity.Page("/runs/{run_id}/ancestry", ("genetics runs show <run> --json",), "x")
+    gone = parity.Page("/runs/{run_id}/telomeres", ("genetics runs show <run> --json",), "x")
     monkeypatch.setattr(parity, "PAGES", (*pages, gone))
     with pytest.raises(ParityError, match="does not serve"):
         parity.check_routes()
     for command in (
-        "genetics runs ancestry <run> --json",  # no such command
+        "genetics runs telomeres <run> --json",  # no such command
         "genetics runs prune",  # exists, but the page's data must be in JSON
         "genetics fixtures --json",  # exists, with no --json option
     ):
@@ -273,10 +273,10 @@ def test_a_saved_run_shows_nothing_the_commands_do_not_print(
     genes = list(report.documents[("pgx", "calls", saved.name)]["genes"])
     assert len(genes) == 8, "a run with no PGx stage still records each gene as unavailable"
     # healthz, the index, two groupings, each card's page, one fragment, a missing card,
-    # the ClinVar, secondary, HLA and PGx pages, then each gene's page.
-    assert report.pages == 2 + 2 + len(cards) + 2 + 4 + len(genes)
-    # One `runs card` each, one `pgx calls --gene` each, and the ten other documents.
-    assert report.commands == len(report.documents) == len(cards) + len(genes) + 10
+    # the ClinVar, secondary, HLA, ancestry and PGx pages, then each gene's page.
+    assert report.pages == 2 + 2 + len(cards) + 2 + 5 + len(genes)
+    # One `runs card` each, one `pgx calls --gene` each, and the eleven other documents.
+    assert report.commands == len(report.documents) == len(cards) + len(genes) + 11
     assert report.compared > 5000
 
 

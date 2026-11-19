@@ -675,3 +675,30 @@ a { color: var(--accent); }
 .pgstick { fill: var(--muted); font-size: 11px; }
 .pgschart figcaption { font-size: 0.8rem; }
 .pgsrow-overlap th, .pgsrow-overlap td { font-weight: 600; }
+
+/* The ancestry scatter (M14.2). Three marks, two series hues: the dataviz rule for a
+   scatter caps categorical slots at three, so regions are named in hover text and the
+   table, never in colour. The hues are the polygenic chart's, validated all-pairs in both
+   modes; shape (ring, filled dot, cross-in-ring) carries identity as well. */
+.pcachart { margin: 0.5rem 0; max-width: 46rem; }
+.pcachart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.pcaaxis { stroke: var(--line); stroke-width: 1; }
+.pcatick { fill: var(--muted); font-size: 11px; }
+.pcalabel { fill: var(--ink); font-size: 12px; }
+.pcaref { fill: var(--bg); stroke: var(--muted); stroke-width: 1.5; }
+.pcanear { fill: var(--pgs-bar); stroke: var(--bg); stroke-width: 2; }
+.pcanearlabel, .pcasamplelabel { fill: var(--ink); font-size: 11px; }
+.pcasamplelabel { font-weight: 600; }
+.pcasample circle { fill: var(--pgs-band); stroke: var(--bg); stroke-width: 2; }
+.pcasample line { stroke: var(--bg); stroke-width: 2; }
+.pcachart circle:focus, .pcasample:focus { outline: 2px solid var(--focus); }
+.pcalegend { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; list-style: none; padding: 0; margin: 0.25rem 0; font-size: 0.85rem; }
+.pcakey { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 0.4rem; vertical-align: middle; }
+.pcakey-sample { width: 14px; height: 14px; background: var(--pgs-band); }
+.pcakey-near { background: var(--pgs-bar); }
+.pcakey-ref { background: var(--bg); border: 1.5px solid var(--muted); }
+.pcatable { border-collapse: collapse; margin: 0.5rem 0; font-size: 0.9rem; }
+.pcatable th, .pcatable td { text-align: left; padding: 0.2rem 0.75rem 0.2rem 0; border-bottom: 1px solid var(--line); }
+.pcatable caption { text-align: left; font-weight: 600; padding-bottom: 0.25rem; }
+.pcarow-named td { font-weight: 600; }
+.lineages dd { margin: 0 0 0.75rem 0; }

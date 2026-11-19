@@ -16,9 +16,16 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.2, the ancestry visualisations, is next.** M0–M13 and M14.1 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m142-ancestry-visualisations) records what
-it inherits.
+**M14.3, the confidence legend and "how to read these results" page, is next.** M0–M13,
+M14.1 and M14.2 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m143-confidence-legend) records what it
+inherits.
+
+M14.2 adds the ancestry page and `genetics runs ancestry`: a PCA scatter of the run against
+the reference populations it was placed among, the nearest populations by full distance,
+ancient affinity, and both haplogroups with their marker counts. Bundle format 29 records
+the reference positions, so a saved run is drawn against its own reference; an older run
+lists its fits and says why it has no scatter. Agent schema version 7.
 
 M14.1 makes every empty section say why. The sentence comes from one function, which the
 nav, the grid and `runs show --section` share: a run saved with a pack that held no card
@@ -3267,8 +3274,27 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         one sentence that claims nothing about a run.
       - **Left for later:** the ancestry section holds only assay-limit cards; its analysis
         is a run-wide record with no page until M14.2.
-- [ ] **M14.2** Ancestry visualisations: PCA scatter with reference populations, ancient
+- [x] **M14.2** Ancestry visualisations: PCA scatter with reference populations, ancient
       affinity, haplogroup display with marker counts.
+      - **Done 2026-11-19** as the `/runs/{run_id}/ancestry` page and `genetics runs
+        ancestry <run> [--json]`, which prints what it draws. See
+        [Ancestry](docs/agent_cli.md#ancestry-m142).
+      - **Bundle format 29 records reference positions.** The ancestry record's placement
+        gains the model's `scale` and each fit its population's `centroid`, so a saved run
+        is drawn against the reference it was placed in, never the one installed when it is
+        opened. A run saved before 29 lists its fits by rank and says why there is no
+        scatter. A format before 29 that claims positions is refused.
+      - **Three marks, no region colours.** A scatter takes at most three categorical hues
+        (the dataviz rule; the two used are validated all-pairs in both modes), and the
+        panel has a dozen regions. References are neutral rings, the five nearest are
+        filled, the run is a cross in a ring; names and regions are in hover text and the
+        table. Only the nearest population and the run are labelled.
+      - **Haplogroups show both counts** (§4.7): supporting markers, and this array's
+        markers on defining sites. Ancient affinity is listed by distance and called
+        affinity, not ancestry proportions.
+      - **Agent schema version 7** (`runs.ancestry`). The nav links the page from every run.
+      - **Left for later:** the scatter shows the first two of the model's components only;
+        the table ranks on all of them, and the caption says so.
 - [ ] **M14.3** Confidence legend and a "how to read these results" page covering the
       rarity-inversion, PRS attenuation, and array limitations.
 - [ ] **M14.4** Global search across cards.
@@ -3338,6 +3364,8 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-19 | M14.2 diff review | Reviewed the M14.2 working tree before its commit. **P2, found while writing the tests:** every saved centroid was the sample's own position, because the cross join in `populations.place_many` suffixes the centroid's columns with `_c`; a test that the distance from the scaled sample to each centroid equals the saved distance caught it. **P3:** each of a hundred reference rings took a tab stop (now only the five nearest and the run); `region_index` was unused once regions lost their colours (removed from the unshipped schema 7); the panel size lacked a separator and a missing-value case. Two guards removed in turn each failed a test. **Validation:** the full native suite passes **4,387 tests with nine skips** in 765 s (nine new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m142_session.md). |
+| 2026-11-19 | M14.2 | The ancestry page, `/runs/{run_id}/ancestry`, and `genetics runs ancestry`, which prints what it draws. **Bundle format 29** records where the reference populations sit: the placement's `scale` and each fit's `centroid`, in the units distance is measured in, so a saved run is drawn against the reference it was placed in. A run saved before 29 lists its fits and says why there is no scatter; a format before 29 claiming positions is refused. **The scatter** follows the dataviz rules: three marks (neutral reference rings, the five nearest filled, the run as a cross in a ring) in two hues validated all-pairs in both modes, regions in hover text and the table rather than in colour, only the nearest population and the run labelled; rendered with 100 invented populations and looked at. **Haplogroups** show both §4.7 counts; **ancient affinity** is called affinity. Agent schema version 7; the nav links the page. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.1 diff review | Reviewed the M14.1 working tree before its commit. **P3:** `runs show --section` computed all thirteen empty-state sentences for each section it printed; it now computes its own. **Re-read and unchanged:** "the pack it was saved with had none here" follows from §0.1A (every pack card yields a run card); only `not_run` reasons are quoted, and each is checked with `outbound.reads_as_call`; the pack's section counts are cached for the process (0.7 s to load). Three guards removed in turn each failed a test (the call check on quoted reasons: one; the grid's section sentence: fourteen; the assay-limit sentence: one). **Validation:** the full native suite passes **4,378 tests with nine skips** in 746 s (thirteen new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m141_session.md). |
 | 2026-11-19 | M14.1 | Every empty section says why. The thirteen sections already rendered whatever a run held (M4.5); the sentence was stale, saying "Not built yet — roadmap M…" when every section has had cards in the pack since M12. **One function, three sentences** (`reads.empty_reason`, shared by the nav, the grid and `runs show --section`): a run saved with a pack that held no card here, with the current pack's count; cards and no interpretation, with each status counted by its label, each distinct `not_run` reason quoted (up to three), and a section of assay limits named as one; and, with no run open, a sentence that claims nothing about a run. A failed match's reason is about the call and stays on the card. `SectionView.empty_reason` became a field and `CardGroup.section_reason` carries the section's sentence, so the parity check compares the nav and the grid with the command field for field. Status labels moved to `reads.STATUS_LABELS`. **Changed for a caller:** `runs show --section`'s `empty_reason` text; no schema shape, bundle format or card changed. No personal export or saved real run was opened. |
 | 2026-11-19 | M13.7 diff review | Reviewed the M13.7 working tree before its commit. **P2: two bypasses.** Full-width letters (as an input method types them) and a comma, colon or semicolon between the rsID and the pair both carried a call past every rule; the lint now folds NFKC first and takes punctuation where it took whitespace. **P3:** `unsourced` listed question words ("what", "is"), and now skips card search's stopwords. One citation title in the pack (FUT2) holds "Homozygous", so searching it by title is refused; the advice now points to its DOI. **Re-read and unchanged:** the search commands now refuse a variant written as two spaced alleles (write `C>T`), recorded as the rule's cost; `check-query` exits 1 with its own document, not an error document; the source reader covers the standard library's request builders only. Three guards removed in turn each failed a test (the fetcher's `check_url`: four; NFKC: one; `marker-with-alleles` as a call rule: twelve). **Validation:** the full native suite passes **4,365 tests with nine skips** in 752 s (seven new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m137_session.md). |

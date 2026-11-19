@@ -586,7 +586,7 @@ def test_save_read_cli_and_dashboard_parity(
 ) -> None:
     path = _write(pack, run, sample_qc, tmp_path / "runs")
     bundle = read_bundle(path)
-    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 28
+    assert bundle.format_version == BUNDLE_FORMAT_VERSION == 29
     saved = next(c for c in bundle.cards if c.card_id == CARD_ID)
     assert saved.computation is not None
     assert saved.computation["source"] == SOURCE

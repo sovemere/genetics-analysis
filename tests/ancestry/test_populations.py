@@ -540,6 +540,26 @@ def test_a_sample_inside_a_cluster_is_named_that_population() -> None:
     assert placement.nearest.population == "AAA"
 
 
+def test_a_placement_carries_the_positions_its_scatter_is_drawn_from() -> None:
+    """M14.2: each fit's centroid is the model's, in the units distance is measured in, and
+    the sample divided by the model's scale lands in the same units."""
+    import math
+
+    model, _coords = built()
+    placement = place(projection(sample_at((0.2, 0.1, 0.0, 0.0))), model)
+    assert placement.scale == pytest.approx(tuple(model.scale))
+    centroids = {
+        str(row["population"]): tuple(float(row[f"PC{i + 1}"]) for i in range(model.n_components))
+        for row in model.centroids.iter_rows(named=True)
+    }
+    scaled = [
+        value / scale for value, scale in zip(placement.coordinates, placement.scale, strict=True)
+    ]
+    for fit in placement.fits:
+        assert fit.centroid == pytest.approx(centroids[fit.population])
+        assert math.dist(scaled, fit.centroid) == pytest.approx(fit.distance)
+
+
 def test_a_sample_between_every_cluster_is_named_nothing() -> None:
     """The Lebanese case, which is the whole milestone: a sample that sits *between* the
     panel's clusters and belongs to none of them. A nearest-neighbour report does not return

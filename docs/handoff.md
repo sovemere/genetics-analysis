@@ -1,6 +1,8 @@
-# Handoff: M14.2 ancestry visualisations
+# Handoff: M14.3 confidence legend
 
-As of 2026-11-19, **M0-M13 and M14.1 are implemented; M14.2 is next**. See
+As of 2026-11-19, **M0-M13, M14.1 and M14.2 are implemented; M14.3 is next**. See
+[the M14.3 entry contract](#next-open-step-m143-confidence-legend),
+[the M14.2 record](#accepted-m142-ancestry-visualisations),
 [the M14.2 entry contract](#next-open-step-m142-ancestry-visualisations),
 [the M14.1 record](#accepted-m141-sections-and-empty-states),
 [the M14.1 entry contract](#next-open-step-m141-sections-and-empty-states),
@@ -12,6 +14,10 @@ As of 2026-11-19, **M0-M13 and M14.1 are implemented; M14.2 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.2, the ancestry page, is implemented.** `/runs/{run_id}/ancestry` and `genetics runs
+ancestry` show the PCA scatter against the run's own reference (bundle format 29 records
+the positions), the nearest populations, ancient affinity and both haplogroups with their
+marker counts. See [the record](#accepted-m142-ancestry-visualisations).
 **M14.1, explicit empty states, is implemented.** Every section with nothing to show says
 why, from one function the nav, the grid and `runs show --section` share. See
 [the record](#accepted-m141-sections-and-empty-states).
@@ -578,9 +584,74 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m143-confidence-legend"></a>
+
+## Next open step: M14.3 confidence legend
+
+M14.3: a confidence legend and a "how to read these results" page covering the
+rarity inversion, PRS attenuation and array limitations. Nothing has been selected or
+verified beyond what is listed here.
+
+What already exists:
+
+- **Five tiers and "no tier"** (`engine.confidence.ConfidenceTier`), each with a label and
+  a blurb in `web.views` (`_TIER_LABELS`, `_TIER_BLURBS`), shown as group headings when the
+  grid is grouped by tier.
+- **`runs card` prints the whole confidence block** (M13.4): each input's weight and what
+  it cost, every ceiling and which set the tier. The dashboard's "Why this tier" prints
+  the reason and six rows, not the weights or the ceiling list; the polygenic partial
+  prints only the ceilings that lowered the tier. M13.4 left giving the pages the block
+  to here.
+- **The figures the page must give exist in the pack and the engine:** the frequency
+  bands and empirical PPVs of §4.1 (Weedon 2021; `docs/health_frequencies.md`), the
+  within-family attenuation of §4.5, the PRS coverage and portability inputs.
+
+What is open:
+
+- **A new page needs a command** (`tests/test_parity.py`). The legend and the guide hold
+  no run, so a pack- or engine-only command would serve, under `cards` or its own name.
+- **A new field of a view held inside a card needs a key in `parity.READ`** or a reason
+  in `parity.APART`; a seventh confidence row needs `parity.CONFIDENCE_ROWS`.
+- Where the legend sits: on every run page, or once with links from each tier badge.
+
+<a id="accepted-m142-ancestry-visualisations"></a>
+
+## Accepted M14.2 ancestry visualisations
+
+Implemented on 2026-11-19. No owner question was asked.
+
+- **A page and a command:** `/runs/{run_id}/ancestry`, linked from the nav of every run
+  page, and `genetics runs ancestry <run> [--json]`, which prints the record and the
+  scatter the page draws (`reads.ancestry_report`). Agent schema version 7.
+- **The run is drawn against its own reference.** Bundle format 29: the ancestry record's
+  placement holds the model's `scale`, and each fit its population's `centroid`, in the
+  units distance is measured in. A test checks the distance from the scaled sample to each
+  centroid equals the saved distance. Writing it found that the cross join in
+  `populations.place_many` suffixes the centroid columns, so a first version saved the
+  sample's own coordinates as every centroid; the test caught it.
+- **Older runs are not drawn against today's reference.** A run saved before 29 lists its
+  fits by rank and says why there is no scatter; a format before 29 that claims positions
+  is refused.
+- **Three marks, two validated hues, no region colours**, per the dataviz rule for
+  scatters. Only the nearest population and the run are labelled; every point has hover
+  text, and the table is the table view. Rendered and looked at with 100 invented
+  populations, in dark mode.
+- **Haplogroups show both counts** of §4.7, and ancient affinity is called affinity.
+
+Changed for a caller: bundle format 29 (a previous reader refuses it), agent schema 7, a
+new nav link. No knowledge schema or card changed. No personal export or saved real run
+was opened.
+
+The [M14.2 session review](review_m142_session.md) records the centroid bug the tests
+caught, and limited tab stops to the five nearest populations and the run. Validation on
+2026-11-19: the full native suite passes **4,387 tests with nine skips** in 765 s; strict
+mypy, ruff and format pass. Python source and the bundle format changed, so saved runs
+repeat their deep checks once, and a run saved before format 29 has no scatter until it is
+run again.
+
 <a id="next-open-step-m142-ancestry-visualisations"></a>
 
-## Next open step: M14.2 ancestry visualisations
+## M14.2 entry contract (implemented; retained for review)
 
 M14.2: a PCA scatter with reference populations, ancient affinity, and a haplogroup display
 with marker counts. Nothing has been selected or verified beyond what is listed here.

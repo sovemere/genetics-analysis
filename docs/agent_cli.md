@@ -1,4 +1,4 @@
-# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7)
+# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
@@ -9,7 +9,8 @@ decided a card's confidence tier, in one shape for every kind of card; see
 dashboard page shows is in a command's JSON, and described the five commands that print a
 run's other saved records; see [Parity with the dashboard](#parity-m135). M13.7
 (2026-11-19) added `cards check-query`, which says whether a query may leave the machine;
-see [Query check](#query-check-m137).
+see [Query check](#query-check-m137). M14.2 (2026-11-19) added `runs ancestry`, the ancestry
+page's command; see [Ancestry](#ancestry-m142).
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -495,6 +496,7 @@ points to `--json`, which holds each in full.
 | `/runs/{run_id}/cards/{card_id}` | One card in full, with what decided its tier | `genetics runs card <run> <card-id> --json` |
 | `/runs/{run_id}/clinvar` | The saved ClinVar reference lookup | `genetics runs clinvar <run> --json` |
 | `/runs/{run_id}/secondary-findings` | The lookup's ACMG gene-list overlaps | `genetics runs secondary <run> --json` |
+| `/runs/{run_id}/ancestry` | The PCA scatter, the nearest reference populations, ancient affinity and both haplogroups with their marker counts (M14.2) | `genetics runs ancestry <run> --json` |
 | `/runs/{run_id}/hla` | Saved HLA classifier calls and the HLA-linked cards | `genetics hla calls <run> --json` |
 | `/runs/{run_id}/pgx` | Saved pharmacogenomic calls, one gene's candidates, the section's notices | `genetics pgx calls <run> --json`, `genetics pgx calls <run> --gene <gene> --json` |
 
@@ -709,6 +711,41 @@ them, and the `parity_check` fixture runs it on every run a suite hands it. Nine
 guards were removed in turn, each caught. No command's output and no schema shape
 changed. The full native suite passes 4,282 tests with the existing nine skips.
 
+## Ancestry (M14.2)
+
+`genetics runs ancestry <run> [--json]` prints a run's ancestry record and the scatter the
+dashboard's ancestry page draws from it. It states an inference about the reader and is
+not scanned, like `runs card`.
+
+```text
+run_id, path, format_version, created_at
+ancestry                the saved record, whole: population, mt, y, ancient, and from
+                        format 18 reference_population; null before format 3
+current_context
+  context               "current"
+  pca                   status, drawn, why_not, axes, units, sample, references[],
+                        regions, bounds
+```
+
+**The scatter is drawn against the run's own reference.** From bundle format 29 (M14.2) a
+placement records the model's `scale` and each fit its population's `centroid`, in the
+pooled within-population standard deviations distance is measured in. `pca.sample` is the
+saved coordinates divided by the scale, and each reference's `point` is its centroid; the
+distance between them is the fit's `distance` on the first two of all components. Reading
+the reference installed today would draw a months-old run against a panel it was not placed
+in, so a run saved before format 29 is not drawn: `pca.why_not` says so, and its fits are
+still listed by rank.
+
+**The page shows three marks, and no colour for regions.** The dataviz rule for a scatter
+is at most three categorical hues, and the panel has a dozen regions. Reference populations
+are neutral rings, the five nearest are filled, and the run is a cross in a ring; a
+population's name and region are in its hover text and the table. Only the nearest
+population and the run are labelled on the plot.
+
+**Haplogroups carry both marker counts** (AGENTS.md §4.7): the markers that support the
+call, and how many of this array's markers sit on a defining site at all. Ancient affinity
+is listed by distance and called affinity, not ancestry proportions.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
@@ -790,6 +827,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** (done 2026-11-19) is `cards check-query`, described under
   [Query check](#query-check-m137). It closes the two queries M13.6 left open.
+- **M14.2** (done 2026-11-19) is `runs ancestry` and the ancestry page, described under
+  [Ancestry](#ancestry-m142).
 - **M14** the dashboard does not show a card's `ancestry_comparison`, which `runs show` and
   `runs card` print. A page added in M14 needs a row in `parity.PAGES`, and a new view field
   a place in its table; the tests say which.

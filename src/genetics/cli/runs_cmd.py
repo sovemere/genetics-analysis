@@ -282,6 +282,68 @@ def runs_imputation(
     typer.echo(text)
 
 
+@runs_app.command("ancestry")
+def runs_ancestry(
+    run_id: Annotated[str, typer.Argument(help="Saved run id.")],
+    as_json: Annotated[
+        bool, typer.Option("--json", help="Emit the saved ancestry record and its scatter.")
+    ] = False,
+) -> None:
+    """Show a run's ancestry: placement, ancient affinity and haplogroups (M14.2).
+
+    The saved record, and the scatter the dashboard's ancestry page draws from it: the
+    sample and each reference population on the first two components. It states an
+    inference about the reader, as a card does, and is not scanned (AGENTS.md 1.3).
+    """
+    try:
+        bundle = store.load_run(run_id, progress=store.report_to_console)
+    except (BundleError, OSError) as exc:
+        _fail(exc, as_json=as_json)
+    view = reads.ancestry_view(bundle)
+    if as_json:
+        typer.echo(json.dumps(contract.tagged("runs.ancestry", view), indent=2))
+        return
+    typer.echo("\n".join(ancestry_text(view)))
+
+
+def ancestry_text(view: Mapping[str, Any]) -> list[str]:
+    """``runs ancestry`` as text, from :func:`reads.ancestry_view`."""
+    record = view["ancestry"]
+    pca = view["current_context"]["pca"]
+    if record is None:
+        return [f"ancestry    not recorded: {pca['why_not']}"]
+    population = record["population"]
+    lines = [f"ancestry    {_ancestry_line(record)}"]
+    for reference in pca["references"][:5]:
+        lines.append(
+            f"  {reference['rank']:>3}. {reference['population']} ({reference['region']}): "
+            f"distance {reference['distance']:.2f}, fit {reference['fit']:.2f}"
+        )
+    if population.get("status") != "not_run":
+        lines.append(
+            "  scatter drawn" if pca["drawn"] else f"  scatter not drawn: {pca['why_not']}"
+        )
+    for name, label in (("mt", "mtDNA"), ("y", "Y")):
+        lineage = record[name]
+        if lineage.get("haplogroup"):
+            lines.append(
+                f"{label:<12}{lineage['haplogroup']}: {lineage['supporting']} supporting "
+                f"marker(s), {lineage['markers_on_array']} on this array's defining sites"
+            )
+        else:
+            lines.append(f"{label:<12}{lineage.get('status')}: {lineage.get('reason')}")
+    ancient = record["ancient"]
+    if ancient.get("groups"):
+        nearest = ancient["groups"][0]
+        lines.append(
+            f"ancient     nearest of {len(ancient['groups'])} group(s): {nearest['group']} "
+            f"(distance {nearest['distance']:.2f}); affinity, not ancestry proportions"
+        )
+    else:
+        lines.append(f"ancient     {ancient.get('status')}: {ancient.get('reason')}")
+    return lines
+
+
 @runs_app.command("secondary")
 def runs_secondary(
     run_id: Annotated[str, typer.Argument(help="Saved run id.")],

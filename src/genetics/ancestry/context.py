@@ -266,6 +266,9 @@ class PopulationResult(NoGenotypeRepr):
             "coverage": None if placement is None else placement.coverage,
             "n_scored_markers": None if placement is None else placement.n_scored_markers,
             "coordinates": None if placement is None else list(placement.coordinates),
+            # M14.2: what the ancestry page needs to draw this run against its own
+            # reference. Null where the placement was built without a model's scale.
+            "scale": None if placement is None or not placement.scale else list(placement.scale),
             "fits": None
             if placement is None
             else [
@@ -277,6 +280,7 @@ class PopulationResult(NoGenotypeRepr):
                     "radius": fit.radius,
                     "fit": fit.fit,
                     "percentile": fit.percentile,
+                    "centroid": list(fit.centroid) if fit.centroid else None,
                 }
                 for fit in placement.fits
             ],

@@ -133,6 +133,12 @@ PAGES: Final[tuple[Page, ...]] = (
         "the lookup's ACMG gene-list overlaps",
     ),
     Page(
+        "/runs/{run_id}/ancestry",
+        ("genetics runs ancestry <run> --json",),
+        "the saved ancestry record: the PCA scatter, the nearest populations, ancient "
+        "affinity and both haplogroups with their marker counts",
+    ),
+    Page(
         "/runs/{run_id}/hla",
         ("genetics hla calls <run> --json",),
         "saved HLA classifier calls and the HLA-linked cards",
@@ -604,6 +610,10 @@ class Documents:
     @property
     def hla(self) -> Any:
         return self.cli("hla", "calls", self.name)
+
+    @property
+    def ancestry(self) -> Any:
+        return self.cli("runs", "ancestry", self.name)
 
     def pgx(self, gene: str | None = None) -> Any:
         return self.cli("pgx", "calls", self.name, *(() if gene is None else ("--gene", gene)))
@@ -1133,6 +1143,7 @@ SHELL: Final[dict[str, Placed]] = {
     "clinvar": same("runs clinvar", lambda documents: documents.clinvar["clinvar"]),
     "grid": Reached(f"{_SHOW}; {_SECTION}", _check_grid),
     "hla": same(_SHOW, lambda documents: documents.show["hla"]),
+    "ancestry": same("runs ancestry", lambda documents: documents.ancestry["ancestry"]),
     "format_version": same(_QC, lambda documents: documents.qc["format_version"]),
     "pgx": same(_SHOW, lambda documents: documents.show["pgx"]),
     "pgx_framing": same(
@@ -1288,6 +1299,8 @@ CONTEXT: Final[dict[str, Template]] = {
         "secondary_only": Display("Which of the two routes was asked for."),
         "clinvar_view_url": Display("This page's own address."),
     },
+    "ancestry.html": _FRAME
+    | {"ancestry_report": _report_keys("runs ancestry", lambda documents, _: documents.ancestry)},
     "hla.html": _FRAME
     | {
         "hla_report": _report_keys("hla calls", lambda documents, _: documents.hla),
@@ -1620,6 +1633,7 @@ def check_run(run: Path) -> Report:
             for number in range(2, first["clinvar_pages"] + 1):
                 check(f"{address}?page={number}")
         check(f"{base}/hla")
+        check(f"{base}/ancestry")
         overview = check(f"{base}/pgx")
         for gene in overview["pgx_report"]["genes"]:
             first = check(f"{base}/pgx?gene={gene}")

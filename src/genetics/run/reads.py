@@ -61,6 +61,12 @@ SAVED_RECORDS: dict[Section, tuple[tuple[str, str], ...]] = {
     ),
     Section.PHARMACOGENOMICS: (("Saved pharmacogenomic calls", "genetics pgx calls {run}"),),
     Section.IMMUNOGENETICS: (("HLA classifier calls", "genetics hla calls {run}"),),
+    Section.ANCESTRY: (
+        (
+            "Placement, ancient affinity and haplogroups",
+            "genetics runs ancestry {run}",
+        ),
+    ),
 }
 """Saved records a section's reader is pointed to beyond its cards, with the command that
 prints each. The dashboard links the same records as pages."""
@@ -569,3 +575,114 @@ def search_view(bundle: RunBundle, query: Query, limit: int | None = None) -> di
         | query_payload(query, searched=len(bundle.cards), total=len(hits), limit=limit)
         | {"hits": [hit.to_dict() for hit in shown]},
     }
+
+
+# ---------------------------------------------------------------------------
+# Ancestry (M14.2)
+# ---------------------------------------------------------------------------
+
+PCA_PADDING: Final = 0.05
+"""Fraction of each axis's span added on both sides of the drawn points."""
+
+
+def ancestry_report(record: Mapping[str, Any] | None) -> dict[str, Any]:
+    """A run's ancestry record and what the ancestry page draws from it (M14.2).
+
+    ``ancestry`` is the saved record, whole: the placement among present-day reference
+    populations, the mt and Y haplogroup walks with their marker counts, and the affinity
+    to ancient groups. ``current_context.pca`` is the scatter: the sample and every
+    reference population on the first two components, in pooled within-population standard
+    deviations, as M5.5 measures distance. A run saved before M14.2 recorded no reference
+    positions, so it is not drawn and says so; its fits are still listed.
+    """
+    return {
+        "ancestry": None if record is None else dict(record),
+        "current_context": {"context": "current", "pca": _pca(record)},
+    }
+
+
+def ancestry_view(bundle: RunBundle) -> dict[str, Any]:
+    """``genetics runs ancestry``: the envelope and :func:`ancestry_report`."""
+    return _header(bundle) | ancestry_report(bundle.ancestry)
+
+
+def _pca(record: Mapping[str, Any] | None) -> dict[str, Any]:
+    population: Mapping[str, Any] = {}
+    if record is not None and isinstance(record.get("population"), Mapping):
+        population = record["population"]
+    status = population.get("status") if population else "not_recorded"
+    view: dict[str, Any] = {
+        "status": status,
+        "drawn": False,
+        "why_not": None,
+        "axes": ["PC1", "PC2"],
+        "units": "pooled within-population standard deviations",
+        "sample": None,
+        "references": [],
+        "regions": [],
+        "bounds": None,
+    }
+    if record is None:
+        view["why_not"] = (
+            "This run recorded no ancestry analysis: it was saved by a version before the "
+            "ancestry record existed (bundle format 3)."
+        )
+        return view
+    fits = population.get("fits")
+    if status == "not_run" or not isinstance(fits, list) or not fits:
+        view["why_not"] = (
+            f"No placement was made: {population.get('reason') or 'no reason recorded'}"
+        )
+        return view
+    regions = sorted({str(fit.get("region")) for fit in fits})
+    view["regions"] = regions
+    named = population.get("population")
+    references = []
+    for rank, fit in enumerate(fits, start=1):
+        centroid = fit.get("centroid")
+        point = (
+            [float(centroid[0]), float(centroid[1])]
+            if isinstance(centroid, list) and len(centroid) >= 2
+            else None
+        )
+        references.append(
+            {
+                "rank": rank,
+                "population": fit.get("population"),
+                "region": fit.get("region"),
+                "n_samples": fit.get("n_samples"),
+                "distance": fit.get("distance"),
+                "fit": fit.get("fit"),
+                "percentile": fit.get("percentile"),
+                "named": fit.get("population") == named,
+                "point": point,
+            }
+        )
+    view["references"] = references
+    scale = population.get("scale")
+    coordinates = population.get("coordinates")
+    if (
+        not isinstance(scale, list)
+        or not isinstance(coordinates, list)
+        or len(scale) < 2
+        or len(coordinates) < 2
+        or any(reference["point"] is None for reference in references)
+    ):
+        view["why_not"] = (
+            "This run was saved before reference-population positions were recorded "
+            "(M14.2), so the scatter cannot be drawn against the reference it was placed "
+            "in. The distances below are the run's own; a new run draws them."
+        )
+        return view
+    sample = [float(coordinates[0]) / float(scale[0]), float(coordinates[1]) / float(scale[1])]
+    xs = [sample[0], *(reference["point"][0] for reference in references)]
+    ys = [sample[1], *(reference["point"][1] for reference in references)]
+    pad_x = (max(xs) - min(xs)) * PCA_PADDING or 1.0
+    pad_y = (max(ys) - min(ys)) * PCA_PADDING or 1.0
+    view["drawn"] = True
+    view["sample"] = sample
+    view["bounds"] = {
+        "x": [min(xs) - pad_x, max(xs) + pad_x],
+        "y": [min(ys) - pad_y, max(ys) + pad_y],
+    }
+    return view
