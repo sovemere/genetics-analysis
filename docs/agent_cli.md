@@ -1,4 +1,4 @@
-# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2)
+# Agent read commands (M13.1, M13.3, M13.4, M13.5, M13.7, M14.2, M14.3)
 
 Implemented 2026-11-10. Four commands let an agent read one card, one section, a run's QC
 record, or a card's evidence without printing a whole bundle. On the real imputed run
@@ -10,7 +10,8 @@ dashboard page shows is in a command's JSON, and described the five commands tha
 run's other saved records; see [Parity with the dashboard](#parity-m135). M13.7
 (2026-11-19) added `cards check-query`, which says whether a query may leave the machine;
 see [Query check](#query-check-m137). M14.2 (2026-11-19) added `runs ancestry`, the ancestry
-page's command; see [Ancestry](#ancestry-m142).
+page's command; see [Ancestry](#ancestry-m142). M14.3 (2026-11-19) added `cards guide`, the
+reading guide and confidence legend; see [Reading guide](#reading-guide-m143).
 
 | Command | Reads | Holds a genotype | Scanned |
 |---|---|---|---|
@@ -21,6 +22,7 @@ page's command; see [Ancestry](#ancestry-m142).
 | `genetics cards search <query> [--limit N] [--json]` (M13.3) | knowledge pack | no | both branches |
 | `genetics runs search <run> <query> [--limit N] [--json]` (M13.3) | saved run | yes | no |
 | `genetics cards check-query <query> [--card ID] [--json]` (M13.7) | knowledge pack | no | both branches |
+| `genetics cards guide [--json]` (M14.3) | knowledge pack, confidence engine | no | both branches |
 
 `genetics runs list` (M4.2) and `genetics refs licenses` (M2.6) are the rest of M13.1's list.
 The two search commands are described under [Search](#search-m133).
@@ -492,6 +494,7 @@ points to `--json`, which holds each in full.
 |---|---|---|
 | `/healthz` | The engine and bundle-format versions, the runs directory, how many runs it holds | `genetics version --json`, `genetics runs list --json` |
 | `/` | The newest readable run, opened as its own page is | `genetics runs list --json` |
+| `/guide` | How to read the results: the confidence legend, how a tier is decided, the rarity inversion, what a polygenic score can say and the array's limits (M14.3). Holds no run | `genetics cards guide --json` |
 | `/runs/{run_id}` | The run selector, the QC banner, the thirteen sections, every card's face | `genetics runs list --json`, `genetics runs qc <run> --json`, `genetics runs imputation <run> --json`, `genetics runs show <run> --section <section> --json`, `genetics runs show <run> --json`, `genetics runs card <run> <card-id> --json`, `genetics pgx calls <run> --json` |
 | `/runs/{run_id}/cards/{card_id}` | One card in full, with what decided its tier | `genetics runs card <run> <card-id> --json` |
 | `/runs/{run_id}/clinvar` | The saved ClinVar reference lookup | `genetics runs clinvar <run> --json` |
@@ -746,6 +749,66 @@ population and the run are labelled on the plot.
 call, and how many of this array's markers sit on a defining site at all. Ancient affinity
 is listed by distance and called affinity, not ancestry proportions.
 
+## Reading guide (M14.3)
+
+`genetics cards guide [--json]` prints how to read a run's results. The dashboard's `/guide`
+page shows the same document, and every page's nav shows its `legend`: the six badges a
+card can carry, each linking to its row in the guide. It reads the knowledge pack and the
+confidence engine, no run, and its output is scanned on both branches.
+
+```text
+legend[]      key, label, blurb, min_score, earned_by: the five tiers strongest first, then
+              `untiered`. The labels and blurbs are the dashboard's badges and grid headings
+reading       title, paragraphs, statuses[]: how to read a card, and each status badge
+confidence    title, paragraphs, inputs[] (the six rows and their weights), bands[],
+              evidence_components[], replication_components[], ceilings[]
+rarity        title, paragraphs, frequency_components[], unknown_frequency_component,
+              rare_call_band, benchmarks[]: the rarity inversion (AGENTS.md §4.1)
+polygenic     title, paragraphs, cards[]: coverage, portability, within-family attenuation
+              and what a position in a distribution says, with every polygenic card in
+              the pack, its study ancestry and whether it has its own within-family figure
+array         title, paragraphs, limits[], not_determinable[]: the array's limits, and every
+              impossibility card in the pack with the section it sits in (AGENTS.md §3.2)
+sources[]     type, id, title, url, supports: the papers the paragraphs quote, and the
+              figures read from each
+```
+
+**No threshold is written twice.** The weights, bands, evidence and replication components,
+frequency components and quality and share bounds are tables in `engine/confidence.py` that
+the calculators read, and the guide reads the same tables. The ceilings are listed by
+calling `single_call_ceilings` and `polygenic_ceilings` with inputs that meet one rule each,
+so `ceilings[].rule` is the sentence `runs card` gives in
+`current_context.confidence.ceilings[].rule`. A test runs both functions over a grid of
+inputs and fails on any ceiling the guide does not list. The two benchmarks are
+`engine.ppv.benchmark`, which a ClinVar record's reliability block also comes from.
+
+**What is authored is prose and the figures it quotes.** Each figure is in `sources[].supports`
+with the paper it was read from. The figures were read from the PubMed abstracts on
+2026-11-19: Weedon et al. 2021 (doi:10.1136/bmj.n214) for 16% of 4,757 rare heterozygous calls,
+4.2% for BRCA1/BRCA2 and 20 of 21 Personal Genome Project participants; Tandy-Connor et al.
+2018 (doi:10.1038/gim.2018.38) for 40% of variants from 49 patients' raw data; Okbay et al. 2022
+(doi:10.1038/s41588-022-01016-z) for 12-16% of variance and direct effects roughly half the
+association; and Ding et al. 2023 (doi:10.1038/s41586-023-06079-4) for the -0.95 correlation
+and 14% lower accuracy in the farthest decile of genetic distance. Counts of the pack's own
+cards (polygenic cards trained in European-ancestry cohorts alone, cards with a within-family
+figure) are computed when the guide is built.
+
+### Decisions
+
+- **One page, and a legend on every page.** The legend is in the nav of every page that has
+  one, because a reader meets a badge on the run page, not on the guide. Each badge links to
+  its row in the guide. It is not on the card faces: a face is already one link, to the card,
+  and a link inside a link is not valid HTML. The grid's tier headings and the card page's
+  "Why this tier" link into the guide too.
+- **Under `cards`.** It reads the pack and no run, which is what `cards` means (M13.1).
+- **The tier labels moved** from `web.views` to `genetics.run.guide`, so the command prints
+  the words the badges show. `views._TIER_LABELS` and `views.NO_TIER` are the same objects.
+- **The guide page lists runs and opens none.** Its shell is built from the run listing
+  alone, so it costs a directory listing and never a bundle read. The run selector shows
+  "Open a saved run" when no run is selected.
+- **The card page is unchanged** beyond its link: it prints the sentence and the six rows
+  M13.4 gave it, and the weights and the ceiling list are on the guide.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
@@ -827,6 +890,8 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** (done 2026-11-19) is `cards check-query`, described under
   [Query check](#query-check-m137). It closes the two queries M13.6 left open.
+- **M14.3** (done 2026-11-19) is `cards guide` and the `/guide` page, described under
+  [Reading guide](#reading-guide-m143).
 - **M14.2** (done 2026-11-19) is `runs ancestry` and the ancestry page, described under
   [Ancestry](#ancestry-m142).
 - **M14** the dashboard does not show a card's `ancestry_comparison`, which `runs show` and

@@ -261,10 +261,11 @@ def test_the_page_holds_no_genotype_and_sends_no_result_out() -> None:
         for line in text.split("## The steps")[0].split("\n")
         if line.startswith("| `genetics")
     ]
-    assert len(rows) == 8
-    # Only output that states no result may be sent out: the pack reads and the query check.
+    assert len(rows) == 9
+    # Only output that states no result may be sent out: the pack reads (the guide among
+    # them since M14.3) and the query check.
     safe = [commands for commands, _, may_leave in rows if may_leave == "yes"]
-    assert len(safe) == 4
+    assert len(safe) == 5
     assert all(states == "no" for _, states, may_leave in rows if may_leave == "yes")
     assert not any(word in " ".join(safe) for word in ("runs", "pgx", "hla"))
     assert all(may_leave.startswith("no") for _, _, may_leave in rows if may_leave != "yes")

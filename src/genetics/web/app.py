@@ -55,6 +55,7 @@ from genetics.run.bundle import (
     BundleError,
     RunBundle,
 )
+from genetics.run.guide import committed_guide, legend
 from genetics.run.store import RunNotFoundError
 from genetics.web import views
 from genetics.web.assets import STATIC_DIR
@@ -353,6 +354,8 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             "shell": shell,
             "engine_version": ENGINE_VERSION,
             "bundle_format_version": BUNDLE_FORMAT_VERSION,
+            # The confidence legend in every page's nav (M14.3): what `cards guide` prints.
+            "legend": legend(),
             **extra,
         }
         for name in SCANNED_PARTIALS:
@@ -392,6 +395,15 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
             raw.setdefault(name, []).append(value)
         return views.parse_query(raw)
 
+    def _unlisted() -> store.RunListing:
+        """An empty listing, for a runs directory that could not be read."""
+        return store.RunListing(
+            root=settings.runs_root or Path("(unresolved)"),
+            runs=(),
+            incomplete=(),
+            verified=False,
+        )
+
     def _shell(run_id: str | None, query: views.GridQuery | None = None) -> views.Shell:
         """Resolve what to display, turning every failure into a sentence.
 
@@ -404,13 +416,9 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
         try:
             listing = store.list_runs(settings.runs_root)
         except (UnsafeDataDirError, OSError) as exc:
-            empty = store.RunListing(
-                root=settings.runs_root or Path("(unresolved)"),
-                runs=(),
-                incomplete=(),
-                verified=False,
+            return views.shell_for(
+                _unlisted(), None, selected_id=run_id, problem=str(exc), query=query
             )
-            return views.shell_for(empty, None, selected_id=run_id, problem=str(exc), query=query)
 
         readable = [summary for summary in listing.runs if summary.ok]
         if run_id is None:
@@ -457,6 +465,24 @@ def create_app(config: WebConfig | None = None) -> FastAPI:
     def index(request: Request) -> HTMLResponse:
         """The dashboard, showing the most recent readable run."""
         return _render(_shell(None, _query(request)))
+
+    @app.get("/guide", response_class=HTMLResponse)
+    def guide() -> HTMLResponse:
+        """How to read these results: the confidence legend, how a tier is decided, the
+        rarity inversion, what a polygenic score can say and the array's limits (M14.3).
+
+        Holds no run. The shell lists the saved runs for the selector and opens none, so
+        this page costs a directory listing and never a bundle read. Everything it shows is
+        :func:`genetics.run.guide.committed_guide`, which ``genetics cards guide --json``
+        prints for the same pack.
+        """
+        try:
+            listing = store.list_runs(settings.runs_root)
+        except (UnsafeDataDirError, OSError) as exc:
+            shell = views.shell_for(_unlisted(), None, problem=str(exc))
+        else:
+            shell = views.shell_for(listing, None)
+        return _render(shell, "guide.html", guide=committed_guide())
 
     @app.get("/runs/{run_id}", response_class=HTMLResponse)
     def dashboard(run_id: str, request: Request) -> HTMLResponse:

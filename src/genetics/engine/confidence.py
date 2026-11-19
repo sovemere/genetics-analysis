@@ -179,6 +179,12 @@ _REPLICATION_SCORES: Final[dict[Replication, float]] = {
     Replication.CONFLICTING: 0.00,
 }
 
+EVIDENCE_SCORES: Final[Mapping[EvidenceTier, float]] = MappingProxyType(_EVIDENCE_SCORES)
+"""The evidence-tier component, read-only, for the reading guide (M14.3)."""
+
+REPLICATION_SCORES: Final[Mapping[Replication, float]] = MappingProxyType(_REPLICATION_SCORES)
+"""The replication component, read-only, for the reading guide (M14.3)."""
+
 
 def _finite_fraction(value: float | None, name: str) -> float | None:
     if value is None:
@@ -251,22 +257,31 @@ def _effect_score(effect: Effect) -> float:
     return min(abs(value) / (2.0 * half_width), 1.0)
 
 
+FREQUENCY_SCORES: Final[tuple[tuple[float, float], ...]] = (
+    (RARE_CALL_FREQUENCY_CEILING, 0.0),
+    (0.0001, 0.15),
+    (0.001, 0.35),
+    (0.01, 0.60),
+    (0.05, 0.80),
+)
+"""The allele-frequency component: below each bound, the component beside it. At or above
+the last bound it is :data:`COMMON_FREQUENCY_SCORE`, and with no frequency it is
+:data:`UNKNOWN_FREQUENCY_SCORE`. Rarity lowers the component (AGENTS.md 4.1); the reading
+guide prints this table (M14.3)."""
+
+COMMON_FREQUENCY_SCORE: Final[float] = 1.0
+UNKNOWN_FREQUENCY_SCORE: Final[float] = 0.5
+
+
 def _frequency_score(frequency: float | None) -> float:
     """Rarity-inverted observation reliability, continuous across useful bands."""
 
     if frequency is None:
-        return 0.5
-    if frequency < RARE_CALL_FREQUENCY_CEILING:
-        return 0.0
-    if frequency < 0.0001:
-        return 0.15
-    if frequency < 0.001:
-        return 0.35
-    if frequency < 0.01:
-        return 0.60
-    if frequency < 0.05:
-        return 0.80
-    return 1.0
+        return UNKNOWN_FREQUENCY_SCORE
+    for bound, component in FREQUENCY_SCORES:
+        if frequency < bound:
+            return component
+    return COMMON_FREQUENCY_SCORE
 
 
 def score_tier(score: float) -> ConfidenceTier:
@@ -322,7 +337,7 @@ def _evidence_ceilings(
     return ceilings
 
 
-_QUALITY_CEILINGS: Final[tuple[tuple[float, ConfidenceTier], ...]] = (
+QUALITY_CEILINGS: Final[tuple[tuple[float, ConfidenceTier], ...]] = (
     (0.30, ConfidenceTier.LIKELY_ARTIFACT),
     (0.60, ConfidenceTier.LIMITED),
     (0.80, ConfidenceTier.MODERATE),
@@ -331,9 +346,19 @@ _QUALITY_CEILINGS: Final[tuple[tuple[float, ConfidenceTier], ...]] = (
 bound, the tier is at best the one beside it. :func:`calculate_hla_call_reliability` applies
 the same three bounds to a posterior and states them itself."""
 
+SHARE_CEILINGS: Final[tuple[tuple[float, ConfidenceTier], ...]] = (
+    (0.25, ConfidenceTier.LIMITED),
+    (0.50, ConfidenceTier.MODERATE),
+)
+"""Ceilings on a demonstrated share: an ancestry match, a polygenic score's comparable
+weight, an HLA call's marker coverage. Below the bound, the tier is at best the one beside
+it. An unknown ancestry match caps at :data:`UNKNOWN_SHARE_CEILING`."""
+
+UNKNOWN_SHARE_CEILING: Final[ConfidenceTier] = ConfidenceTier.STRONG
+
 
 def _quality_ceiling(quality: float, name: str, what: str) -> list[Ceiling]:
-    for bound, tier in _QUALITY_CEILINGS:
+    for bound, tier in QUALITY_CEILINGS:
         if quality < bound:
             return [Ceiling(name, tier, f"{what} is below {bound:.2f}")]
     return []
@@ -346,7 +371,8 @@ def _share_ceiling(share: float | None, name: str, what: str) -> list[Ceiling]:
         return []
     if share is None:
         return [Ceiling(name, tier, f"{what} is unknown")]
-    return [Ceiling(name, tier, f"{what} is below {0.25 if share < 0.25 else 0.50:.2f}")]
+    bound = next(bound for bound, _ in SHARE_CEILINGS if share < bound)
+    return [Ceiling(name, tier, f"{what} is below {bound:.2f}")]
 
 
 def single_call_ceilings(
@@ -432,11 +458,10 @@ def ancestry_ceiling(ancestry_match: float | None) -> ConfidenceTier | None:
 
     ancestry = _finite_fraction(ancestry_match, "ancestry_match")
     if ancestry is None:
-        return ConfidenceTier.STRONG
-    if ancestry < 0.25:
-        return ConfidenceTier.LIMITED
-    if ancestry < 0.50:
-        return ConfidenceTier.MODERATE
+        return UNKNOWN_SHARE_CEILING
+    for bound, tier in SHARE_CEILINGS:
+        if ancestry < bound:
+            return tier
     return None
 
 
@@ -737,12 +762,10 @@ def calculate_hla_call_reliability(
             ceiling = limit
             ceilings.append(why)
 
-    if quality < 0.30:
-        cap(ConfidenceTier.LIKELY_ARTIFACT, "posterior")
-    elif quality < 0.60:
-        cap(ConfidenceTier.LIMITED, "posterior")
-    elif quality < 0.80:
-        cap(ConfidenceTier.MODERATE, "posterior")
+    for bound, limit in QUALITY_CEILINGS:
+        if quality < bound:
+            cap(limit, "posterior")
+            break
     cap(ancestry_ceiling(coverage), "marker_coverage")
     cap(ancestry_ceiling(ancestry), "ancestry")
     return HLACallReliability(

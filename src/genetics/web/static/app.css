@@ -299,6 +299,31 @@ a { color: var(--accent); }
 
 .navnote { font-size: 0.8rem; margin-top: 0.75rem; }
 
+/* The confidence legend (M14.3): the card faces' own badges, each a link into the guide. */
+.legend { margin-top: 1rem; }
+.navhead {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 0.4rem;
+}
+.legendlist { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.legendlist a { text-decoration: none; border-radius: 999px; }
+.legendlist a:hover .tier, .legendlist a:focus-visible .tier { text-decoration: underline; }
+
+/* The reading guide (M14.3). */
+.guidetiers { display: grid; gap: 0.75rem; margin: 0.75rem 0 0; }
+.guidetier { display: grid; grid-template-columns: 9.5rem 1fr; gap: 0.25rem 1rem; align-items: start; }
+.guidetier:target { outline: 2px solid var(--line); outline-offset: 0.35rem; border-radius: 4px; }
+.guidetier dd { margin: 0; }
+.guidetier p { margin: 0 0 0.3rem; }
+.guidetoc { list-style: none; margin: 0; padding: 0; }
+.guidetoc a { display: block; padding: 0.3rem 0.5rem; border-radius: 4px; color: inherit; text-decoration: none; }
+.guidetoc a:hover, .guidetoc a:focus { background: var(--panel); }
+.guide h2 { margin-top: 0; }
+.guide .tablescroll { margin: 0.5rem 0 0.75rem; }
+
 .content { padding: 1.25rem; max-width: 72rem; min-width: 0; }
 
 .backlink { margin: 0 0 1rem; }
@@ -626,6 +651,7 @@ a { color: var(--accent); }
     border-bottom: 1px solid var(--line);
   }
   .sections { display: grid; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); gap: 0.15rem; }
+  .guidetier { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 40rem) {

@@ -39,7 +39,7 @@ from genetics.engine.citations import citation_url
 from genetics.engine.confidence import ConfidenceTier
 from genetics.engine.sections import Section
 from genetics.privacy import NoGenotypeRepr
-from genetics.run import reads
+from genetics.run import guide, reads
 from genetics.run.bundle import EVIDENCE_FORMAT_VERSION as _EVIDENCE_FORMAT_VERSION
 from genetics.run.bundle import RunBundle, StoredCard
 from genetics.run.explain import explain_confidence
@@ -419,14 +419,9 @@ class StagingNotice:
 # ---------------------------------------------------------------------------
 
 
-_TIER_LABELS: Mapping[str, str] = {
-    ConfidenceTier.WELL_ESTABLISHED.value: "Well established",
-    ConfidenceTier.STRONG.value: "Strong",
-    ConfidenceTier.MODERATE.value: "Moderate",
-    ConfidenceTier.LIMITED.value: "Limited",
-    ConfidenceTier.LIKELY_ARTIFACT.value: "Likely artifact",
-}
-"""Display text per tier, keyed by the *stored string*.
+_TIER_LABELS: Mapping[str, str] = guide.TIER_LABELS
+"""Display text per tier, keyed by the *stored string*. Defined in :mod:`genetics.run.guide`
+since M14.3, so that ``genetics cards guide`` prints the words the badges show.
 
 Keyed by string rather than by :class:`ConfidenceTier` for the reason :data:`MATCHED` gives:
 a bundle written by a newer engine may carry a tier this version has never heard of, and
@@ -438,26 +433,7 @@ visible, marked, and not pretending to be one of ours.
 decision about how it reads rather than defaulting to a raw slug on a card face.
 """
 
-_TIER_BLURBS: Mapping[str, str] = {
-    ConfidenceTier.WELL_ESTABLISHED.value: (
-        "Clinical-guideline or expert-curated evidence, replicated, on a call this array "
-        "makes reliably."
-    ),
-    ConfidenceTier.STRONG.value: "Replicated evidence with a clear effect on a reliable call.",
-    ConfidenceTier.MODERATE.value: (
-        "Real evidence with a limit somewhere — the effect, the replication, the population "
-        "match, or the call itself."
-    ),
-    ConfidenceTier.LIMITED.value: (
-        "Thin evidence, a conflicting literature, or an observation this array is not good "
-        "at. Read the breakdown before you read the finding."
-    ),
-    ConfidenceTier.LIKELY_ARTIFACT.value: (
-        "The observation itself is probably wrong, most often a rare heterozygous chip call "
-        "or a failed imputation. Shown because hiding it would leave you unable to tell it "
-        "from a finding nobody looked for (AGENTS.md §0.1A)."
-    ),
-}
+_TIER_BLURBS: Mapping[str, str] = guide.TIER_BLURBS
 
 TIER_ORDER: tuple[str, ...] = tuple(tier.value for tier in ConfidenceTier)
 """Strongest first. :class:`ConfidenceTier` is declared in that order and its ``rank`` agrees."""
@@ -465,7 +441,7 @@ TIER_ORDER: tuple[str, ...] = tuple(tier.value for tier in ConfidenceTier)
 _UNKNOWN_TIER_RANK: int = len(TIER_ORDER)
 _NO_TIER_RANK: int = len(TIER_ORDER) + 1
 
-NO_TIER: str = "untiered"
+NO_TIER: str = guide.NO_TIER
 """The group key and URL value for a card with no tier, which is every card that did not match.
 
 A real string rather than ``None`` because it is a group heading, a query parameter and a
@@ -1145,7 +1121,7 @@ class CardView(NoGenotypeRepr):
     @property
     def tier_label(self) -> str:
         if self.tier is None:
-            return "No tier"
+            return guide.NO_TIER_LABEL
         return _TIER_LABELS.get(self.tier, self.tier.replace("-", " ").capitalize())
 
     @property
@@ -1740,10 +1716,7 @@ def _tier_groups(cards: Sequence[CardView], query: GridQuery) -> tuple[CardGroup
         blurb: str | None
         if key == NO_TIER:
             title = "No confidence tier"
-            blurb = (
-                "Confidence is computed from a finding, so a card with no interpretation "
-                "has none. Each of these says why."
-            )
+            blurb = guide.NO_TIER_BLURB
         else:
             title = _TIER_LABELS.get(key, key.replace("-", " ").capitalize())
             blurb = _TIER_BLURBS.get(key)  # None for a tier this version does not define
@@ -1774,7 +1747,7 @@ def _tier_options(cards: Sequence[CardView], query: GridQuery) -> tuple[FilterOp
     return tuple(
         FilterOption(
             value=value,
-            label="No tier" if value == NO_TIER else _TIER_LABELS.get(value, value),
+            label=guide.NO_TIER_LABEL if value == NO_TIER else _TIER_LABELS.get(value, value),
             count=counts.get(value, 0),
             selected=value in query.tiers,
         )

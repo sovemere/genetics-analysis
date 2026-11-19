@@ -21,6 +21,7 @@ Read this before the first command. A run is one person's DNA ([AGENTS.md §1](.
 | `genetics cards search <query>` | no | yes |
 | `genetics cards evidence <card-id>` | no | yes |
 | `genetics cards check-query <query>` | no | yes |
+| `genetics cards guide` | no | yes |
 | `genetics schema`, `genetics version --json` | no | yes |
 | `genetics runs list` | no, but it names the runs | no |
 | `genetics runs qc <run>` | no genotype; it holds the inferred sex and call rates | no |
@@ -357,6 +358,7 @@ Only the first paragraph is about the run.
 | The reader asks | Start with |
 |---|---|
 | Why is this card low confidence? | `genetics runs card <run> <card-id> --json`: `current_context.confidence`, described under [Confidence](agent_cli.md#confidence-m134) |
+| What does a tier mean? Why does rarity lower confidence? What can a polygenic score say? | `genetics cards guide --json`: the legend, every ceiling, the frequency components and the published benchmarks, from the engine's own rules (M14.3). It holds no run |
 | Review a whole section | `genetics runs show <run> --section <section> --json`, then `runs card` for each card worth a closer look |
 | Is the run itself sound? | `genetics runs qc <run> --json`, and `genetics runs imputation <run> --json` for an imputed run |
 | What does the run say about a drug or a gene? | `genetics runs search <run> <query>`, then `genetics pgx calls <run> --gene <gene> --json` |

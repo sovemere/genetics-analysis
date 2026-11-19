@@ -1,10 +1,11 @@
-"""CLI for reviewing the committed knowledge pack (roadmap M3.5, M13.1, M13.3, M13.7).
+"""CLI for reviewing the committed knowledge pack (roadmap M3.5, M13.1, M13.3, M13.7, M14.3).
 
 ``lint``, ``carriers`` and ``carrier-scope`` review the pack. ``evidence`` and ``search``
 are agent reads: they open no run, hold no genotype, and scan their output to keep that
 true. ``search`` finds a card id from a phrase; ``evidence`` prints what that card rests on.
 ``check-query`` is the agent's last step before a web search: it says whether a query
-written from that evidence may leave the machine.
+written from that evidence may leave the machine. ``guide`` prints how to read a run's
+results, which the dashboard's ``/guide`` page shows.
 """
 
 from __future__ import annotations
@@ -400,6 +401,122 @@ def check_query(
     typer.echo(out)
     if view["status"] == "refused":
         raise typer.Exit(code=1)
+
+
+@cards_app.command("guide")
+def guide(
+    knowledge: Annotated[
+        Path | None,
+        typer.Option(
+            "--knowledge",
+            file_okay=False,
+            readable=True,
+            help="Knowledge directory. Defaults to the committed knowledge/ pack.",
+        ),
+    ] = None,
+    as_json: Annotated[bool, typer.Option("--json", help="Emit JSON.")] = False,
+) -> None:
+    """How to read these results: the confidence legend and the reading guide (M14.3).
+
+    The six tiers and what earns each, how a tier is decided (the score's weights and bands
+    and every ceiling), why rarity lowers confidence, what a polygenic score can say, and
+    what this array cannot tell you. The dashboard's ``/guide`` page shows the same
+    document. Its thresholds are the confidence engine's own; no run is read, and the
+    output is checked for a genotype before it is printed.
+    """
+    from genetics.cli import contract
+    from genetics.engine.cards import CardError, KnowledgePack
+    from genetics.privacy import assert_no_genotype
+    from genetics.run.guide import reading_guide
+
+    try:
+        pack = KnowledgePack.load(knowledge)
+    except CardError as exc:
+        contract.refuse("knowledge", f"error: {exc}", as_json=as_json)
+    data = reading_guide(pack)
+
+    if as_json:
+        text = json.dumps(contract.tagged("cards.guide", data), indent=2, ensure_ascii=False)
+        assert_no_genotype(text, context="cards guide JSON output")
+        typer.echo(text)
+        return
+
+    text = guide_text(data)
+    assert_no_genotype(text, context="cards guide output")
+    typer.echo(text)
+
+
+def guide_text(data: Mapping[str, Any]) -> str:
+    """``cards guide`` as text, from :func:`genetics.run.guide.reading_guide`."""
+    import textwrap
+
+    def para(text: str, indent: str = "  ") -> list[str]:
+        return textwrap.wrap(text, width=88, initial_indent=indent, subsequent_indent=indent)
+
+    lines = ["How to read these results", "", "Confidence tiers, strongest first"]
+    for entry in data["legend"]:
+        lines.append(f"  {entry['label']}")
+        lines += para(entry["blurb"], "    ")
+        lines += para(entry["earned_by"], "    ")
+    reading = data["reading"]
+    lines += ["", reading["title"]]
+    for paragraph in reading["paragraphs"]:
+        lines += [*para(paragraph), ""]
+    lines.append("  Status badges:")
+    lines += [f"    {row['label']:<34} {row['status']}" for row in reading["statuses"]]
+
+    confidence = data["confidence"]
+    lines += ["", confidence["title"]]
+    for paragraph in confidence["paragraphs"]:
+        lines += [*para(paragraph), ""]
+    lines.append("  Inputs (one call / polygenic score), weight:")
+    lines += [
+        f"    {row['single_call_label']} / {row['polygenic_label']}: {row['weight']:.2f}"
+        for row in confidence["inputs"]
+    ]
+    lines.append("  Ceilings, weakest tier first:")
+    for rule in confidence["ceilings"]:
+        applies = ", ".join(rule["applies_to"])
+        lines.append(f"    at most {rule['tier_label'].lower()}: {rule['rule']} ({applies})")
+
+    rarity = data["rarity"]
+    lines += ["", rarity["title"]]
+    for paragraph in rarity["paragraphs"]:
+        lines += [*para(paragraph), ""]
+    lines.append("  Allele-frequency component:")
+    for row in rarity["frequency_components"]:
+        if row["below"] is None:
+            band = f"{100 * row['from']:g}% or more"
+        elif row["from"] is None:
+            band = f"below {100 * row['below']:g}%"
+        else:
+            band = f"{100 * row['from']:g}% to below {100 * row['below']:g}%"
+        lines.append(f"    {band:<28} {row['component']:.2f}")
+    lines.append(f"    {'not available':<28} {rarity['unknown_frequency_component']:.2f}")
+
+    polygenic = data["polygenic"]
+    lines += ["", polygenic["title"]]
+    for paragraph in polygenic["paragraphs"]:
+        lines += [*para(paragraph), ""]
+    lines.append(f"  {len(polygenic['cards'])} polygenic cards; the list is in --json.")
+
+    array = data["array"]
+    lines += ["", array["title"]]
+    lines += para(array["paragraphs"][0])
+    for limit in array["limits"]:
+        lines += ["", f"  {limit['title']}", *para(limit["text"], "    ")]
+    lines.append("")
+    for paragraph in array["paragraphs"][1:]:
+        lines += para(paragraph)
+    lines += [
+        f"    {card['title']} ({card['section_title']}): `{card['card_id']}`"
+        for card in array["not_determinable"]
+    ]
+
+    lines += ["", "Sources"]
+    for source in data["sources"]:
+        lines += para(f"{source['title']}. doi:{source['id']}. {source['supports']}")
+    return "\n".join(lines)
 
 
 def check_view(check: Any, card_ids: list[str]) -> dict[str, Any]:

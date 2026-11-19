@@ -5,7 +5,8 @@ agent read commands print (``runs list``, ``runs show``, ``runs show --section``
 card``, ``runs qc``, ``runs search``, ``cards evidence``, ``cards search``), the saved
 records beside a run's cards (``runs clinvar``, ``runs secondary``, ``runs imputation``, ``pgx
 calls``, ``hla calls``, since M13.5), ``runs ancestry`` (M14.2), ``cards check-query``'s
-verdict (M13.7) and the error document every ``--json`` command prints when it fails.
+verdict (M13.7), ``cards guide`` (M14.3) and the error document every ``--json`` command
+prints when it fails.
 ``genetics schema`` prints it, and ``docs/agent_schema.md`` states the rules around it.
 
 **Every described document names itself.** :func:`tagged` puts
@@ -38,7 +39,7 @@ import typer
 if TYPE_CHECKING:
     from genetics.engine.search import Query
 
-AGENT_SCHEMA_VERSION: Final[int] = 7
+AGENT_SCHEMA_VERSION: Final[int] = 8
 """The version every tagged document carries. Bump it with any change to a described shape."""
 
 SCHEMA_PATH: Final[Path] = Path(__file__).with_name("agent_schema.json")

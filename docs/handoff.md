@@ -1,6 +1,8 @@
-# Handoff: M14.3 confidence legend
+# Handoff: M14.4 global search
 
-As of 2026-11-19, **M0-M13, M14.1 and M14.2 are implemented; M14.3 is next**. See
+As of 2026-11-19, **M0-M13 and M14.1-M14.3 are implemented; M14.4 is next**. See
+[the M14.4 entry contract](#next-open-step-m144-global-search),
+[the M14.3 record](#accepted-m143-reading-guide),
 [the M14.3 entry contract](#next-open-step-m143-confidence-legend),
 [the M14.2 record](#accepted-m142-ancestry-visualisations),
 [the M14.2 entry contract](#next-open-step-m142-ancestry-visualisations),
@@ -14,6 +16,11 @@ As of 2026-11-19, **M0-M13, M14.1 and M14.2 are implemented; M14.3 is next**. Se
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.3, the reading guide, is implemented.** `/guide` and `genetics cards guide` give the
+six badges and what earns each, how a tier is decided, why rarity lowers confidence, what
+a polygenic score can say and what the array cannot tell, with every threshold read from
+the confidence engine. Every page's nav carries the legend. See
+[the record](#accepted-m143-reading-guide).
 **M14.2, the ancestry page, is implemented.** `/runs/{run_id}/ancestry` and `genetics runs
 ancestry` show the PCA scatter against the run's own reference (bundle format 29 records
 the positions), the nearest populations, ancient affinity and both haplogroups with their
@@ -584,9 +591,89 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m144-global-search"></a>
+
+## Next open step: M14.4 global search
+
+M14.4: global search across cards on the dashboard. Nothing has been selected or verified
+beyond what is listed here.
+
+What already exists:
+
+- **The ranking and its command (M13.3).** `genetics.run.reads.search_view` is what
+  `genetics runs search <run> <query> --json` prints: hits ranked by words matched, then
+  score, each naming its matched fields, with each card's saved face. A query that reads
+  as a genotype is refused before anything is read (`contract.search_query`, kind
+  `genotype-in-query`). Call the same function so the two rank identically.
+- **`cards search`** ranks the knowledge pack alone with `engine.search.pack_view`; the
+  guide page (M14.3) holds no run and is the one page where a pack search could sit.
+
+What is open:
+
+- Where the box sits (the nav, the controls, or a page of its own), and whether a search
+  is of the open run only.
+- **A refused query on the dashboard.** The CLI exits 2 and prints nothing of the query;
+  a page has to say why it shows no results without echoing the query back.
+- **Parity.** A new route needs a `parity.PAGES` row and a visit in `check_run`; a query
+  string in the route needs a fixed query in the visit.
+
+What M14.3 hands over:
+
+- **Every page rendered through `_render` gets `legend`** (the nav's confidence legend),
+  and `_FRAME` places it, so a new page template that extends `_FRAME` needs nothing more
+  for it.
+- **A page that holds no run** is built like `/guide`: a shell from `store.list_runs`
+  alone, `views.shell_for(listing, None)`. The run selector then shows "Open a saved run".
+  In `check_run` such a page is visited after `/` and before the run page, and
+  `tests/test_parity.py::test_a_page_whose_shell_is_not_the_compared_one_fails` counts
+  shells in the order they are built: a page visited earlier moves its index.
+- **Agent schema version 8** (`contract.AGENT_SCHEMA_VERSION`). A new payload takes
+  version 9, by the steps M14.2's handoff gives.
+- **Tier words** are `genetics.run.guide.TIER_LABELS`, `TIER_BLURBS`, `NO_TIER` and
+  `NO_TIER_LABEL`; `web.views` re-exports the same objects.
+
+<a id="accepted-m143-reading-guide"></a>
+
+## Accepted M14.3 reading guide
+
+Implemented on 2026-11-19. No owner question was asked.
+
+- **A page and a command:** `/guide`, linked from every page's nav, and `genetics cards
+  guide [--json]`, which prints the document the page shows
+  (`genetics.run.guide.reading_guide`). Agent schema version 8 (`cards.guide`).
+- **Five parts:** the six badges and what earns each; how a tier is decided (the six
+  inputs and weights, the bands, every ceiling); why rarity lowers confidence (the
+  frequency components and both published benchmarks); what a polygenic score can say
+  (coverage, portability, within-family attenuation, position not prediction, with the
+  pack's polygenic cards); and what the array cannot tell (six limits and the pack's
+  impossibility cards by section). Sources name each quoted figure's paper.
+- **No threshold is written twice.** `engine/confidence.py` gained `FREQUENCY_SCORES`,
+  `QUALITY_CEILINGS`, `SHARE_CEILINGS`, `EVIDENCE_SCORES` and `REPLICATION_SCORES`, which
+  the calculators read and the guide reads. Ceilings are listed by calling
+  `single_call_ceilings` and `polygenic_ceilings`; a test over a grid of inputs fails on
+  any ceiling the guide does not list. `engine.ppv.benchmark` gives the two benchmarks a
+  ClinVar record carries. No tier changed.
+- **Figures quoted** were read from the PubMed abstracts on 2026-11-19: Weedon et al. 2021,
+  Tandy-Connor et al. 2018, Okbay et al. 2022 and Ding et al. 2023.
+- **The legend** is the card faces' own badges, in every page's nav, each linking to
+  `/guide#tier-<key>`; the grid's tier headings and the card page's "Why this tier" link
+  into the guide. The faces do not, being one link each already.
+- **The guide page opens no run.** Its shell is built from the run listing.
+
+Changed for a caller: agent schema version 8; a new nav section on every page; the run
+selector's "Open a saved run" option on a page with no run selected. No bundle format,
+knowledge schema or card changed.
+
+The [M14.3 session review](review_m143_session.md) corrected what the guide said about
+ancestry ceilings on membership-compared cards and one sentence of Tandy-Connor's figure,
+and gave the run selector an "Open a saved run" option. Validation on 2026-11-19: the full
+native suite passes **4,412 tests with nine skips** in 977 s; strict mypy, ruff and format
+pass. No personal export or saved real run was opened. Python source changed, so saved runs
+repeat their deep checks once.
+
 <a id="next-open-step-m143-confidence-legend"></a>
 
-## Next open step: M14.3 confidence legend
+## M14.3 entry contract (implemented; retained for review)
 
 M14.3: a confidence legend and a "how to read these results" page covering the
 rarity inversion, PRS attenuation and array limitations. Nothing has been selected or

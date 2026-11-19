@@ -105,6 +105,12 @@ PAGES: Final[tuple[Page, ...]] = (
         "the newest readable run, opened as its own page is",
     ),
     Page(
+        "/guide",
+        ("genetics cards guide --json",),
+        "how to read the results: the confidence legend, how a tier is decided, the rarity "
+        "inversion, what a polygenic score can say and the array's limits (M14.3)",
+    ),
+    Page(
         "/runs/{run_id}",
         (
             "genetics runs list --json",
@@ -226,6 +232,7 @@ def check_routes() -> None:
 READ_SIDE: Final[tuple[str, ...]] = (
     "genetics.run.reads",
     "genetics.run.explain",
+    "genetics.run.guide",
     "genetics.pgx.presentation",
 )
 """Modules that build what the read commands print. A function one of them defines or calls
@@ -614,6 +621,11 @@ class Documents:
     @property
     def ancestry(self) -> Any:
         return self.cli("runs", "ancestry", self.name)
+
+    @property
+    def guide(self) -> Any:
+        """``cards guide``: reads the committed pack, as the dashboard's ``/guide`` does."""
+        return self.cli("cards", "guide")
 
     def pgx(self, gene: str | None = None) -> Any:
         return self.cli("pgx", "calls", self.name, *(() if gene is None else ("--gene", gene)))
@@ -1269,6 +1281,7 @@ _FRAME: Final[Template] = {
     ),
     "runselector_html": Display("The run selector's markup, rendered from `shell`."),
     "qcbanner_html": Display("The QC banner's markup, rendered from `shell`."),
+    "legend": _is("cards guide", lambda documents, _: documents.guide["legend"]),
 }
 _CARD_PAGE: Final[Template] = {
     "card": Handed(_RUNS_CARD, _the_card),
@@ -1298,6 +1311,15 @@ CONTEXT: Final[dict[str, Template]] = {
         "acmg_policy_url": Handed("runs clinvar", _policy_link),
         "secondary_only": Display("Which of the two routes was asked for."),
         "clinvar_view_url": Display("This page's own address."),
+    },
+    "guide.html": _FRAME
+    | {
+        "guide": _is(
+            "cards guide",
+            lambda documents, _: {
+                key: value for key, value in documents.guide.items() if key != "schema"
+            },
+        )
     },
     "ancestry.html": _FRAME
     | {"ancestry_report": _report_keys("runs ancestry", lambda documents, _: documents.ancestry)},
@@ -1612,6 +1634,12 @@ def check_run(run: Path) -> Report:
         ]
         if front["shell"].selected_id != (readable[0] if readable else None):
             raise ParityError("/ did not open the newest run `runs list` reports readable")
+
+        # The guide holds no run (M14.3): its keys are placed, and its shell opens none.
+        template, reading = render("/guide")
+        place("/guide", template, reading)
+        if reading["shell"].has_selection:
+            raise ParityError("/guide opened a run; it holds none")
 
         context = check(base, whole=True)
         check(f"{base}?group=tier", whole=True)

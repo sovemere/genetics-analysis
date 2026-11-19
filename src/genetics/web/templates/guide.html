@@ -1,0 +1,225 @@
+{#
+  How to read these results (M14.3): the confidence legend, how a tier is decided, why
+  rarity lowers confidence, what a polygenic score can say, and what this array cannot tell
+  you.
+
+  Holds no run. Everything here is `guide`, which is `genetics.run.guide.committed_guide`
+  and what `genetics cards guide --json` prints for the same pack; the thresholds in it are
+  read from the confidence engine, never written here. Each tier's row has the id
+  `tier-<key>`, which the nav legend on every page links to.
+#}
+{% extends "base.html" %}
+{% block title %}How to read these results{% endblock %}
+{% block runselector %}{{ runselector_html }}{% endblock %}
+{% block banner %}{{ qcbanner_html }}{% endblock %}
+{% block nav %}
+<h2 class="navhead">On this page</h2>
+<ol class="guidetoc">
+  <li><a href="#legend">Confidence tiers</a></li>
+  <li><a href="#reading">{{ guide.reading.title }}</a></li>
+  <li><a href="#confidence">{{ guide.confidence.title }}</a></li>
+  <li><a href="#rarity">{{ guide.rarity.title }}</a></li>
+  <li><a href="#polygenic">{{ guide.polygenic.title }}</a></li>
+  <li><a href="#array">{{ guide.array.title }}</a></li>
+  <li><a href="#sources">Sources</a></li>
+</ol>
+<p class="muted navnote">
+  Holds no run. Choose a saved run above to see its cards.
+  <code>genetics cards guide --json</code> prints this page.
+</p>
+{% endblock %}
+{% block content %}
+<article class="guide">
+<section class="panel" id="legend" aria-labelledby="h-guide">
+  <h1 id="h-guide">How to read these results</h1>
+  {% if shell.problem %}<p class="caution">{{ shell.problem }}</p>{% endif %}
+  <p>
+    Every card carries one of these six badges on its face. The tier is computed, from the
+    published evidence and from how well this array observed the variant; no card sets its
+    own. A weak tier labels a card and never hides it.
+  </p>
+  <dl class="guidetiers">
+    {% for entry in guide.legend %}
+      <div class="guidetier" id="tier-{{ entry.key }}">
+        <dt><span class="tier tier-{{ entry.key }}">{{ entry.label }}</span></dt>
+        <dd>
+          <p>{{ entry.blurb }}</p>
+          <p class="muted">{{ entry.earned_by }}</p>
+        </dd>
+      </div>
+    {% endfor %}
+  </dl>
+</section>
+
+<section class="panel" id="reading" aria-labelledby="h-reading">
+  <h2 id="h-reading">{{ guide.reading.title }}</h2>
+  {% for paragraph in guide.reading.paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+  <details>
+    <summary>What each status badge means</summary>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Badge</th><th scope="col">Status</th></tr></thead>
+        <tbody>
+          {% for row in guide.reading.statuses %}
+            <tr><td><span class="statusbadge">{{ row.label }}</span></td><td><code>{{ row.status }}</code></td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+{% set confidence = guide.confidence %}
+<section class="panel" id="confidence" aria-labelledby="h-confidence">
+  <h2 id="h-confidence">{{ confidence.title }}</h2>
+  {% for paragraph in confidence.paragraphs[:2] %}<p>{{ paragraph }}</p>{% endfor %}
+  <div class="tablescroll">
+    <table class="breakdown">
+      <caption class="visually-hidden">The six inputs to the weighted score</caption>
+      <thead><tr><th scope="col">Input, one call</th><th scope="col">Input, polygenic score</th><th scope="col" class="num">Weight</th></tr></thead>
+      <tbody>
+        {% for row in confidence.inputs %}
+          <tr><th scope="row">{{ row.single_call_label }}</th><td>{{ row.polygenic_label }}</td><td class="num">{{ "%.2f" | format(row.weight) }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for paragraph in confidence.paragraphs[2:3] %}<p>{{ paragraph }}</p>{% endfor %}
+  <div class="tablescroll">
+    <table class="breakdown">
+      <caption class="visually-hidden">Every ceiling, weakest tier first</caption>
+      <thead><tr><th scope="col">At most</th><th scope="col">When</th><th scope="col">Applies to</th></tr></thead>
+      <tbody>
+        {% for rule in confidence.ceilings %}
+          <tr>
+            <td><span class="tier tier-{{ rule.tier }}">{{ rule.tier_label }}</span></td>
+            <td>{{ rule.rule }}</td>
+            <td>{{ rule.applies_to | join(", ") }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% for paragraph in confidence.paragraphs[3:] %}<p>{{ paragraph }}</p>{% endfor %}
+  <details>
+    <summary>Component scores for the evidence tier and replication</summary>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Evidence tier</th><th scope="col" class="num">Component</th></tr></thead>
+        <tbody>
+          {% for row in confidence.evidence_components %}
+            <tr><td>{{ row.evidence_tier | replace("_", " ") }}</td><td class="num">{{ "%.2f" | format(row.component) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Replication</th><th scope="col" class="num">Component</th></tr></thead>
+        <tbody>
+          {% for row in confidence.replication_components %}
+            <tr><td>{{ row.replication | replace("_", " ") }}</td><td class="num">{{ "%.2f" | format(row.component) }}</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+</section>
+
+{% set rarity = guide.rarity %}
+<section class="panel" id="rarity" aria-labelledby="h-rarity">
+  <h2 id="h-rarity">{{ rarity.title }}</h2>
+  {% for paragraph in rarity.paragraphs[:4] %}<p>{{ paragraph }}</p>{% endfor %}
+  <div class="tablescroll">
+    <table class="breakdown">
+      <caption class="visually-hidden">The allele-frequency component of the score</caption>
+      <thead><tr><th scope="col">Population allele frequency</th><th scope="col" class="num">Component</th></tr></thead>
+      <tbody>
+        {% for row in rarity.frequency_components %}
+          <tr>
+            <td>
+              {%- if row.from is none %}below {{ "%g" | format(row.below * 100) }}%
+              {%- elif row.below is none %}{{ "%g" | format(row.from * 100) }}% or more
+              {%- else %}{{ "%g" | format(row.from * 100) }}% to below {{ "%g" | format(row.below * 100) }}%{% endif -%}
+            </td>
+            <td class="num">{{ "%.2f" | format(row.component) }}</td>
+          </tr>
+        {% endfor %}
+        <tr><td>not available</td><td class="num">{{ "%.2f" | format(rarity.unknown_frequency_component) }}</td></tr>
+      </tbody>
+    </table>
+  </div>
+  {% for paragraph in rarity.paragraphs[4:] %}<p>{{ paragraph }}</p>{% endfor %}
+  <ul class="plainlist">
+    {% for item in rarity.benchmarks %}
+      <li>{{ item.confirmation_text }} {{ item.applies_to }}</li>
+    {% endfor %}
+  </ul>
+</section>
+
+{% set polygenic = guide.polygenic %}
+<section class="panel" id="polygenic" aria-labelledby="h-polygenic">
+  <h2 id="h-polygenic">{{ polygenic.title }}</h2>
+  {% for paragraph in polygenic.paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+  {% if polygenic.cards %}
+  <details>
+    <summary>The {{ polygenic.cards | length }} polygenic cards in this knowledge pack</summary>
+    <div class="tablescroll">
+      <table class="breakdown">
+        <thead><tr><th scope="col">Card</th><th scope="col">Section</th><th scope="col">Study ancestry</th><th scope="col">Within-family estimate</th><th scope="col">Outcome rates by decile</th></tr></thead>
+        <tbody>
+          {% for card in polygenic.cards %}
+            <tr>
+              <td>{{ card.title }} <code>{{ card.card_id }}</code></td>
+              <td>{{ card.section_title }}</td>
+              <td>{{ card.study_ancestry | join(", ") or "not recorded" }}</td>
+              <td>{% if card.within_family_attenuation is none %}not published for these weights{% else %}{{ "%.2f" | format(card.within_family_attenuation) }} of the population effect{% endif %}</td>
+              <td>{{ "yes" if card.decile_outcomes else "no" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </details>
+  {% endif %}
+</section>
+
+{% set array = guide.array %}
+<section class="panel" id="array" aria-labelledby="h-array">
+  <h2 id="h-array">{{ array.title }}</h2>
+  {% for paragraph in array.paragraphs[:1] %}<p>{{ paragraph }}</p>{% endfor %}
+  <dl class="guidetiers">
+    {% for limit in array.limits %}
+      <div class="guidetier"><dt><strong>{{ limit.title }}</strong></dt><dd><p>{{ limit.text }}</p></dd></div>
+    {% endfor %}
+  </dl>
+  {% for paragraph in array.paragraphs[1:] %}<p>{{ paragraph }}</p>{% endfor %}
+  {% if array.not_determinable %}
+  <div class="tablescroll">
+    <table class="breakdown">
+      <caption class="visually-hidden">Questions this data cannot answer, and where each card sits</caption>
+      <thead><tr><th scope="col">Not determinable</th><th scope="col">Section</th><th scope="col">Why</th></tr></thead>
+      <tbody>
+        {% for card in array.not_determinable %}
+          <tr><th scope="row">{{ card.title }}</th><td>{{ card.section_title }}</td><td>{{ card.reason }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% endif %}
+</section>
+
+<section class="panel" id="sources" aria-labelledby="h-sources">
+  <h2 id="h-sources">Sources</h2>
+  <p class="muted">The figures quoted above, and where each was read. Each link opens a public paper in a new tab and sends only its DOI.</p>
+  <ul class="plainlist">
+    {% for source in guide.sources %}
+      <li>
+        {% if source.url %}<a href="{{ source.url }}" target="_blank" rel="noreferrer noopener" class="citelink">{{ source.title }}</a>{% else %}{{ source.title }}{% endif %}
+        <span class="muted">doi:{{ source.id }}.</span> {{ source.supports }}
+      </li>
+    {% endfor %}
+  </ul>
+</section>
+</article>
+{% endblock %}

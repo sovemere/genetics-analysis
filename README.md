@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M13, M14.1 and M14.2 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M13 and M14.1–M14.3 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -302,8 +302,12 @@ status, with the engine's not-run reasons), or no run is open.
 reference populations it was placed against, lists the nearest by full distance, and shows
 ancient affinity and both haplogroups with their marker counts; `genetics runs ancestry`
 prints the same. Runs now record where the reference populations sit (bundle format 29).
-[M14.3, the confidence legend](docs/handoff.md#next-open-step-m143-confidence-legend) is
-next.
+**M14.3, the reading guide, is implemented.** `/guide` and `genetics cards guide` explain
+the six confidence badges and what earns each, how a tier is decided, why rarity lowers
+confidence (with the published benchmarks), what a polygenic score can say and what the
+array cannot tell. Every threshold is read from the confidence engine, and every page's nav
+carries the legend.
+[M14.4, global search](docs/handoff.md#next-open-step-m144-global-search) is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

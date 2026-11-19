@@ -17,6 +17,11 @@
     {% if not shell.runs %}
       <option value="">No saved runs</option>
     {% else %}
+      {% if shell.selected_id is none %}
+        {# A page that holds no run (the guide, M14.3): without this the first run would
+           look selected, and choosing it would fire no change. #}
+        <option value="" selected>Open a saved run</option>
+      {% endif %}
       {% for run in shell.runs %}
         <option value="{{ run.run_id }}"
                 {% if run.run_id == shell.selected_id %}selected{% endif %}

@@ -34,6 +34,7 @@ rules around it. [The read-command contract](agent_cli.md) describes what each c
 | `hla.calls` | `genetics hla calls <run> --json` | saved run | yes | no |
 | `runs.ancestry` | `genetics runs ancestry <run> --json` | saved run | yes | no |
 | `cards.check-query` | `genetics cards check-query <query> --json` | knowledge pack | no | yes |
+| `cards.guide` | `genetics cards guide --json` | knowledge pack | no | yes |
 | `error` | a failing command with `--json` (listed below) | nothing | no | no |
 
 The same table is in the document as `x-payloads`. "Scanned" means the command checks its
@@ -49,6 +50,11 @@ says which dashboard page each stands for.
 `cards.check-query` (M13.7) is a verdict on a query an agent is about to send, and is
 printed with exit 1 when the verdict is `refused`. It is not an error document: the check
 ran, and its answer is no. It never holds the query's text.
+
+`cards.guide` (M14.3) is how to read a run's results: the confidence legend, the
+score's weights and bands, every ceiling, the frequency components and both published
+benchmarks, read from the confidence engine, with prose around them. The dashboard's
+`/guide` page shows it, and every page's nav shows its `legend`. It holds no run.
 
 ## The tag
 
@@ -142,7 +148,8 @@ Branch on `error.kind`. `message` is for a person and may be reworded.
 
 Before M13.2 the `pgx` and `pgs` groups printed `error` as a bare string. Every command that
 printed an error document now prints this one, through `contract.refuse`: all of `runs`,
-`cards evidence`, `cards search`, `cards check-query`, `pgx`, `pgs`, `hla`, `run`, `impute`,
+`cards evidence`, `cards search`, `cards check-query`, `cards guide`, `pgx`, `pgs`, `hla`,
+`run`, `impute`,
 `serve` and `schema`.
 
 `runs`, `pgx calls` and `hla calls` give the same kind for a run that cannot be opened,
@@ -165,9 +172,9 @@ For the read commands and `schema`, the exit code says which kind of failure it 
 | `integrity` | `runs`, `pgx calls`, `hla calls` | A saved file does not match its recorded digest |
 | `io` | `runs`, `pgx calls`, `hla calls` | The disk refused: a locked file, a permission, a missing drive |
 | `bundle` | `runs`, `pgx calls`, `hla calls` | The run could not be read for another reason |
-| `knowledge` | `cards evidence`, `cards search`, `cards check-query --card` | The knowledge pack could not be loaded |
+| `knowledge` | `cards evidence`, `cards search`, `cards check-query --card`, `cards guide` | The knowledge pack could not be loaded |
 | `unknown-section` | `runs show --section` | Not one of the thirteen section names |
-| `unknown-payload` | `schema` | Not one of the sixteen payload names |
+| `unknown-payload` | `schema` | Not one of the seventeen payload names |
 | `empty-query` | `cards search`, `runs search`, `cards check-query` | The query has no letter or digit to search for |
 | `genotype-in-query` | `cards search`, `runs search` | The query holds a call: a shape the privacy scanner knows, or since M13.7 an rsID beside two alleles or a diplotype. It was not searched, and the message does not repeat it (AGENTS.md §1.3) |
 | `confirmation-required` | `runs delete`, `runs prune` | `--json` cannot prompt; pass `--yes` |
@@ -354,3 +361,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 5 | 2026-11-13 | Five payloads for the saved records beside a run's cards (M13.5): `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla.calls`. Each command already printed its record; it now prints the envelope and tag too. `hla.calls` gains `linked_cards_status` and `linked_cards`, and `pgx.calls` gains `current_context.context`. No existing payload changed |
 | 6 | 2026-11-19 | One payload, `cards.check-query` (M13.7), with the `query_rule` vocabulary. No existing payload changed |
 | 7 | 2026-11-19 | One payload, `runs.ancestry` (M14.2): the saved ancestry record and the `ancestry_pca` scatter. The record itself is open, as in `runs.show`; from bundle format 29 its placement holds `scale` and each fit a `centroid`. No existing payload changed |
+| 8 | 2026-11-19 | One payload, `cards.guide` (M14.3): the reading guide and confidence legend, with `guide_paragraphs`. It reads the knowledge pack and the engine's rules, no run. No existing payload changed |

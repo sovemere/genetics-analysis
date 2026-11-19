@@ -16,10 +16,17 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.3, the confidence legend and "how to read these results" page, is next.** M0–M13,
-M14.1 and M14.2 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m143-confidence-legend) records what it
+**M14.4, global search across cards, is next.** M0–M13 and M14.1–M14.3 are implemented.
+The [current handoff](docs/handoff.md#next-open-step-m144-global-search) records what it
 inherits.
+
+M14.3 adds the reading guide: `/guide` and `genetics cards guide`, which prints what the
+page shows. It gives the six badges and what earns each, how a tier is decided (the
+weights, the bands and every ceiling), why rarity lowers confidence with the published
+benchmarks, what a polygenic score can say (coverage, portability, within-family
+attenuation) and what the array cannot tell. Every threshold is read from the confidence
+engine, and the ceilings are listed by asking the functions that apply them. Every page's
+nav carries the legend, each badge linking to its row in the guide. Agent schema version 8.
 
 M14.2 adds the ancestry page and `genetics runs ancestry`: a PCA scatter of the run against
 the reference populations it was placed among, the nearest populations by full distance,
@@ -3295,12 +3302,33 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       - **Agent schema version 7** (`runs.ancestry`). The nav links the page from every run.
       - **Left for later:** the scatter shows the first two of the model's components only;
         the table ranks on all of them, and the caption says so.
-- [ ] **M14.3** Confidence legend and a "how to read these results" page covering the
+- [x] **M14.3** Confidence legend and a "how to read these results" page covering the
       rarity-inversion, PRS attenuation, and array limitations.
+      - **Done 2026-11-19** as the `/guide` page and `genetics cards guide [--json]`, which
+        prints what it shows. See [Reading guide](docs/agent_cli.md#reading-guide-m143).
+      - **One document, from the engine.** `genetics.run.guide.reading_guide` reads the
+        weights, bands, evidence and replication components, frequency components and
+        quality and share bounds from tables in `engine/confidence.py` that the
+        calculators use, and lists the ceilings by calling `single_call_ceilings` and
+        `polygenic_ceilings`; a test fails on any ceiling the engine can apply that the
+        guide does not list. The two benchmarks are `engine.ppv.benchmark`. No tier
+        changed: the M13.4 comparison of 22,848 results with the earlier rules passes.
+      - **What is authored is prose and the figures it quotes**, each with its paper in
+        `sources`: Weedon 2021, Tandy-Connor 2018, Okbay 2022 (EA4) and Ding 2023, read
+        from their abstracts.
+      - **The legend is in every page's nav**, the card faces' own badges, each linking to
+        its row in the guide; the grid's tier headings and the card page's "Why this tier"
+        link in too. Not on the faces, which are already one link each.
+      - **The page holds no run**: its shell is the run listing alone. Agent schema
+        version 8 (`cards.guide`). The tier labels moved to `genetics.run.guide`.
+      - **Left for later:** the card page still prints the sentence and six rows M13.4 gave
+        it, not each card's weights and ceiling list, which `runs card --json` holds.
 - [ ] **M14.4** Global search across cards.
       - **The engine exists (M13.3).** Call `genetics.run.reads.search_view`, which is what
         `genetics runs search` prints, so the dashboard and the CLI rank identically
         ([AGENTS.md §3](AGENTS.md)).
+      - **From M14.3:** a page rendered through `_render` gets the nav legend and is placed
+        by `_FRAME`; see the [handoff](docs/handoff.md#next-open-step-m144-global-search).
 - [ ] **M14.5** QC / provenance page: reference versions, tool versions, imputation
       parameters, coverage stats.
 - [ ] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
@@ -3364,6 +3392,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-19 | M14.3 | The reading guide: `/guide` and `genetics cards guide [--json]`, one document from `genetics.run.guide`. **Six badges** with what earns each (the score band, and every ceiling that caps there); **how a tier is decided** (six inputs and weights, the bands, every ceiling with the words `runs card` uses); **rarity lowers confidence** (the frequency components, Weedon 2021's 16% and 4.2% as "about 5 to 1" and "about 23 to 1 against", 20 of 21 PGP participants, Tandy-Connor 2018's 40%); **what a polygenic score can say** (coverage, portability with Ding 2023's -0.95 and 14%, EA4's within-family "roughly half", and position not prediction, with the pack's polygenic cards); **what the array cannot tell** (six limits and the pack's twelve impossibility cards by section). **No threshold written twice:** the frequency, quality and share bounds became tables in `engine/confidence.py` that both calculators and the guide read; ceilings are listed by calling the functions that apply them, and a test over a grid of inputs fails on one the guide misses; `engine.ppv.benchmark` gives both benchmarks. No tier changed. **The legend** is in every page's nav, each badge linking to `/guide#tier-<key>`; tier headings and "Why this tier" link in. The guide page lists runs and opens none. Agent schema version 8 (`cards.guide`); `parity.PAGES` has `/guide`. **Review** ([session review](docs/review_m143_session.md)): the confidence section overstated the ancestry ceilings for membership-compared cards, and one sentence read Tandy-Connor's 40% as of patients; both fixed. Seven guards removed in turn, each caught. **Validation:** the full native suite passes **4,412 tests with nine skips** in 977 s (25 new); strict mypy, ruff and format pass. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.2 diff review | Reviewed the M14.2 working tree before its commit. **P2, found while writing the tests:** every saved centroid was the sample's own position, because the cross join in `populations.place_many` suffixes the centroid's columns with `_c`; a test that the distance from the scaled sample to each centroid equals the saved distance caught it. **P3:** each of a hundred reference rings took a tab stop (now only the five nearest and the run); `region_index` was unused once regions lost their colours (removed from the unshipped schema 7); the panel size lacked a separator and a missing-value case. Two guards removed in turn each failed a test. **Validation:** the full native suite passes **4,387 tests with nine skips** in 765 s (nine new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m142_session.md). |
 | 2026-11-19 | M14.2 | The ancestry page, `/runs/{run_id}/ancestry`, and `genetics runs ancestry`, which prints what it draws. **Bundle format 29** records where the reference populations sit: the placement's `scale` and each fit's `centroid`, in the units distance is measured in, so a saved run is drawn against the reference it was placed in. A run saved before 29 lists its fits and says why there is no scatter; a format before 29 claiming positions is refused. **The scatter** follows the dataviz rules: three marks (neutral reference rings, the five nearest filled, the run as a cross in a ring) in two hues validated all-pairs in both modes, regions in hover text and the table rather than in colour, only the nearest population and the run labelled; rendered with 100 invented populations and looked at. **Haplogroups** show both §4.7 counts; **ancient affinity** is called affinity. Agent schema version 7; the nav links the page. No personal export or saved real run was opened. |
 | 2026-11-19 | M14.1 diff review | Reviewed the M14.1 working tree before its commit. **P3:** `runs show --section` computed all thirteen empty-state sentences for each section it printed; it now computes its own. **Re-read and unchanged:** "the pack it was saved with had none here" follows from §0.1A (every pack card yields a run card); only `not_run` reasons are quoted, and each is checked with `outbound.reads_as_call`; the pack's section counts are cached for the process (0.7 s to load). Three guards removed in turn each failed a test (the call check on quoted reasons: one; the grid's section sentence: fourteen; the assay-limit sentence: one). **Validation:** the full native suite passes **4,378 tests with nine skips** in 746 s (thirteen new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m141_session.md). |

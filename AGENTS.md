@@ -313,6 +313,9 @@ knowledge pack only, holds no genotype, and is what a web search starts from (§
 `genetics runs search <run> <query>` searches one saved run and returns each card's result.
 Both refuse a query that reads as a genotype: search for the variant, never a call at it.
 `genetics cards check-query` is run on every web search before it is sent (§1.3).
+`genetics cards guide` prints how to read the results, which the dashboard's `/guide`
+page shows: what each confidence tier means and what earns it, every ceiling, the
+rarity inversion with its benchmarks, and the array's limits, read from the engine.
 `genetics runs clinvar`, `runs secondary`, `runs imputation`, `genetics pgx calls` and
 `genetics hla calls` print a run's other saved records, the ones the dashboard gives a page.
 **A test holds the two front-ends together** (`tests/test_parity.py`): a dashboard route

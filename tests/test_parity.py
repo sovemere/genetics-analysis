@@ -105,7 +105,7 @@ def saved(sample_qc: QCReport, tmp_path_factory: pytest.TempPathFactory) -> Iter
 
 def test_every_route_names_the_commands_that_print_what_it_shows() -> None:
     parity.check_routes()
-    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 9
+    assert len({page.route for page in parity.PAGES}) == len(parity.PAGES) == 10
 
 
 def test_a_route_with_no_commands_fails(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -272,11 +272,11 @@ def test_a_saved_run_shows_nothing_the_commands_do_not_print(
     assert report.templates == set(parity.CONTEXT)
     genes = list(report.documents[("pgx", "calls", saved.name)]["genes"])
     assert len(genes) == 8, "a run with no PGx stage still records each gene as unavailable"
-    # healthz, the index, two groupings, each card's page, one fragment, a missing card,
-    # the ClinVar, secondary, HLA, ancestry and PGx pages, then each gene's page.
-    assert report.pages == 2 + 2 + len(cards) + 2 + 5 + len(genes)
-    # One `runs card` each, one `pgx calls --gene` each, and the eleven other documents.
-    assert report.commands == len(report.documents) == len(cards) + len(genes) + 11
+    # healthz, the index, the guide, two groupings, each card's page, one fragment, a
+    # missing card, the ClinVar, secondary, HLA, ancestry and PGx pages, then each gene's.
+    assert report.pages == 3 + 2 + len(cards) + 2 + 5 + len(genes)
+    # One `runs card` each, one `pgx calls --gene` each, and the twelve other documents.
+    assert report.commands == len(report.documents) == len(cards) + len(genes) + 12
     assert report.compared > 5000
 
 
@@ -423,9 +423,10 @@ def test_the_index_s_keys_are_placed_too(saved: Path, monkeypatch: pytest.Monkey
 @pytest.mark.parametrize(
     ("built_before", "match"),
     [
-        # `/` builds the first shell, and the run page grouped two ways the next two.
+        # `/` builds the first shell, `/guide` the second (M14.3), and the run page grouped
+        # two ways the next two.
         (0, r"^/ shell\.card_count differs from the run page's"),
-        (3, r"/cards/\w+ shell\.card_count differs from the run page's"),
+        (4, r"/cards/\w+ shell\.card_count differs from the run page's"),
     ],
 )
 def test_a_page_whose_shell_is_not_the_compared_one_fails(

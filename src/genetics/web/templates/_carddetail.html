@@ -248,7 +248,8 @@
       <h3>Why this tier</h3>
       <p class="muted">
         Confidence is computed, never authored (AGENTS.md §6). Every number that produced it
-        is here.
+        is here; <a href="/guide#confidence">how a tier is decided</a> gives the weights and
+        every ceiling.
         {% if card.confidence.score is not none %}
           Weighted score {{ "%.2f" | format(card.confidence.score) }}.
         {% endif %}
