@@ -601,7 +601,10 @@ A value is declared display, with its reason, when it is not about the run's ana
 - the reader's own arrangement: grouping, sort and filters. The grid is checked to hold
   only the run's cards, each once, with counts that are counts of them;
 - the sentence a page gives when a run or a card cannot be opened. The command reports the
-  same failure as an error document with a kind.
+  same failure as an error document with a kind;
+- the sentence the search page gives for a refused query (M14.4). `check_run` compares it
+  with the message of the error document `runs search` prints for the same query, and
+  fails if the query's rsID appears anywhere on the page.
 
 Links are compared by what they point to: a benchmark link must end in the DOI the saved
 record gives for that variation, and the ACMG policy link in the DOI the saved roster cites.

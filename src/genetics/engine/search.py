@@ -2,9 +2,9 @@
 
 An agent asked about "curly hair" does not know the card is called ``wnt10a_hair_curl``.
 ``genetics cards search`` and ``genetics runs search`` find it, and both call
-:func:`search` here. M14.4's dashboard search must call it too (AGENTS.md 3: one engine,
-two front-ends), which is why it takes plain :class:`Document` records rather than a pack
-or a bundle. :func:`pack_document` builds one from an authored card;
+:func:`search` here. Since M14.4 the dashboard's search page does too (AGENTS.md 3: one
+engine, two front-ends), which is why it takes plain :class:`Document` records rather than a
+pack or a bundle. :func:`pack_document` builds one from an authored card;
 :func:`genetics.run.reads.search_document` builds one from a saved card.
 
 **The ranking is small enough to state in full**, because an agent has to be able to say

@@ -56,6 +56,23 @@ failed a test:
 | A limit of two on the page | parity: "differs from what `runs search` prints" |
 | The refusal reworded on the page | parity: "refuses a query in other words" |
 
+## Second pass, after the commit
+
+A diff-driven pass over `e42f268`, re-reading each changed line against the code it calls
+and each documentation sentence against the code it describes.
+
+- **P3, stale documentation:** the `engine/search.py` docstring and the roadmap's M13.3
+  summary still said the dashboard's search "must call" the ranking function. Both now
+  say it does. `agent_cli.md`'s list of what the parity check treats as display lacked the
+  refusal sentence and how `check_run` compares it; added.
+- **Re-read and unchanged:** every saved card has a `CardView` (`views.card_views` maps
+  `bundle.cards` one to one), so the route's `LookupError` is unreachable as its comment
+  says; a run that fails to open never reaches `search_view`, since `_open` returns no
+  bundle; a parity run with no cards visits only the fixed searches.
+- **Handed to M14.7, not changed:** the search page carries two `role="search"` forms with
+  the same label, and the `empty-query` sentence keeps the CLI's backticks. Both are in
+  the M14.5 hand-over in [the handoff](handoff.md#next-open-step-m145-qc-provenance-page).
+
 ## Validation
 
 The full native suite passes 4,426 tests with the existing nine skips in 962 s. The

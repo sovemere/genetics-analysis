@@ -641,6 +641,10 @@ What M14.4 hands over:
   the search page uses the first card's title, `parity.SEARCHED` and `parity.refused_query()`.
 - **`Documents.refusal(*args)`** returns the error document a command prints when it exits 2,
   for a page that refuses what a command refuses.
+- **For M14.7 (accessibility):** the search page has two `role="search"` forms, the nav's and
+  the page's, whose labels say the same thing, so a screen reader lists two identical search
+  landmarks. The `empty-query` sentence the page shows is the CLI's and keeps its backticks
+  around `curly hair`.
 
 <a id="accepted-m144-global-search"></a>
 
