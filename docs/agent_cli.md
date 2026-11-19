@@ -101,7 +101,12 @@ current_context
 
 Section names are the thirteen `Section` values, case-insensitive. An unknown name exits 2
 with `error.kind: unknown-section` and lists the thirteen. A section with no cards is still
-reported, with the dashboard's reason. `saved_records` names the commands for records beyond
+reported, with the dashboard's reason. Since M14.1 that reason is one of three sentences
+from `reads.empty_reason`: the run holds no card here (saved with a pack that held none;
+the current pack's count is given), the cards here produced no interpretation (each
+status counted, and each distinct `not_run` reason quoted, up to three), or `null` when the
+section has a finding. "Not built yet — roadmap M…" is gone: every section has cards in the
+pack. `saved_records` names the commands for records beyond
 the cards, which the dashboard links as pages: `runs clinvar` and `runs secondary` for physical
 health, `pgx calls` for pharmacogenomics, and `hla calls` for immunogenetics. The PGx notice appears once, in its section, and is not repeated per card
 (see [PGx framing](pgx_framing.md)).

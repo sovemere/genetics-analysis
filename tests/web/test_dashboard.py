@@ -249,12 +249,21 @@ def test_all_thirteen_sections_appear_with_a_run_open(client: TestClient, saved:
     assert "Fitness &amp; physiology" in body
 
 
-def test_an_unbuilt_section_names_its_milestone_on_the_page(
-    client: TestClient, saved: Path
-) -> None:
+def test_every_empty_section_says_why_on_the_page(client: TestClient, saved: Path) -> None:
+    """M14.1's definition of done, on the rendered page: each section with nothing to show
+    carries the sentence `runs show --section` prints for it."""
+    from html import escape
+
+    from genetics.run import reads
+    from genetics.run.store import open_run
+
     body = client.get("/").text
-    assert "Not built yet" in body
-    assert "roadmap M5" in body, "the ancestry section should name the milestone that fills it"
+    reasons = reads.empty_reasons(open_run(saved).cards)
+    empty = {name: reason for name, reason in reasons.items() if reason is not None}
+    assert len(empty) >= 12
+    for name, reason in empty.items():
+        assert escape(reason) in body, name
+    assert "Not built yet" not in body and "roadmap M5" not in body
 
 
 def test_a_populated_section_renders_its_cards(client: TestClient, interpreted: Path) -> None:
@@ -1152,11 +1161,11 @@ def test_grouping_by_tier_still_explains_the_sections_that_are_empty(
 ) -> None:
     """Grouping by tier takes the section panels off the page and the sentence each empty one
     was carrying with them. The definition of done (item 3) is about the reader being able to
-    tell "not built yet" from "nothing matched", not about the shape of the panel saying so."""
+    tell "no card in this run" from "nothing matched", not about the shape of the panel."""
     body = client.get("/?group=tier").text
 
     assert "Sections with nothing to show" in body
-    assert "roadmap M5" in body, "the ancestry section still names the milestone that fills it"
+    assert "knowledge pack it was saved with had none here" in body, "an absent section says why"
     assert "Likely artifact" in body, "every tier gets a heading, populated or not"
 
 

@@ -37,7 +37,6 @@ from genetics.engine import sections
 from genetics.engine.cards import EffectMeasure, EvidenceTier, Replication
 from genetics.engine.citations import citation_url
 from genetics.engine.confidence import ConfidenceTier
-from genetics.engine.matcher import MatchStatus
 from genetics.engine.sections import Section
 from genetics.privacy import NoGenotypeRepr
 from genetics.run import reads
@@ -273,27 +272,25 @@ class SectionView:
     milestone: str
     card_count: int
     interpreted: int
+    empty_reason: str | None
+    """Why this section shows nothing, or ``None`` when it shows something.
+
+    The definition of done (item 3) forbids a silent empty section, and the ways a section
+    can be empty need different sentences: **the run holds no card here** is a fact about
+    the pack it was saved with, while **cards exist and none produced an interpretation** is
+    a fact about this genome and is not a defect at all. Collapsing them into "nothing
+    here" would tell a reader their array lacks a marker when the truth is the run predates
+    the card. Worded by :func:`reads.empty_reason` (M14.1), which :class:`CardGroup` and
+    ``runs show --section`` share."""
 
     @property
     def is_empty(self) -> bool:
         return self.card_count == 0
 
-    @property
-    def empty_reason(self) -> str | None:
-        """Why this section shows nothing, or ``None`` when it shows something.
 
-        The definition of done (item 3) forbids a silent empty section, and the two ways a
-        section can be empty need different sentences: **no cards exist yet** is a fact
-        about this tool's progress and names the milestone that fixes it, while **cards
-        exist and none produced an interpretation** is a fact about this genome and is not a
-        defect at all. Collapsing them into "nothing here" would tell a reader their array
-        lacks a marker when the truth is nobody has written the card. Worded by
-        :func:`reads.empty_reason`, which :class:`CardGroup` and ``runs show --section`` share.
-        """
-        return reads.empty_reason(self.milestone, self.card_count, self.interpreted)
-
-
-def section_views(cards: Sequence[StoredCard]) -> tuple[SectionView, ...]:
+def section_views(
+    cards: Sequence[StoredCard], reasons: Mapping[str, str | None] | None = None
+) -> tuple[SectionView, ...]:
     """All thirteen sections in AGENTS.md 3.1 order, always, counts filled in from ``cards``.
 
     **Every section is returned even when it holds nothing**, which is the whole point: a
@@ -304,7 +301,13 @@ def section_views(cards: Sequence[StoredCard]) -> tuple[SectionView, ...]:
 
     A card whose section this engine does not recognise is counted under no section and is
     **not** dropped silently -- see :func:`unknown_sections`.
+
+    ``reasons`` is each section's empty-state sentence; by default
+    :func:`reads.empty_reasons` of ``cards``. :func:`shell_for` passes :data:`NO_RUN_REASON`
+    for every section when no run is open.
     """
+    if reasons is None:
+        reasons = reads.empty_reasons(cards)
     counted: dict[str, list[StoredCard]] = {section.value: [] for section in sections.SECTION_ORDER}
     for card in cards:
         if card.section in counted:
@@ -324,6 +327,7 @@ def section_views(cards: Sequence[StoredCard]) -> tuple[SectionView, ...]:
                 # Matched *and* computed, as MatchStatus.has_interpretation and the run
                 # manifest count them: a placed score or ROH result is a finding here.
                 interpreted=sum(1 for card in here if card.status in {MATCHED, "computed"}),
+                empty_reason=reasons.get(section.value),
             )
         )
     return tuple(views)
@@ -469,28 +473,19 @@ CSS class at once, and threading ``None`` through those three ends with the word
 printed on the page. Asserted not to collide with any :class:`ConfidenceTier` member.
 """
 
-_STATUS_LABELS: Mapping[str, str] = {
-    "phase_ambiguous": "Phase unresolved",
-    MatchStatus.MATCHED.value: "Interpreted",
-    MatchStatus.COMPUTED.value: "Computed measurement",
-    MatchStatus.NOT_RUN.value: "Computation not run",
-    MatchStatus.INSUFFICIENT_COVERAGE.value: "Insufficient assay coverage",
-    MatchStatus.INSUFFICIENT_CALLS.value: "Insufficient local calls",
-    MatchStatus.NOT_DETERMINABLE.value: "Not determinable by this assay",
-    MatchStatus.MARKER_ABSENT.value: "Marker not on this array",
-    MatchStatus.NO_CALL.value: "No call",
-    MatchStatus.ALLELE_MISMATCH.value: "Allele mismatch",
-    MatchStatus.INDEL_EXCLUDED.value: "Indel excluded",
-    MatchStatus.HET_HAPLOID.value: "Heterozygous at a haploid locus",
-    MatchStatus.DUPLICATE_CONFLICT.value: "Probes disagree",
-    MatchStatus.STRAND_AMBIGUOUS.value: "Strand ambiguous",
-}
+_STATUS_LABELS: Mapping[str, str] = reads.STATUS_LABELS
 """Short display text per match status. Same string-keyed rule as :data:`_TIER_LABELS`.
 
 These are *labels*, not explanations. The explanation is already on the card: for every
 status but ``matched`` the engine writes ``match.reason`` into the summary, and those
-sentences separate absent from no-call from conflict far better than a badge can.
+sentences separate absent from no-call from conflict far better than a badge can. Kept in
+:mod:`genetics.run.reads` since M14.1, because an empty section's sentence counts statuses
+by these labels and ``runs show --section`` prints that sentence too.
 """
+
+NO_RUN_REASON = "No run is open, so there is nothing to show here yet."
+"""What every section says on a dashboard with no run open (M14.1). Not a reason about a
+run, since there is none."""
 
 _EVIDENCE_TIER_LABELS: Mapping[str, str] = {
     EvidenceTier.CLINICAL_GUIDELINE.value: "Clinical guideline",
@@ -1577,6 +1572,11 @@ class CardGroup(NoGenotypeRepr):
 
     interpreted: int
     milestone: str | None
+    section_reason: str | None = None
+    """The section's empty-state sentence from :func:`reads.empty_reason`, the one the nav
+    and ``runs show --section`` print; ``None`` for a tier group and for a section with a
+    finding."""
+
     related: tuple[RelatedLink, ...] = ()
     """Cards held by other sections that this one points to. Never counted in ``total``:
     they are this run's cards, rendered once, in their own section."""
@@ -1594,19 +1594,19 @@ class CardGroup(NoGenotypeRepr):
         """Why this panel shows nothing, or ``None``. Three distinct reasons, kept distinct.
 
         The definition of done (item 3) forbids a silent empty panel, and the reasons a
-        panel can be empty are not interchangeable: **nobody has written these cards yet**
-        is a fact about this tool and names the milestone that fixes it; **cards are here
-        and none produced an interpretation** is a fact about this genome and is not a
-        defect; **the filter is hiding them** is a fact about the reader's own last click.
-        Collapsing any two would tell somebody their array lacks a marker when the truth is
-        one of the other two. The first two are worded by :func:`reads.empty_reason`, which
-        the section nav and ``runs show --section`` also use.
+        panel can be empty are not interchangeable: **the run holds no card here** is a fact
+        about the pack it was saved with; **cards are here and none produced an
+        interpretation** is a fact about this genome and is not a defect; **the filter is
+        hiding them** is a fact about the reader's own last click. Collapsing any two would
+        tell somebody their array lacks a marker when the truth is one of the other two. The
+        first two are :attr:`section_reason`, the sentence the nav and ``runs show
+        --section`` print.
         """
         if self.total == 0 and self.milestone is None:
             return "No card in this run is at this level."
         if self.total > 0 and not self.cards:
             return f"All {self.total} card(s) here are hidden by the current filter."
-        return reads.empty_reason(self.milestone or "", self.total, self.interpreted)
+        return self.section_reason
 
 
 @dataclass(frozen=True)
@@ -1677,7 +1677,9 @@ def _sorted(cards: Sequence[CardView], sort: str) -> tuple[CardView, ...]:
     return tuple(sorted(cards, key=key))
 
 
-def _section_groups(cards: Sequence[CardView], query: GridQuery) -> tuple[CardGroup, ...]:
+def _section_groups(
+    cards: Sequence[CardView], query: GridQuery, reasons: Mapping[str, str | None]
+) -> tuple[CardGroup, ...]:
     """One panel per section, all thirteen, in AGENTS.md §3.1 order.
 
     Unknown sections are appended rather than dropped, for the reason
@@ -1705,6 +1707,7 @@ def _section_groups(cards: Sequence[CardView], query: GridQuery) -> tuple[CardGr
                 total=len(here),
                 interpreted=sum(1 for card in here if card.is_interpreted),
                 milestone=info.milestone if info is not None else None,
+                section_reason=reasons.get(name),
                 related=related_links(name, cards),
             )
         )
@@ -1792,12 +1795,21 @@ def _section_options(cards: Sequence[CardView], query: GridQuery) -> tuple[Filte
     )
 
 
-def grid_for(cards: Sequence[CardView], query: GridQuery) -> Grid:
-    """Arrange the cards. Counts are of the whole run, never of what survived the filter."""
+def grid_for(
+    cards: Sequence[CardView],
+    query: GridQuery,
+    reasons: Mapping[str, str | None] | None = None,
+) -> Grid:
+    """Arrange the cards. Counts are of the whole run, never of what survived the filter.
+
+    ``reasons`` is each section's empty-state sentence, as :func:`reads.empty_reasons`
+    gives it for the run's saved cards; :func:`shell_for` passes it. Left out, a section
+    group has no sentence of its own, only the filter's.
+    """
     if query.group == GROUP_BY_TIER:
         groups = _tier_groups(cards, query)
     else:
-        groups = _section_groups(cards, query)
+        groups = _section_groups(cards, query, reasons or {})
     return Grid(
         query=query,
         groups=groups,
@@ -1921,6 +1933,11 @@ def shell_for(
 
     selected = selected_id if bundle is None else bundle.path.name
     cards = card_views(bundle, run_id=selected)
+    reasons: Mapping[str, str | None] = (
+        {section.value: NO_RUN_REASON for section in sections.SECTION_ORDER}
+        if bundle is None
+        else reads.empty_reasons(bundle.cards)
+    )
     return Shell(
         runs_root=str(listing.root),
         run_url=run_path(selected),
@@ -1939,7 +1956,7 @@ def shell_for(
         # The thirteen sections render even with no run open, so the nav is the same shape
         # on an empty store as on a full one. A nav that appears only once a run is loaded
         # makes an empty dashboard look broken rather than empty.
-        sections=section_views(() if bundle is None else bundle.cards),
+        sections=section_views(() if bundle is None else bundle.cards, reasons),
         unknown_sections=() if bundle is None else unknown_sections(bundle.cards),
         card_count=len(cards),
         cards=cards,
@@ -1953,6 +1970,6 @@ def shell_for(
         pgx_framing=None if bundle is None else section_framing(),
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         carrier_scope=None if bundle is None else section_notice(bundle.cards),
-        grid=grid_for(cards, query or GridQuery()),
+        grid=grid_for(cards, query or GridQuery(), reasons),
         problem=problem,
     )

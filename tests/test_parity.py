@@ -160,7 +160,7 @@ def test_the_dashboard_calls_no_engine_function_the_cli_does_not() -> None:
     assert {
         "genetics.run.explain.explain_confidence",
         "genetics.health.secondary.secondary_view",  # imported inside a route
-        "genetics.run.reads.empty_reason",  # reached through an imported module
+        "genetics.run.reads.empty_reasons",  # reached through an imported module
         "genetics.hla.calling.report",
     } <= web
 

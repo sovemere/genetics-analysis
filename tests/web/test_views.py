@@ -120,16 +120,17 @@ def test_the_order_is_the_one_agents_md_fixes_not_alphabetical() -> None:
     assert [v.section for v in views][:2] == ["ancestry", "physical_health"]
 
 
-def test_an_empty_section_names_the_milestone_that_will_fill_it() -> None:
-    """ "Not built yet" and "nothing matched" are different facts and need different
-    sentences: one is about this tool's progress, the other about this genome."""
+def test_an_empty_section_says_the_run_predates_its_cards() -> None:
+    """ "No card in this run" and "nothing matched" are different facts and need different
+    sentences: one is about the pack the run was saved with, the other about this genome.
+    Since M14.1 every section has cards in the pack, so none says "not built yet"."""
     views = {v.section: v for v in section_views(())}
     ancestry = views["ancestry"]
 
     assert ancestry.is_empty
     assert ancestry.empty_reason is not None
-    assert "M5" in ancestry.empty_reason
-    assert "Not built yet" in ancestry.empty_reason
+    assert "knowledge pack it was saved with had none here" in ancestry.empty_reason
+    assert "Not built yet" not in ancestry.empty_reason
 
 
 def test_a_populated_section_with_nothing_matched_says_that_instead() -> None:
@@ -142,7 +143,7 @@ def test_a_populated_section_with_nothing_matched_says_that_instead() -> None:
     assert traits.card_count == 1
     assert traits.interpreted == 0
     assert traits.empty_reason is not None
-    assert "none of which produced an interpretation" in traits.empty_reason
+    assert "None of the 1 card(s) here produced an interpretation" in traits.empty_reason
 
 
 def test_a_section_with_an_interpretation_has_no_empty_reason() -> None:
@@ -489,22 +490,47 @@ def test_a_group_reports_its_whole_size_even_when_the_filter_empties_it() -> Non
 
 
 def test_the_three_reasons_a_panel_is_empty_stay_distinct() -> None:
-    """Not built yet, nothing matched, and your own filter are three different facts. The
-    first names a milestone; collapsing them would tell somebody their array lacks a marker
-    when the truth is that nobody has written the card."""
-    unbuilt = views.CardGroup(
-        key="ancestry", title="A", blurb=None, cards=(), total=0, interpreted=0, milestone="M5"
-    )
-    assert "roadmap M5" in (unbuilt.empty_reason or "")
+    """No card in this run, nothing matched, and your own filter are three different facts;
+    collapsing them would tell somebody their array lacks a marker when the truth is that
+    the run was saved before the card existed. The first two are the section's sentence
+    from :func:`reads.empty_reason`; the filter's is the group's own."""
+    from genetics.run import reads
 
-    card = views.CardView.of(_card("traits", status="marker_absent"), format_version=2)
-    nothing_matched = views.CardGroup(
-        key="traits", title="T", blurb=None, cards=(card,), total=1, interpreted=0, milestone="M3"
+    absent = views.CardGroup(
+        key="ancestry",
+        title="A",
+        blurb=None,
+        cards=(),
+        total=0,
+        interpreted=0,
+        milestone="M5",
+        section_reason=reads.empty_reason((), 3),
     )
-    assert "none of which produced an interpretation" in (nothing_matched.empty_reason or "")
+    assert "knowledge pack it was saved with had none here" in (absent.empty_reason or "")
+
+    stored = _card("traits", status="marker_absent")
+    card = views.CardView.of(stored, format_version=2)
+    nothing_matched = views.CardGroup(
+        key="traits",
+        title="T",
+        blurb=None,
+        cards=(card,),
+        total=1,
+        interpreted=0,
+        milestone="M3",
+        section_reason=reads.empty_reason((stored,), 29),
+    )
+    assert "produced an interpretation" in (nothing_matched.empty_reason or "")
 
     hidden = views.CardGroup(
-        key="traits", title="T", blurb=None, cards=(), total=1, interpreted=1, milestone="M3"
+        key="traits",
+        title="T",
+        blurb=None,
+        cards=(),
+        total=1,
+        interpreted=1,
+        milestone="M3",
+        section_reason=None,
     )
     assert "hidden by the current filter" in (hidden.empty_reason or "")
 

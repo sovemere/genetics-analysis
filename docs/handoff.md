@@ -1,6 +1,8 @@
-# Handoff: M14.1 sections and empty states
+# Handoff: M14.2 ancestry visualisations
 
-As of 2026-11-19, **M0-M13 are implemented; M14.1 is next**. See
+As of 2026-11-19, **M0-M13 and M14.1 are implemented; M14.2 is next**. See
+[the M14.2 entry contract](#next-open-step-m142-ancestry-visualisations),
+[the M14.1 record](#accepted-m141-sections-and-empty-states),
 [the M14.1 entry contract](#next-open-step-m141-sections-and-empty-states),
 [the M13.7 record](#accepted-m137-outbound-query-lint),
 [the M13.7 entry contract](#next-open-step-m137-outbound-query-lint),
@@ -10,6 +12,9 @@ As of 2026-11-19, **M0-M13 are implemented; M14.1 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.1, explicit empty states, is implemented.** Every section with nothing to show says
+why, from one function the nav, the grid and `runs show --section` share. See
+[the record](#accepted-m141-sections-and-empty-states).
 **M13.7, the outbound-query lint, is implemented.** `genetics cards check-query` is what an
 agent runs on every web search before sending it. It refuses a genotype written out and a
 result told in words, exits 1, never prints the query, and with `--card` lists each word
@@ -573,9 +578,67 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m142-ancestry-visualisations"></a>
+
+## Next open step: M14.2 ancestry visualisations
+
+M14.2: a PCA scatter with reference populations, ancient affinity, and a haplogroup display
+with marker counts. Nothing has been selected or verified beyond what is listed here.
+
+What already exists:
+
+- **The ancestry record is saved with every run** (`bundle.ancestry`, M5.8) and printed
+  whole by `runs show --json`. It holds the placement (status, reason, the sample's
+  scaled coordinates, every reference population's fit with distance, radius and
+  percentile, the decline threshold, the panel and its gaps), the mt and Y lineages
+  (haplogroup, depth, supporting and contradicting markers, markers on the array and
+  typed, why the walk stopped, the path), and ancient affinity (groups with distances,
+  dates and sizes, the spread, coverage).
+- **No page shows it**, and no command prints it on its own. The ancestry section holds
+  three assay-limit cards; M14.1's empty state says so.
+
+What is open:
+
+- **A scatter needs the reference populations' positions, and the run did not save
+  them.** The fits hold distances, not coordinates. Reading the reference on disk at
+  render time would draw a saved run against whatever reference is installed now.
+- **Parity:** a new page needs a command that prints what it shows (`tests/test_parity.py`).
+- **Runs saved before the change** have no positions; the page has to say so.
+
+<a id="accepted-m141-sections-and-empty-states"></a>
+
+## Accepted M14.1 sections and empty states
+
+Implemented on 2026-11-19. No owner question was asked.
+
+- **All thirteen sections were already wired** (M4.5): the nav and the grid render every
+  one whatever a run holds. What M14.1 changed is what an empty one says.
+- **One function, three sentences:** `reads.empty_reason(cards, pack_count)`.
+  `reads.empty_reasons(cards)` gives all thirteen from one run's cards and the committed
+  pack's per-section counts (`reads.pack_section_counts`, cached for the process).
+  - No card in the run: it was saved with a pack that held none here; the current pack's
+    count is what a new run would show; nothing about the genome is implied.
+  - Cards, none interpreted: each status counted by its label (the labels moved from
+    `web.views` to `reads.STATUS_LABELS`), each distinct `not_run` reason quoted up to
+    three, and a section of assay limits says so. A failed match's reason is about the
+    call and stays on the card; a quoted reason that reads as a call is dropped.
+  - No run open: `views.NO_RUN_REASON`, which claims nothing about a run.
+- **The nav, the grid and `runs show --section` print the same sentence.**
+  `SectionView.empty_reason` is a field now, and `CardGroup.section_reason` carries the
+  section's sentence; the parity check compares both with the command.
+
+Changed for a caller: `runs show --section`'s `empty_reason` text. No schema shape, bundle
+format, knowledge schema or card changed.
+
+The [M14.1 session review](review_m141_session.md) made `runs show --section` compute only
+its own sections' sentences. Validation on 2026-11-19: the full native suite passes
+**4,378 tests with nine skips** in 746 s; strict mypy, ruff and format pass. No personal
+export or saved real run was opened. Python source changed, so saved runs repeat their deep
+checks once.
+
 <a id="next-open-step-m141-sections-and-empty-states"></a>
 
-## Next open step: M14.1 sections and empty states
+## M14.1 entry contract (implemented; retained for review)
 
 M14.1: all thirteen sections wired, each with an explicit empty state explaining *why* it
 is empty when it is. Nothing has been selected or verified beyond what is listed here.

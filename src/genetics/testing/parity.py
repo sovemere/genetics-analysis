@@ -983,7 +983,15 @@ def _key(name: str) -> Callable[[Any], Any]:
 
 SECTION: Final[dict[str, Placed]] = {
     name: same(_SECTION, _key(name))
-    for name in ("section", "title", "blurb", "milestone", "card_count", "interpreted")
+    for name in (
+        "section",
+        "title",
+        "blurb",
+        "milestone",
+        "card_count",
+        "interpreted",
+        "empty_reason",
+    )
 }
 """A row of the section nav, against that section's context in ``runs show --section``."""
 
@@ -997,6 +1005,7 @@ ARRANGED: Final[dict[type, tuple[str, ...]]] = {
         "total",
         "interpreted",
         "milestone",
+        "section_reason",
         "related",
     ),
     views.FilterOption: ("value", "label", "count", "selected"),
@@ -1079,8 +1088,9 @@ def _check_grid(value: Any, documents: Documents, where: str) -> None:
         seen.extend(card.card_id for card in group.cards)
         if by_section and group.key in known:
             context = documents.sections[group.key]
-            shown = (group.title, group.blurb, group.milestone)
-            if shown != (context["title"], context["blurb"], context["milestone"]):
+            shown = (group.title, group.blurb, group.milestone, group.section_reason)
+            framed = (context["title"], context["blurb"], context["milestone"])
+            if shown != (*framed, context["empty_reason"]):
                 raise ParityError(f"{here} is framed differently from `{_SECTION}`")
             pointers = [(link.card_id, link.title, link.url is not None) for link in group.related]
             if pointers != [(p["card_id"], p["title"], p["in_run"]) for p in context["related"]]:
@@ -1335,7 +1345,7 @@ TABLES: Final[dict[type, Mapping[str, Placed]]] = {
 
 PROPERTIES: Final[dict[type, tuple[str, ...]]] = {
     views.QCBanner: ("call_rate_percent", "markers_display"),
-    views.SectionView: ("empty_reason", "is_empty"),
+    views.SectionView: ("is_empty",),
     views.RunOption: ("url",),
     views.StagingNotice: ("size_display",),
     views.CitationLink: ("label",),

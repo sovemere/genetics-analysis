@@ -147,10 +147,9 @@ def test_an_empty_section_says_why(saved: RunBundle) -> None:
     (context,) = payload["current_context"]["sections"]
     assert payload["cards"] == []
     assert context["card_count"] == 0
-    assert context["empty_reason"] == "Not built yet — roadmap M9.9."
-    assert "Not built yet — roadmap M9.9." in _text(
-        ["runs", "show", saved.run_id, "-s", "psychometrics"]
-    )
+    assert context["empty_reason"] == reads.empty_reason((), 3)
+    assert "The current pack has 3" in context["empty_reason"]
+    assert context["empty_reason"] in _text(["runs", "show", saved.run_id, "-s", "psychometrics"])
 
 
 def test_the_pgx_notice_is_stated_once_in_its_own_section(saved: RunBundle) -> None:

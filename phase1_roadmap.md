@@ -16,9 +16,15 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.1, wiring all thirteen sections with explicit empty states, is next.** M0–M13 are
-implemented. The [current handoff](docs/handoff.md#next-open-step-m141-sections-and-empty-states)
-records what it inherits.
+**M14.2, the ancestry visualisations, is next.** M0–M13 and M14.1 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m142-ancestry-visualisations) records what
+it inherits.
+
+M14.1 makes every empty section say why. The sentence comes from one function, which the
+nav, the grid and `runs show --section` share: a run saved with a pack that held no card
+here (with the current pack's count), cards that produced no interpretation (statuses
+counted, the engine's not-run reasons quoted), or no run open. "Not built yet" is gone,
+since every section has cards in the pack.
 
 M13.7 adds `genetics cards check-query`, which an agent runs on every web search before
 sending it. It refuses a genotype written out (an rsID beside two alleles, a diplotype,
@@ -3245,8 +3251,22 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 
 ## M14 — UI completion
 
-- [ ] **M14.1** All thirteen sections wired, each with an explicit empty state explaining
+- [x] **M14.1** All thirteen sections wired, each with an explicit empty state explaining
       *why* it is empty when it is.
+      - **Done 2026-11-19.** The thirteen sections already rendered in the nav and the grid
+        whatever a run held (M4.5). What was wrong was the sentence: a section with no card
+        said "Not built yet — roadmap M…", and since M12 every section has cards in the
+        pack.
+      - **Three sentences, one function** (`reads.empty_reason`, shared by the nav, the
+        grid and `runs show --section`, which the parity test now compares field for
+        field). No card in the run: it was saved with a pack that held none here, and the
+        current pack's count is what a new run would show. Cards and no interpretation:
+        each status counted by its label, each distinct `not_run` reason quoted (the
+        engine's sentence about a module, up to three), and a section of assay limits says
+        so; a failed match's reason is about the call and stays on the card. No run open:
+        one sentence that claims nothing about a run.
+      - **Left for later:** the ancestry section holds only assay-limit cards; its analysis
+        is a run-wide record with no page until M14.2.
 - [ ] **M14.2** Ancestry visualisations: PCA scatter with reference populations, ancient
       affinity, haplogroup display with marker counts.
 - [ ] **M14.3** Confidence legend and a "how to read these results" page covering the
@@ -3318,6 +3338,8 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-19 | M14.1 diff review | Reviewed the M14.1 working tree before its commit. **P3:** `runs show --section` computed all thirteen empty-state sentences for each section it printed; it now computes its own. **Re-read and unchanged:** "the pack it was saved with had none here" follows from §0.1A (every pack card yields a run card); only `not_run` reasons are quoted, and each is checked with `outbound.reads_as_call`; the pack's section counts are cached for the process (0.7 s to load). Three guards removed in turn each failed a test (the call check on quoted reasons: one; the grid's section sentence: fourteen; the assay-limit sentence: one). **Validation:** the full native suite passes **4,378 tests with nine skips** in 746 s (thirteen new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m141_session.md). |
+| 2026-11-19 | M14.1 | Every empty section says why. The thirteen sections already rendered whatever a run held (M4.5); the sentence was stale, saying "Not built yet — roadmap M…" when every section has had cards in the pack since M12. **One function, three sentences** (`reads.empty_reason`, shared by the nav, the grid and `runs show --section`): a run saved with a pack that held no card here, with the current pack's count; cards and no interpretation, with each status counted by its label, each distinct `not_run` reason quoted (up to three), and a section of assay limits named as one; and, with no run open, a sentence that claims nothing about a run. A failed match's reason is about the call and stays on the card. `SectionView.empty_reason` became a field and `CardGroup.section_reason` carries the section's sentence, so the parity check compares the nav and the grid with the command field for field. Status labels moved to `reads.STATUS_LABELS`. **Changed for a caller:** `runs show --section`'s `empty_reason` text; no schema shape, bundle format or card changed. No personal export or saved real run was opened. |
 | 2026-11-19 | M13.7 diff review | Reviewed the M13.7 working tree before its commit. **P2: two bypasses.** Full-width letters (as an input method types them) and a comma, colon or semicolon between the rsID and the pair both carried a call past every rule; the lint now folds NFKC first and takes punctuation where it took whitespace. **P3:** `unsourced` listed question words ("what", "is"), and now skips card search's stopwords. One citation title in the pack (FUT2) holds "Homozygous", so searching it by title is refused; the advice now points to its DOI. **Re-read and unchanged:** the search commands now refuse a variant written as two spaced alleles (write `C>T`), recorded as the rule's cost; `check-query` exits 1 with its own document, not an error document; the source reader covers the standard library's request builders only. Three guards removed in turn each failed a test (the fetcher's `check_url`: four; NFKC: one; `marker-with-alleles` as a call rule: twelve). **Validation:** the full native suite passes **4,365 tests with nine skips** in 752 s (seven new tests); strict mypy, ruff and format pass. No personal export or saved real run was opened. See [the review](docs/review_m137_session.md). |
 | 2026-11-19 | M13.7 | The outbound-query lint, as `genetics cards check-query <query> [--card ID] [--json]` on a new module, `genetics.outbound`. **Decisions, no owner question:** a command and not only a test, since the engine builds no web search and an agent writes its own; under `cards`, since it reads the pack only; its verdict is a payload (`cards.check-query`, agent schema version 6) with exit 1 on `refused`, not an error document. **Eight rules:** three `call` (the privacy scanner's shapes, an rsID beside two alleles, a diplotype) and five `result` (zygosity, a count of copies, the first person, a run id, a tier). Recall over precision, the file scanner's opposite, because a query is rewritten in a second. **Sources as well as shapes:** with `--card`, each word the cards' evidence does not print is listed as `unsourced`, as advice. **The two queries M13.6 left open are refused**, and the walk-through's test asserts it. `cards search` and `runs search` refuse the three `call` rules. The fetcher checks every URL with `outbound.check_url`; `tests/privacy/test_outbound.py` reads the source for every request a module builds and fails one without it, and every URL in both manifests passes. AGENTS.md §1.3 says to run every outbound query through the check and that its rules are a floor. **Validation:** the full native suite passed **4,358 tests with nine skips** in 778 s; strict mypy, ruff and format pass. No bundle format, knowledge schema or card changed. No personal export or saved real run was opened. |
 | 2026-11-15 | M13.6 diff review | Reviewed `a8c0023..dc78ac0`: the walk-through, its test and the CI fix. **P2: the page claimed more for its query check than the check does.** It said a query built from the run's result fails the check that every word is one `cards evidence --json` prints. The marker with "one copy" passes, because the card's caveats print "one" and its effect line "copy", and so does the marker followed by its two alleles apart; the scanner knows neither shape. M13.6's three test cases (the genotype as one word, the tier, "heterozygous") all fail the check, so nothing showed it. The page now states the limit, the test asserts both cases pass so the sentence fails when M13.7 closes them, and the M13.7 contract names both. **P3:** the run status, tier bases, call sources and error kinds the page names in prose were right and held by no test; one now compares them with the agent schema and `contract.run_error_kind`. Twelve commands written without `genetics` were not checked (33 are now, from 24). `command_problem` did not know a flag's off form (`serve --no-access-log`). Fact 7 cited Table 2 for four signals and it holds three; the fourth, near *OFCC1*, is in the Results text and under the paper's significance line. Fact 4 called six answers a six-step scale. Four statements dated the runner's move to 26.04 to a day the logs do not give, three still said `ubuntu-latest` is 24.04, and the CI-fix row had no result. **Re-read and unchanged:** every figure in the ten facts against the saved text of both papers, `Isolation.command`, and `command_problem` on the parity table. **Recorded:** the word check is lexical; `command_problem` does not check arguments; no 24.04 runner has run `--preserve-env`; the hosted-agent reading of §1.3 is still unconfirmed; `uv.lock` is still stale. **Validation:** 4,297 passed, the existing nine skips, 962 s; one new test and three strengthened; fifteen guards or statements changed in turn, all caught; four strict type targets (258 files), ruff and format pass. No command's output, schema shape, bundle format or card changed. No personal export or saved real run was opened. See [the review](docs/review_m136_session.md). |

@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M13 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M13 and M14.1 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -294,7 +294,11 @@ a result told in words ("one copy", "heterozygous", "my", a tier, a run id), nev
 the query back, and with `--card` lists each word the card's evidence does not print. The
 search commands refuse the same call shapes, and every request the fetcher makes passes
 the check. See [Query check](docs/agent_cli.md#query-check-m137).
-[M14.1, every section wired with an explicit empty state](docs/handoff.md#next-open-step-m141-sections-and-empty-states)
+**M14.1, explicit empty states, is implemented.** Every section with nothing to show says
+why, in the same sentence on the dashboard and in `runs show --section`: the run was saved
+before the section had cards, or its cards found nothing in this genome (counted by
+status, with the engine's not-run reasons), or no run is open.
+[M14.2, the ancestry visualisations](docs/handoff.md#next-open-step-m142-ancestry-visualisations)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

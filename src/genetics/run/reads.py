@@ -32,7 +32,8 @@ command scans it.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
-from typing import Any
+from functools import lru_cache
+from typing import Any, Final
 
 from genetics.engine import sections
 from genetics.engine.citations import citation_url
@@ -45,6 +46,7 @@ from genetics.engine.search import (
     section_text,
 )
 from genetics.engine.sections import Section
+from genetics.outbound import reads_as_call
 from genetics.run.bundle import RunBundle, StoredCard
 from genetics.run.explain import explain_confidence
 
@@ -207,16 +209,134 @@ def card_view(bundle: RunBundle, card: StoredCard) -> dict[str, Any]:
     return _header(bundle) | {"card": card_payload(card), "current_context": context}
 
 
-def empty_reason(milestone: str, total: int, interpreted: int) -> str | None:
-    """Why a section shows nothing, in the dashboard's words; ``None`` when it shows a finding."""
-    if total == 0:
-        return f"Not built yet — roadmap {milestone}."
-    if interpreted == 0:
+STATUS_LABELS: Mapping[str, str] = {
+    "phase_ambiguous": "Phase unresolved",
+    "matched": "Interpreted",
+    "computed": "Computed measurement",
+    "not_run": "Computation not run",
+    "insufficient_coverage": "Insufficient assay coverage",
+    "insufficient_calls": "Insufficient local calls",
+    "not_determinable": "Not determinable by this assay",
+    "marker_absent": "Marker not on this array",
+    "no_call": "No call",
+    "allele_mismatch": "Allele mismatch",
+    "indel_excluded": "Indel excluded",
+    "het_haploid": "Heterozygous at a haploid locus",
+    "duplicate_conflict": "Probes disagree",
+    "strand_ambiguous": "Strand ambiguous",
+}
+"""Short display text per match status, shared by the dashboard's badges and the empty
+states. String-keyed, since a saved run is read as strings. These are labels; the card's
+own summary says why."""
+
+
+def status_label(status: str) -> str:
+    return STATUS_LABELS.get(status, status.replace("_", " ").capitalize())
+
+
+_MAX_QUOTED: Final = 3
+
+
+@lru_cache(maxsize=1)
+def pack_section_counts() -> Mapping[str, int] | None:
+    """How many cards the committed knowledge pack holds per section, or ``None`` when it
+    cannot be read. Cached for the process: the pack is source, not data."""
+    from genetics.engine.cards import CardError, KnowledgePack
+
+    try:
+        pack = KnowledgePack.load(None)
+    except (CardError, OSError):
+        return None
+    counts = {section.value: 0 for section in sections.SECTION_ORDER}
+    for card in pack.cards:
+        counts[card.section.value] = counts.get(card.section.value, 0) + 1
+    return counts
+
+
+def empty_reason(cards: Sequence[StoredCard], pack_count: int | None) -> str | None:
+    """Why a section shows no finding for this run, or ``None`` when it shows one (M14.1).
+
+    Three cases, worded apart, because each is a different fact:
+
+    * **No card at all.** Since M12 the committed pack has cards in every section, so a
+      run with none was saved with a pack that held none here. Said with the current
+      pack's count, which is what a new run would show. Nothing about the genome.
+    * **Cards, and no interpretation.** Each status is counted, by its label. A ``not_run``
+      card's reason is quoted, since the engine wrote it about a module (a reference not
+      fetched, a licence not accepted, a tool absent); any other card's reason is about the
+      call and stays on the card. A section of assay limits says so.
+    * **An interpretation.** ``None``.
+    """
+    if not cards:
+        if pack_count is None:
+            return (
+                "This run holds no card for this section, and the current knowledge pack "
+                "could not be read to say whether it has any."
+            )
+        if pack_count == 0:
+            return (
+                "No card has been written for this section yet. That is a fact about this "
+                "tool, not about this genome."
+            )
         return (
-            f"{total} card(s) here, none of which produced an interpretation for this "
-            "genome. Each one states its own reason."
+            "This run holds no card for this section: the knowledge pack it was saved with "
+            f"had none here. The current pack has {pack_count}, so a new run of the same "
+            "export would show them. Nothing about this genome is implied."
         )
-    return None
+    if any(card.status in INTERPRETED_STATUSES for card in cards):
+        return None
+    counts: dict[str, int] = {}
+    for card in cards:
+        counts[card.status] = counts.get(card.status, 0) + 1
+    tally = ", ".join(
+        f"{status_label(status).lower()}: {count}"
+        for status, count in sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    )
+    sentences = [
+        f"None of the {len(cards)} card(s) here produced an interpretation for this genome "
+        f"({tally})."
+    ]
+    if set(counts) == {"not_determinable"}:
+        sentences.append(
+            "Every card here is an assay limit: it says what this array cannot determine, "
+            "and holds no result for anyone."
+        )
+    quoted = list(
+        dict.fromkeys(
+            str(card.match.get("reason")).strip()
+            for card in cards
+            if card.status == "not_run" and card.match.get("reason")
+        )
+    )
+    # The engine writes these about a module, never a call. Checked anyway: an empty state
+    # sits beside the scanned half of the page.
+    quoted = [reason for reason in quoted if not reads_as_call(reason)]
+    if quoted:
+        shown = " ".join(_sentence(reason) for reason in quoted[:_MAX_QUOTED])
+        more = len(quoted) - _MAX_QUOTED
+        sentences.append(
+            f"Not run: {shown}" + (f" ({more} more reason(s) on the cards.)" if more > 0 else "")
+        )
+    sentences.append("Each card states its own reason.")
+    return " ".join(sentences)
+
+
+def _sentence(text: str) -> str:
+    return text if text.endswith((".", "!", "?")) else text + "."
+
+
+def _pack_count(section: str) -> int | None:
+    counts = pack_section_counts()
+    return None if counts is None else counts.get(section, 0)
+
+
+def empty_reasons(cards: Sequence[StoredCard]) -> dict[str, str | None]:
+    """:func:`empty_reason` for each of the thirteen sections, from one run's cards."""
+    by_section: dict[str, list[StoredCard]] = {s.value: [] for s in sections.SECTION_ORDER}
+    for card in cards:
+        if card.section in by_section:
+            by_section[card.section].append(card)
+    return {name: empty_reason(here, _pack_count(name)) for name, here in by_section.items()}
 
 
 def section_context(section: Section, bundle: RunBundle) -> dict[str, Any]:
@@ -235,7 +355,7 @@ def section_context(section: Section, bundle: RunBundle) -> dict[str, Any]:
         "milestone": info.milestone,
         "card_count": len(here),
         "interpreted": interpreted,
-        "empty_reason": empty_reason(info.milestone, len(here), interpreted),
+        "empty_reason": empty_reason(here, _pack_count(section.value)),
         "related": related(section, bundle.cards),
         "saved_records": [
             {"title": title, "command": command.format(run=name)}
