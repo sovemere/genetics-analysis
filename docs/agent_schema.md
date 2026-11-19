@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 7 since M14.2 (2026-11-19), which described `genetics runs
-ancestry`. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 8 since M14.3 (2026-11-19), which described `genetics cards
+guide`. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -200,7 +200,7 @@ Not unified, and recorded here so that nobody assumes otherwise:
 
 - **Closed, key for key:** the envelope, `current_context` (the confidence block
   included), the run listing, the evidence declaration, both search payloads, the query
-  check, the error document, and the saved card's 26 keys. A saved card always has all 26; a key its
+  check, the reading guide (M14.3), the error document, and the saved card's 26 keys. A saved card always has all 26; a key its
   bundle's format did not have is null.
 - **Closed, inside the saved card:** `variant`, `match`, `confidence`, `evidence`,
   `observation`, `frequencies` and `citations`. Their keys were checked against the first
@@ -346,6 +346,12 @@ The [M13.5 session review](review_m135_session.md) extended the `runs imputation
 test to the text branch, which it had not covered. It changed no command's output, so the
 document is still version 5 and its digest is unchanged. The suite passes 4,282
 tests after the review.
+
+M14.3 took the document to version 8 with one payload, `cards.guide`, closed at every
+level. `tests/run/test_guide.py` checks `cards guide --json` against it with the shared
+`agent_schema_check` fixture and against the engine's own document, and the parity check
+compares the `/guide` page and every page's legend with it. Editing the document under
+version 8 without a new digest fails the digest test.
 
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).

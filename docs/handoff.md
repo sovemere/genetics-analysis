@@ -666,7 +666,9 @@ knowledge schema or card changed.
 
 The [M14.3 session review](review_m143_session.md) corrected what the guide said about
 ancestry ceilings on membership-compared cards and one sentence of Tandy-Connor's figure,
-and gave the run selector an "Open a saved run" option. Validation on 2026-11-19: the full
+and gave the run selector an "Open a saved run" option. A second pass after the commit
+corrected the guide's description of the polygenic chart (a 95% band, never a point) and of
+`Indel excluded`, and brought `agent_schema.md` up to version 8. Validation on 2026-11-19: the full
 native suite passes **4,412 tests with nine skips** in 977 s; strict mypy, ruff and format
 pass. No personal export or saved real run was opened. Python source changed, so saved runs
 repeat their deep checks once.

@@ -37,6 +37,26 @@ saved real run was opened.
 - **The card page keeps M13.4's sentence and six rows.** The weights and the ceiling list
   are on the guide, and `runs card --json` holds each card's own.
 
+## Second pass, after the commit
+
+A diff-driven pass over `f5df3dd`, checking each factual sentence of the guide against the
+code that does what it describes.
+
+- **P3: the guide said a polygenic score is drawn as a point inside a wider distribution.**
+  `_pgschart.html` draws a shaded band over the score's 95% interval and never a point. The
+  sentence now says so.
+- **P3: the indel sentence said a card "would need" an indel.** A card cannot declare one
+  (the pack refuses indel alleles); `Indel excluded` is what a card says when this array
+  records its marker as one. Reworded.
+- **Stale documentation:** `docs/agent_schema.md` still opened with "version 7 since M14.2"
+  and did not list the guide among the closed payloads or in its validation notes. Updated.
+- **Checked and true:** sex is inferred from X heterozygosity and the Y call rate
+  (`qc.metrics.infer_sex`); every polygenic card face states when no within-family estimate
+  is recorded (`pgs.cards`); a heterozygous call at a haploid site is `het_haploid`.
+
+The guide, guide-page, agent-schema, walk-through and parity suites pass (147 tests);
+strict mypy, ruff and format pass.
+
 ## Validation
 
 Seven guards were removed in turn, and each removal failed a test: two ceiling probes (the

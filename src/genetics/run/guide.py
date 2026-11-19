@@ -527,10 +527,10 @@ def _polygenic(cards: list[Card]) -> dict[str, Any]:
             "(Okbay et al. 2022, about 3 million people) a polygenic index explained 12-16% "
             "of the variance in educational attainment, and direct effects, estimated "
             f"against parents' scores, were roughly half of its association. {attenuation}",
-            "Position, not prediction. A score is shown as where it falls in a reference "
-            "distribution, with the width of the distribution drawn wider than the point. "
-            "Where the cited study reports outcome rates by score decile they are shown "
-            "beside it; otherwise no absolute risk is given.",
+            "Position, not prediction. A score is shown as a shaded band over its 95% "
+            "interval within a reference distribution, never as a single point. Where the "
+            "cited study reports outcome rates by score decile they are shown beside it; "
+            "otherwise no absolute risk is given.",
         ],
         "cards": [
             {
@@ -560,8 +560,9 @@ _LIMITS: Final[tuple[tuple[str, str], ...]] = (
     (
         "Insertions and deletions",
         "An indel is written I or D with no sequence recorded, so which allele is the "
-        "reference cannot be read from the file. Indels are left out of allele matching, "
-        "and a card that would need one says “Indel excluded” (AGENTS.md §4.2).",
+        "reference cannot be read from the file. Indels are left out of allele matching: "
+        "a card whose marker this array records as one says “Indel excluded” "
+        "(AGENTS.md §4.2).",
     ),
     (
         "One copy of X and Y",
