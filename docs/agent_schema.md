@@ -1,7 +1,7 @@
 # Agent JSON schema (M13.2)
 
-Implemented 2026-11-11; version 9 since M14.5 (2026-11-20), which added the run's coverage
-to `genetics runs qc`. The JSON the agent read commands print is described by one JSON
+Implemented 2026-11-11; version 10 since M14.6 (2026-11-20), which added each section's
+assay limits to `genetics runs show --section`. The JSON the agent read commands print is described by one JSON
 Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
@@ -360,6 +360,11 @@ M14.5 took it to version 9: `runs.qc` gains the required key `current_context.co
 records for the dashboard's QC and provenance page. `tests/web/test_qc_page.py` checks the
 command against it, and the parity check compares the page with both commands it shows.
 
+M14.6 took it to version 10: `section_context` gains the required key `assay_limits`, a
+list of `assay_limit`, which `runs.section` prints for each section. The parity check
+compares it with the limits each section panel names; `tests/web/test_assay_limits.py`
+checks the list itself.
+
 None of these commands has been run on the real imputed run. This change edits Python
 source, so that run's first read repeats its deep checks (about 54 minutes).
 
@@ -376,3 +381,4 @@ source, so that run's first read repeats its deep checks (about 54 minutes).
 | 7 | 2026-11-19 | One payload, `runs.ancestry` (M14.2): the saved ancestry record and the `ancestry_pca` scatter. The record itself is open, as in `runs.show`; from bundle format 29 its placement holds `scale` and each fit a `centroid`. No existing payload changed |
 | 8 | 2026-11-19 | One payload, `cards.guide` (M14.3): the reading guide and confidence legend, with `guide_paragraphs`. It reads the knowledge pack and the engine's rules, no run. No existing payload changed |
 | 9 | 2026-11-20 | `runs.qc` gains the required key `current_context` (M14.5): `coverage`, a `run_coverage` holding every polygenic card's `score_coverage` (both phases' saved coverage), their counts, and the saved ClinVar coverage record with a `clinvar_status`. Every other payload is unchanged |
+| 10 | 2026-11-20 | `section_context` gains the required key `assay_limits` (M14.6), a list of `assay_limit` (`card_id`, `in_run`, `title`): the section's impossibility cards in the run, then the current pack's that the run lacks. It reaches `runs.section`. Every other payload is unchanged |

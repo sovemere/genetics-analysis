@@ -1539,6 +1539,38 @@ def related_links(section: str, cards: Sequence[CardView]) -> tuple[RelatedLink,
 
 
 @dataclass(frozen=True)
+class LimitLink:
+    """One assay limit a section names at its head (M14.6), from :func:`reads.assay_limits`.
+
+    ``url`` opens the run's own card. ``None`` for a limit the current pack holds and the
+    run does not: the limit is about the array, so it is true of the run anyway, and the
+    reader is told it exists rather than shown a link that fails.
+    """
+
+    card_id: str
+    title: str
+    url: str | None
+
+
+def limit_links(
+    limits: Sequence[Mapping[str, Any]], cards: Sequence[CardView]
+) -> tuple[LimitLink, ...]:
+    """:func:`reads.assay_limits` for one section, as links to this run's cards."""
+    by_id = {card.card_id: card for card in cards}
+    links: list[LimitLink] = []
+    for limit in limits:
+        card = by_id.get(limit["card_id"]) if limit["in_run"] else None
+        links.append(
+            LimitLink(
+                card_id=limit["card_id"],
+                title=limit["title"],
+                url=None if card is None else card.url,
+            )
+        )
+    return tuple(links)
+
+
+@dataclass(frozen=True)
 class CardGroup(NoGenotypeRepr):
     """One panel of the grid: a section, or a confidence tier."""
 
@@ -1561,6 +1593,29 @@ class CardGroup(NoGenotypeRepr):
     related: tuple[RelatedLink, ...] = ()
     """Cards held by other sections that this one points to. Never counted in ``total``:
     they are this run's cards, rendered once, in their own section."""
+
+    limits: tuple[LimitLink, ...] = ()
+    """What this array cannot determine in this section (M14.6), named at the panel's head
+    whatever the filter: a filter hides a card and counts it, but must not leave a section
+    reading as complete. Empty for a tier group, which has no section. Not counted in
+    ``total``; the cards themselves are counted where they render."""
+
+    @property
+    def findings(self) -> tuple[CardView, ...]:
+        """The shown cards that are not assay limits, in the reader's sort order."""
+        return tuple(card for card in self.cards if not card.is_impossibility)
+
+    @property
+    def limit_cards(self) -> tuple[CardView, ...]:
+        """The shown assay-limit cards, in the reader's sort order (M14.6).
+
+        Rendered as their own block below the findings, under a heading, rather than in
+        the sort. Sorted by tier, a card with no tier goes last, so an assay limit sat
+        beneath every marker-absent card of a section and read as one more card that did
+        not match. Grouped by tier, the same block keeps them apart from the unmatched cards
+        in the untiered panel, each face naming its section.
+        """
+        return tuple(card for card in self.cards if card.is_impossibility)
 
     @property
     def hidden(self) -> int:
@@ -1659,7 +1714,10 @@ def _sorted(cards: Sequence[CardView], sort: str) -> tuple[CardView, ...]:
 
 
 def _section_groups(
-    cards: Sequence[CardView], query: GridQuery, reasons: Mapping[str, str | None]
+    cards: Sequence[CardView],
+    query: GridQuery,
+    reasons: Mapping[str, str | None],
+    limits: Mapping[str, Sequence[Mapping[str, Any]]],
 ) -> tuple[CardGroup, ...]:
     """One panel per section, all thirteen, in AGENTS.md §3.1 order.
 
@@ -1690,6 +1748,7 @@ def _section_groups(
                 milestone=info.milestone if info is not None else None,
                 section_reason=reasons.get(name),
                 related=related_links(name, cards),
+                limits=limit_links(limits.get(name, ()), cards),
             )
         )
     return tuple(groups)
@@ -1777,17 +1836,20 @@ def grid_for(
     cards: Sequence[CardView],
     query: GridQuery,
     reasons: Mapping[str, str | None] | None = None,
+    limits: Mapping[str, Sequence[Mapping[str, Any]]] | None = None,
 ) -> Grid:
     """Arrange the cards. Counts are of the whole run, never of what survived the filter.
 
     ``reasons`` is each section's empty-state sentence, as :func:`reads.empty_reasons`
     gives it for the run's saved cards; :func:`shell_for` passes it. Left out, a section
-    group has no sentence of its own, only the filter's.
+    group has no sentence of its own, only the filter's. ``limits`` is each section's
+    assay limits, as :func:`reads.assay_limits_by_section` gives them; left out, a section
+    names none at its head.
     """
     if query.group == GROUP_BY_TIER:
         groups = _tier_groups(cards, query)
     else:
-        groups = _section_groups(cards, query, reasons or {})
+        groups = _section_groups(cards, query, reasons or {}, limits or {})
     return Grid(
         query=query,
         groups=groups,
@@ -1952,6 +2014,11 @@ def shell_for(
         pgx_limitation=None if bundle is None else cyp2d6_limitation(bundle.cards),
         carrier_scope=None if bundle is None else section_notice(bundle.cards),
         ancestry=None if bundle is None else bundle.ancestry,
-        grid=grid_for(cards, query or GridQuery(), reasons),
+        grid=grid_for(
+            cards,
+            query or GridQuery(),
+            reasons,
+            None if bundle is None else reads.assay_limits_by_section(bundle.cards),
+        ),
         problem=problem,
     )

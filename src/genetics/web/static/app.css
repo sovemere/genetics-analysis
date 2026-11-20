@@ -402,6 +402,21 @@ a { color: var(--accent); }
 .gaps dt { font-weight: 600; }
 .gaps dd { margin: 0; color: var(--muted); font-size: 0.9rem; }
 
+/* M14.6: a section's assay limits, named at its head and kept apart below its findings. */
+.limits {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.75rem;
+  border-left: 3px solid var(--line);
+  font-size: 0.9rem;
+}
+
+.limitshead {
+  margin: 1.25rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--line);
+  font-size: 0.95rem;
+}
+
 /* --- Controls (M4.7) ---------------------------------------------------- */
 
 .controls {

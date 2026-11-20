@@ -219,7 +219,7 @@ def test_every_view_field_is_placed_and_every_property_is_listed() -> None:
     parity.check_views()
     classes = parity.view_classes()
     assert {views.Shell, views.CardView, polygenic.PolygenicView} <= set(classes)
-    assert len(classes) == 23
+    assert len(classes) == 24
     # Each class is accounted for one way only.
     kinds = (parity.TABLES, parity.ARRANGED, parity.NESTED, parity.DRAWN)
     assert all(sum(cls in kind for kind in kinds) == 1 for cls in classes)
@@ -355,6 +355,12 @@ def test_a_card_field_the_command_drops_fails(saved: Path, monkeypatch: pytest.M
             "related_links",
             lambda links: (),
             r"shell\.grid\.groups\[\w+\]\.related differs from `runs show --section`",
+        ),
+        (
+            views,
+            "limit_links",
+            lambda links: links[1:],
+            r"shell\.grid\.groups\[\w+\]\.limits differs from `runs show --section`",
         ),
         (
             views,

@@ -25,7 +25,8 @@
         <span class="statusbadge">{{ card.status_label }}</span>
       {% endif %}
     </div>
-    <h3 class="cardtitle">{{ card.title }}</h3>
+    {% set heading = card_heading | default("h3") %}
+    <{{ heading }} class="cardtitle">{{ card.title }}</{{ heading }}>
     {% if card.polygenic and card.polygenic.placed %}
       {% set pgs = card.polygenic %}{% set compact = true %}
       {% include "_pgschart.html" %}

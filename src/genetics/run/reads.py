@@ -1,7 +1,8 @@
 """Read-side views of one saved run: a card, a section, the QC record, a search (roadmap
 M13.1, M13.3). The card view also says what decided the card's tier (M13.4), built by
 :mod:`genetics.run.explain`. The QC view also collects the run's coverage (M14.5), which the
-dashboard's QC page shows.
+dashboard's QC page shows. A section's context lists its assay limits (M14.6), which the
+dashboard's section panel names whatever the reader's filters.
 
 The agent's read commands (``genetics runs card``, ``runs show --section``, ``runs qc``,
 ``runs search``) build their JSON here rather than in the CLI module, so that the projection
@@ -10,9 +11,9 @@ can call these functions directly, and M14.4's dashboard search calls :func:`sea
 
 **Frozen record and current context are kept apart.** Every payload carries the saved
 record under its own keys, and anything this engine adds at read time -- section titles,
-the pointers M12.1 declared, citation links, the PGx section notice, the reading of a
-card's confidence -- sits under
-``current_context`` with ``"context": "current"``. That is the split the M10.5 PGx framing
+the pointers M12.1 declared, a section's assay limits, citation links, the PGx section
+notice, the reading of a card's confidence -- sits under ``current_context`` with
+``"context": "current"``. That is the split the M10.5 PGx framing
 made (``pgx calls``) and the M11.6 and M12.1 reviews kept: a saved run is what the person
 read, and an engine that has since changed must not appear to have said something then.
 
@@ -245,19 +246,66 @@ _MAX_QUOTED: Final = 3
 
 
 @lru_cache(maxsize=1)
-def pack_section_counts() -> Mapping[str, int] | None:
-    """How many cards the committed knowledge pack holds per section, or ``None`` when it
-    cannot be read. Cached for the process: the pack is source, not data."""
+def _pack_cards() -> tuple[tuple[str, str, str, str], ...] | None:
+    """``(card_id, section, kind, title)`` for each card of the committed knowledge pack, in
+    pack order, or ``None`` when it cannot be read. Cached for the process: the pack is
+    source, not data."""
     from genetics.engine.cards import CardError, KnowledgePack
 
     try:
         pack = KnowledgePack.load(None)
     except (CardError, OSError):
         return None
+    return tuple((card.id, card.section.value, card.kind.value, card.title) for card in pack.cards)
+
+
+@lru_cache(maxsize=1)
+def pack_section_counts() -> Mapping[str, int] | None:
+    """How many cards the committed knowledge pack holds per section, or ``None`` when it
+    cannot be read."""
+    cards = _pack_cards()
+    if cards is None:
+        return None
     counts = {section.value: 0 for section in sections.SECTION_ORDER}
-    for card in pack.cards:
-        counts[card.section.value] = counts.get(card.section.value, 0) + 1
+    for _, section, _, _ in cards:
+        counts[section] = counts.get(section, 0) + 1
     return counts
+
+
+IMPOSSIBILITY: Final = "impossibility"
+"""The card kind of an AGENTS.md 3.2 assay limit."""
+
+
+def assay_limits(section: str, cards: Sequence[StoredCard]) -> list[dict[str, Any]]:
+    """What this array cannot determine in ``section``: its assay-limit cards (M14.6).
+
+    The run's own impossibility cards in this section come first, in saved order. Then the
+    current pack's impossibility cards for the section that the run does not hold anywhere,
+    with ``in_run: false``: a limit is a fact about the assay, so one written after a run
+    was saved is still true of that run, and the reader is told it exists rather than left
+    to read the section as complete. A run's card is listed under the section it was saved
+    in, whatever the current pack says.
+
+    Listed whatever the reader's filters or grouping, beside the section's findings: the
+    reader who needs the SMN1 card is the one reading the carrier cards (M3.7).
+    """
+    limits = [
+        {"card_id": card.card_id, "in_run": True, "title": card.title}
+        for card in cards
+        if card.section == section and card.kind == IMPOSSIBILITY
+    ]
+    held = {card.card_id for card in cards}
+    limits.extend(
+        {"card_id": card_id, "in_run": False, "title": title}
+        for card_id, home, kind, title in _pack_cards() or ()
+        if home == section and kind == IMPOSSIBILITY and card_id not in held
+    )
+    return limits
+
+
+def assay_limits_by_section(cards: Sequence[StoredCard]) -> dict[str, list[dict[str, Any]]]:
+    """:func:`assay_limits` for each of the thirteen sections, from one run's cards."""
+    return {section.value: assay_limits(section.value, cards) for section in sections.SECTION_ORDER}
 
 
 def empty_reason(cards: Sequence[StoredCard], pack_count: int | None) -> str | None:
@@ -364,6 +412,7 @@ def section_context(section: Section, bundle: RunBundle) -> dict[str, Any]:
         "interpreted": interpreted,
         "empty_reason": empty_reason(here, _pack_count(section.value)),
         "related": related(section, bundle.cards),
+        "assay_limits": assay_limits(section.value, bundle.cards),
         "saved_records": [
             {"title": title, "command": command.format(run=name)}
             for title, command in SAVED_RECORDS.get(section, ())

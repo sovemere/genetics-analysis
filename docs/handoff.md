@@ -1,6 +1,8 @@
-# Handoff: M14.6 impossibility cards in their sections
+# Handoff: M14.7 accessibility pass
 
-As of 2026-11-20, **M0-M13 and M14.1-M14.5 are implemented; M14.6 is next**. See
+As of 2026-11-20, **M0-M13 and M14.1-M14.6 are implemented; M14.7 is next**. See
+[the M14.7 entry contract](#next-open-step-m147-accessibility),
+[the M14.6 record](#accepted-m146-impossibility-cards),
 [the M14.6 entry contract](#next-open-step-m146-impossibility-cards),
 [the M14.5 record](#accepted-m145-qc-provenance-page),
 [the M14.5 entry contract](#next-open-step-m145-qc-provenance-page),
@@ -20,6 +22,11 @@ As of 2026-11-20, **M0-M13 and M14.1-M14.5 are implemented; M14.6 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.6, impossibility cards in their sections, is implemented.** Each section of the grid
+names its assay limits at its head ("Not determinable from this array:") whatever the
+filter, and renders those cards as their own block below its findings; grouped by tier, the
+untiered panel has the same block. `genetics runs show --section --json` prints the list as
+`assay_limits` (agent schema 10). See [the record](#accepted-m146-impossibility-cards).
 **M14.5, the QC and provenance page, is implemented.** `/runs/{run_id}/qc` shows what
 `genetics runs qc <run> --json` and `runs imputation <run> --json` print, whole, and the
 route scans the page for genotypes as both commands do. `runs qc` gains the run's coverage
@@ -606,9 +613,73 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m147-accessibility"></a>
+
+## Next open step: M14.7 accessibility pass
+
+M14.7: accessibility pass: keyboard navigation, contrast, screen-reader labels. Nothing has
+been selected or verified beyond what is listed here.
+
+What earlier milestones hand over:
+
+- **M14.6:** a section's assay limits are a `p.limits` line of links at the panel's head
+  (not a list) and a `ul.cards` labelled by the `h3.limitshead` "What this array cannot
+  determine"; card titles in that block are `h4` (`_cardface.html` takes `card_heading`,
+  default `h3`). Elsewhere a card title is `h3` under the panel's `h2`; on the search page
+  it is `h3` too, and that page's heading structure was not checked.
+- **M14.5:** the QC page's tables have captions and row headers; its "On this page" list
+  is a `nav` landmark, a second one beside the section nav.
+- **M14.4:** the search page has two `role="search"` forms, the nav's and the page's, whose
+  labels say the same thing, so a screen reader lists two identical search landmarks. The
+  `empty-query` sentence the page shows is the CLI's and keeps its backticks around
+  `curly hair`.
+- **Parity.** A view field added for M14.7 needs a place in `parity`'s tables; a property,
+  a row in `parity.PROPERTIES`.
+
+<a id="accepted-m146-impossibility-cards"></a>
+
+## Accepted M14.6 impossibility cards in their sections
+
+Implemented on 2026-11-20. No owner question was asked: the entry contract's open points
+were facts to check, and [the section on assay limits](agent_cli.md#assay-limits-in-their-sections-m146)
+gives the reasoning for each choice.
+
+- **What the grid did.** Sorted by tier (the default), a card with no tier goes last, so an
+  assay limit sat beneath every marker-absent card of its section. Grouped by tier, all
+  twelve sat in the untiered panel among the cards that did not match. A tier, section or
+  "only interpreted" filter hid them, counted, while the section's findings stayed.
+- **Named at each section's head, whatever the filter.** `reads.assay_limits(section,
+  cards)` lists the run's impossibility cards saved in the section, in saved order, then the
+  current pack's impossibility cards for the section that the run holds nowhere, with
+  `in_run: false`. `section_context` carries it as `assay_limits`; the grid's
+  `CardGroup.limits` (`LimitLink`: id, title, url or None) draws it as a line of links. The
+  line points and does not copy, so a filter still hides and counts the card (M4.7).
+- **Their own block.** `CardGroup.findings` and `CardGroup.limit_cards` split the shown
+  cards; the template renders the limits below the findings under "What this array cannot
+  determine". Grouped by tier, the untiered panel does the same.
+- **The register.** AGENTS.md §3.2's eight bullets and the twelve cards match both ways;
+  `tests/engine/test_impossibilities.py` already held that. None is missing.
+- **Parity.** `ARRANGED` has `CardGroup.limits` and `LimitLink`; `_check_grid` compares each
+  section panel's limits with `assay_limits` and fails a tier group that has any. A guard
+  test that drops a link fails it.
+
+Changed for a caller: agent schema version 10 (`section_context.assay_limits`, required);
+`runs show --section`'s text form prints a "Not determinable from this array" line. No
+route, bundle format, knowledge schema or card changed.
+
+Looked at in Chrome on a synthetic run (pack markers, half dropped), grouped by section and
+by tier. Validation on 2026-11-20: the full native suite passed **4,455 tests with nine skips**
+in 991 s. Five guards were removed in turn and each failed a test, after the
+[session review](review_m146_session.md) added the assertion one of them lacked. Strict mypy,
+ruff and format pass. No personal export or saved real run
+was opened. Python source changed, so saved runs repeat their deep checks once.
+
+Left for later: grouped by tier, the limits block follows the reader's sort (by title,
+since every limit ties on tier), not section order; each card names its section.
+
 <a id="next-open-step-m146-impossibility-cards"></a>
 
-## Next open step: M14.6 impossibility cards in their sections
+## M14.6 entry contract (implemented; retained for review)
 
 M14.6: impossibility cards surfaced in their relevant sections, not hidden in an appendix.
 Nothing has been selected or verified beyond what is listed here.

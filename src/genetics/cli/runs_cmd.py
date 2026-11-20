@@ -639,10 +639,23 @@ def _section_lines(context: Mapping[str, Any]) -> list[str]:
         lines.append(f"  {scope['title']}: {scope['text']}")
     if context["related"]:
         lines.append(f"  Also points to: {_pointer_names(context['related'])}")
+    if context["assay_limits"]:
+        lines.append(f"  Not determinable from this array: {_limit_names(context['assay_limits'])}")
     lines.extend(
         f"  {record['title']}: `{record['command']}`" for record in context["saved_records"]
     )
     return lines
+
+
+def _limit_names(limits: Sequence[Mapping[str, Any]]) -> str:
+    """A section's assay limits (M14.6), as the dashboard names them at the section's head."""
+    return "; ".join(
+        f"{limit['card_id']}"
+        if limit["in_run"]
+        else f"{limit['title']} (in the current knowledge pack, not in this run: "
+        f"`genetics cards evidence {limit['card_id']}`)"
+        for limit in limits
+    )
 
 
 # ---------------------------------------------------------------------------

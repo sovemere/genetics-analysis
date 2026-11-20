@@ -99,7 +99,7 @@ cards                   those sections' saved cards, in saved order
 current_context
   context               "current"
   sections[]            {section, title, blurb, milestone, card_count, interpreted,
-                         empty_reason, related, saved_records,
+                         empty_reason, related, assay_limits, saved_records,
                          section_framing (pharmacogenomics only),
                          carrier_scope (reproductive only)}
 ```
@@ -114,7 +114,8 @@ section has a finding. "Not built yet — roadmap M…" is gone: every section h
 pack. `saved_records` names the commands for records beyond
 the cards, which the dashboard links as pages: `runs clinvar` and `runs secondary` for physical
 health, `pgx calls` for pharmacogenomics, and `hla calls` for immunogenetics. The PGx notice appears once, in its section, and is not repeated per card
-(see [PGx framing](pgx_framing.md)).
+(see [PGx framing](pgx_framing.md)). `assay_limits` (agent schema 10) lists what the array
+cannot determine in the section; see [Assay limits in their sections](#assay-limits-in-their-sections-m146).
 
 ### `runs qc`
 
@@ -892,6 +893,60 @@ their output for genotypes, and the route scans the whole page too.
   time, with each reference's licence and each tool's digest. The imputation stage records
   what it used, which can differ after an install changes; the page says so.
 
+## Assay limits in their sections (M14.6)
+
+The twelve impossibility cards (AGENTS.md §3.2) have sat in the section each qualifies since
+M3.7. M14.6 keeps them there, and visible, whatever the reader does to the grid.
+
+**What was wrong.** Three arrangements took a limit away from the findings it qualifies:
+
+- **Sorted by tier**, the default, a card with no tier goes last. An assay limit has no
+  tier, so the SMN1 card sat beneath every marker-absent carrier card, looking like one more
+  card that did not match.
+- **Grouped by tier**, all twelve went to the untiered panel, mixed in with the cards that
+  did not match.
+- **Filtered** by tier, by section or to "only cards with an interpretation", a limit was
+  hidden and counted (M4.7), while its section's findings stayed on screen. That left the
+  carrier section reading as complete, which is the failure M3.7 placed the cards to stop.
+
+**What changed.**
+
+- **Each section names its limits at its head**, after the blurb and before any card:
+  "Not determinable from this array:" and a link to each limit card. The line is drawn
+  whatever the filter, as M10.3 keeps the CYP2D6 limitation beside the PGx calls. It points
+  to the cards and does not copy them, so a filter still hides a limit card and counts it.
+- **The cards render as their own block** below the section's findings, under "What this
+  array cannot determine", whatever the sort. Grouped by tier, the untiered panel has the
+  same block below its unmatched cards, and each card names its section.
+- **`runs show --section` prints the same list** as `current_context.sections[].assay_limits`
+  (agent schema 10), from `reads.assay_limits`, and its text form prints the line. Each
+  entry is `{card_id, in_run, title}`.
+- **A limit the run does not hold is still named.** The list is the run's own limit cards in
+  this section, in saved order, then the current pack's limit cards for the section that the
+  run does not hold, with `in_run: false`. A limit is about the array, so one written after
+  a run was saved is still true of that run. The dashboard names it without a link, and the
+  text form names `genetics cards evidence <card-id>`, which prints the pack's card.
+
+**Decisions.**
+
+- **Pointers at the head, not the cards themselves.** Moving the cards to the top of a
+  section would put five assay limits ahead of physical health's findings. A line of links
+  is enough to say the section is incomplete, and the cards stay where the reader expects
+  detail.
+- **The filters stay as they are.** M4.7's rule is that a filter hides a card and counts it;
+  the line at the head is what keeps a limit stated, so no filter needed an exception.
+- **No new grouping.** Grouped by tier, the limits stay in the untiered panel, where
+  `?tier=untiered` finds them, so URLs and filter counts are unchanged. The block sets them
+  apart within it.
+- **The register was compared with the cards.** `tests/engine/test_impossibilities.py`
+  reads AGENTS.md §3.2 and the pack and holds them equal both ways: eight bullets, twelve
+  cards (the copy-number bullet names four findings and gets five). None is missing.
+
+**Parity.** `CardGroup.limits` holds `LimitLink`s. `_check_grid` compares each section
+panel's limits with `runs show --section`'s `assay_limits` (id, title, and whether there is
+a link) and fails a tier group that has any. `CardGroup.findings` and `limit_cards` are
+properties that split the shown cards; they are listed in `parity.PROPERTIES`.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a
@@ -973,6 +1028,9 @@ source change repeats its deep checks (about 54 minutes); later reads take about
   words and not meaning, so a result told in the card's own words passes; M13.7 inherits that.
 - **M13.7** (done 2026-11-19) is `cards check-query`, described under
   [Query check](#query-check-m137). It closes the two queries M13.6 left open.
+- **M14.6** (done 2026-11-20) is each section's assay limits, named at its head and in
+  `runs show --section`'s `assay_limits`, described under
+  [Assay limits in their sections](#assay-limits-in-their-sections-m146). Agent schema 10.
 - **M14.5** (done 2026-11-20) is the QC and provenance page and `runs qc`'s coverage,
   described under [QC and provenance page](#qc-and-provenance-page-m145). Agent schema 9.
 - **M14.4** (done 2026-11-19) is the dashboard's search page, described under

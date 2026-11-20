@@ -39,7 +39,7 @@ import typer
 if TYPE_CHECKING:
     from genetics.engine.search import Query
 
-AGENT_SCHEMA_VERSION: Final[int] = 9
+AGENT_SCHEMA_VERSION: Final[int] = 10
 """The version every tagged document carries. Bump it with any change to a described shape."""
 
 SCHEMA_PATH: Final[Path] = Path(__file__).with_name("agent_schema.json")

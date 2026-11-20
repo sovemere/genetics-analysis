@@ -3,7 +3,7 @@
   "$id": "urn:genetics-analysis:agent-schema",
   "title": "genetics agent CLI payloads",
   "description": "Every JSON document the agent read and search commands print, the saved records beside a run's cards, and the error document a failing command prints under --json. Each document names its payload and this version under `schema`. Rules for readers and for changes, and which commands print the error document: docs/agent_schema.md.",
-  "version": 9,
+  "version": 10,
   "x-payloads": [
     {
       "name": "runs.list",
@@ -1151,103 +1151,103 @@
     },
     "tag.runs.list": {
       "type": "object",
-      "properties": { "name": { "const": "runs.list" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.list" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.show": {
       "type": "object",
-      "properties": { "name": { "const": "runs.show" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.show" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.section": {
       "type": "object",
-      "properties": { "name": { "const": "runs.section" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.section" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.card": {
       "type": "object",
-      "properties": { "name": { "const": "runs.card" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.card" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.qc": {
       "type": "object",
-      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.qc" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.evidence": {
       "type": "object",
-      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "cards.evidence" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.search": {
       "type": "object",
-      "properties": { "name": { "const": "runs.search" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.search" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.search": {
       "type": "object",
-      "properties": { "name": { "const": "cards.search" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "cards.search" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.clinvar": {
       "type": "object",
-      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.clinvar" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.secondary": {
       "type": "object",
-      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.secondary" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.imputation": {
       "type": "object",
-      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.imputation" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.pgx.calls": {
       "type": "object",
-      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "pgx.calls" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.hla.calls": {
       "type": "object",
-      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "hla.calls" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.runs.ancestry": {
       "type": "object",
-      "properties": { "name": { "const": "runs.ancestry" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "runs.ancestry" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.check-query": {
       "type": "object",
-      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "cards.check-query" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.cards.guide": {
       "type": "object",
-      "properties": { "name": { "const": "cards.guide" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "cards.guide" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
     "tag.error": {
       "type": "object",
-      "properties": { "name": { "const": "error" }, "version": { "const": 9 } },
+      "properties": { "name": { "const": "error" }, "version": { "const": 10 } },
       "required": ["name", "version"],
       "additionalProperties": false
     },
@@ -2012,6 +2012,17 @@
       "required": ["card_id", "in_run", "title", "section"],
       "additionalProperties": false
     },
+    "assay_limit": {
+      "type": "object",
+      "description": "One assay-limit card a section names (AGENTS.md 3.2). Its claim is about the array, not the person.",
+      "properties": {
+        "card_id": { "type": "string" },
+        "in_run": { "type": "boolean", "description": "False for a limit the current knowledge pack holds and the run does not; `genetics cards evidence <card_id>` prints it." },
+        "title": { "type": "string" }
+      },
+      "required": ["card_id", "in_run", "title"],
+      "additionalProperties": false
+    },
     "section_context": {
       "type": "object",
       "description": "What the dashboard shows around one section's cards.",
@@ -2024,6 +2035,11 @@
         "interpreted": { "type": "integer", "minimum": 0, "description": "Cards whose status is `matched` or `computed`." },
         "empty_reason": { "type": ["string", "null"], "description": "Why the section shows no finding. Null when it shows one." },
         "related": { "type": "array", "items": { "$ref": "#/$defs/pointer" } },
+        "assay_limits": {
+          "type": "array",
+          "description": "What this array cannot determine in the section (M14.6): the run's impossibility cards saved here, in saved order, then the current knowledge pack's impossibility cards for the section that the run does not hold. Listed whatever a reader's filters; the dashboard names them at the section's head.",
+          "items": { "$ref": "#/$defs/assay_limit" }
+        },
         "saved_records": {
           "type": "array",
           "description": "Saved records beyond the cards, with the command that prints each.",
@@ -2067,6 +2083,7 @@
         "interpreted",
         "empty_reason",
         "related",
+        "assay_limits",
         "saved_records"
       ],
       "additionalProperties": false

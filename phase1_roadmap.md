@@ -16,9 +16,17 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.6, impossibility cards in their sections, is next.** M0–M13 and M14.1–M14.5 are
-implemented. The [current handoff](docs/handoff.md#next-open-step-m146-impossibility-cards)
-records what it inherits.
+**M14.7, the accessibility pass, is next.** M0–M13 and M14.1–M14.6 are implemented. The
+[current handoff](docs/handoff.md#next-open-step-m147-accessibility) records what it
+inherits.
+
+M14.6 keeps the twelve impossibility cards with the findings they qualify, whatever the grid's
+arrangement. Each section names its assay limits at its head ("Not determinable from this
+array:", a link to each card) whatever the filter, and renders those cards as their own block
+below its findings rather than in the sort, where a card with no tier went last among the
+cards that did not match. Grouped by tier, the untiered panel has the same block.
+`runs show --section` prints the list (`assay_limits`, agent schema 10), with the current
+pack's limits a run saved before them lacks.
 
 M14.5 adds the QC and provenance page, `/runs/{run_id}/qc`, which shows what `genetics runs
 qc <run> --json` and `runs imputation <run> --json` print, whole: every QC field and warning
@@ -3369,8 +3377,23 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       - **Left for later:** the page shows what the manifest recorded as installed at save
         time beside what the imputation stage used; it does not compare either with today's
         installation.
-- [ ] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
+- [x] **M14.6** Impossibility cards surfaced in their relevant sections, not hidden in an
       appendix.
+      - **Done 2026-11-20.** See
+        [Assay limits in their sections](docs/agent_cli.md#assay-limits-in-their-sections-m146).
+      - **What was wrong:** sorted by tier (the default), a limit went last, beneath every
+        marker-absent card of its section; grouped by tier, all twelve sat among the
+        unmatched cards; a filter hid them while their section's findings stayed.
+      - **Named at the section's head, whatever the filter.** A line of links, not copies, so
+        a filter still hides and counts a card (M4.7) and the section never reads as
+        complete. `runs show --section` prints the same list as `assay_limits` (agent
+        schema 10), with the current pack's limits a run lacks marked `in_run: false`.
+      - **Their own block** below a section's findings, and below the unmatched cards in the
+        untiered panel when grouped by tier.
+      - **Register checked:** AGENTS.md §3.2's eight bullets map to the twelve cards, both
+        ways, by `tests/engine/test_impossibilities.py`. None missing.
+      - **Left for later:** grouped by tier, the block follows the reader's sort (title by
+        default), not section order; each card names its section.
 - [ ] **M14.7** Accessibility pass: keyboard navigation, contrast, screen-reader labels.
 
 ---
@@ -3430,6 +3453,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-20 | M14.6 | Impossibility cards kept with their sections. **Checked first:** sorted by tier, an untiered card goes last, so the SMN1 card sat beneath every marker-absent carrier card; grouped by tier, all twelve went to the untiered panel; a tier, section or interpreted-only filter hid them while the section's findings stayed. **Head of each section:** `reads.assay_limits` lists the run's impossibility cards saved in the section, then the current pack's for the section that the run does not hold (`in_run: false`: a limit is about the array, so it is true of an older run); `section_context` gains `assay_limits` (agent schema 10) and the text form prints it. The grid's `CardGroup.limits` (`LimitLink`) names them at the panel's head whatever the filter; pointers, not copies, so M4.7's hide-and-count is unchanged. **Own block:** `CardGroup.findings` and `limit_cards` split the shown cards; the limits render under "What this array cannot determine" below the findings, titles at `h4`. **Register:** §3.2's eight bullets and the twelve cards match both ways (existing test). **Parity:** `_check_grid` compares each panel's limits with `assay_limits` and fails a tier group holding any; a guard test drops one link and fails. Looked at in the browser on a synthetic run, both groupings. **Validation:** the full native suite passes **4,455 tests with nine skips** in 991 s; five guards removed in turn each fail a test, after one that did not (limit cards rendered twice) gained an assertion. Strict mypy, ruff and format pass. See [the session review](docs/review_m146_session.md). No bundle format, knowledge schema or card changed. No personal export or saved real run was opened. |
 | 2026-11-20 | M14.5 second review | A diff-driven pass over `16b19a5`. No code defect found. **P3, stale documentation:** `agent_schema.md` said `runs.qc` has no `current_context`; the ClinVar, PGS-coverage and imputation-provenance pages did not name `runs qc` or the QC page; the `reads` and `web.app` module docstrings did not mention the page (`web.app`'s said no page is scanned whole). All updated. **P3:** `.breakdown caption` also left-aligned a card detail's caption; now scoped to the QC page's. The M14.6 hand-over's claim that the twelve impossibility cards carry no tier was checked. See [the review](docs/review_m145_session.md#second-pass-after-the-commit). |
 | 2026-11-20 | M14.5 | The QC and provenance page, `/runs/{run_id}/qc`, linked from every run page's nav. **Two documents, whole:** `reads.qc_view` (`runs qc --json`) and `reads.imputation_view` (`runs imputation --json`); `parity.CONTEXT["qc.html"]` compares each with its command key for key, and `check_run` visits the page. `_render(..., scanned=True)` scans the whole page, which holds no genotype. **Coverage** is new on `runs qc`: `current_context.coverage` (`reads.coverage_report`) lists every polygenic card's saved `phase_coverage` and comparable weight, placed or not, and the saved ClinVar coverage record with `clinvar_status` (`recorded`, `no-lookup`, `lookup-not-run`, `not-recorded`); agent schema 9. The text form of `runs qc` prints the same. **Imputation:** execution record, then panel, map, Beagle, Java and bref versions, requested parameters, a row per region and per job; about 25 regions, so not paged; position-level decisions stay in the command's document. Saved records are read with `dig` in the template, so a field another version did not write renders `-`. **Review** ([session review](docs/review_m145_session.md)): a ClinVar lookup that did not run was first called "saved before format 13"; it now has its own state and reason. In the browser, the tier badge wrapped and a not-placed reason inherited the row header's bold; both fixed. Five guards removed in turn, each caught. **Validation:** the full native suite passed **4,435 tests with nine skips** in 1,024 s and failed one, a walk-through key-count pin, since updated (that file passes, 14 tests); three parity tests added after the run pass with the affected suites. Strict mypy, ruff and format pass. No bundle format, knowledge schema or card changed. No personal export or saved real run was opened. |
 | 2026-11-20 | M14.4 second review | A diff-driven pass over `e42f268`. **P3, stale documentation:** the `engine/search.py` docstring and this file's M13.3 summary still said the dashboard's search "must call" the ranking; `agent_cli.md`'s list of display values lacked the refusal sentence and how `check_run` compares it. All three updated. No code defect found: every saved card has a view, so the route's lookup cannot fail, and a run that does not open never reaches `search_view`. **Handed to M14.7:** two `role="search"` forms with the same label on the search page, and the `empty-query` sentence's backticks. The search, CLI search, engine search, parity and walk-through suites pass (179 tests); ruff and format pass. See [the review](docs/review_m144_session.md#second-pass-after-the-commit). |

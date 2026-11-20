@@ -68,6 +68,18 @@
         {% endfor %}
       </p>
     {% endif %}
+    {% if group.limits %}
+      {# M14.6: what this array cannot determine here, named at the head of the section and
+         whatever the filter. A filter hides a card and counts it; it must not leave a section
+         reading as complete -- the reader who needs the SMN1 card is the one reading the
+         carrier cards. Pointers, not copies: each card renders once, below. #}
+      <p class="limits">
+        <strong>Not determinable from this array:</strong>
+        {% for link in group.limits %}
+          {% if link.url %}<a href="{{ link.url }}{{ shell.grid.query.query_string }}">{{ link.title }}</a>{% else %}{{ link.title }} (in the current knowledge pack, not in this run){% endif %}{% if not loop.last %}; {% endif %}
+        {% endfor %}
+      </p>
+    {% endif %}
     {% if group.key == "pharmacogenomics" and shell.has_selection %}
       {% include "_pgxfaces.html" %}
     {% endif %}
@@ -80,11 +92,24 @@
     {% endif %}
 
     {% if group.cards %}
-      <ul class="cards">
-        {% for card in group.cards %}
-          <li>{% include "_cardface.html" %}</li>
-        {% endfor %}
-      </ul>
+      {% if group.findings %}
+        <ul class="cards">
+          {% for card in group.findings %}
+            <li>{% include "_cardface.html" %}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
+      {% if group.limit_cards %}
+        {# M14.6: the assay limits as their own block rather than in the sort, where a card
+           with no tier goes last and would read as one more card that did not match. #}
+        <h3 class="limitshead" id="limits-{{ group.key }}">What this array cannot determine</h3>
+        <ul class="cards" aria-labelledby="limits-{{ group.key }}">
+          {% for card in group.limit_cards %}
+            {% set card_heading = "h4" %}
+            <li>{% include "_cardface.html" %}</li>
+          {% endfor %}
+        </ul>
+      {% endif %}
       {% if group.hidden %}
         <p class="empty">
           {{ group.hidden }} more card(s) in this group are hidden by the current filter.

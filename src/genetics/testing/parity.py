@@ -1065,9 +1065,11 @@ ARRANGED: Final[dict[type, tuple[str, ...]]] = {
         "milestone",
         "section_reason",
         "related",
+        "limits",
     ),
     views.FilterOption: ("value", "label", "count", "selected"),
     views.RelatedLink: ("card_id", "title", "section_title", "url"),
+    views.LimitLink: ("card_id", "title", "url"),
     views.GridQuery: ("group", "sort", "tiers", "sections", "interpreted_only", "ignored"),
 }
 """The grid's classes, which arrange cards the run already holds. :func:`_check_grid` compares
@@ -1153,9 +1155,13 @@ def _check_grid(value: Any, documents: Documents, where: str) -> None:
             pointers = [(link.card_id, link.title, link.url is not None) for link in group.related]
             if pointers != [(p["card_id"], p["title"], p["in_run"]) for p in context["related"]]:
                 raise ParityError(f"{here}.related differs from `{_SECTION}`")
-        elif group.related:
-            raise ParityError(f"{here}.related has pointers no command prints")
-        documents.report.compared += 5
+            limits = [(link.card_id, link.title, link.url is not None) for link in group.limits]
+            listed = [(m["card_id"], m["title"], m["in_run"]) for m in context["assay_limits"]]
+            if limits != listed:
+                raise ParityError(f"{here}.limits differs from `{_SECTION}`")
+        elif group.related or group.limits:
+            raise ParityError(f"{here} has pointers or limits no command prints")
+        documents.report.compared += 6
     if value.shown != len(seen) or len(seen) != len(set(seen)):
         raise ParityError(f"{where} shows a card twice, or miscounts what it shows")
     for options, key in (
@@ -1518,7 +1524,8 @@ PROPERTIES: Final[dict[type, tuple[str, ...]]] = {
     ),
     views.GridQuery: ("is_filtered", "parameters", "query_string"),
     views.RelatedLink: (),
-    views.CardGroup: ("empty_reason", "hidden", "is_empty"),
+    views.LimitLink: (),
+    views.CardGroup: ("empty_reason", "findings", "hidden", "is_empty", "limit_cards"),
     views.FilterOption: (),
     views.Grid: ("hidden", "is_filtered"),
     views.Shell: ("has_selection", "placed_cards", "total_interpreted"),
