@@ -112,7 +112,9 @@ version 5 `runs.clinvar`, `runs.secondary`, `runs.imputation`, `pgx.calls`, `hla
   `"context": "current"`.
 - Every other top-level key is the saved record, unchanged.
 
-`runs.show` and `runs.qc` have no `current_context`, because they add nothing. In
+`runs.show` has no `current_context`, because it adds nothing. `runs.qc` had none until
+version 9, when it gained `current_context.coverage`, the run's coverage collected from the
+saved records (M14.5). In
 `runs.search`, `results` holds each matched card's saved face and `current_context.hits`
 holds why it matched, in the same order.
 

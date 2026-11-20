@@ -1,6 +1,7 @@
 """Read-side views of one saved run: a card, a section, the QC record, a search (roadmap
 M13.1, M13.3). The card view also says what decided the card's tier (M13.4), built by
-:mod:`genetics.run.explain`.
+:mod:`genetics.run.explain`. The QC view also collects the run's coverage (M14.5), which the
+dashboard's QC page shows.
 
 The agent's read commands (``genetics runs card``, ``runs show --section``, ``runs qc``,
 ``runs search``) build their JSON here rather than in the CLI module, so that the projection

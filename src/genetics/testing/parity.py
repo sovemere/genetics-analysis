@@ -1291,7 +1291,8 @@ def _report_keys(command: str, document: Callable[[Documents, Mapping[str, Any]]
 
 
 def _whole(command: str, document: Callable[[Documents], Any]) -> Handed:
-    """A command's document, whole: every key it prints is on the page, and no other."""
+    """A command's document, whole: the page is handed every key the command prints (bar its
+    schema tag), each equal, and no other."""
 
     def compare(value: Any, documents: Documents, context: Mapping[str, Any], where: str) -> None:
         printed = {key: item for key, item in document(documents).items() if key != "schema"}

@@ -76,6 +76,10 @@ So the split follows M4.2's, which drew the same line between ``runs list`` (sca
 branches) and ``runs show`` (not scanned, deliberately). The banner and the selector are
 manifest- and QC-derived, exactly like a listing, and they are rendered on their own so the
 scan is a property of the code rather than a claim in a comment.
+
+One page is the exception, and it is scanned whole: the QC and provenance page (M14.5)
+shows only what ``runs qc`` and ``runs imputation`` print, both scanned, so it holds no
+genotype anywhere. ``_render(..., scanned=True)`` is how a route says so.
 """
 
 

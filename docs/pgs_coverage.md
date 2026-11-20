@@ -3,7 +3,8 @@
 AGENTS.md §4.3 says every PRS card must report how much of its score was actually used,
 before and after imputation. M9.3 produces that data in the shared engine. It is in every
 private `.pgs-score.json` and is available from the CLI. M9.6's renderer puts it on the
-card face. The module is `pgs/coverage.py`.
+card face. Since M14.5 `genetics runs qc <run> --json` collects every polygenic card's saved
+coverage under `current_context.coverage.polygenic`, and the QC and provenance page lists it. The module is `pgs/coverage.py`.
 Coverage is calculated from the saved term evidence. It never comes from PLINK's matrix
 `ALLELE_CT`/`DENOM` or from the biological `native_alleles` total, because neither one
 counts variants or describes the original chip.

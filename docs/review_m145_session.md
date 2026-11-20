@@ -54,3 +54,28 @@ and format pass. Python source changed, so saved runs repeat their deep checks o
 
 Not done: the page has not been opened on the real imputed run, whose provenance holds
 about 25 regions; the synthetic stages hold one.
+
+## Second pass after the commit
+
+A diff-driven pass over `16b19a5`, re-reading every changed source line against the code it
+calls and every changed sentence against the code it describes. No code defect found.
+
+- **P3, stale documentation.** `agent_schema.md` still said `runs.qc` has no
+  `current_context`; it has had one since version 9. `clinvar_coverage.md`,
+  `pgs_coverage.md` and `imputation_provenance.md` listed where their records appear and
+  did not name `runs qc` or the QC page. The module docstrings of `run/reads.py` and
+  `web/app.py` (which said the dashboard is never scanned as a whole document) did not
+  mention the page. All updated.
+- **P3, a stylesheet rule reached past the page.** `.breakdown caption` left-aligned every
+  caption in a `.breakdown` table, including the reliability-inputs caption on a card's
+  detail. It is now `.breakdown caption.muted`, which only the QC page's captions carry.
+- **Re-read and unchanged.** Every card is in `shell.cards` (`views.card_views` keeps all
+  saved cards, whatever their section), so the coverage table's lookup of each card's view
+  cannot come back empty. A polygenic card's phase status is one of `available`,
+  `unavailable` or `unsupported_model` (`pgs/coverage.py`), which is what the page and the
+  text form branch on. The M14.6 hand-over's statement that the twelve impossibility cards
+  carry no tier was checked: assembled from the committed pack, all twelve are
+  `not_determinable` with no confidence.
+
+The web, parity, walk-through, schema and agent-read suites pass (447 tests); ruff and
+format pass.

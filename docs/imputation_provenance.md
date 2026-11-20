@@ -89,7 +89,10 @@ the checkout. `RunBundle.iter_dosages()` exposes the same native records for fut
 consumers and checks payload integrity again before streaming. A removed or unreadable
 payload raises a private categorical error, including after the bundle was opened.
 The dashboard banner
-shows recording status, panel release and Beagle version from the saved snapshot.
+shows recording status, panel release and Beagle version from the saved snapshot. Since
+M14.5 the QC and provenance page (`/runs/<run-id>/qc`) shows the `--json` document's
+execution record, parameters and a row per region and per job; position-level decisions
+and digests stay in the command's output.
 No front end discovers live tools or references while reopening a run.
 
 Synthetic tests cover independent copies, cache removal, installed-inventory differences,

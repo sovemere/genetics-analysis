@@ -2,7 +2,9 @@
 
 The `clinvar_array_coverage` card in Physical health describes what the input export
 covers in the installed ClinVar release. The same saved counts appear in the ClinVar
-dashboard and `genetics runs clinvar <run-id> --json`. No universal array-overlap
+dashboard and `genetics runs clinvar <run-id> --json`; since M14.5 the record is also under
+`current_context.coverage.clinvar` in `genetics runs qc <run-id> --json`, and the QC and
+provenance page shows its two fractions. No universal array-overlap
 constant is used. Coverage is not clinical sensitivity, a count of confirmed pathogenic
 findings, or a negative clinical screen when no overlap is found.
 

@@ -612,7 +612,7 @@ a { color: var(--accent); }
 /* A SHA-256 is 64 characters with no break opportunity; let it wrap rather than widen the
    page (the QC and provenance page, M14.5). */
 .digest { overflow-wrap: anywhere; word-break: break-all; }
-.breakdown caption { text-align: left; padding-bottom: 0.25rem; }
+.breakdown caption.muted { text-align: left; padding-bottom: 0.25rem; }
 .breakdown .rowreason { font-weight: normal; }
 .breakdown .nowrap { white-space: nowrap; }
 
