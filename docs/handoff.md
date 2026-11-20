@@ -660,7 +660,9 @@ What M14.7 hands over:
   `audit` there as `tests/web/test_ancestry_page.py` does.
 - **A card face's link is its title** (`h3.cardtitle > a.cardlink`, `h4` in the assay-limit
   block). A test that looked for the title as the heading's whole text now finds it inside
-  the link.
+  the link. The face's layout and the stretched link's positioning are on `.cardface`, which
+  only `_cardface.html` sets; `.card` is also worn by the ClinVar sections and the PGx gene
+  faces, so a face-only rule goes on `.cardface`.
 - **`nav_page` and `nav_search_landmark`** are set by a page template with `{% with %}` around
   the nav include; they are not context keys, so parity has nothing to place.
 - **Not done:** no screen-reader session (NVDA, Narrator) was run; the audit checks markup.
@@ -701,9 +703,16 @@ Implemented on 2026-11-20. No owner question was asked: WCAG 2.2 AA decides each
   each failed a test.
 
 Changed for a caller: none. No command, agent schema, bundle format, knowledge schema, card,
-route, view field or context key changed. Validation on 2026-11-20: the full native suite passed **4,497 tests with nine skips** in 1,034 s (42 new). Strict mypy,
-ruff and format pass. No personal export or saved real run was opened. Python source
-changed, so saved runs repeat their deep checks once.
+route, view field or context key changed. Validation on 2026-11-20: the full native suite
+passed **4,497 tests with nine skips** in 1,034 s (42 new). Strict mypy, ruff and format
+pass. No personal export or saved real run was opened. Python source changed, so saved runs
+repeat their deep checks once.
+
+The [M14.7 diff review](review_m147_session.md), after the commit, found that the face's new
+layout had been put on `.card`, which the ClinVar sections and the PGx gene faces also wear;
+it now sits on `.cardface`. It also fixed a stylesheet test helper that matched the wrong
+rule, the audit's handling of an SVG `<title>`, and three comments that still gave "a face
+is one link" as the reason the legend is not on the faces.
 
 <a id="next-open-step-m147-accessibility"></a>
 

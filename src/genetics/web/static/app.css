@@ -542,12 +542,7 @@ a { color: var(--accent); }
 }
 
 .card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
   height: 100%;
-  padding: 0.8rem 0.9rem;
   background: var(--raised);
   border: 1px solid var(--line);
   border-left: 4px solid var(--tier-none-bg);
@@ -555,6 +550,17 @@ a { color: var(--accent); }
 }
 
 .card:hover { border-color: var(--accent); }
+
+/* A card face's layout (M14.7), on `.cardface` and not on `.card`: the ClinVar page's
+   sections and the PGx gene faces wear `.card` too, and must not gain the padding, the
+   flex column or the positioning context the stretched link needs. */
+.cardface {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.8rem 0.9rem;
+}
 
 /*
  * M14.7: the link is the title, and it covers the face. A face that was one link gave a
@@ -565,14 +571,14 @@ a { color: var(--accent); }
 .cardlink { color: inherit; text-decoration: none; }
 .cardlink::after { content: ""; position: absolute; inset: 0; border-radius: 6px; }
 .cardlink:focus-visible { outline: none; }
-.card:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+.cardface:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* Where `:has` exists, only keyboard focus draws the ring: a click that opens the dialog
    and the focus handed back when it closes are not a reader looking for their place. */
 @supports selector(:has(*)) {
-  .card:focus-within { outline: none; }
-  .card:has(.cardlink:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .cardface:focus-within { outline: none; }
+  .cardface:has(.cardlink:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 }
-.card:hover .cardlink { text-decoration: underline; }
+.cardface:hover .cardlink { text-decoration: underline; }
 
 .cardbadges { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 

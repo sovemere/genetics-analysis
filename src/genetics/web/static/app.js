@@ -16,7 +16,7 @@
  *
  * **Nothing here is required for the page to work.** Every control has a server-side path:
  * the run selector duplicates as links, the grid controls are a GET form with a submit
- * button, and a card face is an anchor to that card's own page. The CSP would refuse a
+ * button, and a card face's title is a link to that card's own page. The CSP would refuse a
  * cross-origin request anyway, and `tests/web/test_static.py` fails on the shapes that
  * fetch.
  */

@@ -20,7 +20,7 @@
   deliberately outside the `assert_no_genotype` scan. See `SCANNED_PARTIALS` in app.py.
 #}
 {% set face = card.url | domid %}
-<article class="card tier-{{ card.tier_key }}{% if not card.is_interpreted %} card-uninterpreted{% endif %}">
+<article class="card tier-{{ card.tier_key }}{% if not card.is_interpreted %} card-uninterpreted{% endif %} cardface">
   <div class="cardbadges" id="{{ face }}-badges">
     <span class="tier tier-{{ card.tier_key }}">{{ card.tier_label }}</span>
     {% if not card.is_interpreted %}

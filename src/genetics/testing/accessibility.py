@@ -79,8 +79,10 @@ class Element:
         for child in self.children:
             if isinstance(child, str):
                 parts.append(child)
-            elif child.tag in {"script", "style", "title"} or (
-                skip_hidden and child.get("aria-hidden") == "true"
+            elif (
+                child.tag in {"script", "style"}
+                or (child.tag, self.tag) == ("title", "head")
+                or (skip_hidden and child.get("aria-hidden") == "true")
             ):
                 continue
             else:
@@ -235,7 +237,15 @@ def audit(html: str, *, page: bool = True) -> list[str]:
                 a.tag in SECTIONING for a in element.ancestors()
             ):
                 continue  # a card's own header is not the page's banner
-            if role in {"navigation", "search", "main", "banner", "contentinfo", "region"}:
+            if role in {
+                "navigation",
+                "search",
+                "main",
+                "banner",
+                "contentinfo",
+                "region",
+                "complementary",
+            }:
                 named = element.get("aria-label") or element.get("aria-labelledby")
                 landmarks.setdefault(role, []).append(name_of(element, ids) if named else "")
         for role, names in landmarks.items():

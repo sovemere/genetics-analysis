@@ -123,8 +123,10 @@ def test_the_two_dark_palettes_are_one() -> None:
 
 
 def _rule(selector: str) -> str:
-    start = CSS.index(selector + " {")
-    return CSS[start : CSS.index("}", start)]
+    """The rule whose selector starts a line: ``.card`` is not ``.searchhit .card``."""
+    found = re.search(rf"^{re.escape(selector)} \{{", CSS, flags=re.MULTILINE)
+    assert found, selector
+    return CSS[found.start() : CSS.index("}", found.start())]
 
 
 @pytest.mark.parametrize(
@@ -144,6 +146,19 @@ def test_controls_are_edged_with_the_control_line(selector: str) -> None:
     rule = _rule(selector)
     assert "border: 1px solid var(--control-line)" in rule
     assert "var(--line)" not in rule
+
+
+def test_the_face_layout_stays_on_card_faces() -> None:
+    """The stretched link needs a positioned, padded face; the ClinVar sections and PGx gene
+    faces also wear `.card` and must not take that layout (found in the M14.7 review)."""
+    card = _rule(".card")
+    for declaration in ("position:", "padding:", "display:"):
+        assert declaration not in card, declaration
+    assert "position: relative;" in _rule(".cardface")
+    face = (TEMPLATE_DIR / "_cardface.html").read_text(encoding="utf-8")
+    assert ' cardface">' in face
+    for name in ("clinvar.html", "_pgxfaces.html"):
+        assert "cardface" not in (TEMPLATE_DIR / name).read_text(encoding="utf-8"), name
 
 
 def test_placeholder_text_is_the_checked_muted_colour() -> None:

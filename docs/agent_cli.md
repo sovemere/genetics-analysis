@@ -812,8 +812,9 @@ figure) are computed when the guide is built.
 
 - **One page, and a legend on every page.** The legend is in the nav of every page that has
   one, because a reader meets a badge on the run page, not on the guide. Each badge links to
-  its row in the guide. It is not on the card faces: a face is already one link, to the card,
-  and a link inside a link is not valid HTML. The grid's tier headings and the card page's
+  its row in the guide. It is not on the card faces: a face was one link, to the card, and a
+  link inside a link is not valid HTML. Since M14.7 the face's title is the link, stretched
+  over the face, so a badge link would sit under it and still not take a click. The grid's tier headings and the card page's
   "Why this tier" link into the guide too.
 - **Under `cards`.** It reads the pack and no run, which is what `cards` means (M13.1).
 - **The tier labels moved** from `web.views` to `genetics.run.guide`, so the command prints
@@ -977,8 +978,9 @@ copies of the dark one.
   chart, every caution), read in full at every Tab. The title is now the link, inside the
   face's heading; its description is the tier badge (`aria-describedby`); `.cardlink::after`
   stretches it over the face, so a click anywhere still opens the card, and the focus ring
-  is drawn round the face. The ids come from `views.domid(card.url)`, since a card id is
-  authored text and need not be a valid id.
+  is drawn round the face. The face's layout is on `.cardface`, not `.card`, which the
+  ClinVar sections and the PGx gene faces also wear. The ids come from
+  `views.domid(card.url)`, since a card id is authored text and need not be a valid id.
 - **Arrow keys left the page.** An arrow press on a closed select changes its value and
   fires `change`, so the run selector navigated, and the group and sort selects reloaded
   the page, at the first press (WCAG 3.2.2). A pointer's choice still acts at once; from the
