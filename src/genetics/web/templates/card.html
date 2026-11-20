@@ -25,6 +25,9 @@
     <a href="{{ shell.run_url }}{{ shell.grid.query.query_string }}">← All cards in this run</a>
   </p>
   {% if card %}
+    {# M14.7: the page's h1. The detail's title is an h2 because the same partial is the
+       dialog's body, where the page behind it already has an h1. #}
+    <h1 class="visually-hidden">One card from this run</h1>
     {% include "_carddetail.html" %}
   {% else %}
     <section class="problem" aria-label="Nothing to show">

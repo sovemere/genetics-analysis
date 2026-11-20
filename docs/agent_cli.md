@@ -949,6 +949,75 @@ panel's limits with `runs show --section`'s `assay_limits` (id, title, and wheth
 a link) and fails a tier group that has any. `CardGroup.findings` and `limit_cards` are
 properties that split the shown cards; they are listed in `parity.PROPERTIES`.
 
+<a id="accessibility-m147"></a>
+
+## Accessibility (M14.7)
+
+M14.7 changes how the dashboard's pages are marked up and styled, not what they show: no
+command, view field, context key, agent schema, bundle format or card changed, and the
+parity tables are untouched. It is recorded here because the dashboard is the CLI's other
+front-end, and an agent reading a page's markup meets these choices.
+
+**What was checked, and how.** `genetics.testing.accessibility.audit` parses a rendered page
+with the standard library and lists what it finds: duplicate ids; an `aria-labelledby`,
+`aria-describedby` or label `for` that points nowhere; a positive `tabindex`; something
+focusable inside a `role="img"` or `aria-hidden` subtree; a link or button with no name; a
+control with no label; a `role="img"` with no name; and, on a page, no `lang` or title, other
+than one `h1` in `main`, a skipped heading level, or two landmarks of one role that a screen
+reader cannot tell apart. `tests/web/test_accessibility.py` runs it on every page of a run
+holding the whole pack less its HLA and guideline cards, on every card's page and dialog,
+and on a page per rule that should fail. The drawn ancestry scatter is audited by
+`tests/web/test_ancestry_page.py`, since only that suite saves a placement. Contrast is
+computed from `app.css`'s colour tokens with WCAG's formula, in the light theme and both
+copies of the dark one.
+
+**What was wrong, and what changed.**
+
+- **A card face was one link.** Its accessible name was the whole face (badge, summary,
+  chart, every caution), read in full at every Tab. The title is now the link, inside the
+  face's heading; its description is the tier badge (`aria-describedby`); `.cardlink::after`
+  stretches it over the face, so a click anywhere still opens the card, and the focus ring
+  is drawn round the face. The ids come from `views.domid(card.url)`, since a card id is
+  authored text and need not be a valid id.
+- **Arrow keys left the page.** An arrow press on a closed select changes its value and
+  fires `change`, so the run selector navigated, and the group and sort selects reloaded
+  the page, at the first press (WCAG 3.2.2). A pointer's choice still acts at once; from the
+  keyboard, Enter acts, and the run selector has an Open button (shown with scripting) as
+  the controls have Apply. `keyedSelect()` in `app.js` holds the rule for both.
+- **Form controls had no visible edge.** Their borders used `--line`, a divider at about
+  1.3:1. A new token, `--control-line`, is 3.6:1 or more on every surface in both themes
+  (WCAG 1.4.11), and placeholder text uses `--muted`. Every text colour already met 4.5:1;
+  the test now holds it.
+- **Two identical search landmarks** on the search page (M14.4's hand-over). The nav's box
+  stays on every page of an open run, but on the search page only the page's own box is a
+  search landmark; elsewhere the nav's is, named by its label.
+- **Names that said less than the screen.** The theme toggle's `aria-label` ("Colour
+  theme") hid which theme was on and was a name a speech-input user could not say (WCAG
+  2.5.3); it is now named by what it shows. Counts such as "3/10" are read as "3 of 10
+  card(s) interpreted". The dialog's close button is "Close card".
+- **Structure.** The dashboard and the card page gained an `h1` (visually hidden: the run
+  bar says what the page is), the guide's nav is named "On this page" rather than
+  "Sections", the nav marks the page it is on with `aria-current`, and the skip link's
+  target takes focus.
+- **The ancestry scatter was a `role="img"`** holding six focusable points, which an image
+  makes nameless. It is a `group` named by its caption; the six points are images named by
+  their hover text, and the unfocusable rings are hidden, since the table holds them.
+- **The `empty-query` sentence's backticks** (M14.4's hand-over) are shown as code by the
+  `codespans` filter. The template is handed the engine's sentence unchanged, so the parity
+  check still compares it with the error `runs search` prints.
+
+**Decisions.**
+
+- **The title, not the face, is the link.** The usual fix for a block link. The cost: the
+  stretched link lies over the face, so the compact chart's hover text no longer shows on a
+  face, and face text cannot be selected with the mouse; the card's own page has both.
+- **Keyboard, not timing.** A delay before a select acts would still act on an arrow press
+  that paused; the keyed flag acts on intent.
+- **No screen-reader run.** The audit checks the markup a screen reader reads; nothing here
+  was tried with NVDA or Narrator. Looked at in Chrome on a synthetic run: the focus ring,
+  arrow and Enter on the sort select, Enter and Escape on a card, and the control edges in
+  both themes.
+
 ## Query check (M13.7)
 
 `genetics cards check-query <query> [--card ID ...] [--json]` is the last step before a

@@ -41,6 +41,10 @@
   {% endif %}
 
   {% if shell.has_selection %}
+    {# M14.7: the page's one h1, for a screen reader's list of headings; each panel below
+       is an h2 and each card an h3. Not drawn: the selected run in the bar above already
+       says what this page is. #}
+    <h1 class="visually-hidden">Cards in this run</h1>
     {% include "_controls.html" %}
   {% endif %}
 

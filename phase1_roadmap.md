@@ -16,9 +16,19 @@ the source of truth for build state.
 
 ## Next up
 
-**M14.7, the accessibility pass, is next.** M0–M13 and M14.1–M14.6 are implemented. The
-[current handoff](docs/handoff.md#next-open-step-m147-accessibility) records what it
-inherits.
+**M15.1, the release gate's full run on the real file, is next.** M0–M14 are implemented.
+It is the owner's step, since it opens the real export; the
+[current handoff](docs/handoff.md#next-open-step-m151-full-run) records what it inherits
+and what is open, including where the OS-level network block can run on Windows.
+
+M14.7 is the accessibility pass. A card face's link is now its title, named by the title,
+described by the tier and stretched over the face, where it had been one link whose name was
+the whole face. Arrow keys on the run selector and the grid's selects no longer leave the
+page; Enter, Open and Apply act. Form controls have a 3:1 edge, every text pair is held to
+4.5:1 in both themes, the search page has one search landmark, and counts, the theme toggle
+and the ancestry scatter's points are named for a screen reader.
+`genetics.testing.accessibility.audit` checks the markup of every page and every card's
+page and dialog. No command, schema, view field or card changed.
 
 M14.6 keeps the twelve impossibility cards with the findings they qualify, whatever the grid's
 arrangement. Each section names its assay limits at its head ("Not determinable from this
@@ -3394,7 +3404,18 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
         ways, by `tests/engine/test_impossibilities.py`. None missing.
       - **Left for later:** grouped by tier, the block follows the reader's sort (title by
         default), not section order; each card names its section.
-- [ ] **M14.7** Accessibility pass: keyboard navigation, contrast, screen-reader labels.
+- [x] **M14.7** Accessibility pass: keyboard navigation, contrast, screen-reader labels.
+      - **Done 2026-11-20.** See [Accessibility](docs/agent_cli.md#accessibility-m147).
+      - **Audited, not eyeballed:** `genetics.testing.accessibility.audit` parses each page
+        (ids, references, names, labels, focusables in images, headings, landmarks); contrast
+        is computed from `app.css`'s tokens with WCAG's formula.
+      - **Keyboard:** a select acts on a pointer's choice or Enter, never on an arrow press
+        (WCAG 3.2.2); the run selector gained Open. One Tab stop per card, ringed.
+      - **Contrast:** text already passed; control edges went from about 1.3:1 to 3.6:1.
+      - **Labels:** card link named by title, described by tier; counts in words; one search
+        landmark per page; theme toggle named by what it shows; scatter points named.
+      - **Left for later:** no screen-reader session was run; the theme toggle's new state is
+        not announced; some HLA, PGx and ClinVar tables lack captions.
 
 ---
 
@@ -3453,6 +3474,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-20 | M14.7 | The accessibility pass. **Audit:** `genetics.testing.accessibility.audit` (stdlib parser) lists duplicate or dangling ids, unnamed links, buttons and images, unlabelled controls, focusables inside an image or hidden subtree, positive `tabindex`, the `h1` count and skipped levels in `main`, and same-role landmarks not told apart; it runs on fourteen addresses of a whole-pack run (less HLA and guideline cards), on every card's page and dialog, and on the drawn ancestry scatter, and a test feeds it one bad shape per rule. **Found and fixed:** a card face was one link whose name was the whole face (now the title is the link, described by the tier badge, stretched over the face with `::after`, ids from `views.domid`); an arrow key on the run selector or the group/sort select navigated (now a pointer's choice or Enter acts, `keyedSelect()` in `app.js`, and the selector has Open); control edges were `--line` at about 1.3:1 (now `--control-line`, 3.6:1 or more in both themes; placeholder `--muted`); two unnamed search landmarks on the search page; the theme toggle's `aria-label` hid its state (WCAG 2.5.3); "3/10" read as a fraction; the scatter was an `img` holding focusable points; no `h1` on the dashboard or card page; the guide's nav called "Sections"; the skip link moved no focus; the `empty-query` backticks (`views.codespans`). **Contrast** of every text pair (all already ≥4.5:1) and edge pair is computed in a test, for light and both dark copies. **Checked in Chrome** on a synthetic run: arrow then Enter on the sort select, Enter and Escape on a card, control edges in both themes. **Guards:** thirteen removed in turn, each caught. **Validation:** The full native suite passed **4,497 tests with nine skips** in 1,034 s (42 new). Strict mypy, ruff and format pass. No command, agent schema, bundle format, view field, context key or card changed. No personal export or saved real run was opened. |
 | 2026-11-20 | M14.6 second review | A diff-driven pass over `2248b4c`. No code defect found. **P3, stale documentation:** `agent_cli.md`'s parity section counted 23 view classes (now 24), 66 properties (67) and nineteen `Shell` fields (twenty), the last two already stale before M14.6, and did not say the grid's section pointers and assay limits are compared with `runs show --section`; `agent_usage.md`'s question table did not say where a section's assay limits are read; `agent_schema.md`'s opening was unwrapped; the risk register named only M11.6 for the carrier section reading as complete. All updated. A whole rendered page was checked for heading levels: 12 limit titles at `h4`, 91 others at `h3`. The walk-through, parity, schema, card, search and hygiene suites pass (344 tests). See [the review](docs/review_m146_session.md#second-pass-after-the-commit). |
 | 2026-11-20 | M14.6 | Impossibility cards kept with their sections. **Checked first:** sorted by tier, an untiered card goes last, so the SMN1 card sat beneath every marker-absent carrier card; grouped by tier, all twelve went to the untiered panel; a tier, section or interpreted-only filter hid them while the section's findings stayed. **Head of each section:** `reads.assay_limits` lists the run's impossibility cards saved in the section, then the current pack's for the section that the run does not hold (`in_run: false`: a limit is about the array, so it is true of an older run); `section_context` gains `assay_limits` (agent schema 10) and the text form prints it. The grid's `CardGroup.limits` (`LimitLink`) names them at the panel's head whatever the filter; pointers, not copies, so M4.7's hide-and-count is unchanged. **Own block:** `CardGroup.findings` and `limit_cards` split the shown cards; the limits render under "What this array cannot determine" below the findings, titles at `h4`. **Register:** §3.2's eight bullets and the twelve cards match both ways (existing test). **Parity:** `_check_grid` compares each panel's limits with `assay_limits` and fails a tier group holding any; a guard test drops one link and fails. Looked at in the browser on a synthetic run, both groupings. **Validation:** the full native suite passes **4,455 tests with nine skips** in 991 s; five guards removed in turn each fail a test, after one that did not (limit cards rendered twice) gained an assertion. Strict mypy, ruff and format pass. See [the session review](docs/review_m146_session.md). No bundle format, knowledge schema or card changed. No personal export or saved real run was opened. |
 | 2026-11-20 | M14.5 second review | A diff-driven pass over `16b19a5`. No code defect found. **P3, stale documentation:** `agent_schema.md` said `runs.qc` has no `current_context`; the ClinVar, PGS-coverage and imputation-provenance pages did not name `runs qc` or the QC page; the `reads` and `web.app` module docstrings did not mention the page (`web.app`'s said no page is scanned whole). All updated. **P3:** `.breakdown caption` also left-aligned a card detail's caption; now scoped to the QC page's. The M14.6 hand-over's claim that the twelve impossibility cards carry no tier was checked. See [the review](docs/review_m145_session.md#second-pass-after-the-commit). |

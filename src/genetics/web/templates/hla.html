@@ -2,7 +2,7 @@
 {% block title %}HLA classifier imputation{% endblock %}
 {% block runselector %}{{ runselector_html }}{% endblock %}
 {% block banner %}{{ qcbanner_html }}{% endblock %}
-{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block nav %}{% with nav_page = "hla" %}{% include "_sectionnav.html" %}{% endwith %}{% endblock %}
 {% block content %}
 {% set choice = hla_report.get("selection") %}
 <section class="panel">

@@ -103,6 +103,11 @@ def _environment() -> Environment:
     # version wrote a different shape -- the same reading the banner and `runs qc` give.
     # StrictUndefined stays strict for context keys; a saved record is data, not context.
     environment.globals["dig"] = views.dig
+    # Accessibility (M14.7), both display only: `domid` turns a card's address into an id
+    # attribute (a card id is authored text and need not be a valid one), and `codespans`
+    # shows an engine sentence's `backticked` words as code rather than as punctuation.
+    environment.filters["domid"] = views.domid
+    environment.filters["codespans"] = views.codespans
     return environment
 
 

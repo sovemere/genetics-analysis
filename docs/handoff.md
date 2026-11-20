@@ -1,6 +1,8 @@
-# Handoff: M14.7 accessibility pass
+# Handoff: M15.1 full run on the real file
 
-As of 2026-11-20, **M0-M13 and M14.1-M14.6 are implemented; M14.7 is next**. See
+As of 2026-11-20, **M0-M14 are implemented; M15.1, the release gate's full run, is next**.
+See [the M15.1 entry contract](#next-open-step-m151-full-run),
+[the M14.7 record](#accepted-m147-accessibility),
 [the M14.7 entry contract](#next-open-step-m147-accessibility),
 [the M14.6 record](#accepted-m146-impossibility-cards),
 [the M14.6 entry contract](#next-open-step-m146-impossibility-cards),
@@ -22,6 +24,13 @@ As of 2026-11-20, **M0-M13 and M14.1-M14.6 are implemented; M14.7 is next**. See
 [the M13.3 record](#accepted-m133-card-search),
 [the M13.2 record](#accepted-m132-agent-json-schema) and
 [the M13.1 record](#accepted-m131-agent-read-commands).
+**M14.7, the accessibility pass, is implemented.** A card face's link is its title, named by
+the title and described by the tier, and stretched over the face; an arrow key on a select
+no longer leaves the page; form controls have a 3:1 edge; the search page has one search
+landmark; counts, the theme toggle and the ancestry scatter's points are named for a screen
+reader. `genetics.testing.accessibility.audit` checks every page's markup and a test
+computes every colour pair's contrast. No command, schema, view field or card changed. See
+[the record](#accepted-m147-accessibility).
 **M14.6, impossibility cards in their sections, is implemented.** Each section of the grid
 names its assay limits at its head ("Not determinable from this array:") whatever the
 filter, and renders those cards as their own block below its findings; grouped by tier, the
@@ -613,9 +622,92 @@ access. All 449 affected interface checks and the final six strengthened
 placement cases pass. Four strict type targets, full card lint, fixtures,
 style and privacy gates pass; the guide records exact run boundaries.
 
+<a id="next-open-step-m151-full-run"></a>
+
+## Next open step: M15.1 full run on the real file
+
+M15.1: a full run on the real file, offline, start to finish, recording wall-clock and peak
+memory in the progress log, and re-running M4.10's OS-level network block at full pipeline
+scope. Nothing has been selected or verified beyond what is listed here.
+
+What already exists:
+
+- **The run.** `genetics run --input <export>` with imputation on by default (AGENTS.md
+  §4.3), writing outside the repository (§1.5). `genetics ci-local` and the suites run every
+  stage on synthetic data only.
+- **The OS-level block (M4.10)** is `genetics/testing/isolation.py`: a Linux network
+  namespace (`unshare --map-root-user --net`, or `sudo -n --preserve-env=<names> unshare
+  --net` where isolation is required). **Windows has no unprivileged mechanism and skips.**
+
+What is open:
+
+- **This is the owner's step.** It opens the real export, so an agent may run it only when
+  the owner asks, and nothing from it (a card, a count that echoes a call, a log line) goes
+  into a commit, an issue, a search or a prompt (§1.1, §1.3). Only wall-clock, peak memory,
+  stage timings and pass or fail belong in the progress log.
+- **Where the network block runs.** The primary platform is Windows, where M4.10 skips. A
+  full run under the namespace needs Linux or WSL2 with the references and tools present
+  there; whether that is the route, or a Windows firewall rule run elevated once, is the
+  owner's decision.
+- **How peak memory is measured** across child processes (Beagle's JVM, PLINK, R) and not
+  only the Python process.
+
+What M14.7 hands over:
+
+- **`genetics.testing.accessibility.audit(html, page=True)`** lists a page's markup
+  problems; a new page or partial is audited by adding its address to `PAGES` in
+  `tests/web/test_accessibility.py`, or, for a run only another suite saves, by calling
+  `audit` there as `tests/web/test_ancestry_page.py` does.
+- **A card face's link is its title** (`h3.cardtitle > a.cardlink`, `h4` in the assay-limit
+  block). A test that looked for the title as the heading's whole text now finds it inside
+  the link.
+- **`nav_page` and `nav_search_landmark`** are set by a page template with `{% with %}` around
+  the nav include; they are not context keys, so parity has nothing to place.
+- **Not done:** no screen-reader session (NVDA, Narrator) was run; the audit checks markup.
+  The theme toggle's new state is not announced when pressed. Data-table captions were not
+  added to the HLA, PGx and ClinVar tables that lack one.
+
+<a id="accepted-m147-accessibility"></a>
+
+## Accepted M14.7 accessibility pass
+
+Implemented on 2026-11-20. No owner question was asked: WCAG 2.2 AA decides each point, and
+[the accessibility section](agent_cli.md#accessibility-m147) gives the reasoning.
+
+- **Audited, not eyeballed.** `genetics.testing.accessibility.audit` parses a page and lists
+  duplicate or dangling ids, unnamed links, buttons and images, unlabelled controls,
+  focusables inside an image or hidden subtree, positive `tabindex`, the `h1` count and
+  skipped heading levels in `main`, and landmarks of one role a screen reader cannot tell
+  apart. It runs on fourteen addresses of a whole-pack run, every card's page and dialog
+  (over a hundred), and the drawn ancestry scatter; a test feeds it one bad shape per rule.
+- **Contrast computed.** Every text pair met 4.5:1 already and is now held to it in the light
+  theme and both dark copies; form-control edges were about 1.3:1 and are 3.6:1 or more
+  with `--control-line`; the two dark palettes must be equal.
+- **Keyboard.** Arrow keys on the run selector and the group and sort selects no longer
+  navigate (WCAG 3.2.2); Enter, Open and Apply do. The skip link moves focus. A card is
+  one Tab stop named by its title, with a focus ring round the face. Checked in Chrome:
+  arrow then Enter on the sort select, Enter and Escape on a card (focus into the dialog and
+  back to the link).
+- **Screen-reader labels.** Card links named by title and described by tier; counts read as
+  "3 of 10 card(s) interpreted"; the theme toggle named by what it shows; "Close card"; one
+  search landmark on the search page; `aria-current` on the nav link of the page shown; the
+  guide's nav named "On this page"; a hidden `h1` on the dashboard and the card page; the
+  ancestry scatter a named group whose six focusable points are named images; the
+  `empty-query` sentence's backticks shown as code.
+- **Guards.** Thirteen were removed in turn (the control-edge token and rule, the main's
+  `tabindex`, the scatter's role, the search page's landmark, a select's key handler, the
+  keyed guard in `app.js`, the toggle's label, the card link's description, the count's
+  words, `codespans`, `aria-current`, and a face whose heading holds more than its link);
+  each failed a test.
+
+Changed for a caller: none. No command, agent schema, bundle format, knowledge schema, card,
+route, view field or context key changed. Validation on 2026-11-20: the full native suite passed **4,497 tests with nine skips** in 1,034 s (42 new). Strict mypy,
+ruff and format pass. No personal export or saved real run was opened. Python source
+changed, so saved runs repeat their deep checks once.
+
 <a id="next-open-step-m147-accessibility"></a>
 
-## Next open step: M14.7 accessibility pass
+## M14.7 entry contract (implemented; retained for review)
 
 M14.7: accessibility pass: keyboard navigation, contrast, screen-reader labels. Nothing has
 been selected or verified beyond what is listed here.

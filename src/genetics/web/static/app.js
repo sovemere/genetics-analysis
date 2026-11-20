@@ -20,6 +20,40 @@
  * cross-origin request anyway, and `tests/web/test_static.py` fails on the shapes that
  * fetch.
  */
+/*
+ * A select that acts on `change` acts on every arrow press from the keyboard (M14.7).
+ *
+ * Arrow keys change a closed select's value and fire `change` at each press, in Chrome and
+ * Firefox alike, so a select that navigates on change sends a keyboard user away at the
+ * first arrow -- before they have reached the run or arrangement they wanted (WCAG 3.2.2,
+ * failure F37). A pointer's choice is one deliberate act and keeps acting at once.
+ *
+ * So each such select records how its value is being changed: a key other than Tab or Enter
+ * marks it keyed, a pointer press clears that, and the component acts on `change` only when
+ * it is not keyed. Enter acts on the value chosen. Every select so handled also has a
+ * button that does the same thing, because a screen reader may not pass Enter through.
+ */
+function keyedSelect() {
+  return {
+    keyed: false,
+    pointer() {
+      this.keyed = false;
+    },
+    /* Returns true when the key was Enter, so the caller acts; marks the select keyed for
+       any key that can change its value. */
+    pressed(event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        return true;
+      }
+      if (event.key !== 'Tab' && event.key !== 'Shift' && event.key !== 'Escape') {
+        this.keyed = true;
+      }
+      return false;
+    },
+  };
+}
+
 document.addEventListener('alpine:init', () => {
   /*
    * The run selector. Navigates on change rather than swapping content over htmx: a run is
@@ -27,8 +61,27 @@ document.addEventListener('alpine:init', () => {
    * makes a specific run linkable, reloadable and back-button-able.
    */
   Alpine.data('runselector', () => ({
+    ...keyedSelect(),
     open(event) {
-      const id = event.target.value;
+      if (this.keyed) {
+        return;
+      }
+      this.go(event.target.value);
+    },
+    key(event) {
+      if (this.pressed(event)) {
+        this.go(event.target.value);
+      }
+    },
+    /* The Open button beside the select. By id, as the modal host is: `$el` here is the
+       button, not the select. */
+    openChosen() {
+      const select = document.getElementById('run-picker');
+      if (select) {
+        this.go(select.value);
+      }
+    },
+    go(id) {
       if (!id) {
         return;
       }
@@ -50,7 +103,19 @@ document.addEventListener('alpine:init', () => {
    * between each of thirteen sections would make choosing several of them unusable.
    */
   Alpine.data('gridcontrols', () => ({
+    ...keyedSelect(),
     submit(event) {
+      if (this.keyed) {
+        return;
+      }
+      this.send(event);
+    },
+    key(event) {
+      if (this.pressed(event)) {
+        this.send(event);
+      }
+    },
+    send(event) {
       const form = event.target.form || event.target.closest('form');
       if (form) {
         form.requestSubmit ? form.requestSubmit() : form.submit();

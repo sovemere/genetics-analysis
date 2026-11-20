@@ -14,10 +14,15 @@
   Counts beside each option are of the whole run, not of what the current filter left, so
   the numbers describe the run rather than the controls' own effect.
 #}
+{#
+  M14.7: the two selects apply on a pointer's choice only. From the keyboard an arrow press
+  changes the value and fires `change`, so each press reloaded the page and put focus back
+  at its top (WCAG 3.2.2). Enter on a select, or the Apply button, applies.
+#}
 <form class="controls" method="get" action="{{ shell.run_url }}" x-data="gridcontrols">
   <div class="control">
     <label for="control-group">Group by</label>
-    <select id="control-group" name="group" x-on:change="submit">
+    <select id="control-group" name="group" x-on:change="submit" x-on:keydown="key" x-on:pointerdown="pointer">
       <option value="section" {% if shell.grid.query.group == "section" %}selected{% endif %}>Section</option>
       <option value="tier" {% if shell.grid.query.group == "tier" %}selected{% endif %}>Confidence tier</option>
     </select>
@@ -25,7 +30,7 @@
 
   <div class="control">
     <label for="control-sort">Sort by</label>
-    <select id="control-sort" name="sort" x-on:change="submit">
+    <select id="control-sort" name="sort" x-on:change="submit" x-on:keydown="key" x-on:pointerdown="pointer">
       <option value="tier" {% if shell.grid.query.sort == "tier" %}selected{% endif %}>Confidence, strongest first</option>
       <option value="section" {% if shell.grid.query.sort == "section" %}selected{% endif %}>Section</option>
       <option value="title" {% if shell.grid.query.sort == "title" %}selected{% endif %}>Title</option>

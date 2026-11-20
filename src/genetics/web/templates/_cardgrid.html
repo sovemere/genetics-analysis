@@ -49,7 +49,8 @@
     <div class="panelhead">
       <h2 id="h-{{ group.key }}">{{ group.title }}</h2>
       <span class="panelcount" title="{{ group.total }} card(s), {{ group.interpreted }} interpreted">
-        {{ group.interpreted }}/{{ group.total }}
+        <span aria-hidden="true">{{ group.interpreted }}/{{ group.total }}</span>
+        <span class="visually-hidden">{{ group.interpreted }} of {{ group.total }} card(s) interpreted</span>
       </span>
     </div>
     {% if group.blurb %}

@@ -19,6 +19,7 @@ Cards are built in memory; nothing here reads an export or a saved real run.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -183,11 +184,21 @@ def test_limits_render_in_their_own_block_after_the_findings() -> None:
 
     panel = _panel(_grid(_shell(CARRIER)), "reproductive")
     block = panel.index("What this array cannot determine")
-    face = panel.index('<h4 class="cardtitle">Title smn1_copy_number</h4>')
-    assert panel.index('<h3 class="cardtitle">Title carrier_absent_5</h3>') < block < face
-    assert '<h3 class="cardtitle">Title carrier_matched</h3>' in panel
+    face = _title_at(panel, "h4", "Title smn1_copy_number")
+    assert _title_at(panel, "h3", "Title carrier_absent_5") < block < face
+    _title_at(panel, "h3", "Title carrier_matched")
     for card in CARRIER.cards[:-1]:
-        assert panel.count(f'class="cardtitle">{card.title}<') == 1, "each card renders once"
+        assert panel.count(f">{card.title}</a></h") == 1, "each card renders once"
+
+
+def _title_at(panel: str, level: str, title: str) -> int:
+    """Where a face's title is, as the heading and link M14.7 made it."""
+    found = re.search(
+        rf'<{level} class="cardtitle"><a class="cardlink"[^>]*>{re.escape(title)}</a></{level}>',
+        panel,
+    )
+    assert found, f"no {level} titled {title}"
+    return found.start()
 
 
 def test_the_head_of_the_section_names_its_limits_before_any_card() -> None:

@@ -17,12 +17,12 @@
 {% block title %}Search · {{ shell.selected_id }}{% endblock %}
 {% block runselector %}{{ runselector_html }}{% endblock %}
 {% block banner %}{{ qcbanner_html }}{% endblock %}
-{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block nav %}{% with nav_search_landmark = false, nav_page = "search" %}{% include "_sectionnav.html" %}{% endwith %}{% endblock %}
 {% block content %}
 <section class="panel" aria-labelledby="h-search">
   <h1 id="h-search">Search this run's cards</h1>
   <p><a href="{{ shell.run_url }}{{ shell.grid.query.query_string }}">Back to the run</a></p>
-  <form class="searchform" role="search" method="get" action="{{ shell.run_url }}/search">
+  <form class="searchform" role="search" aria-labelledby="h-search" method="get" action="{{ shell.run_url }}/search">
     {% for name, value in shell.grid.query.parameters %}
       <input type="hidden" name="{{ name }}" value="{{ value }}">
     {% endfor %}
@@ -42,7 +42,9 @@
   </p>
 
   {% if search_refused %}
-    <p class="notice notice-refused" role="alert">{{ search_refused }}</p>
+    {# `codespans`: the sentence is the CLI's, and its backticks become code here rather
+       than being shown, or read aloud, as punctuation (M14.7). #}
+    <p class="notice notice-refused" role="alert">{{ search_refused | codespans }}</p>
   {% elif search %}
     {% set ranking = search.current_context %}
     {% set wanted = ranking.terms | length %}

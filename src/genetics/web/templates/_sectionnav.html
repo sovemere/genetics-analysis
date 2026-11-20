@@ -13,13 +13,21 @@
   cards on a page of its own; a page with no run open has nothing to search, so it has no
   box. The grid's arrangement rides along in hidden fields, so a card opened from the
   results and "Back to the run" keep it.
+
+  M14.7: the form is a search landmark named by its label, except on the search page
+  (`nav_search_landmark` false), whose own box is the landmark: two landmarks with one name
+  on one page were two identical entries in a screen reader's list. `nav_page` names the
+  page a template is, for `aria-current` on its link below. Both are set by the including
+  template with `{% with %}`, not handed in by a route, so neither is a context key.
 #}
+{% set here = nav_page if nav_page is defined else none %}
 {% if shell.has_selection %}
-  <form class="navsearch" role="search" method="get" action="{{ shell.run_url }}/search">
+  <form class="navsearch" method="get" action="{{ shell.run_url }}/search"
+        {%- if nav_search_landmark is not defined or nav_search_landmark %} role="search" aria-labelledby="nav-search-label"{% endif %}>
     {% for name, value in shell.grid.query.parameters %}
       <input type="hidden" name="{{ name }}" value="{{ value }}">
     {% endfor %}
-    <label class="navhead" for="nav-search">Search this run's cards</label>
+    <label class="navhead" id="nav-search-label" for="nav-search">Search this run's cards</label>
     <div class="searchrow">
       <input id="nav-search" type="search" name="q" autocomplete="off"
              placeholder="curly hair, CYP2C19, rs…">
@@ -32,20 +40,24 @@
     <li class="section {% if view.is_empty %}section-empty{% endif %}">
       <a href="{{ shell.run_url }}{{ shell.grid.query.with_group("section").query_string }}#section-{{ view.section }}">
         <span class="section-title">{{ view.title }}</span>
-        <span class="section-count"
-              title="{{ view.card_count }} card(s), {{ view.interpreted }} interpreted">
-          {{ view.interpreted }}/{{ view.card_count }}
+        {# M14.7: "3/10" is read as "3 slash 10", and a `title` is not reliably read at
+           all, so a screen reader is given the sentence and the eye the fraction. #}
+        <span class="section-count" title="{{ view.card_count }} card(s), {{ view.interpreted }} interpreted">
+          <span aria-hidden="true">{{ view.interpreted }}/{{ view.card_count }}</span>
+          <span class="visually-hidden">, {{ view.interpreted }} of {{ view.card_count }} card(s) interpreted</span>
         </span>
       </a>
     </li>
   {% endfor %}
 </ol>
 {% if shell.has_selection %}
-  <p><a href="{{ shell.run_url }}/qc">Quality control and provenance</a></p>
-  <p><a href="{{ shell.run_url }}/ancestry">Ancestry: placement, ancient affinity, haplogroups</a></p>
-  <p><a href="{{ shell.run_url }}/hla">HLA classifier imputation</a></p>
-  <p><a href="{{ shell.run_url }}/clinvar">ClinVar reference lookup</a></p>
-  <p><a href="{{ shell.run_url }}/secondary-findings">ACMG secondary-finding gene overlaps</a></p>
+  {% for page, label in (("qc", "Quality control and provenance"),
+                          ("ancestry", "Ancestry: placement, ancient affinity, haplogroups"),
+                          ("hla", "HLA classifier imputation"),
+                          ("clinvar", "ClinVar reference lookup"),
+                          ("secondary-findings", "ACMG secondary-finding gene overlaps")) %}
+    <p><a href="{{ shell.run_url }}/{{ page }}"{% if here == page %} aria-current="page"{% endif %}>{{ label }}</a></p>
+  {% endfor %}
 {% endif %}
 <p class="muted navnote">
   All thirteen sections are listed whether or not this run has anything in them.

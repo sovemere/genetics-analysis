@@ -2,7 +2,7 @@
 {% block title %}{{ "ACMG gene overlaps" if secondary_only else "ClinVar reference lookup" }} · genetics{% endblock %}
 {% block runselector %}{{ runselector_html }}{% endblock %}
 {% block banner %}{{ qcbanner_html }}{% endblock %}
-{% block nav %}{% include "_sectionnav.html" %}{% endblock %}
+{% block nav %}{% with nav_page = "secondary-findings" if secondary_only else "clinvar" %}{% include "_sectionnav.html" %}{% endwith %}{% endblock %}
 {% block content %}
 <h1>{{ "ACMG secondary-finding gene overlaps" if secondary_only else "ClinVar reference lookup" }}</h1>
 {% if shell.problem %}

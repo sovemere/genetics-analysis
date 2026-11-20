@@ -27,11 +27,15 @@ fail to render the run *because* the run is the one worth looking at -- which is
 
 from __future__ import annotations
 
+import hashlib
 import math
+import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, ClassVar
 from urllib.parse import quote, urlencode
+
+from markupsafe import Markup, escape
 
 from genetics.engine import sections
 from genetics.engine.cards import EffectMeasure, EvidenceTier, Replication
@@ -79,7 +83,9 @@ __all__ = [
     "banner_for",
     "card_path",
     "card_views",
+    "codespans",
     "dig",
+    "domid",
     "filterable_sections",
     "filterable_tiers",
     "find_card",
@@ -140,6 +146,31 @@ def _get(mapping: Mapping[str, Any] | None, *path: str) -> Any:
 
 dig = _get
 """The same walk, for templates reading a saved record (the QC page, M14.5)."""
+
+
+def domid(address: str) -> str:
+    """An ``id`` attribute for the element showing ``address`` (M14.7).
+
+    A card face names its own badge with ``aria-describedby``, so it needs an id, and a card
+    id is authored text: it may hold a space or a quote, which an id may not (the card's URL
+    encodes it for the same reason, see :func:`run_path`). A digest of the address is one
+    token, the same on every render, and different for every card a page shows.
+    """
+    return "c" + hashlib.sha256(address.encode("utf-8")).hexdigest()[:16]
+
+
+_CODE_SPAN = re.compile(r"`([^`]+)`")
+
+
+def codespans(text: str) -> Markup:
+    """``text`` escaped, with each `backticked` span shown as ``<code>`` (M14.7).
+
+    For a sentence the engine wrote for a terminal, such as the search page's refusal: the
+    backticks there mark an example to type, and on a page they were shown, and read aloud,
+    as punctuation. The words are unchanged; only their markup is.
+    """
+    escaped = str(escape(text))
+    return Markup(_CODE_SPAN.sub(r"<code>\1</code>", escaped))
 
 
 def _number(value: Any) -> float | None:

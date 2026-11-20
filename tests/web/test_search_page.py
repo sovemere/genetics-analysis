@@ -29,6 +29,7 @@ from genetics.run.bundle import read_bundle, write_bundle
 from genetics.run.pipeline import observations
 from genetics.testing.parity import REFUSED_RSID, refused_query
 from genetics.web import WebConfig, create_app
+from genetics.web.views import codespans
 
 LOCAL_BASE_URL = "http://127.0.0.1:8765"
 
@@ -219,7 +220,11 @@ def test_the_refusal_is_the_engine_s_own_sentence(client: TestClient) -> None:
     assert str(refused.value) in _page(client, refused_query())
     with pytest.raises(engine.EmptyQueryError) as empty:
         engine.parse_query("?!")
-    assert str(empty.value) in _page(client, "?!")
+    # Its words, with the example to type shown as code rather than between backticks
+    # (M14.7); the sentence the template is handed is the engine's, unchanged.
+    page = _page(client, "?!")
+    assert str(codespans(str(empty.value))) in page
+    assert "<code>curly hair</code>" in page and "`" not in _content(page)
 
 
 # ---------------------------------------------------------------------------

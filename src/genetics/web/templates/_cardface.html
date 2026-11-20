@@ -1,6 +1,13 @@
 {#
   One card, as the grid shows it (roadmap M4.6).
 
+  **The title is the link (M14.7).** Its accessible name is the title and its description
+  the tier badge, so a screen reader tabbing through a section hears "Earwax type, Strong"
+  rather than the whole face; `.cardlink::after` stretches it over the face, so a click
+  anywhere still opens the card. The face was one anchor until M14.7, which made every
+  word on it -- summary, chart, cautions -- the name of a link, read at every Tab.
+  `domid` makes the ids from the card's address, since a card id is not a safe id.
+
   **An anchor first, an htmx target second.** The `href` is the card's own page and works
   with scripting off; `hx-get` on the same element and to the same URL turns the click into
   a fragment swap when htmx is loaded. One address, two representations -- see the `card`
@@ -12,49 +19,49 @@
   This partial states the reader's genotype -- that is what a card summary is -- so it is
   deliberately outside the `assert_no_genotype` scan. See `SCANNED_PARTIALS` in app.py.
 #}
+{% set face = card.url | domid %}
 <article class="card tier-{{ card.tier_key }}{% if not card.is_interpreted %} card-uninterpreted{% endif %}">
-  <a class="cardlink"
+  <div class="cardbadges" id="{{ face }}-badges">
+    <span class="tier tier-{{ card.tier_key }}">{{ card.tier_label }}</span>
+    {% if not card.is_interpreted %}
+      <span class="statusbadge">{{ card.status_label }}</span>
+    {% endif %}
+  </div>
+  {% set heading = card_heading | default("h3") %}
+  <{{ heading }} class="cardtitle"><a class="cardlink"
      href="{{ card.url }}{{ shell.grid.query.query_string }}"
      hx-get="{{ card.url }}{{ shell.grid.query.query_string }}"
      hx-target="#card-modal"
      hx-swap="innerHTML"
-     aria-haspopup="dialog">
-    <div class="cardbadges">
-      <span class="tier tier-{{ card.tier_key }}">{{ card.tier_label }}</span>
-      {% if not card.is_interpreted %}
-        <span class="statusbadge">{{ card.status_label }}</span>
-      {% endif %}
-    </div>
-    {% set heading = card_heading | default("h3") %}
-    <{{ heading }} class="cardtitle">{{ card.title }}</{{ heading }}>
-    {% if card.polygenic and card.polygenic.placed %}
-      {% set pgs = card.polygenic %}{% set compact = true %}
-      {% include "_pgschart.html" %}
-    {% endif %}
-    <p class="cardsummary">{{ card.summary }}</p>
-    {% if card.carrier %}
-      <p class="cardmeta">Carrier status: {{ card.carrier.state_label }} · {{ card.carrier.condition }}, autosomal recessive</p>
-      <p class="caution">{{ card.carrier.typed_scope }}</p>
-    {% endif %}
-    {% if card.polygenic and card.effect %}
-      <p class="cardmeta">Published study association: {{ card.effect.display }}.
-        {% if card.effect.context %}{{ card.effect.context }}{% endif %}
-      </p>
-    {% endif %}
-    <p class="cardmeta muted">Imputation {{ card.imputation_mode_label }}</p>
-    {% if card.imputation_quality_note %}<p class="caution">{{ card.imputation_quality_note }}</p>{% endif %}
-    {% if card.risk_context %}<p class="caution">{{ card.risk_context }}</p>{% endif %}
-    {% if card.confidence and card.confidence.has_ppv %}
-      <p class="caution">{{ card.confidence.ppv_display }}
-        {{ card.confidence.ppv_applies_to }} {{ card.confidence.clinical_notice }}</p>
-    {% elif card.confidence and card.tier == "likely-artifact" %}
-      <p class="caution">No empirical PPV was recorded for this reliability failure.
-        {{ card.confidence.clinical_notice }}</p>
-    {% endif %}
-    <p class="cardmeta muted">
-      {{ card.section_title }}
-      {%- if card.gene %} · {{ card.gene }}{% endif %}
-      {%- if card.variant and card.variant.rsid %} · {{ card.variant.rsid }}{% endif %}
+     aria-haspopup="dialog"
+     aria-describedby="{{ face }}-badges">{{ card.title }}</a></{{ heading }}>
+  {% if card.polygenic and card.polygenic.placed %}
+    {% set pgs = card.polygenic %}{% set compact = true %}
+    {% include "_pgschart.html" %}
+  {% endif %}
+  <p class="cardsummary">{{ card.summary }}</p>
+  {% if card.carrier %}
+    <p class="cardmeta">Carrier status: {{ card.carrier.state_label }} · {{ card.carrier.condition }}, autosomal recessive</p>
+    <p class="caution">{{ card.carrier.typed_scope }}</p>
+  {% endif %}
+  {% if card.polygenic and card.effect %}
+    <p class="cardmeta">Published study association: {{ card.effect.display }}.
+      {% if card.effect.context %}{{ card.effect.context }}{% endif %}
     </p>
-  </a>
+  {% endif %}
+  <p class="cardmeta muted">Imputation {{ card.imputation_mode_label }}</p>
+  {% if card.imputation_quality_note %}<p class="caution">{{ card.imputation_quality_note }}</p>{% endif %}
+  {% if card.risk_context %}<p class="caution">{{ card.risk_context }}</p>{% endif %}
+  {% if card.confidence and card.confidence.has_ppv %}
+    <p class="caution">{{ card.confidence.ppv_display }}
+      {{ card.confidence.ppv_applies_to }} {{ card.confidence.clinical_notice }}</p>
+  {% elif card.confidence and card.tier == "likely-artifact" %}
+    <p class="caution">No empirical PPV was recorded for this reliability failure.
+      {{ card.confidence.clinical_notice }}</p>
+  {% endif %}
+  <p class="cardmeta muted">
+    {{ card.section_title }}
+    {%- if card.gene %} · {{ card.gene }}{% endif %}
+    {%- if card.variant and card.variant.rsid %} · {{ card.variant.rsid }}{% endif %}
+  </p>
 </article>

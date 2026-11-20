@@ -10,10 +10,17 @@
   Every run is listed, including the ones that cannot be opened. A damaged or newer-format
   bundle becomes a disabled row carrying its reason, exactly as `genetics runs list` shows
   it: hiding an unopenable run is how somebody concludes their analysis was deleted.
+
+  M14.7: choosing with a pointer opens the run at once, as before; the keyboard does not.
+  Arrow keys change a closed select's value and fire `change` at every press, so a keyboard
+  user left the page at the first arrow (WCAG 3.2.2). They choose with the arrows and open
+  with Enter or the Open button, which is shown only with scripting: without it the
+  links below stand in for both.
 #}
 <div class="runselect" x-data="runselector">
   <label class="visually-hidden" for="run-picker">Saved run</label>
-  <select id="run-picker" x-on:change="open" {% if not shell.runs %}disabled{% endif %}>
+  <select id="run-picker" x-on:change="open" x-on:keydown="key" x-on:pointerdown="pointer"
+          {%- if not shell.runs %} disabled{% endif %}>
     {% if not shell.runs %}
       <option value="">No saved runs</option>
     {% else %}
@@ -35,6 +42,9 @@
       {% endfor %}
     {% endif %}
   </select>
+  {% if shell.runs %}
+    <button type="button" class="runopen jsonly" x-on:click="openChosen">Open<span class="visually-hidden"> the chosen run</span></button>
+  {% endif %}
   <noscript>
     {# The selector is a `select` driven by one Alpine handler, so without scripting it
        renders and does nothing. The same runs as plain links, so the page is usable with

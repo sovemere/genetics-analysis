@@ -53,10 +53,12 @@
       a broken page rather than as an unavailable feature. Without scripting the system
       preference still applies through `prefers-color-scheme`.
     #}
-    <button type="button" class="themetoggle" x-data="themetoggle" x-on:click="cycle"
-            aria-label="Colour theme">
+    {# M14.7: named by its words, not an aria-label. "Colour theme" over a button that
+       shows "System" is a name a speech-input user cannot say (WCAG 2.5.3), and it hid
+       which theme is on from a screen reader. #}
+    <button type="button" class="themetoggle" x-data="themetoggle" x-on:click="cycle">
       <span aria-hidden="true" x-text="icon">◐</span>
-      <span class="themelabel" x-text="label">System</span>
+      <span class="visually-hidden">Colour theme: </span><span class="themelabel" x-text="label">System</span>
     </button>
   </div>
 </header>
@@ -64,10 +66,12 @@
 {% block banner %}{% endblock %}
 
 <div class="layout">
-  <nav class="sidenav" aria-label="Sections">
+  <nav class="sidenav" aria-label="{% block navlabel %}Sections{% endblock %}">
     {% block nav %}{% endblock %}
   </nav>
-  <main id="content" class="content">
+  {# tabindex="-1" so the skip link moves focus here, not only the scroll position: without
+     it the next Tab in some browsers starts from the top of the page again (M14.7). #}
+  <main id="content" class="content" tabindex="-1">
     {% block content %}{% endblock %}
   </main>
 </div>

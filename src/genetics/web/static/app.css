@@ -29,6 +29,11 @@
   --ink: #16181d;
   --muted: #5c6370;
   --line: #d9dce2;
+  /* M14.7: the edge of a control a reader types into or chooses from. `--line` is a
+     divider at about 1.3:1 and fails WCAG 1.4.11's 3:1 for a component's boundary;
+     this is 3.6:1 or more on --bg, --panel and --raised. tests/web/test_accessibility.py
+     computes every pair. */
+  --control-line: #7c828e;
   --accent: #2b5cd9;
   --accent-ink: #ffffff;
   --focus: #2b5cd9;
@@ -64,6 +69,7 @@
     --ink: #e7e9ee;
     --muted: #9aa2b1;
     --line: #2c313a;
+    --control-line: #7c828e;
     --accent: #7ea2ff;
     --accent-ink: #10131a;
     --focus: #7ea2ff;
@@ -98,6 +104,7 @@
   --ink: #e7e9ee;
   --muted: #9aa2b1;
   --line: #2c313a;
+  --control-line: #7c828e;
   --accent: #7ea2ff;
   --accent-ink: #10131a;
   --focus: #7ea2ff;
@@ -161,6 +168,10 @@ a { color: var(--accent); }
   border: 1px solid var(--line);
 }
 
+/* The skip link's target takes focus (tabindex="-1") so the next Tab starts inside it; the
+   outline would draw round the whole page, and the jump itself is the cue. */
+.content:focus { outline: none; }
+
 .visually-hidden {
   position: absolute;
   width: 1px;
@@ -169,6 +180,14 @@ a { color: var(--accent); }
   clip: rect(0 0 0 0);
   white-space: nowrap;
 }
+
+/* A control that needs scripting, shown only once theme.js has set data-js (see the theme
+   toggle below for why). */
+.jsonly { display: none; }
+:root[data-js="on"] .jsonly { display: inline-block; }
+
+/* Hint text in a box is text (WCAG 1.4.3); the browser's default grey is not checked. */
+::placeholder { color: var(--muted); opacity: 1; }
 
 .topbar {
   display: flex;
@@ -201,7 +220,7 @@ a { color: var(--accent); }
   padding: 0.35rem 0.7rem;
   background: var(--panel);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 999px;
   cursor: pointer;
 }
@@ -214,10 +233,23 @@ a { color: var(--accent); }
   padding: 0.35rem 0.5rem;
   background: var(--panel);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 4px;
   max-width: 32rem;
 }
+
+.runselect { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+.runselect .runopen {
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.35rem 0.7rem;
+  background: var(--panel);
+  color: var(--ink);
+  border: 1px solid var(--control-line);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.runselect noscript { flex-basis: 100%; }
 
 .runlinks { margin: 0.5rem 0 0; padding-left: 1.25rem; }
 
@@ -325,7 +357,7 @@ a { color: var(--accent); }
   padding: 0.35rem 0.5rem;
   background: var(--raised);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 4px;
 }
 .searchrow button {
@@ -456,7 +488,7 @@ a { color: var(--accent); }
   cursor: pointer;
   padding: 0.35rem 0.5rem;
   background: var(--raised);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 4px;
 }
 
@@ -510,7 +542,12 @@ a { color: var(--accent); }
 }
 
 .card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
   height: 100%;
+  padding: 0.8rem 0.9rem;
   background: var(--raised);
   border: 1px solid var(--line);
   border-left: 4px solid var(--tier-none-bg);
@@ -519,15 +556,23 @@ a { color: var(--accent); }
 
 .card:hover { border-color: var(--accent); }
 
-.cardlink {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem;
-  height: 100%;
-  padding: 0.8rem 0.9rem;
-  color: inherit;
-  text-decoration: none;
+/*
+ * M14.7: the link is the title, and it covers the face. A face that was one link gave a
+ * screen reader the whole card -- badge, summary, chart, every caution -- as the name of
+ * the link, read in full at every Tab. Now the link's name is the title, its description
+ * is the tier (aria-describedby), and the pseudo-element keeps the whole face clickable.
+ */
+.cardlink { color: inherit; text-decoration: none; }
+.cardlink::after { content: ""; position: absolute; inset: 0; border-radius: 6px; }
+.cardlink:focus-visible { outline: none; }
+.card:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* Where `:has` exists, only keyboard focus draws the ring: a click that opens the dialog
+   and the focus handed back when it closes are not a reader looking for their place. */
+@supports selector(:has(*)) {
+  .card:focus-within { outline: none; }
+  .card:has(.cardlink:focus-visible) { outline: 2px solid var(--focus); outline-offset: 2px; }
 }
+.card:hover .cardlink { text-decoration: underline; }
 
 .cardbadges { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 
@@ -683,7 +728,7 @@ a { color: var(--accent); }
   line-height: 1;
   background: var(--panel);
   color: var(--ink);
-  border: 1px solid var(--line);
+  border: 1px solid var(--control-line);
   border-radius: 999px;
   cursor: pointer;
 }

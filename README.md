@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M13 and M14.1–M14.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M14 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -320,7 +320,10 @@ the same (agent schema 9).
 the array cannot determine there at its head, whatever the grid's filters, and shows those
 cards as their own block below its findings rather than sorted in among the cards that did
 not match. `genetics runs show --section` prints the same list (agent schema 10).
-[M14.7, the accessibility pass](docs/handoff.md#next-open-step-m147-accessibility)
+**M14.7, the accessibility pass, is implemented.** A card's title is its link, named for a
+screen reader by the title and the tier; arrow keys on a select no longer leave the page;
+form controls have a visible edge in both themes; and every page's markup is audited by a
+test. [M15.1, the full run on the real file](docs/handoff.md#next-open-step-m151-full-run)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error

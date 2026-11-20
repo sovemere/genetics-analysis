@@ -25,6 +25,7 @@ from genetics.engine.cards import KnowledgePack
 from genetics.qc.report import QCReport
 from genetics.run import reads
 from genetics.run.bundle import BundleError, _check_ancestry_positions, write_bundle
+from genetics.testing.accessibility import audit
 from genetics.web import WebConfig, create_app
 
 LOCAL_BASE_URL = "http://127.0.0.1:8765"
@@ -161,6 +162,12 @@ def test_the_page_draws_the_run_against_its_own_reference(
     assert "Infinity" not in body and "nan" not in body.lower().split("<svg")[1].split("</svg>")[0]
     # The nav links the page from every run page.
     assert f"/runs/{run}/ancestry" in client.get(f"/runs/{run}").text
+    # M14.7: the drawn page passes the accessibility audit. The six points a keyboard
+    # reaches are named images in a group; an `img` round them hid them from a screen reader.
+    assert audit(body) == []
+    assert '<svg viewBox="0 0 648 420" role="group"' in body
+    # The two nearest populations this fixture places, and the run's own mark.
+    assert body.count('tabindex="0" role="img" aria-label="') == 3
 
 
 def test_an_older_run_s_page_says_why_there_is_no_scatter(
