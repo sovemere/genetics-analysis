@@ -577,7 +577,7 @@ Each list is read from the dashboard's own code, so something new fails until it
   before-and-after coverage, and `run_signature`, the key for keeping one opened run in
   memory. A relative import or a bare `import genetics.x` cannot be followed and fails.
 - **Values.** For a saved run, every page is rendered through the real app and what it
-  hands its template is recorded: each context key, each of the nineteen fields of `Shell`,
+  hands its template is recorded: each context key, each of the twenty fields of `Shell`,
   each of the 32 fields of every card's `CardView`, and the polygenic view a card draws.
   Each is compared with the place a command's document holds it, read through the real CLI.
   A view held inside a card (variant, evidence, effect, frequency, citation, carrier,
@@ -585,7 +585,7 @@ Each list is read from the dashboard's own code, so something new fails until it
   from (`parity.READ`), and the six rows of the confidence table with the saved inputs
   and scores they show (`parity.CONFIDENCE_ROWS`). The run page's shell is compared with
   the commands; every other page's shell has to equal it.
-- **The tables themselves.** All 23 view classes in `genetics.web.views` and
+- **The tables themselves.** All 24 view classes in `genetics.web.views` and
   `genetics.web.polygenic` must be accounted for, field for field, and every property of
   every class must be listed.
 - **The comparison.** `parity.unnoticed` changes every value of every card view a run
@@ -606,7 +606,9 @@ A value is declared display, with its reason, when it is not about the run's ana
 - chart geometry for a polygenic card, drawn from `computation.result.distribution` and
   `computation.result.position`, which `runs card --json` holds;
 - the reader's own arrangement: grouping, sort and filters. The grid is checked to hold
-  only the run's cards, each once, with counts that are counts of them;
+  only the run's cards, each once, with counts that are counts of them, and each section
+  panel's pointers and assay limits are compared with `runs show --section`'s `related`
+  and `assay_limits` (M14.6);
 - the sentence a page gives when a run or a card cannot be opened. The command reports the
   same failure as an error document with a kind;
 - the sentence the search page gives for a refused query (M14.4). `check_run` compares it
@@ -619,7 +621,7 @@ record gives for that variation, and the ACMG policy link in the DOI the saved r
 ### What the check cannot see
 
 - **A property's arithmetic.** A view's properties word, label, count or arrange what the
-  object already holds, and all 66 are listed in `parity.PROPERTIES`. A new one fails until
+  object already holds, and all 67 are listed in `parity.PROPERTIES`. A new one fails until
   it is added, which puts it in front of a reviewer. Nothing checks what a property
   computes. An analysis written inside a property or a template, from saved fields and no
   engine function, is found only by reading the diff. AGENTS.md §3 is the rule: it belongs

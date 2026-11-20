@@ -1,8 +1,9 @@
 # Agent JSON schema (M13.2)
 
 Implemented 2026-11-11; version 10 since M14.6 (2026-11-20), which added each section's
-assay limits to `genetics runs show --section`. The JSON the agent read commands print is described by one JSON
-Schema document, [`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
+assay limits to `genetics runs show --section`. The JSON the agent read commands print is
+described by one JSON Schema document,
+[`src/genetics/cli/agent_schema.json`](../src/genetics/cli/agent_schema.json)
 (draft 2020-12). Every described document names its payload and the schema version, so a
 reader can check it without knowing which command printed it.
 

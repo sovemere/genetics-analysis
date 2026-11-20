@@ -50,3 +50,26 @@ Strict mypy over `src` and `tests` (`--platform win32`), ruff and format pass.
 - Grouped by tier, the limits block follows the reader's sort, which is by title when every
   card ties on tier; each card names its section. Ordering it by section would change the
   sort key for every tier group.
+
+## Second pass after the commit
+
+A diff-driven pass over `2248b4c`, re-reading every changed source line against the code it
+calls and every changed sentence against the code it describes. No code defect found.
+
+- **P3, stale documentation.** `agent_cli.md`'s parity section still counted 23 view classes
+  (now 24, with `LimitLink`) and, already stale before this change, 66 properties (65 before,
+  67 now) and nineteen `Shell` fields (twenty). Its list of what the grid is checked against
+  did not name the section pointers or the new assay limits. `agent_usage.md`'s question
+  table did not say where a section's assay limits are read. `agent_schema.md`'s opening
+  sentence was left unwrapped. The roadmap's risk register named only M11.6 against the
+  carrier section reading as complete. All updated.
+- **Re-read and unchanged.** `card_heading` does not leak from one panel's limits block
+  into a later panel's findings: the synthetic run's page renders 12 limit titles at `h4`
+  and its 91 other cards at `h3`, in both groupings and sorted by title, and with a tier
+  filter that hides every card all five head lines remain. `runs show` without `--section`
+  prints no limits line; it prints every card, the limits among them, and has no section
+  frames. `limit_links` cannot meet an `in_run` limit with no view, since both come from one
+  bundle's cards, and the parity check would fail one.
+
+The walk-through, parity, schema, card, search and repository-hygiene suites pass (344
+tests).

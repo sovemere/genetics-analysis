@@ -360,13 +360,13 @@ Only the first paragraph is about the run.
 |---|---|
 | Why is this card low confidence? | `genetics runs card <run> <card-id> --json`: `current_context.confidence`, described under [Confidence](agent_cli.md#confidence-m134) |
 | What does a tier mean? Why does rarity lower confidence? What can a polygenic score say? | `genetics cards guide --json`: the legend, every ceiling, the frequency components and the published benchmarks, from the engine's own rules (M14.3). It holds no run |
-| Review a whole section | `genetics runs show <run> --section <section> --json`, then `runs card` for each card worth a closer look |
+| Review a whole section | `genetics runs show <run> --section <section> --json`, then `runs card` for each card worth a closer look. `current_context.sections[].assay_limits` names what the array cannot determine there (M14.6); say so when the question touches one |
 | Is the run itself sound? | `genetics runs qc <run> --json`, and `genetics runs imputation <run> --json` for an imputed run |
 | What does the run say about a drug or a gene? | `genetics runs search <run> <query>`, then `genetics pgx calls <run> --gene <gene> --json` |
 | What does a ClinVar hit mean? | `genetics runs clinvar <run> --json` and `genetics runs secondary <run> --json`. A rare hit is more likely an array artifact than a finding (AGENTS.md §4.1); give the benchmark figure the card gives |
 | What are my HLA types? | `genetics hla calls <run> --json` |
 | Where does the run sit among reference populations? What are its haplogroups? | `genetics runs ancestry <run> --json`: the placement, every population's distance, ancient affinity, and each haplogroup with its supporting markers (M14.2) |
-| Why is there no card for a test I read about? | `genetics cards search <query>`. An assay-limit card says why the array cannot determine it (AGENTS.md §3.2) |
+| Why is there no card for a test I read about? | `genetics cards search <query>`. An assay-limit card says why the array cannot determine it (AGENTS.md §3.2); a section's `assay_limits` in `runs show --section` lists those that qualify it |
 | The reader searched the dashboard. What did it find? | `genetics runs search <run> <query> --json`: the cards the search page lists, in its order, with what each matched (M14.4). A query the page refused, the command refuses in the same words |
 | What does the page I am looking at show? | [Which command stands for which page](agent_cli.md#parity-m135) |
 
