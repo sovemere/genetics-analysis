@@ -19,7 +19,10 @@ the source of truth for build state.
 **M15.1, the release gate's full run on the real file, is next.** M0–M14 are implemented.
 It is the owner's step, since it opens the real export; the
 [current handoff](docs/handoff.md#next-open-step-m151-full-run) records what it inherits
-and what is open, including where the OS-level network block can run on Windows.
+and what is open, including where the OS-level network block can run on Windows. Its
+[run sheet](docs/handoff.md#m151-run-sheet) gives the expected duration (about 9–10½ hours,
+extrapolated from the 2026-11-05 run with 21 scores instead of 14), the checks before
+starting, the command, and what may be recorded.
 
 M14.7 is the accessibility pass. A card face's link is now its title, named by the title,
 described by the tier and stretched over the face, where it had been one link whose name was
@@ -3422,7 +3425,8 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
 ## M15 — v1 release gate
 
 - [ ] **M15.1** Full run on the real file, offline, start to finish. Record wall-clock and
-      peak memory in the progress log. Re-runs [M4.10](#m4--run-bundle--first-ui)'s
+      peak memory in the progress log. Prepared, not run: see the
+      [run sheet](docs/handoff.md#m151-run-sheet). Re-runs [M4.10](#m4--run-bundle--first-ui)'s
       OS-level network block at full pipeline scope — imputation, PRS and HLA all shell
       out, and they are the parts M2.7's in-process guard cannot see.
 - [ ] **M15.2** Full run on a structurally different synthetic fixture (different sex,

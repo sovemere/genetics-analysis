@@ -649,8 +649,63 @@ What is open:
   full run under the namespace needs Linux or WSL2 with the references and tools present
   there; whether that is the route, or a Windows firewall rule run elevated once, is the
   owner's decision.
-- **How peak memory is measured** across child processes (Beagle's JVM, PLINK, R) and not
+- **How peak memory is measured** (run sheet item 5) across child processes (Beagle's JVM, PLINK, R) and not
   only the Python process.
+
+<a id="m151-run-sheet"></a>
+
+### M15.1 run sheet (prepared 2026-11-20, not yet run)
+
+**Expected duration: about 9–10½ hours of unattended run**, plus HLA if it is opted in, and
+the network-block setup below. This is an extrapolation from the one measured real-export
+run (7 h 49 min on 2026-11-05, `e30879d`), scaled for the polygenic cards added since: 21
+now, 14 then. That run's own estimate (5¾–6 h) was about 30% low, so read the range as a
+floor.
+
+| Stage | Measured 2026-11-05 | Expected for M15.1 | Why |
+|---|---|---|---|
+| Score references, ingest, ancestry | 7.4 min, warm | 10–30 min | the seven newer scores' 1000 Genomes extractions are not cached |
+| Imputation, 23 jobs | 3 h 31 min | about 3.5 h | fresh: the engine changed, so no saved part is reused |
+| One read of the imputed doses | 51.5 min | about 50 min | |
+| ClinVar coverage, ROH, archaic | 12 min | about 12 min | |
+| Polygenic scores | 1 h 59 min for 14 | about 3 h for 21 | about 8.5 min a score on the real export |
+| PGx | 11 s | seconds | |
+| HLA | did not run | not measured | HIBAG classifiers not fetched; R subprocess |
+| Saving | 67 min | about 75 min | about 1 min of checks per added score |
+
+Memory should stay near the last peaks (Python 14.7 GB, Java 4.3 GB, at least 6.9 GB free):
+scores load one at a time, so seven more add time, not memory. The save writes the
+deep-check record, so the first read afterwards should take seconds, not 54 min.
+
+**Before starting** (checked 2026-11-20 with `genetics refs status`):
+
+1. **Choose where the network block runs** (see "What is open" above). The Windows firewall
+   route needs an elevated rule that blocks the Python, Java, PLINK and R processes, and a
+   check that it does, before the run. The WSL2 route needs references, tools, Java 17 and R
+   installed inside Linux (the gnomAD exomes alone are 63 GB), and its timings will not be
+   comparable with the table above.
+2. **Decide HLA.** The four HIBAG classifiers are `blocked-by-licence` and not fetched. To
+   include HLA: `genetics refs fetch --only <classifier> --opt-in <classifier>`, then run with
+   `--hla-model-opt-in`. Without it the HLA cards say they did not run, as on 2026-11-05.
+3. **All 21 polygenic score files are fetched.** `gwas_catalog`, `panukbb_manifest` and
+   `finngen_r12` are missing; no shipped stage reads them.
+4. **Java 17** on `JAVA_HOME`: the machine's default `java` is Java 8, which the pinned bref
+   tools refuse.
+5. **Decide how to sample peak memory** across Python, Java, PLINK and R, for example a
+   process sampler every few seconds that sums the run's process tree.
+6. **Run `genetics runs list --verify` first** if engine source changed since the last read
+   of a saved run, so the dashboard does not pay that check later.
+
+**The command:** `genetics run --input <export> --restart`, with imputation on (the default).
+`--restart` discards parts left by an earlier interrupted run, so the timings are of a run
+from the start. Progress goes to stderr; keep it, since it carries the stage timings.
+
+**What to record, and where.** In the roadmap's progress log and the M15.1 record here: the
+commit, wall-clock in total and per stage, peak memory per process and free memory, bundle
+and cache sizes, whether every outbound request was refused by the block, and pass or fail.
+Never results, card outcomes, per-sample counts or anything a stage printed about the
+genome (AGENTS.md §1.1, and the 2026-11-05 history rewrite). Then compare the stage times
+with the table above, and say which estimate was off and why if that is known.
 
 What M14.7 hands over:
 
