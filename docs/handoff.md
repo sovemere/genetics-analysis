@@ -654,7 +654,10 @@ What is open:
 
 <a id="project-review-before-m151"></a>
 
-### Before M15.1: an overall project review (proposed 2026-11-20, not started)
+### Before M15.1: an overall project review (proposed 2026-11-20; scope 1 started 2026-11-21)
+
+**Scope 1 is under way in [review_project_engine.md](review_project_engine.md)**, which holds
+its to-do list, findings and decisions. Scopes 2–4 have not started.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were
