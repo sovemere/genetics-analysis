@@ -698,7 +698,40 @@ deep-check record, so the first read afterwards should take seconds, not 54 min.
 
 **The command:** `genetics run --input <export> --restart`, with imputation on (the default).
 `--restart` discards parts left by an earlier interrupted run, so the timings are of a run
-from the start. Progress goes to stderr; keep it, since it carries the stage timings.
+from the start. Use `--restart` for the first session only; see the next paragraph. Progress goes to stderr; keep it, since it carries the stage timings.
+
+**Running it in sessions.** The run does not have to be one sitting. `genetics run` saves
+its long parts as they finish (`run/parts.py`): the imputation, the dose read, each
+polygenic score, and the PGx and HLA calls. Running the same command again without
+`--restart` resumes after the last one saved. There is no option to stop at a stage, so
+each session ends with Ctrl+C at a line that follows a saved part:
+
+| Session | Covers | About | Stop at |
+|---|---|---|---|
+| 1 | score references, ingest, ancestry, imputation | 3¾–4 h | `Reading imputed doses once for card inputs, polygenic scores and PGx ...`, which is printed just after the imputation part is saved |
+| 2 | dose read, ClinVar, ROH, archaic, most scores | about 4 h | any point once the dose read is done; each score is saved as it finishes, so only the score in progress is lost |
+| 3 | the remaining scores, PGx, HLA, saving | 1½–2½ h | runs to the end; the saved parts are removed once the bundle is written |
+
+- **Start session 2 and 3 with the same command, without `--restart`.** The first line must
+  read `Resuming an interrupted run of this export from its saved parts: imputation, ...`.
+  If it reads `Saving this run's parts as they finish ...` instead, the parts were not
+  matched; stop at once, or imputation runs again from the start.
+- **Change nothing between sessions.** Parts are reused only under the same export file,
+  the same Python source under `src/genetics` (by content, `checks.engine_sha256`), the same
+  knowledge pack, reference lock and tools, and the same options, so `--hla-model-opt-in` is
+  decided before session 1. Templates, styles and docs do not count; a `.py` edit does. Any
+  code change from a project review waits until the bundle is saved, or lands before
+  session 1.
+- **Each resume repeats some work:** ingest, ancestry and the score references (from their
+  cache), and reopening the saved imputation by its dosage files' digests (4.6 GB to hash;
+  not yet timed). ClinVar, ROH and archaic (about 12 min) are not saved as parts, so each
+  session that gets past the dose read computes them again. Record each session's start,
+  its resume overhead and its stages.
+- **The network block** must be in place for every session, not only the first.
+- **What this measures.** The stage timings stay comparable with the table above, and the
+  sum of the sessions less their resume overhead estimates an uninterrupted run. It is not
+  an uninterrupted wall-clock; say so in the record. It also exercises the resume path on
+  the real export, which the 2026-11-05 run did not.
 
 **What to record, and where.** In the roadmap's progress log and the M15.1 record here: the
 commit, wall-clock in total and per stage, peak memory per process and free memory, bundle

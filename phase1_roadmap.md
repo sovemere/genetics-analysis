@@ -22,7 +22,8 @@ It is the owner's step, since it opens the real export; the
 and what is open, including where the OS-level network block can run on Windows. Its
 [run sheet](docs/handoff.md#m151-run-sheet) gives the expected duration (about 9–10½ hours,
 extrapolated from the 2026-11-05 run with 21 scores instead of 14), the checks before
-starting, the command, and what may be recorded.
+starting, the command, how to run it in three sessions of up to about 4 hours, and what
+may be recorded.
 
 M14.7 is the accessibility pass. A card face's link is now its title, named by the title,
 described by the tier and stretched over the face, where it had been one link whose name was
