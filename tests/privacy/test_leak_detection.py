@@ -7,6 +7,9 @@ correctly. Building them at runtime keeps the test honest and the source clean.
 
 from __future__ import annotations
 
+import json
+from collections.abc import Callable
+
 import pytest
 
 from genetics.privacy import (
@@ -148,12 +151,14 @@ def saved_marker(genotype: str | None = "A" + "G") -> dict[str, object]:
 @pytest.mark.parametrize(
     "render",
     [
-        pytest.param(lambda r: __import__("json").dumps(r), id="json-compact"),
-        pytest.param(lambda r: __import__("json").dumps(r, indent=2), id="json-indented"),
+        pytest.param(json.dumps, id="json-compact"),
+        pytest.param(lambda r: json.dumps(r, indent=2), id="json-indented"),
         pytest.param(repr, id="dict-repr"),
     ],
 )
-def test_detects_a_saved_card_record_in_json_and_dict_form(render) -> None:
+def test_detects_a_saved_card_record_in_json_and_dict_form(
+    render: Callable[[dict[str, object]], str],
+) -> None:
     """Found at M15.3: no pattern matched quoted keys, so card JSON passed the scan.
 
     ``KEYED_FIELDS`` needs a key's name to touch its colon, and JSON puts a quote between
@@ -164,8 +169,6 @@ def test_detects_a_saved_card_record_in_json_and_dict_form(render) -> None:
 
 
 def test_detects_quoted_allele_keys_beside_an_identifier() -> None:
-    import json
-
     a1, a2 = "A", "G"  # through names: a literal record here trips the repo-hygiene scan
     record = {"rsid": "rs900000001", "chrom": "1", "a1": a1, "a2": a2}
     assert looks_like_genotype(json.dumps(record, indent=2))
