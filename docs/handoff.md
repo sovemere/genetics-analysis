@@ -652,6 +652,35 @@ What is open:
 - **How peak memory is measured** (run sheet item 5) across child processes (Beagle's JVM, PLINK, R) and not
   only the Python process.
 
+<a id="project-review-before-m151"></a>
+
+### Before M15.1: an overall project review (proposed 2026-11-20, not started)
+
+Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
+(about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were
+proposed to the owner, who has not yet chosen:
+
+1. **Engine correctness and consistency.** Confidence, matching, polygenic scoring and the
+   save and read paths, read as a whole for faults between modules that a per-diff review
+   misses; and AGENTS.md's hard rules checked across the codebase, not per diff: no
+   genotype reaches a commit, log or outbound request (§1), no code path drops a card for
+   low confidence (§0.1A, §6), every card carries its citations (§3, §6).
+2. **The release gate's audits that need no real file**, done now: M15.3 (privacy: `git
+   log --all` for any genotype-derived blob, `.gitignore` against every path the app
+   writes), M15.4 (licences: `manifest.lock`, nothing non-permissive vendored, per-score
+   PGS terms honoured) and M15.6 (citations: every shipped card's DOI, PMID or accession
+   resolves).
+3. **Documentation.** This file and the roadmap are mostly accreted history (4,065 and 3,630
+   lines), and the README is 504 lines of milestone paragraphs. Proposed to fold into M15.7,
+   which rewrites the README as setup, fetch, run and the privacy warning.
+4. **Code health.** Dead code, duplication, and the full suite's 17 minutes.
+
+**Recommended: 1 and 2 before M15.1's first session**, 3 with M15.7. The order matters
+because of the run sheet's rule: a change to Python source under `src/genetics` between
+sessions stops the saved parts being reused, and the next session imputes again. So an
+engine change from the review lands before session 1 or waits until M15.1's bundle is
+saved.
+
 <a id="m151-run-sheet"></a>
 
 ### M15.1 run sheet (prepared 2026-11-20, not yet run)
