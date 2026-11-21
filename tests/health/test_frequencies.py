@@ -31,6 +31,10 @@ from genetics.refs.manifest import Source
 
 POS = 12345678
 
+#: The called pair in the sample rows, held in names: a row written with literal
+#: alleles beside its rsID trips the privacy scan (M15.3).
+A1, A2 = "A", "G"
+
 
 def row(
     *,
@@ -490,9 +494,9 @@ def test_calibrated_snapshot_validates_and_cannot_relabel_rare_call(tmp_path: Pa
                     "rsid": "rs900000001",
                     "chrom": "7",
                     "pos_grch37": POS,
-                    "a1": "A",
-                    "a2": "G",
-                    "genotype": "AG",
+                    "a1": A1,
+                    "a2": A2,
+                    "genotype": A1 + A2,
                     "call_status": "called",
                 }
             ],
@@ -616,9 +620,9 @@ def test_saved_screen_is_checked_under_the_selection_its_policy_names(tmp_path: 
                     "rsid": "rs900000001",
                     "chrom": "7",
                     "pos_grch37": POS,
-                    "a1": "A",
-                    "a2": "G",
-                    "genotype": "AG",
+                    "a1": A1,
+                    "a2": A2,
+                    "genotype": A1 + A2,
                     "call_status": "called",
                 }
             ],
