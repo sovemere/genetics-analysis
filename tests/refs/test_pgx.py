@@ -337,6 +337,44 @@ def test_rare_call_tier_survives_imputation(frozen: dict[str, Any], imputed: boo
     assert benchmark["estimate"] == 0.16 and "not a personal" in benchmark["scope"]
 
 
+def test_one_copy_in_a_small_population_keeps_a_pgx_call_rare(frozen: dict[str, Any]) -> None:
+    """Project engine review B1, for PGx: version 1 records keep the rule they were made by."""
+    from genetics.health.frequencies import parse_record
+
+    public = parse_record(
+        "\t".join(
+            [
+                "10",
+                "101",
+                ".",
+                "A",
+                "G",
+                ".",
+                "PASS",
+                "AF=0.000004;AC=1;AN=250000;AF_afr=0.0000615157;AC_afr=1;AN_afr=16256",
+            ]
+        )
+    )
+    record = calling.call(
+        refresh_call_reference(frozen),
+        sample_table([(101, "A", "G", "called")]),
+        sex=InferredSex.FEMALE,
+        frequencies={("10", 101): [public]},
+    ).to_dict()
+    assert record["schema_version"] == calling.VERSION == 2
+    assert record["genes"]["CYP2C19"]["reliability"]["tier"] == "likely-artifact"
+
+    legacy = deepcopy(record)
+    legacy["schema_version"] = 1
+    with pytest.raises(calling.CallingError):
+        calling.validate(legacy)  # version 1 never called this rare
+    legacy["genes"] = calling.derive(
+        catalog.Catalog(legacy["reference"]), legacy["observations"], legacy["sex"], 1
+    )
+    calling.validate(legacy)
+    assert legacy["genes"]["CYP2C19"]["reliability"]["tier"] != "likely-artifact"
+
+
 @pytest.mark.parametrize(
     "mutation",
     [

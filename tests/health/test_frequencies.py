@@ -16,6 +16,9 @@ import pytest
 
 from genetics.health.clinvar import ClinVarIndex, validate_lookup
 from genetics.health.frequencies import (
+    LEGACY_POLICY,
+    RESOLVING_ALLELE_NUMBER,
+    SELECTION_ALL_POPULATIONS,
     FrequencyError,
     FrequencyIndex,
     calibrate,
@@ -117,16 +120,67 @@ def test_sample_loci_never_change_the_public_reference_cache(tmp_path: Path) -> 
 def test_population_maximum_prevents_pooled_rarity() -> None:
     record = parse_record(
         row(
-            info="AC=1;AN=200000;AF=0.000005;nhomalt=0;AC_afr=1;AN_afr=1000;AF_afr=0.001;nhomalt_afr=0;AF_popmax=0.001;popmax=afr"
+            info="AC=2;AN=400000;AF=0.000005;nhomalt=0;AC_afr=2;AN_afr=1000;AF_afr=0.002;nhomalt_afr=0;AF_popmax=0.002;popmax=afr"
         )
     )
     result = reliability(entry(), [record])
     assert result["tier"] == "frequency_screen_passed"
-    assert result["frequency"] == 0.001
+    assert result["frequency"] == 0.002
     assert result["population"] == "afr"
     values = select_frequencies([record], alleles={"A", "G"}, called={"A", "G"})
     assert {v.population for v in values} == {"afr"}
     assert sum(v.frequency for v in values) == 1
+
+
+def _singleton_in(population: str, an: int) -> dict[str, Any]:
+    return parse_record(
+        row(
+            info=(
+                "AC=1;AN=250000;AF=0.000004;nhomalt=0;"
+                f"AC_{population}=1;AN_{population}={an};AF_{population}={1 / an:.8g};"
+                f"nhomalt_{population}=0"
+            )
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    "population,an",
+    # The largest allele numbers gnomAD r2.1.1 exomes reports for these groups.
+    [("nfe_nwe", 42222), ("amr", 34592), ("afr", 16256), ("nfe_est", 242), ("eas_jpn", 152)],
+)
+def test_one_copy_in_a_small_population_does_not_lift_a_rare_allele(
+    population: str, an: int
+) -> None:
+    # Project engine review B1: under the all-populations rule one copy in any group under
+    # 100,000 alleles read above 0.001%, so no allele gnomAD had seen could be rare.
+    record = _singleton_in(population, an)
+    result = reliability(entry(), [record])
+    assert result["tier"] == "likely-artifact"
+    assert result["population"] == "global"
+    legacy = reliability(entry(), [record], SELECTION_ALL_POPULATIONS)
+    assert legacy["tier"] == "frequency_screen_passed"
+    assert legacy["population"] == population
+
+
+def test_a_population_that_resolves_the_band_counts_with_one_copy() -> None:
+    assert RESOLVING_ALLELE_NUMBER == 100000
+    one = parse_record(
+        row(
+            info=(
+                "AC=1;AN=250000;AF=0.000004;nhomalt=0;"
+                "AC_nfe=1;AN_nfe=100000;AF_nfe=0.00001;nhomalt_nfe=0"
+            )
+        )
+    )
+    result = reliability(entry(), [one])
+    assert result["population"] == "nfe"
+    assert result["tier"] == "frequency_screen_passed"
+
+
+def test_unknown_selection_policy_is_refused() -> None:
+    with pytest.raises(FrequencyError):
+        select_frequencies([], alleles={"A", "G"}, called={"A"}, selection="newest")
 
 
 @pytest.mark.parametrize(
@@ -145,14 +199,14 @@ def test_reported_subgroup_frequency_is_not_diluted_into_its_parent_population()
             info=(
                 "AC=1;AN=200000;AF=0.000005;nhomalt=0;"
                 "AC_eas=1;AN_eas=120000;AF_eas=0.00000833333;nhomalt_eas=0;"
-                "AC_eas_jpn=1;AN_eas_jpn=1000;AF_eas_jpn=0.001;nhomalt_eas_jpn=0"
+                "AC_eas_jpn=2;AN_eas_jpn=1000;AF_eas_jpn=0.002;nhomalt_eas_jpn=0"
             )
         )
     )
     result = reliability(entry(), [record])
     assert result["tier"] == "frequency_screen_passed"
     assert result["population"] == "eas_jpn"
-    assert result["frequency"] == 0.001
+    assert result["frequency"] == 0.002
 
 
 @pytest.mark.parametrize(
@@ -529,3 +583,74 @@ def test_manifest_transform_has_real_executor_and_verified_provenance(tmp_path: 
     assert checked[0].status == postprocess.ProcessStatus.VERIFIED
     sidecar = json.loads((folder / "gnomad_frequencies.sqlite.provenance.json").read_text())
     assert sidecar["provenance"]["records"] == 1
+
+
+def test_saved_screen_is_checked_under_the_selection_its_policy_names(tmp_path: Path) -> None:
+    """A run saved under the all-populations rule stays valid; relabelling it does not."""
+    import polars as pl
+
+    from genetics.ingest.schema import NORMALIZED_SCHEMA, GenotypeTable
+
+    singleton = "AC=1;AN=250000;AF=0.000004;nhomalt=0;AC_afr=1;AN_afr=16256;AF_afr=0.0000615157;nhomalt_afr=0"
+    frequency = build(tmp_path, [row(info=singleton)])
+    clinvar_path = tmp_path / "synthetic-clinvar.vcf.gz"
+    with gzip.open(clinvar_path, "wt", encoding="utf-8") as handle:
+        handle.write(
+            "\n".join(
+                [
+                    "##fileformat=VCFv4.1",
+                    "##fileDate=2026-01-01",
+                    "##reference=GRCh37",
+                    "\t".join(("#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO")),
+                    "\t".join(
+                        ("7", str(POS), "900000001", "A", "G", ".", ".", "CLNSIG=Pathogenic")
+                    ),
+                ]
+            )
+            + "\n"
+        )
+    table = GenotypeTable(
+        pl.DataFrame(
+            [
+                {
+                    "rsid": "rs900000001",
+                    "chrom": "7",
+                    "pos_grch37": POS,
+                    "a1": "A",
+                    "a2": "G",
+                    "genotype": "AG",
+                    "call_status": "called",
+                }
+            ],
+            schema=NORMALIZED_SCHEMA,
+        ),
+        vendor="synthetic",
+    )
+    lookup = ClinVarIndex.build(clinvar_path, version="2026-01-01").lookup(table)
+    raw = calibrate(lookup, index=frequency, records=frequency.lookup([("7", POS)])).to_dict()
+    validate_lookup(raw)
+    current = raw["loci"][0]["records"][0]
+    assert current["reliability"]["tier"] == "likely-artifact"
+
+    legacy = copy.deepcopy(raw)
+    legacy["frequency_reference"]["policy"] = LEGACY_POLICY
+    entry_ = legacy["loci"][0]["records"][0]
+    entry_["reliability"] = reliability(
+        {k: v for k, v in entry_.items() if k not in {"frequency_records", "reliability"}},
+        entry_["frequency_records"],
+        SELECTION_ALL_POPULATIONS,
+    )
+    assert entry_["reliability"]["tier"] == "frequency_screen_passed"
+    counts = legacy["frequency_reference"]["counts"]
+    counts["likely-artifact"] -= 1
+    counts["frequency_screen_passed"] += 1
+    validate_lookup(legacy)
+
+    relabelled = copy.deepcopy(legacy)
+    relabelled["frequency_reference"]["policy"] = raw["frequency_reference"]["policy"]
+    with pytest.raises(FrequencyError):
+        validate_lookup(relabelled)
+    unknown = copy.deepcopy(raw)
+    unknown["frequency_reference"]["policy"] = "Some other policy."
+    with pytest.raises(FrequencyError):
+        validate_lookup(unknown)

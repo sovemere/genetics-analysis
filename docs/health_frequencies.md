@@ -49,6 +49,20 @@ This population is a conservative rarity-screen context, **not inferred personal
 ancestry**; study-to-sample ancestry calibration still belongs to M9.5. Populations with
 missing or unusable counts cannot be assessed by this reference.
 
+**Which populations can raise the maximum (corrected 2026-11-21, project engine review
+B1).** A group other than the global pool counts only when its allele number reaches
+100,000 (where one copy falls below 0.001%) or it holds at least two copies of each
+observed allele. Before this, every group counted, and that made the likely-artifact gate
+unreachable: every r2.1.1 exome group and subgroup except the NFE parent has fewer than
+100,000 alleles (the largest subgroup, `nfe_nwe`, reaches 42,222), and every NFE sample also
+sits in a subgroup, so one copy anywhere read above 0.001%. Measured on a 816,000-SNV sample
+of the index: 62% of alleles seen in gnomAD have a global frequency below 0.001%, and the
+old rule screened none of them as rare. Under the new rule 86% of those are. A single copy
+records where gnomAD's one carrier was sampled; two or more in a small group is the
+population-specific enrichment the maximum exists to respect, so founder alleles keep it.
+The saved policy text names the rule a run used, and a run saved under the old text is
+still checked under the old rule. PGx call records moved to version 2 for the same change.
+
 An unambiguous observed alternate below 0.00001 (0.001%) even at that maximum is
 `likely-artifact`. The attached 16% figure is the published confirmation rate for rare
 heterozygous SNP-chip calls, not an individual's posterior probability, and not a

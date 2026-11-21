@@ -10,7 +10,12 @@ from collections.abc import Mapping
 from typing import Any
 
 from genetics.engine.cards import CardVariant, Match
-from genetics.engine.confidence import RARE_CALL_FREQUENCY_CEILING, CallSource, ConfidenceTier
+from genetics.engine.confidence import (
+    QUALITY_CEILINGS,
+    RARE_CALL_FREQUENCY_CEILING,
+    CallSource,
+    ConfidenceTier,
+)
 from genetics.engine.evidence import ObservationEvidence, PopulationFrequency
 from genetics.engine.matcher import MatchStatus, Strand, complement
 from genetics.imputation.quality import ImputationEvidence
@@ -200,8 +205,8 @@ def _validate_snapshot(card: Mapping[str, Any]) -> None:
             quality = observation["imputation_quality"]
             if (
                 (frequency is not None and frequency < RARE_CALL_FREQUENCY_CEILING)
-                or (quality is not None and quality < 0.30)
-            ) and tier != "likely-artifact":
+                or (quality is not None and quality < QUALITY_CEILINGS[0][0])
+            ) and tier != ConfidenceTier.LIKELY_ARTIFACT.value:
                 raise ValueError("marker reliability cannot bypass rarity or quality gates")
             if frequency is None and ConfidenceTier(tier).rank < ConfidenceTier.MODERATE.rank:
                 raise ValueError("unknown frequency cannot establish strong marker reliability")

@@ -53,18 +53,43 @@ POPULATIONS = (
     "nfe_swe",
 )
 RELIABILITY_STATES = ("likely-artifact", "frequency_screen_passed", "unknown", "not_applicable")
+RESOLVING_ALLELE_NUMBER = math.ceil(1 / RARE_CALL_FREQUENCY_CEILING)
+"""The allele number at which one observed copy falls below the rare-call boundary. A
+population with fewer alleles cannot measure a frequency in that band at all: a single copy
+in it already reads above 0.001%."""
+MINIMUM_REPEATED_COUNT = 2
+"""Copies a population below :data:`RESOLVING_ALLELE_NUMBER` must hold to raise the maximum.
+One copy records where gnomAD's one carrier was sampled, not that the allele is common there;
+two or more in a small population is enrichment that chance placement rarely produces."""
+SELECTION_ALL_POPULATIONS = "all-populations-v1"
+SELECTION_RESOLVING_POPULATIONS = "resolving-populations-v2"
+SELECTION_POLICIES = (SELECTION_ALL_POPULATIONS, SELECTION_RESOLVING_POPULATIONS)
 _FREQUENCY_FIELDS = {
     name + ("_" + population if population != "global" else "")
     for population in POPULATIONS
     for name in ("AF", "AC", "AN", "nhomalt")
 } | {"AF_popmax", "popmax"}
-POLICY = (
+LEGACY_POLICY = (
     "Use the highest frequency of the observed allele across represented gnomAD "
     "ancestry groups and reported subgroups (including global), retaining that "
     "population's counts. This is a "
     "conservative rarity screen, not inferred personal ancestry. Missing or filtered "
     "reference entries are unknown, never zero. Exomes do not cover every array locus."
 )
+"""The policy text runs saved before the project engine review recorded (selection v1)."""
+POLICY = (
+    "Use the highest frequency of the observed allele across the global gnomAD pool and "
+    "the ancestry groups and reported subgroups that can measure it: a group counts when "
+    "its allele number reaches 100,000, where one copy falls below 0.001%, or when it holds "
+    "at least two copies. A single copy in a smaller group records where one carrier was "
+    "sampled, not that the allele is common there. This is a rarity screen, not inferred "
+    "personal ancestry. Missing or filtered reference entries are unknown, never zero. "
+    "Exomes do not cover every array locus."
+)
+_POLICY_SELECTION = {
+    LEGACY_POLICY: SELECTION_ALL_POPULATIONS,
+    POLICY: SELECTION_RESOLVING_POPULATIONS,
+}
 NOTICE = (
     "Reference lookup only. ClinVar classifications describe reference variants, not "
     "confirmed personal findings. Allele-frequency measurement reliability is screened "
@@ -432,14 +457,29 @@ def default_index(*, progress: Callable[[str], None] | None = None) -> Frequency
 
 
 def select_frequencies(
-    records: list[dict[str, Any]], *, alleles: set[str], called: set[str]
+    records: list[dict[str, Any]],
+    *,
+    alleles: set[str],
+    called: set[str],
+    selection: str = SELECTION_RESOLVING_POPULATIONS,
 ) -> tuple[PopulationFrequency, ...]:
     """Exact biallelic SNP, PASS, AC/AN present; choose one consistent population.
 
     Maximising the rarest observed allele across populations avoids calling an allele
     rare merely because it is diluted in the pooled population. REF is 1 - ALT only
     for a single biallelic record with the same denominator. Duplicates fail closed.
+
+    Under ``resolving-populations-v2`` a population other than the global pool takes part
+    only when it can measure the rare-call band (allele number at least
+    :data:`RESOLVING_ALLELE_NUMBER`) or holds every called allele at least
+    :data:`MINIMUM_REPEATED_COUNT` times. Without that rule a single copy in any group
+    smaller than 100,000 alleles -- every gnomAD r2.1.1 exome group and subgroup except
+    the NFE parent -- read above 0.001%, so the likely-artifact gate could not fire for any
+    allele gnomAD had seen (project engine review, B1). ``all-populations-v1`` is the
+    earlier rule, kept so a saved run is checked under the rule that produced it.
     """
+    if selection not in SELECTION_POLICIES:
+        raise FrequencyError("unknown gnomAD frequency selection policy")
     candidates = [r for r in records if {r["ref"], *r["alts"]} == alleles]
     if len(candidates) != 1 or len(alleles) != 2 or not called or not called <= alleles:
         return ()
@@ -456,30 +496,45 @@ def select_frequencies(
         if not an or ac is None or af is None:
             continue
         values = {record["alts"][0]: ac / an}
+        copies = {record["alts"][0]: ac}
         # gnomAD splits multiallelic loci into biallelic rows. 1-AF on one split
         # row includes the other alternates, so it cannot establish true REF AF.
         # Keep the exact ALT's counts usable, but leave REF unknown at such loci.
         if len(records) == 1:
             values[record["ref"]] = 1 - ac / an
+            copies[record["ref"]] = an - ac
         known = called & values.keys()
-        if known:
-            options.append((min(values[a] for a in known), population, values))
+        if not known:
+            continue
+        if (
+            selection == SELECTION_RESOLVING_POPULATIONS
+            and population != "global"
+            and an < RESOLVING_ALLELE_NUMBER
+            and any(copies[a] < MINIMUM_REPEATED_COUNT for a in known)
+        ):
+            continue
+        options.append((min(values[a] for a in known), population, values))
     if not options:
         return ()
     _, population, values = max(options, key=lambda item: (item[0], item[1] == "global", item[1]))
-    return tuple(
-        PopulationFrequency(
-            a,
-            values[a],
-            population,
-            "gnomAD r2.1.1 exomes; conservative maximum across populations",
-        )
-        for a in sorted(values)
+    source = (
+        "gnomAD r2.1.1 exomes; conservative maximum across populations"
+        if selection == SELECTION_ALL_POPULATIONS
+        else "gnomAD r2.1.1 exomes; maximum across populations that can measure the allele"
     )
+    return tuple(PopulationFrequency(a, values[a], population, source) for a in sorted(values))
 
 
-def _legacy_reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
-    """Frozen M7.2/schema-2 calculation for validating historical snapshots."""
+def _legacy_reliability(
+    entry: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    selection: str = SELECTION_ALL_POPULATIONS,
+) -> dict[str, Any]:
+    """Frozen M7.2/schema-2 calculation for validating historical snapshots.
+
+    ``selection`` is the frequency selection the snapshot's policy names; schema 2 predates
+    the resolving-population rule, so it is always the default there.
+    """
     result: dict[str, Any] = {
         "tier": "unknown",
         "frequency": None,
@@ -494,7 +549,9 @@ def _legacy_reliability(entry: Mapping[str, Any], records: list[dict[str, Any]])
             "reason": "No unambiguous alternate observation to calibrate.",
         }
     alt = entry["alts"][0]
-    values = select_frequencies(records, alleles={entry["ref"], alt}, called={alt})
+    values = select_frequencies(
+        records, alleles={entry["ref"], alt}, called={alt}, selection=selection
+    )
     selected = next((v for v in values if v.allele == alt), None)
     if selected is None:
         return result
@@ -528,11 +585,15 @@ def _legacy_reliability(entry: Mapping[str, Any], records: list[dict[str, Any]])
     return result
 
 
-def reliability(entry: Mapping[str, Any], records: list[dict[str, Any]]) -> dict[str, Any]:
+def reliability(
+    entry: Mapping[str, Any],
+    records: list[dict[str, Any]],
+    selection: str = SELECTION_RESOLVING_POPULATIONS,
+) -> dict[str, Any]:
     """M7.3 screen with correctly scoped study benchmarks; never a personal PPV."""
     from genetics.engine.ppv import CLINICAL_NOTICE, clinvar_benchmark
 
-    result = _legacy_reliability(entry, records)
+    result = _legacy_reliability(entry, records, selection)
     if result["tier"] == "likely-artifact":
         result["empirical_ppv"] = clinvar_benchmark(entry.get("info", {}))
         result["reason"] = (
@@ -587,9 +648,11 @@ def validate_calibration(raw: Mapping[str, Any]) -> None:
     try:
         if type(raw["schema_version"]) is not int or raw["schema_version"] not in (2, 3):
             raise ValueError
-        screen = _legacy_reliability if raw["schema_version"] == 2 else reliability
         base = json.loads(json.dumps(raw))
         reference = base.pop("frequency_reference")
+        # The saved policy text names the selection rule that produced the screen.
+        selection = _POLICY_SELECTION[reference["policy"]]
+        screen = _legacy_reliability if raw["schema_version"] == 2 else reliability
         base["schema_version"] = 1
         if (
             set(reference) != {"status", "policy", "provenance", "counts"}
@@ -692,7 +755,7 @@ def validate_calibration(raw: Mapping[str, Any]) -> None:
                     )
                     if reconstructed != record:
                         raise ValueError
-                if recorded != screen(entry, records):
+                if recorded != screen(entry, records, selection):
                     raise ValueError
                 actual_tiers[recorded["tier"]] += 1
         if (

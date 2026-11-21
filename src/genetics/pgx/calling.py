@@ -13,8 +13,13 @@ from dataclasses import dataclass
 from itertools import combinations_with_replacement
 from typing import Any
 
+from genetics.engine.confidence import RARE_CALL_EMPIRICAL_PPV, RARE_CALL_FREQUENCY_CEILING
 from genetics.engine.matcher import complement
-from genetics.health.frequencies import select_frequencies
+from genetics.health.frequencies import (
+    SELECTION_ALL_POPULATIONS,
+    SELECTION_RESOLVING_POPULATIONS,
+    select_frequencies,
+)
 from genetics.imputation.dosages import DosageRecord, parse_record
 from genetics.ingest.schema import CallStatus, GenotypeTable
 from genetics.paths import references_dir
@@ -24,7 +29,11 @@ from genetics.privacy import NoGenotypeRepr
 from genetics.qc.report import InferredSex
 from genetics.refs.postprocess import ProcessError
 
-VERSION = 1
+VERSION = 2
+"""Version 2 selects frequencies under ``resolving-populations-v2`` (project engine review,
+B1); version 1 records are re-derived under the all-populations rule that produced them."""
+SUPPORTED_VERSIONS = (1, 2)
+_SELECTION = {1: SELECTION_ALL_POPULATIONS, 2: SELECTION_RESOLVING_POPULATIONS}
 Locus = tuple[str, int]
 NOTICE = (
     "SNP-compatible candidates only; structural/CNV variation remains unmeasured. "
@@ -52,10 +61,10 @@ class SampleCalls(NoGenotypeRepr):
         return dict(self.record)
 
 
-def unavailable(reason: str, *, sex: str | None = None) -> SampleCalls:
+def unavailable(reason: str, *, sex: str | None = None, version: int = VERSION) -> SampleCalls:
     return SampleCalls(
         {
-            "schema_version": VERSION,
+            "schema_version": version,
             "status": "unavailable",
             "reason": reason,
             "sex": sex,
@@ -190,7 +199,9 @@ def _frequency_check(records: list[Any], key: Locus) -> None:
                     raise CallingError("PGx frequency values disagree with counts.")
 
 
-def _observed(raw: Mapping[str, Any], alleles: set[str], ploidy: int) -> dict[str, Any]:
+def _observed(
+    raw: Mapping[str, Any], alleles: set[str], ploidy: int, selection: str
+) -> dict[str, Any]:
     result: dict[str, Any] = {
         "state": "untyped",
         "bases": None,
@@ -243,7 +254,7 @@ def _observed(raw: Mapping[str, Any], alleles: set[str], ploidy: int) -> dict[st
     if result["state"] == "untyped" and raw["probes"]:
         result["state"] = "no-call"
     values = select_frequencies(
-        raw["frequencies"], alleles=alleles, called=set(result["bases"] or [])
+        raw["frequencies"], alleles=alleles, called=set(result["bases"] or []), selection=selection
     )
     result["frequencies"] = [
         {
@@ -258,7 +269,7 @@ def _observed(raw: Mapping[str, Any], alleles: set[str], ploidy: int) -> dict[st
     known = {v.allele for v in values}
     result["rarity"] = (
         "likely-artifact"
-        if any(v.allele in called and v.frequency < 0.00001 for v in values)
+        if any(v.allele in called and v.frequency < RARE_CALL_FREQUENCY_CEILING for v in values)
         else "frequency_screen_passed"
         if called and called <= known
         else "unknown"
@@ -267,7 +278,7 @@ def _observed(raw: Mapping[str, Any], alleles: set[str], ploidy: int) -> dict[st
         None
         if result["rarity"] != "likely-artifact"
         else {
-            "estimate": 0.16,
+            "estimate": RARE_CALL_EMPIRICAL_PPV,
             "doi": "10.1136/bmj.n214",
             "scope": "Rare heterozygous SNP-chip calls; not a personal posterior "
             "or an imputation validation.",
@@ -309,7 +320,10 @@ def _requirements(
     return required, sorted(set(unresolved))
 
 
-def derive(catalog: Catalog, observations: list[dict[str, Any]], sex: str) -> dict[str, Any]:
+def derive(
+    catalog: Catalog, observations: list[dict[str, Any]], sex: str, version: int = VERSION
+) -> dict[str, Any]:
+    selection = _SELECTION[version]
     by_locus = {(r["chrom"], r["pos_grch37"]): r for r in observations}
     tables = catalog.record["cpic"]["tables"]
     genes: dict[str, Any] = {}
@@ -358,7 +372,7 @@ def derive(catalog: Catalog, observations: list[dict[str, Any]], sex: str) -> di
         candidates: list[dict[str, Any]] = []
         for ploidy in ploidies:
             observed = {
-                key: _observed(by_locus[key], alleles, ploidy)
+                key: _observed(by_locus[key], alleles, ploidy, selection)
                 for key, alleles in allele_sets.items()
             }
             usable = {key: r["bases"] for key, r in observed.items() if r["state"] == "observed"}
@@ -559,7 +573,7 @@ def validate(raw: Mapping[str, Any]) -> None:
                 "genes",
             }
             or type(raw["schema_version"]) is not int
-            or raw["schema_version"] != VERSION
+            or raw["schema_version"] not in SUPPORTED_VERSIONS
         ):
             raise ValueError
         if raw["status"] == "unavailable":
@@ -569,7 +583,9 @@ def validate(raw: Mapping[str, Any]) -> None:
                 or raw["sex"] not in (None, *list(InferredSex))
             ):
                 raise ValueError
-            if digest(raw) != digest(unavailable(raw["reason"], sex=raw["sex"]).record):
+            if digest(raw) != digest(
+                unavailable(raw["reason"], sex=raw["sex"], version=raw["schema_version"]).record
+            ):
                 raise ValueError
             return
         if (
@@ -620,7 +636,7 @@ def validate(raw: Mapping[str, Any]) -> None:
                     raise ValueError
             _frequency_check(r["frequencies"], key)
         if keys != loci(catalog) or digest(raw["genes"]) != digest(
-            derive(catalog, observations, raw["sex"])
+            derive(catalog, observations, raw["sex"], raw["schema_version"])
         ):
             raise ValueError
     except (

@@ -5,7 +5,12 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from genetics.engine.confidence import RARE_CALL_FREQUENCY_CEILING, CallSource, ConfidenceTier
+from genetics.engine.confidence import (
+    QUALITY_CEILINGS,
+    RARE_CALL_FREQUENCY_CEILING,
+    CallSource,
+    ConfidenceTier,
+)
 from genetics.engine.evidence import (
     ObservationEvidence,
     PopulationFrequency,
@@ -95,16 +100,14 @@ def _validate(record: Mapping[str, Any], *, require_detail: bool) -> None:
         ):
             raise ValueError
         quality = detail.card_quality
+        # The live calculator's own bounds, so the two cannot drift (project review, B2).
         ceiling = (
             ConfidenceTier.LIMITED
             if quality is None
-            else ConfidenceTier.LIKELY_ARTIFACT
-            if quality < 0.30
-            else ConfidenceTier.LIMITED
-            if quality < 0.60
-            else ConfidenceTier.MODERATE
-            if quality < 0.80
-            else ConfidenceTier.WELL_ESTABLISHED
+            else next(
+                (tier for bound, tier in QUALITY_CEILINGS if quality < bound),
+                ConfidenceTier.WELL_ESTABLISHED,
+            )
         )
         if frequency is not None and frequency < RARE_CALL_FREQUENCY_CEILING:
             ceiling = ConfidenceTier.LIKELY_ARTIFACT
