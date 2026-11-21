@@ -660,12 +660,17 @@ What is open:
 its to-do list, findings and decisions. One P1 was found and fixed before M15.1: the
 likely-artifact gate could not fire for any allele gnomAD had seen (B1), so the M15.1 run
 will screen far more rare calls as likely artifacts than the 2026-11-05 run did. Everything
-else was P3 or recorded for after M15.1. **Scope 2 (the M15.3/M15.4/M15.6 audits) is next**
-under the recommendation below; scopes 3–4 have not started.
+else was P3 or recorded for after M15.1. **Scope 2 (the M15.3/M15.4/M15.6 audits) is under
+way: [review_release_audits.md](review_release_audits.md).** M15.3 closed 2026-11-21: nothing
+genotype-derived was ever committed, and two routes that could have leaked were closed (an
+in-repo `LOCALAPPDATA` was honoured as the data directory; the content scan could not see a
+genotype in JSON). Both changed engine source, which is fine before session 1. M15.4 is
+next; scopes 3–4 have not started.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were
-proposed to the owner, who has not yet chosen:
+proposed to the owner on 2026-11-20; scopes 1 and 2 were started at the owner's request on
+2026-11-21:
 
 1. **Engine correctness and consistency.** Confidence, matching, polygenic scoring and the
    save and read paths, read as a whole for faults between modules that a per-diff review

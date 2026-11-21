@@ -59,13 +59,28 @@ def user_data_dir() -> Path:
         return resolved
 
     if sys.platform == "win32":
-        base = os.environ.get("LOCALAPPDATA") or (Path.home() / "AppData" / "Local")
+        variable = "LOCALAPPDATA"
+        base = os.environ.get(variable) or (Path.home() / "AppData" / "Local")
     elif sys.platform == "darwin":
+        variable = "HOME"
         base = Path.home() / "Library" / "Application Support"
     else:
-        base = os.environ.get("XDG_DATA_HOME") or (Path.home() / ".local" / "share")
+        variable = "XDG_DATA_HOME"
+        base = os.environ.get(variable) or (Path.home() / ".local" / "share")
 
-    return (Path(base) / APP_NAME).resolve()
+    # The platform default gets the same refusal as the override (M15.3). A sandbox that
+    # points LOCALAPPDATA or HOME at the working directory is ordinary, and once did here:
+    # the app made its data directory inside the checkout and wrote its cache there, and a
+    # run bundle under it (``runs/<id>/cards.json``) matches no ignore rule.
+    resolved = (Path(base) / APP_NAME).resolve()
+    if is_inside_repo(resolved):
+        raise UnsafeDataDirError(
+            f"The default data directory resolves inside the repository ({resolved}), "
+            f"because {variable} or the home directory points into the checkout. Analysis "
+            f"output is genotype data and must live outside it (AGENTS.md 1.5). Set "
+            f"{_DATA_DIR_ENV} to a path elsewhere on disk."
+        )
+    return resolved
 
 
 def runs_dir() -> Path:

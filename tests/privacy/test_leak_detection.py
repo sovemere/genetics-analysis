@@ -126,6 +126,66 @@ def test_detects_dataclass_style_keyed_fields() -> None:
     assert looks_like_genotype(keyed_fields())
 
 
+def saved_marker(genotype: str | None = "A" + "G") -> dict[str, object]:
+    """A fabricated record in the shape ``serialization.marker_payload`` saves.
+
+    The identifier sits in ``variant`` and the call in its sibling ``match``, which is
+    what ``genetics runs card --json`` prints for a matched card.
+    """
+    return {
+        "variant": {"rsid": "rs900000001", "chrom": "7", "pos_grch37": 12345},
+        "status": "matched",
+        "match": {
+            "reason": None,
+            "genotype": genotype,
+            "observed_genotype": genotype,
+            "observed_rsid": None,
+            "call_status": "called",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "render",
+    [
+        pytest.param(lambda r: __import__("json").dumps(r), id="json-compact"),
+        pytest.param(lambda r: __import__("json").dumps(r, indent=2), id="json-indented"),
+        pytest.param(repr, id="dict-repr"),
+    ],
+)
+def test_detects_a_saved_card_record_in_json_and_dict_form(render) -> None:
+    """Found at M15.3: no pattern matched quoted keys, so card JSON passed the scan.
+
+    ``KEYED_FIELDS`` needs a key's name to touch its colon, and JSON puts a quote between
+    them. Pasting ``runs card --json`` into a doc or a test was the likeliest leak route
+    this project has, and the pre-commit hook could not see it.
+    """
+    assert looks_like_genotype(render(saved_marker()))
+
+
+def test_detects_quoted_allele_keys_beside_an_identifier() -> None:
+    import json
+
+    a1, a2 = "A", "G"  # through names: a literal record here trips the repo-hygiene scan
+    record = {"rsid": "rs900000001", "chrom": "1", "a1": a1, "a2": a2}
+    assert looks_like_genotype(json.dumps(record, indent=2))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # A card's definition names the reference alleles, not the person's call.
+        '{"rsid": "rs17822931", "chrom": "16", "alleles": ["C", "T"]}',
+        # An unresolved call has nothing to leak.
+        '{"variant": {"rsid": "rs900000001"}, "match": {"genotype": null}}',
+        # A call with no identifier anywhere near it is not attached to a locus.
+        '{"genotype": "' + "A" + 'G"}',
+    ],
+)
+def test_quoted_keys_without_a_call_at_an_identifier_are_not_flagged(text: str) -> None:
+    assert not looks_like_genotype(text), f"false positive on: {text!r}"
+
+
 def test_detects_23andme_style_i_identifiers() -> None:
     """23andMe uses i-prefixed IDs for tens of thousands of custom probes."""
     assert looks_like_genotype(merged_row(rsid="i5000940"))

@@ -97,12 +97,33 @@ KEYED_FIELDS: Final = re.compile(
     re.DOTALL,
 )
 
+_QUOTE = r"""['"]"""
+_QUOTED_ID = rf"{_QUOTE}(?:rsid|observed_rsid){_QUOTE}\s*:\s*{_QUOTE}{_RSID}{_QUOTE}"
+_QUOTED_CALL = (
+    rf"{_QUOTE}(?:genotype|observed_genotype|(?:a|allele)[12]){_QUOTE}"
+    rf"\s*:\s*{_QUOTE}{_ALLELE}{{1,2}}{_QUOTE}"
+)
+
+#: Quoted keys, as JSON and a Python ``dict`` repr write them: an identifier key and a
+#: call key within a short window, in either order. Added at M15.3 (2026-11-21), which
+#: found that no other pattern matches this shape: ``KEYED_FIELDS`` needs the key's name
+#: to touch its colon, and a quote sits between them. It is the shape ``genetics runs card
+#: --json`` prints (``variant.rsid`` beside ``match.genotype``), so pasting an agent's
+#: output into a doc or a test passed the pre-commit scan. The window crosses braces
+#: because the saved record nests the identifier and the call in sibling objects. Only
+#: the person's call keys count: a card's ``alleles`` list is the reference's, not theirs.
+QUOTED_KEYED_FIELDS: Final = re.compile(
+    rf"{_QUOTED_ID}.{{0,600}}?{_QUOTED_CALL}|{_QUOTED_CALL}.{{0,600}}?{_QUOTED_ID}",
+    re.DOTALL,
+)
+
 PATTERNS: Final[tuple[tuple[str, re.Pattern[str]], ...]] = (
     ("ancestry genotype row", ANCESTRY_ROW),
     ("merged genotype row", MERGED_GENOTYPE_ROW),
     ("escaped genotype row", ESCAPED_ROW),
     ("inline identifier genotype", INLINE_GENOTYPE),
     ("keyed genotype fields", KEYED_FIELDS),
+    ("quoted keyed genotype fields", QUOTED_KEYED_FIELDS),
 )
 
 

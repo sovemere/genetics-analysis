@@ -71,6 +71,45 @@ def test_data_dir_override_inside_the_repo_is_rejected(
         user_data_dir()
 
 
+def test_platform_default_inside_the_repo_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Found at M15.3: only the override was checked, not the default it falls back to.
+
+    A sandbox that sets LOCALAPPDATA (or XDG_DATA_HOME, or HOME) to the working directory
+    put this checkout's data directory inside it, with nothing said. The cache it wrote
+    there was public-derived, but a run bundle's ``runs/<id>/cards.json`` would not have
+    been ignored.
+    """
+    import sys
+
+    from genetics import paths
+
+    monkeypatch.delenv("GENETICS_DATA_DIR", raising=False)
+    inside = repo_root() / ".sandbox_localappdata"
+    monkeypatch.setenv("LOCALAPPDATA", str(inside))
+    monkeypatch.setenv("XDG_DATA_HOME", str(inside))
+    if sys.platform == "darwin":
+        monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: inside))
+    for factory in (user_data_dir, runs_dir, cache_dir, app_write_paths):
+        with pytest.raises(UnsafeDataDirError, match="GENETICS_DATA_DIR"):
+            factory()
+
+
+def test_platform_default_outside_the_repo_is_honoured(
+    monkeypatch: pytest.MonkeyPatch, tmp_path_factory: pytest.TempPathFactory
+) -> None:
+    import sys
+
+    if sys.platform == "darwin":
+        pytest.skip("the macOS default is HOME-derived; covered by the rejection test")
+    monkeypatch.delenv("GENETICS_DATA_DIR", raising=False)
+    outside = tmp_path_factory.mktemp("platform-data")
+    if is_inside_repo(outside):
+        pytest.skip("the temporary directory is inside the checkout on this machine")
+    monkeypatch.setenv("LOCALAPPDATA", str(outside))
+    monkeypatch.setenv("XDG_DATA_HOME", str(outside))
+    assert user_data_dir() == (outside / "genetics-analysis").resolve()
+
+
 def test_rejection_propagates_to_every_derived_path(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("GENETICS_DATA_DIR", str(repo_root() / "mydata"))
     for factory in (runs_dir, cache_dir, app_write_paths):
