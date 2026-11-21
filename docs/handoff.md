@@ -656,8 +656,12 @@ What is open:
 
 ### Before M15.1: an overall project review (proposed 2026-11-20; scope 1 started 2026-11-21)
 
-**Scope 1 is under way in [review_project_engine.md](review_project_engine.md)**, which holds
-its to-do list, findings and decisions. Scopes 2–4 have not started.
+**Scope 1 is done (2026-11-21): [review_project_engine.md](review_project_engine.md)** holds
+its to-do list, findings and decisions. One P1 was found and fixed before M15.1: the
+likely-artifact gate could not fire for any allele gnomAD had seen (B1), so the M15.1 run
+will screen far more rare calls as likely artifacts than the 2026-11-05 run did. Everything
+else was P3 or recorded for after M15.1. **Scope 2 (the M15.3/M15.4/M15.6 audits) is next**
+under the recommendation below; scopes 3–4 have not started.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were
@@ -754,6 +758,11 @@ each session ends with Ctrl+C at a line that follows a saved part:
   decided before session 1. Templates, styles and docs do not count; a `.py` edit does. Any
   code change from a project review waits until the bundle is saved, or lands before
   session 1.
+- **Keep the environment fixed too** (project engine review F1). The parts' contract does not
+  name the installed Python packages or the `GENETICS_BEAGLE_JAR`, `GENETICS_RSCRIPT` and
+  `JAVA_HOME` overrides. A reused part keeps its own provenance, so nothing false is saved,
+  but a resume across such a change mixes tool builds between parts. Do not `uv pip install`,
+  upgrade R or HIBAG, or change those variables between sessions.
 - **Each resume repeats some work:** ingest, ancestry and the score references (from their
   cache), and reopening the saved imputation by its dosage files' digests (4.6 GB to hash;
   not yet timed). ClinVar, ROH and archaic (about 12 min) are not saved as parts, so each

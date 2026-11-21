@@ -24,9 +24,11 @@ and what is open, including where the OS-level network block can run on Windows.
 extrapolated from the 2026-11-05 run with 21 scores instead of 14), the checks before
 starting, the command, how to run it in three sessions of up to about 4 hours, and what
 may be recorded. An [overall project review](docs/handoff.md#project-review-before-m151)
-is proposed first, in four scopes, the owner's choice pending; any engine change it makes
-lands before M15.1's first session, since one between sessions stops the saved parts
-being reused.
+comes first, in four scopes. Scope 1, the engine review, is done
+([review_project_engine.md](docs/review_project_engine.md), 2026-11-21) and fixed one P1:
+the likely-artifact gate could not fire for any allele gnomAD had seen. Scope 2, the
+release gate's audits that need no real file, is next. Any engine change lands before
+M15.1's first session, since one between sessions stops the saved parts being reused.
 
 M14.7 is the accessibility pass. A card face's link is now its title, named by the title,
 described by the tier and stretched over the face, where it had been one link whose name was

@@ -32,24 +32,24 @@ Every input is synthetic or fabricated. No personal export and no saved real run
   dashboard read back; the saved-parts contract names every input that changes a part.
   `run/bundle.py`, `run/store.py`, `run/reads.py`, `run/parts.py`, `run/explain.py`,
   `run/checks.py`.
-- [ ] **A. Pipeline seams** -- ancestry before polygenic scoring (§4.4); which table each stage
+- [x] **A. Pipeline seams** -- ancestry before polygenic scoring (§4.4); which table each stage
   reads (chip or imputed) and whether that is consistent; the imputed flag reaching confidence;
   the frequency lookup covering every locus a stage asks for. `run/pipeline.py`.
-- [ ] **C. Matching and allele handling** -- sorted genotypes, strand and palindromes, indel
+- [x] **C. Matching and allele handling** -- sorted genotypes, strand and palindromes, indel
   exclusion (§4.2), no-calls, hemizygous X/Y reaching every consumer, locus key before rsID.
   `ingest/normalize.py`, `ingest/keys.py`, `qc/`, `engine/matcher.py`,
   `engine/multimarker.py`, `external/harmonize.py`.
-- [ ] **D. Polygenic scores** -- effect allele against dose allele, coverage before and after
+- [x] **D. Polygenic scores** -- effect allele against dose allele, coverage before and after
   imputation, DR² into confidence, per-score licence, ancestry gating. `pgs/*`,
   `imputation/dosages.py`.
-- [ ] **E. PGx and HLA assembly** -- CYP2D6 as not callable, unresolved alternatives kept, the
+- [x] **E. PGx and HLA assembly** -- CYP2D6 as not callable, unresolved alternatives kept, the
   `*5` hemizygous trap, G6PD on X. `pgx/calling.py`, `pgx/guidelines.py`, `hla/calling.py`,
   `hla/cards.py`.
-- [ ] **G. Hard rules across the codebase** -- §1: no genotype in a progress line, exception,
+- [x] **G. Hard rules across the codebase** -- §1: no genotype in a progress line, exception,
   repr or log, and every network call through `outbound.check_url`; §0.1A: nothing drops or
   filters a card on its tier, in the engine or the views; §3/§6: a card without a citation does
   not render, computed cards included.
-- [ ] **H. Reconcile** -- cross-item findings, the handoff and roadmap status lines, and what
+- [x] **H. Reconcile** -- cross-item findings, the handoff and roadmap status lines, and what
   M15.1 inherits.
 
 ## Findings
@@ -124,3 +124,75 @@ empty by default, and drops unknown values rather than obeying them.
   A reused part keeps its own provenance, so the bundle stays truthful, but a resume across
   such a change mixes tool builds between parts. The run sheet now says to keep them fixed
   between sessions (item H).
+
+### A. Pipeline seams (closed 2026-11-21)
+
+Read: `run/pipeline.py` `analyse` and `observations`, `imputation/observations.py`
+`card_input`.
+
+No finding. Ancestry is inferred, then the 1000 Genomes placement is made and written into
+the context, before any score or HLA classifier is chosen (§4.4). Card matching reads the
+chip table with imputed calls filled in only where the chip has no call at a card locus: any
+called probe, including a contradictory or indel one, blocks replacement. ClinVar, the ACMG
+screen, ROH, archaic and sex-chromosome cards read the chip table only, which is right for
+the first two under §4.1 (imputation does not rescue a rare call) and for ROH, where imputed
+homozygosity would be the panel's, not the sample's. The imputed flag is set from one map,
+keyed by locus, for both the match markers and the observation's call source, so they cannot
+disagree. The frequency lookup is the union of ClinVar loci, every card variant (each marker
+of a multi-marker card) and every PGx locus.
+
+### C. Matching and allele handling (closed 2026-11-21)
+
+Read: `engine/matcher.py` (index, match, multi, evaluate, duplicates, orient),
+`ingest/normalize.py` (no-call, chromosome remap, pair sort), `qc/metrics.py`
+(`resolve_ploidy`), the one chrX interpretation card.
+
+Sorted pairs, `0 0` as null, numeric chromosomes refused unless mapped, indels excluded,
+duplicate probes compared on a strand-independent form except at palindromic sites,
+positional matching with the rsID only reported: all as AGENTS.md §2 requires.
+
+- **C1, P3, recorded, no change:** a homozygote whose one letter is the complement of a
+  declared allele is read as a strand flip (e.g. `CC` at an A/G card reads `GG`). One letter
+  cannot tell a flip from a third allele, and the card says so in a computed caveat. On a
+  forward-strand export the third-allele reading is the likelier of the two, but both are
+  rare and the caveat is on the face. Left as designed.
+- **C2, P3, recorded, after M15.1:** under `AMBIGUOUS` sex the X stays diploid-called, so the
+  one chrX interpretation card (`ar_rs6152_androgenetic_alopecia`) gets no computed caveat
+  that ploidy was unresolved. Its authored caveats cover the doubled-call reading. PGx G6PD
+  and polygenic scoring already treat ambiguous X as unresolved.
+
+### D. Polygenic scores (closed 2026-11-21)
+
+Read: `pgs/engine.py` (`_direct`, `orient`, `_imputed`, `score`), `pgs/reference.py`
+`_phase`, `pgs/portability.py` `_compute`, the saved-score reuse in `pgs/runner.py`.
+
+No finding. The effect allele is oriented against each source's own alleles, a four-allele
+locus is refused, and a palindromic pair is kept only where the observation is
+strand-invariant. A hemizygous X call doses 0 or 1 on both the chip and imputed paths. An
+original called probe takes precedence over any dose, failures included. The reference
+distribution is scored over exactly the person's comparable rows, and that share of weight
+is the confidence input. The per-score licence is checked before any personal input is read.
+
+### E. PGx and HLA assembly (closed 2026-11-21)
+
+Read: `pgx/calling.py` (observation, rarity, versioning), the CYP2D6 impossibility card,
+`hla/cards.py` `_confidence`, `docs/hla_cards.md`.
+
+No new finding. CYP2D6 is a not-determinable card and `pgx` refuses it by name; G6PD is
+modelled at ploidy 1 and 2 when sex is ambiguous. HLA card tiers come from the shared
+calculator with the posterior in the quality slot and the locus ceiling applied on top. With
+no HLA frequency source every HLA card caps at moderate; `docs/hla_cards.md` already states
+this. The `*5` hemizygous trap does not arise: no CYP2D6 call is made.
+
+### G. Hard rules across the codebase (closed 2026-11-21)
+
+Searched all of `src/genetics` outside `testing/`.
+
+No finding. **§1:** no progress line, log call, print or exception message interpolates a
+genotype, allele pair, dose or observed call; ingest builds its errors from row numbers and
+column names, not rows. Outbound requests are held by the existing `check_url` test, which
+passed. **§0.1A:** every `continue` and tier comparison in the engine, readers, CLI and views
+was read; none drops a card. The dashboard's tier filter is the reader's own choice, empty by
+default. **§3/§6:** `KnowledgePack.load` refuses any card other than an impossibility card
+without a citation, and polygenic, HLA, coverage, scope, ROH and archaic cards are all pack
+cards, so the rule covers computed cards too.
