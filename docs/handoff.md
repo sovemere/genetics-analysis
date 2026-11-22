@@ -1,7 +1,7 @@
 # Handoff: M15.1 full run on the real file
 
-As of 2026-11-22, **M0-M14, M15.3 and M15.4 are implemented; M15.1, the release gate's full run, is
-next**, after the [project review](#project-review-before-m151)'s remaining audit, M15.6.
+As of 2026-11-22, **M0-M14, M15.3, M15.4 and M15.6 are implemented; M15.1, the release gate's full run, is
+next**. The [project review](#project-review-before-m151)'s scopes 1 and 2 are done.
 See [the M15.1 entry contract](#next-open-step-m151-full-run),
 [the M14.7 record](#accepted-m147-accessibility),
 [the M14.7 entry contract](#next-open-step-m147-accessibility),
@@ -669,7 +669,10 @@ genotype in JSON). Both changed engine source, which is fine before session 1. M
 closed 2026-11-22: the lock, the vendored files and the per-score PGS terms all hold; the
 Y tree was missing from the lock and is now recorded; the unreviewed licences were read.
 **Owner action before the v1 tag:** the repository has no `LICENSE` file, though
-`pyproject.toml` declares MIT. M15.6 is next; scopes 3–4 have not started.
+`pyproject.toml` declares MIT. M15.6 closed 2026-11-22: all 200 cited identifiers resolve
+to the record their card describes and none is retracted; three correction notices could
+not be read. **Scope 2 is done.** Scope 3 folds into M15.7; scope 4 has not started and is
+not needed before M15.1, which is next.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were

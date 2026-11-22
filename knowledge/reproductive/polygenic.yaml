@@ -258,7 +258,8 @@ cards:
         title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
       - type: doi
         id: 10.6084/m9.figshare.14074760.v2
-        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+        title: Effect sizes for 200+ polygenic scores
+        note: Author-released UKBB-PGS weights and model-specific prediction correlations
       - type: accession
         database: PGS Catalog
         id: PGS002156
@@ -320,7 +321,8 @@ cards:
         title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort
       - type: doi
         id: 10.6084/m9.figshare.14074760.v2
-        title: Author-released UKBB-PGS weights and model-specific prediction correlations
+        title: Effect sizes for 200+ polygenic scores
+        note: Author-released UKBB-PGS weights and model-specific prediction correlations
       - type: accession
         database: PGS Catalog
         id: PGS002129

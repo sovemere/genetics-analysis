@@ -28,9 +28,9 @@ comes first, in four scopes. Scope 1, the engine review, is done
 ([review_project_engine.md](docs/review_project_engine.md), 2026-11-21) and fixed one P1:
 the likely-artifact gate could not fire for any allele gnomAD had seen. Scope 2, the
 release gate's audits that need no real file, is under way
-([review_release_audits.md](docs/review_release_audits.md)): M15.3 and M15.4 are done,
-M15.6 is next. M15.4 left one owner action before the v1 tag: the repository has no
-`LICENSE` file.
+([review_release_audits.md](docs/review_release_audits.md)) is done: M15.3, M15.4 and
+M15.6. M15.4 left one owner action before the v1 tag: the repository has no `LICENSE`
+file. M15.1 is next.
 Any engine change lands before
 M15.1's first session, since one between sessions stops the saved parts being reused.
 
@@ -3455,8 +3455,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       confidence tiers and check the stated confidence matches the actual evidence.
       Specifically verify a rare pathogenic call renders as `likely-artifact` with its
       PPV, and that no code path filters cards by confidence.
-- [ ] **M15.6** Citation audit: every shipped card resolves to a real DOI/PMID/accession.
-      Zero fabricated references.
+- [x] **M15.6** Citation audit: every shipped card resolves to a real DOI/PMID/accession.
+      Zero fabricated references. Done 2026-11-22: all 200 identifiers resolve to the
+      record their card describes, none is retracted, and one figshare title that was a
+      description now holds the record's title. See
+      [the audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22).
 - [ ] **M15.7** README with setup, fetch, run, and the privacy warning.
 - [ ] **M15.8** Tag v1.
 
@@ -3494,6 +3497,7 @@ needed tuning, and anything that contradicts AGENTS.md (then fix AGENTS.md).
 
 | Date | Milestone | Notes |
 |---|---|---|
+| 2026-11-22 | M15.6 | The citation audit, closing scope 2. **Checked:** 196 distinct citations on 119 cards (123 DOIs, 8 PMIDs, 51 accessions, 14 UK Biobank URLs) and 7 DOIs in engine code, resolved through Crossref, DataCite, E-utilities, the PGS Catalog API, ClinPGx and the showcase, every request through `check_url`. Each stated title was compared with the registry's, since a fabricated citation can be a real DOI for another paper; accessions were checked against what their cards say (gene, ClinVar title, score name, trait and publication). **All resolve and match; none is retracted.** Eight have later notices; five were read and change nothing a card states (Weedon's is a licence fix, so the 16% and 4.2% stand); three are behind a publisher that refuses automated access and are left for a browser. **P3, fixed:** the shared figshare DOI's title was a description; it now holds the record's title, with the description as its note. Pack changed, before M15.1's first session. See [the audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22). No personal export or saved real run was opened. |
 | 2026-11-22 | M15.4 | The licence audit, scope 2's second item. **Lock:** all 33 entries agree with the manifest and the registry (id, flags, standing, version, obligations, opt-in); the two restricted sources fetched, `pharmgkb` and `cpic`, record their opt-ins. **P2, fixed:** `y_tree_isogg_grch37` was complete on disk and read by the Y haplogroup caller but had never been in the committed lock; a fetch verified the files and recorded it, and `refs status` now flags any complete source the lock lacks. **Worklist:** of nine `needs-review` licences, NCBI, Fort Lauderdale, gnomAD, PhyloTree, FinnGen, HIBAG and the CPIC database were read and confirmed; gnomAD's primary data are CC0 plus a no-re-identification term; PhyloTree has no academic restriction (AGENTS.md §5.1 said so) and FinnGen no re-identification clause (the registry said so); neither grants redistribution, now recorded. The CPIC/ClinPGx conflict is settled at the stricter reading, which this project meets. OMIM is left unreviewed (never fetched); two superseded entries are kept for older locks. **Vendored:** htmx and Alpine match their npm tarballs and upstream licence texts; nothing committed derives from a restricted source. **PGS:** all 24 score ids in the pack carry EBI default terms; the gate refuses others before any reference or personal input, and a run never opts in. **Owner action:** the repository has no `LICENSE` file though `pyproject.toml` says MIT. Lock and engine source changed, before M15.1's first session. See [the audit](docs/review_release_audits.md#m154-licences-closed-2026-11-22). No personal export or saved real run was opened. |
 | 2026-11-22 | M15.3 review | A diff-driven pass over `2109b22..ef03f5a`. **Checked:** the new JSON pattern against every output `assert_no_genotype` scans, since a false positive at save time would fail M15.1 at its last stage: none carries a quoted rsID beside a call key, and `cards evidence` passes for all 119 cards. **P3, fixed:** the in-repo refusal named the wrong cause on macOS and when `LOCALAPPDATA` was unset; it now names the one it read, held by a test. **P3, stale:** `privacy.py`'s docstring (three shapes, four listed; now five), `user_data_dir`'s docstring and AGENTS.md §1.5 (only the override refused). Recorded: a pattern that flags committed content lands one commit after the fix to it. See [the audit](docs/review_release_audits.md#second-pass-after-the-commit-2026-11-22). |
 | 2026-11-21 | M15.3 | The privacy audit, scope 2's first item. **History:** all 2,280 blobs on every ref, read from git, checked by forbidden name, by `find_genotypes` and by four run-output shapes (VCF `GT` line, `.bim` row, quoted genotype field, vendor header): nothing genotype-derived was ever committed; the only genotype shapes are AGENTS.md's invented §2 example and fabricated test rows. No path in history is ignored under today's `.gitignore`. Each of the three fixture versions regenerates byte for byte from its own commit's generator. Commit messages are clean and every address is noreply. **Write paths:** every write site traced to `user_data_dir()`, a refused-in-repo chosen path or `data/references/`; the full suite run between two snapshots of the checkout wrote nothing into it. **P2, fixed:** `user_data_dir` refused an in-repo `GENETICS_DATA_DIR` but honoured an in-repo `LOCALAPPDATA`/`XDG_DATA_HOME`/home, which a sandbox had set on 2026-10-16 (it wrote only a public cache, but a run bundle there is not ignored); the default now gets the same refusal. **P2, fixed:** no pattern saw a genotype in JSON or a `dict` repr, the shape `runs card --json` prints; `privacy.QUOTED_KEYED_FIELDS` adds it, and two fabricated rows it found in a test are now built from names. Engine source changed, before M15.1's first session. See [the audit](docs/review_release_audits.md#m153-privacy-closed-2026-11-21). No personal export or saved real run was opened. |

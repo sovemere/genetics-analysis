@@ -17,7 +17,7 @@ identifiers and counts, never an allele.
   `.gitignore` re-verified against every path the app writes.
 - [x] **M15.4 Licences.** `manifest.lock` reviewed; nothing non-permissive vendored;
   per-score PGS licences honoured.
-- [ ] **M15.6 Citations.** Every shipped card's DOI, PMID or accession resolves.
+- [x] **M15.6 Citations.** Every shipped card's DOI, PMID or accession resolves.
 
 ## M15.3 Privacy (closed 2026-11-21)
 
@@ -210,3 +210,68 @@ holds the refusal. PGS000001 is fetched for the scoring tests and ships in no ca
 The lock changed (six licence blocks and the Y tree entry), and so did Python source
 (`refs/licenses.py`, `cli/refs_cmd.py`). Both are part of the saved-parts key, which is fine
 before session 1.
+
+## M15.6 Citations (closed 2026-11-22)
+
+**Every citation resolves, each to the record its card says it is, and none is retracted.**
+No fabricated reference was found.
+
+### What was checked
+
+The pack holds 119 cards and 196 distinct citations: 123 DOIs, 8 PMIDs, 51 accessions (22
+dbSNP, 21 PGS Catalog, 6 ClinVar, 2 PharmGKB) and 14 UK Biobank showcase URLs. The 12 cards
+without a citation are the impossibility cards, which are exempt (AGENTS.md §7.6). Seven
+more DOIs are written into engine code rather than the pack (the Weedon PPV benchmark,
+HIBAG, ACMG SF v3.3, Tandy-Connor, Okbay, Ding, and the ancestry framework in
+`pgs/portability.py`); three of them are also in the pack, so 200 identifiers in all.
+
+Each was resolved against its registry, every request through `outbound.check_url`:
+Crossref for DOIs (DataCite for the figshare DOI), NCBI E-utilities for PMIDs, dbSNP and
+ClinVar, the PGS Catalog REST API, ClinPGx for PharmGKB, and the showcase pages for UK
+Biobank fields. **Resolving is not the test on its own,** because an invented citation can
+still be a real DOI for a different paper. So each stated title was compared with the
+registry's; for accessions, whose titles are descriptions, the record was checked against
+what the card says it is.
+
+- **DOIs and PMIDs:** all resolve. Every title matches the registry's to within
+  punctuation, case and markup (`O<sub>2</sub>`, "106160" for "106,160", where "(CPIC)"
+  sits in a CPIC title), except one fixed below. FUT2's (Kelly 1995) is longer than
+  Crossref's because it carries the title's second sentence, which PubMed has. The seven
+  engine DOIs are each the paper the code describes.
+- **Accessions:** each of the six ClinVar titles equals ClinVar's. Each dbSNP rsID exists,
+  is not merged, and sits on the gene its card names; rs2472297, rs4481887 and rs10427255
+  are intergenic. Each PGS id's name, trait and publication match its card (PRS3820_BC,
+  breast cancer, Mavaddat; GPS_Mult, coronary artery disease, Patel; the
+  `portability-ldpred2_*` scores, Privé; the `cont-decay-*` scores, Ding). Both PharmGKB
+  ids are the variant records for the rsIDs named.
+- **UK Biobank fields:** all 14 pages resolve to the field described.
+
+### Retractions and corrections
+
+Crossref lists no retraction for any of them. Eight have a later notice, and each was read
+for whether it changes anything a card states:
+
+| Cited | Notice | Effect |
+|---|---|---|
+| Weedon 2021, BMJ (the PPV benchmark) | correction n792 | Licence only (CC BY, not CC BY-NC); the 16% and 4.2% figures are untouched |
+| Pilling 2019, BMJ (HFE) | correction l6157 | A coauthor's name misspelt |
+| Privé 2022, AJHG | erratum | Two equations corrupted in print, corrected; the cards use the released weights, not the formula |
+| Hung 2005, PNAS (HLA-B\*58:01) | correction | Affiliation symbols only |
+| Gregg 2021, ACMG carrier screening | correction | Non-inclusive wording replaced; recommendations unchanged |
+| ACMG 2013 MTHFR guideline | 2020 addendum | Already cited beside it by the MTHFR cards |
+| ACMG 2020 MTHFR addendum | 2020 correction | **Not read:** the publisher refuses automated access, and PubMed holds only its title |
+| Watson 2004, ACMG CF panel | errata 2004 and 2005 | **Not read**, for the same reason |
+
+The three unread notices are left for a reading in a browser. The two CF carrier cards rest
+on G542X and 621+1G>T, which are on every version of the ACMG panel.
+
+### Fixed
+
+- **P3: one citation's title was a description.** The figshare DOI that twelve UK Biobank
+  LDpred2 citations share was titled "Author-released UKBB-PGS weights and model-specific
+  prediction correlations"; the record's title is "Effect sizes for 200+ polygenic scores".
+  The title is now the record's and the description is its `note`. This changes the pack,
+  and so the M15.1 parts key, which is fine before session 1.
+
+**Not done:** the resolver is not committed. It is network code the offline engine has no
+use for, and the method is written above for the next audit.

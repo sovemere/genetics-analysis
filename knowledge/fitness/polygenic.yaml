@@ -37,7 +37,7 @@ cards:
           and individual strength calibration are unknown.
     citations:
       - {type: doi, id: 10.1016/j.ajhg.2021.11.008, title: Portability of 245 polygenic scores when derived from the UK Biobank and applied to 9 ancestry groups from the same cohort}
-      - {type: doi, id: 10.6084/m9.figshare.14074760.v2, title: Author-released UKBB-PGS weights and model-specific prediction correlations}
+      - {type: doi, id: 10.6084/m9.figshare.14074760.v2, title: Effect sizes for 200+ polygenic scores, note: Author-released UKBB-PGS weights and model-specific prediction correlations}
       - {type: accession, database: PGS Catalog, id: PGS002143, title: Public UK Biobank LDpred2 hand-grip-strength model}
       - {type: url, id: "https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=46", title: Left hand grip strength in kilograms}
       - {type: url, id: "https://biobank.ndph.ox.ac.uk/showcase/field.cgi?id=47", title: Right hand grip strength in kilograms}
