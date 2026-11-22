@@ -3464,7 +3464,11 @@ full card lint pass. No personal export. [Review](docs/review_m8_overview.md) an
       record their card describes, none is retracted, and one figshare title that was a
       description now holds the record's title. See
       [the audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22).
-- [ ] **M15.7** README with setup, fetch, run, and the privacy warning.
+- [ ] **M15.7** README with setup, fetch, run, and the privacy warning. Also carries scope 3
+      of the [project review](docs/handoff.md#project-review-before-m151), the documentation
+      pass: the README's milestone paragraphs give way to the guide, and `docs/handoff.md`
+      and this roadmap are cut back from accreted history to current state, with the
+      history kept in the review records and the progress log.
 - [ ] **M15.8** Tag v1.
 
 ---
