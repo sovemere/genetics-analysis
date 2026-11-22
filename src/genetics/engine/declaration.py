@@ -20,12 +20,37 @@ from genetics.engine.cards import Card
 from genetics.engine.citations import citation_url
 
 
+def polygenic(card: Card) -> dict[str, Any]:
+    """A polygenic card's score, trait and decile outcomes, as authored.
+
+    The declaration prints it, and polygenic scoring builds its result from the same
+    record, so the two cannot describe the score differently.
+    """
+    assert card.pgs is not None
+    deciles = card.decile_outcomes
+    return {
+        "pgs_id": card.pgs.pgs_id,
+        "scoring_source": card.pgs.source,
+        "trait": card.trait,
+        "decile_outcomes": None
+        if deciles is None
+        else {
+            "measure": deciles.measure,
+            "population": deciles.population,
+            "sample_size": deciles.sample_size,
+            "source": deciles.source,
+            "base_rate": deciles.base_rate,
+            "rates": list(deciles.rates),
+            "context": deciles.context,
+        },
+    }
+
+
 def declaration(card: Card) -> dict[str, Any]:
     """The authored claim behind ``card``: variants, evidence, citations, caveats."""
     from genetics.run.bundle import citation_payload, evidence_payload
 
     match = card.match
-    deciles = card.decile_outcomes
     return {
         "card_id": card.id,
         "section": card.section.value,
@@ -49,24 +74,7 @@ def declaration(card: Card) -> dict[str, Any]:
             for name, outcome in card.outcomes.items()
             if outcome.overrides_evidence
         },
-        "polygenic": None
-        if card.pgs is None
-        else {
-            "pgs_id": card.pgs.pgs_id,
-            "scoring_source": card.pgs.source,
-            "trait": card.trait,
-            "decile_outcomes": None
-            if deciles is None
-            else {
-                "measure": deciles.measure,
-                "population": deciles.population,
-                "sample_size": deciles.sample_size,
-                "source": deciles.source,
-                "base_rate": deciles.base_rate,
-                "rates": list(deciles.rates),
-                "context": deciles.context,
-            },
-        },
+        "polygenic": None if card.pgs is None else polygenic(card),
         "hla": None if card.hla is None else card.hla.to_dict(),
         "carrier": None if card.carrier is None else card.carrier.to_dict(),
         "computation": card.computation,

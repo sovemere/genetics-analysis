@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from genetics.engine.cards import Card, CardKind
-from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError
-from genetics.engine.matcher import MatchResult, MatchStatus
+from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError, computed_card
+from genetics.engine.matcher import MatchStatus
 from genetics.structure.sex_chromosomes import LIMIT, SOURCE, SexChromosomeResult, validate_result
 
 
@@ -50,29 +50,14 @@ def assemble_sex_chromosome_card(
         "reason": "Call-only QC heuristics have no calibrated karyotype accuracy. "
         "Sparse panels, ancestry, missingness, errors and mixed samples can alter the pattern.",
     }
-    return AssembledCard(
-        card_id=card.id,
-        section=card.section,
-        kind=card.kind,
-        title=card.title,
-        status=status,
-        summary=summary,
-        detail=card.detail or "",
-        card=card,
-        match=MatchResult(card.id, status, summary),
-        observation=None,
-        confidence=None,
-        frequencies=(),
-        confidence_frequency=None,
-        citations=card.citations,
-        authored_caveats=card.caveats,
-        computed_caveats=(unavailable,) if data is None else tuple(data["warnings"]),
-        computation={
-            "source": SOURCE,
-            "status": status.value,
-            "reason": unavailable if data is None else None,
-            "result": data,
-            "reliability": reliability,
-            "method_evidence": dict(card.method_evidence or {}),
-        },
+    return computed_card(
+        card,
+        status,
+        summary,
+        caveats=(unavailable,) if data is None else tuple(data["warnings"]),
+        source=SOURCE,
+        reason=unavailable if data is None else None,
+        result=data,
+        reliability=reliability,
+        method_evidence=dict(card.method_evidence or {}),
     )

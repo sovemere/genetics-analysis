@@ -46,8 +46,9 @@ from genetics.engine.confidence import (
     PolygenicConfidence,
     calculate_polygenic_confidence,
 )
-from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError
-from genetics.engine.matcher import MatchResult, MatchStatus
+from genetics.engine.declaration import polygenic
+from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError, computed_card
+from genetics.engine.matcher import MatchStatus
 from genetics.pgs.catalog import PgsError
 
 SOURCE: Final = "polygenic_score"
@@ -401,23 +402,7 @@ def reliability(evidence: Evidence, result: Mapping[str, Any] | None) -> dict[st
 
 def _authored(card: Card) -> dict[str, Any]:
     assert card.pgs is not None and card.trait is not None
-    deciles = card.decile_outcomes
-    return {
-        "pgs_id": card.pgs.pgs_id,
-        "scoring_source": card.pgs.source,
-        "trait": card.trait,
-        "decile_outcomes": None
-        if deciles is None
-        else {
-            "measure": deciles.measure,
-            "population": deciles.population,
-            "sample_size": deciles.sample_size,
-            "source": deciles.source,
-            "base_rate": deciles.base_rate,
-            "rates": list(deciles.rates),
-            "context": deciles.context,
-        },
-    }
+    return polygenic(card)
 
 
 def build_result(
@@ -501,31 +486,17 @@ def assemble_polygenic_card(
     summary = face_text(
         card.title, str(card.trait), result, card.evidence.within_family_attenuation, why
     )
-    return AssembledCard(
-        card_id=card.id,
-        section=card.section,
-        kind=card.kind,
-        title=card.title,
-        status=status,
-        summary=summary,
-        detail=card.detail or "",
-        card=card,
-        match=MatchResult(card.id, status, summary if placed else why),
-        observation=None,
-        confidence=None,
-        frequencies=(),
-        confidence_frequency=None,
-        citations=card.citations,
-        authored_caveats=card.caveats,
-        computed_caveats=computed_caveats(result),
-        computation={
-            "source": SOURCE,
-            "status": status.value,
-            "reason": None if placed else why,
-            "result": result,
-            "reliability": reliability(card.evidence, result),
-            "method_evidence": None,
-        },
+    return computed_card(
+        card,
+        status,
+        summary,
+        caveats=computed_caveats(result),
+        source=SOURCE,
+        reason=None if placed else why,
+        result=result,
+        reliability=reliability(card.evidence, result),
+        method_evidence=None,
+        match_reason=summary if placed else why,
     )
 
 

@@ -19,8 +19,9 @@ opened.
 ## To-do
 
 - [x] **1. Test-suite time.** Parallel workers, and the slowest tests.
-- [ ] **2. Duplication.** The file lock copied in `external/beagle.py` and
-  `pgx/locking.py`; the not-applicable card assembly repeated across about seven modules.
+- [x] **2. Duplication.** The file lock copied in `external/beagle.py` and
+  `pgx/locking.py`; the computed-card assembly repeated across six modules; the polygenic
+  declaration built twice.
 - [ ] **3. Dead code.** About four unreferenced members and about ten used only by tests.
 - [ ] **4. Reconcile.** Status lines, `ci-local`, push, and the CI run.
 
@@ -77,3 +78,48 @@ the cost stays. Spread across workers, it no longer sets the suite's length.
 dependencies (M13.2), so every `uv run` in the checkout rewrote it. It now matches
 `pyproject.toml`, including `pytest-xdist`. CI installs with `uv pip install -e ".[dev]"`
 and does not read it.
+
+## 2. Duplication (closed 2026-11-22)
+
+**Measured first.** `pylint --enable=duplicate-code` (8 or more similar lines, imports,
+docstrings and comments ignored) found 9 similar blocks in 63,000 lines of source, in five
+clusters. That is little; three were worth removing, because in each a fix to one copy would
+have missed the other.
+
+**Fixed: one file lock.** Beagle's job lock and the PGx publication lock were the same
+30 lines: a kernel lock on one byte, `msvcrt` on Windows and `flock` elsewhere, released by
+the kernel when a process dies. Both now call `genetics/filelock.py`'s `exclusive_lock`,
+each with its own refusal (`BeagleBusyError`, `ProcessError`) and message. The tests that
+hold a lock in one process and expect refusal in another, and that kill a holder and expect
+release, pass unchanged.
+
+**Fixed: one constructor for computed cards.** Six modules built an `AssembledCard` for a
+card whose result is a stage's computation rather than a matched genotype, each in 26
+lines that differed only in the values: carrier scope, ClinVar coverage, long ROH, archaic
+ranges, sex chromosomes and polygenic scores. They now call
+`engine.evidence.computed_card`, which takes those values by name and builds the
+`computation` record with the same six keys in the same order, since a bundle's digest
+reads it. PGS is the one whose match reason differs from its summary, and passes
+`match_reason`.
+
+**Fixed: one polygenic declaration.** `genetics cards evidence` printed a polygenic card's
+score, trait and decile outcomes from `engine/declaration.py`, and scoring built its result
+from a copy of the same record in `pgs/cards.py`. Both now call
+`engine.declaration.polygenic`, so what the card says it scores and what it scores cannot
+drift apart.
+
+**Not changed, with reasons:**
+
+- **HLA and PGx cards** also build an `AssembledCard` by hand, but differ from the six in
+  five fields (the card shown, confidence, citations, outcome name, risk context). Folding
+  them in would give the helper as many options as the constructor.
+- **The two vendor adapters'** shared lines are each one's closing call to
+  `normalize_rows` and `ParseResult`. AGENTS.md §2 keeps adapters independent, and a base
+  class to save twelve lines would couple them.
+- **`engine/evidence.py`'s own four constructions** are the genotype-matching path, each
+  with an observation, confidence and frequencies of its own.
+
+**Output unchanged.** Every argument maps one to one onto the field it replaced (reviewed
+line by line in the diff). The full native suite passed: 4,518 passed, 9 skipped. It
+includes the parity tests, the saved-run round trips and the frozen historical bundles
+that are re-read and re-assembled.

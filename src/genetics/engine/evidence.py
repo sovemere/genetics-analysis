@@ -208,6 +208,53 @@ class AssembledCard(NoGenotypeRepr):
         return self.status.has_interpretation
 
 
+def computed_card(
+    card: Card,
+    status: MatchStatus,
+    summary: str,
+    *,
+    caveats: tuple[str, ...],
+    source: str | None,
+    reason: str | None,
+    result: Any,
+    reliability: Any,
+    method_evidence: Mapping[str, Any] | None,
+    match_reason: str | None = None,
+) -> AssembledCard:
+    """A card whose result is a stage's computation rather than a genotype it matched.
+
+    No observation, confidence or frequency: what the card says is in ``computation``, under
+    the same six keys for every such card. The match carries only the status and a reason,
+    which is ``summary`` unless ``match_reason`` says otherwise.
+    """
+    return AssembledCard(
+        card_id=card.id,
+        section=card.section,
+        kind=card.kind,
+        title=card.title,
+        status=status,
+        summary=summary,
+        detail=card.detail or "",
+        card=card,
+        match=MatchResult(card.id, status, summary if match_reason is None else match_reason),
+        observation=None,
+        confidence=None,
+        frequencies=(),
+        confidence_frequency=None,
+        citations=card.citations,
+        authored_caveats=card.caveats,
+        computed_caveats=caveats,
+        computation={
+            "source": source,
+            "status": status.value,
+            "reason": reason,
+            "result": result,
+            "reliability": reliability,
+            "method_evidence": method_evidence,
+        },
+    )
+
+
 def _template_values(
     card: Card,
     match: MatchResult,

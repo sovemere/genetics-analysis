@@ -26,6 +26,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 from genetics.external.process import stop
+from genetics.filelock import exclusive_lock
 from genetics.paths import cache_dir, is_inside_repo, tools_dir
 from genetics.privacy import NoGenotypeRepr
 from genetics.refs import tools
@@ -213,32 +214,11 @@ class BeagleResult(NoGenotypeRepr):
 @contextmanager
 def _job_lock(path: Path) -> Iterator[None]:
     """Kernel-owned lock: process death releases it, unlike a PID sentinel file."""
-    with path.open("a+b") as handle:
-        if handle.tell() == 0:
-            handle.write(b"0")
-            handle.flush()
-        handle.seek(0)
-        try:
-            if sys.platform == "win32":
-                import msvcrt
-
-                msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except OSError:
-            raise BeagleBusyError(
-                "Another process is using this Beagle job; retry after it exits."
-            ) from None
-        try:
-            yield
-        finally:
-            handle.seek(0)
-            if sys.platform == "win32":
-                msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
-            else:
-                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+    with exclusive_lock(
+        path,
+        lambda: BeagleBusyError("Another process is using this Beagle job; retry after it exits."),
+    ):
+        yield
 
 
 def _input(path: Path | None, role: str) -> dict[str, Any] | None:

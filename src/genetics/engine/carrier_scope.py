@@ -30,7 +30,7 @@ from typing import TYPE_CHECKING, Any, Final
 
 from genetics.engine.cards import Card, CardError, CardKind
 from genetics.engine.confidence import CallSource
-from genetics.engine.matcher import MatchResult, MatchStatus, is_strand_ambiguous
+from genetics.engine.matcher import MatchStatus, is_strand_ambiguous
 
 if TYPE_CHECKING:
     from genetics.engine.cards import KnowledgePack
@@ -456,7 +456,7 @@ def assemble_scope_card(
     card: Card, cards: Sequence[AssembledCard] | None, *, reason: str | None = None
 ) -> AssembledCard:
     """The card, measured from this run's assembled carrier cards or recorded as not run."""
-    from genetics.engine.evidence import AssembledCard
+    from genetics.engine.evidence import computed_card
 
     if card.kind is not CardKind.COMPUTED or card.computation != SOURCE:
         raise CardError("Scope assembly requires the declared carrier-screening scope card")
@@ -489,31 +489,16 @@ def assemble_scope_card(
         if result is None
         else scope_summary(result)
     )
-    return AssembledCard(
-        card_id=card.id,
-        section=card.section,
-        kind=card.kind,
-        title=card.title,
-        status=status,
-        summary=summary,
-        detail=card.detail or "",
-        card=card,
-        match=MatchResult(card.id, status, summary),
-        observation=None,
-        confidence=None,
-        frequencies=(),
-        confidence_frequency=None,
-        citations=card.citations,
-        authored_caveats=card.caveats,
-        computed_caveats=(NOTICE,) if result is None else scope_caveats(result),
-        computation={
-            "source": SOURCE,
-            "status": status.value,
-            "reason": summary if result is None else None,
-            "result": result,
-            "reliability": scope_reliability(result),
-            "method_evidence": dict(card.method_evidence or {}),
-        },
+    return computed_card(
+        card,
+        status,
+        summary,
+        caveats=(NOTICE,) if result is None else scope_caveats(result),
+        source=SOURCE,
+        reason=summary if result is None else None,
+        result=result,
+        reliability=scope_reliability(result),
+        method_evidence=dict(card.method_evidence or {}),
     )
 
 

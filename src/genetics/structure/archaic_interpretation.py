@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 from genetics.engine.cards import Card, CardKind
-from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError
-from genetics.engine.matcher import MatchResult, MatchStatus
+from genetics.engine.evidence import AssembledCard, EvidenceAssemblyError, computed_card
+from genetics.engine.matcher import MatchStatus
 from genetics.structure.archaic import SOURCES, ArchaicResult
 
 
@@ -60,29 +60,14 @@ def assemble_archaic_card(
         if tier
         else "No numeric interpretation is available.",
     }
-    return AssembledCard(
-        card_id=card.id,
-        section=card.section,
-        kind=card.kind,
-        title=card.title,
-        status=status,
-        summary=summary,
-        detail=card.detail or "",
-        card=card,
-        match=MatchResult(card.id, status, summary),
-        observation=None,
-        confidence=None,
-        frequencies=(),
-        confidence_frequency=None,
-        citations=card.citations,
-        authored_caveats=card.caveats,
-        computed_caveats=tuple(data["warnings"]) if data is not None else (unavailable,),
-        computation={
-            "source": card.computation,
-            "status": status.value,
-            "reason": unavailable if data is None else None,
-            "result": data,
-            "reliability": reliability,
-            "method_evidence": dict(card.method_evidence or {}),
-        },
+    return computed_card(
+        card,
+        status,
+        summary,
+        caveats=tuple(data["warnings"]) if data is not None else (unavailable,),
+        source=card.computation,
+        reason=unavailable if data is None else None,
+        result=data,
+        reliability=reliability,
+        method_evidence=dict(card.method_evidence or {}),
     )

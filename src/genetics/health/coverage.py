@@ -16,8 +16,8 @@ from typing import Any
 import polars as pl
 
 from genetics.engine.cards import Card, CardKind
-from genetics.engine.evidence import AssembledCard
-from genetics.engine.matcher import MatchResult, MatchStatus
+from genetics.engine.evidence import AssembledCard, computed_card
+from genetics.engine.matcher import MatchStatus
 from genetics.health.clinvar import ClinVarError, ClinVarIndex, ClinVarLookup
 from genetics.ingest.schema import CallStatus, Chrom, GenotypeTable
 from genetics.qc.metrics import heterozygosity, infer_sex
@@ -512,29 +512,14 @@ def assemble_coverage_card(
         if data is not None
         else (reason or "ClinVar coverage was not recorded.")
     )
-    return AssembledCard(
-        card_id=card.id,
-        section=card.section,
-        kind=card.kind,
-        title=card.title,
-        status=status,
-        summary=summary,
-        detail=card.detail or "",
-        card=card,
-        match=MatchResult(card.id, status, summary),
-        observation=None,
-        confidence=None,
-        frequencies=(),
-        confidence_frequency=None,
-        citations=card.citations,
-        authored_caveats=card.caveats,
-        computed_caveats=(NOTICE,),
-        computation={
-            "source": SOURCE,
-            "status": status.value,
-            "reason": summary if data is None else None,
-            "result": None if data is None else json.loads(json.dumps(data)),
-            "reliability": coverage_reliability(data),
-            "method_evidence": dict(card.method_evidence or {}),
-        },
+    return computed_card(
+        card,
+        status,
+        summary,
+        caveats=(NOTICE,),
+        source=SOURCE,
+        reason=summary if data is None else None,
+        result=None if data is None else json.loads(json.dumps(data)),
+        reliability=coverage_reliability(data),
+        method_evidence=dict(card.method_evidence or {}),
     )
