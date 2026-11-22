@@ -279,8 +279,9 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
             "ClinVar and dbSNP. Read 2026-11-22 (M15.4): 'NCBI itself places no restrictions "
             "on the use or distribution of the data', but submitters 'may claim patent, "
             "copyright, or other intellectual property rights', and NCBI grants none of its "
-            "own. Hence the ClinVar cards cite the submitter rather than the archive. "
-            "Acknowledgement is requested for NLM pages, not required for the data."
+            "own. Acknowledgement is requested for NLM pages, not required for the data. "
+            "(This note said until M15.4's review that the ClinVar cards cite the submitter "
+            "rather than the archive; they cite ClinVar's VCV records.)"
         ),
     ),
     LicenseTerms(
@@ -487,8 +488,9 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
             "user'. Acknowledge the study and cite Kurki et al. 2023. No licence is named and "
             "no redistribution grant is given, so none is assumed. This note said until then "
             "that FinnGen asked users not to re-identify participants; the page says no such "
-            "thing. The page now also offers a form that emails download instructions; the "
-            "files remain on public storage (AGENTS.md 5.2). Not fetched; no stage reads it."
+            "thing. The page now also offers a form that emails download instructions; "
+            "AGENTS.md 5.2 records the files on public storage without one, as verified at "
+            "M2.3 and not re-checked here. Not fetched; no stage reads it."
         ),
     ),
 )

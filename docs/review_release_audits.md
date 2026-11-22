@@ -148,7 +148,7 @@ record the opt-in. The lock holds public URLs, digests and licences only.
 
 ### The worklist
 
-Nine licences were still `needs-review`, which is the worklist the registry was built to
+Ten licences were still `needs-review`, which is the worklist the registry was built to
 leave for this step. Each was read against its published terms:
 
 | Licence | Sources | Outcome |
@@ -275,3 +275,25 @@ on G542X and 621+1G>T, which are on every version of the ACMG panel.
 
 **Not done:** the resolver is not committed. It is network code the offline engine has no
 use for, and the method is written above for the next audit.
+
+### Second pass over M15.4 and M15.6 (2026-11-22)
+
+A diff-driven pass over `e6241e8..907f491`.
+
+- **Checked, holds:** the r2.1.1 exomes VCF's 899 header lines name no SpliceAI field, as
+  the gnomAD note says; none of the eight PMIDs carries a retraction publication type in
+  PubMed (the first pass asked Crossref, which covers DOIs only); the refreshed lock differs
+  from the committed one only in the six re-read licence blocks and the Y tree.
+- **P3, fixed: `refs status` called PharmGKB and CPIC "blocked-by-licence"** with every file
+  present. It asked whether a fetch would need an opt-in, never whether the fetch had
+  recorded one. It now reads the lock's `opt_in_granted`, and both read `complete`. This
+  predates M15.4, but the M15.1 run sheet sends the owner to that report. A test holds it.
+- **P3, fixed:** the new "not in the committed lock" line fired only for `complete`; a
+  source with every file present but its post-processing pending is now held to it too.
+- **P3, fixed, stale:** the NCBI note said the ClinVar cards cite the submitter rather than
+  the archive; they cite ClinVar's VCV records. The sentence predates M15.4, which repeated
+  it. The FinnGen note said its files "remain" on public storage, which was not re-checked;
+  it now says M2.3 verified it.
+- **P3, fixed:** this record said nine licences were unreviewed; there were ten, since the
+  two superseded entries share one table row. Seven were read and confirmed, one (OMIM) left,
+  and two are not applicable. The roadmap repeated the miscount.

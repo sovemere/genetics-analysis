@@ -151,6 +151,37 @@ def test_a_complete_source_missing_from_the_lock_is_said_out_loud(
     assert f"refs fetch --only {source.id}" in " ".join(human.split())
 
 
+def test_a_recorded_opt_in_is_honoured_by_the_status(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Found in M15.4's review: PharmGKB and CPIC, fetched with `--opt-in` and every file
+    present, read "blocked-by-licence", because the status never read the lock's opt-in."""
+    from genetics.refs import lock as lockfile
+    from genetics.refs import manifest
+
+    source = manifest.load().get("pharmgkb")
+    folder = tmp_path / source.id
+    folder.mkdir()
+    for item in source.files:
+        (folder / item.filename).touch()
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+
+    def locked(granted: bool) -> lockfile.Lock:
+        entry = lockfile.LockedSource(
+            version=source.version, license_id=source.license_id, opt_in_granted=granted
+        )
+        return lockfile.Lock(sources={source.id: entry})
+
+    def state() -> str:
+        rows = run_json("refs", "status")["sources"]
+        return str(next(r for r in rows if r["id"] == source.id)["state"])
+
+    monkeypatch.setattr("genetics.cli.refs_cmd.lockfile.read", lambda path: locked(False))
+    assert state() == "blocked-by-licence"
+    monkeypatch.setattr("genetics.cli.refs_cmd.lockfile.read", lambda path: locked(True))
+    assert state() != "blocked-by-licence"
+
+
 def test_refs_status_requires_provenance_for_every_post_process_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

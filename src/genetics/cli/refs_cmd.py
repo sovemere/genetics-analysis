@@ -161,7 +161,12 @@ def refs_status(
         resumable = outputs_present < len(outputs) and any(
             _process_work_present(source_dir, name) for name in outputs
         )
-        refusal = fetcher.licence_refusal(source)
+        # The opt-in the fetch recorded counts. Without it, a restricted source fetched
+        # with `--opt-in` (PharmGKB, CPIC) read "blocked-by-licence" with every file
+        # present, as if it had never been allowed (M15.4 review).
+        locked = lock.sources.get(source.id)
+        granted = [source.id] if locked is not None and locked.opt_in_granted else []
+        refusal = fetcher.licence_refusal(source, granted)
         if refusal is not None:
             state = "blocked-by-licence"
         elif source.manual is not None and not fetcher.manual_step_satisfied(source, root):
@@ -229,10 +234,11 @@ def refs_status(
                 "rerun `genetics refs fetch` to resume from the last checkpoint",
                 fg=typer.colors.CYAN,
             )
-        if row["state"] == "complete" and not row["in_lock"]:
+        if row["state"] in {"complete", "processing-required"} and not row["in_lock"]:
             # Found at M15.4: the Y tree sat complete on disk with no lock entry, so its
             # licence and digests were recorded nowhere the licence audit reads, and this
-            # report said only "complete".
+            # report said only "complete". Every file present is the condition, so a source
+            # still awaiting its post-processing is held to it too.
             typer.secho(
                 "                      not in the committed lock, so its licence and "
                 f"digests are unrecorded; `genetics refs fetch --only {row['id']}` records them",

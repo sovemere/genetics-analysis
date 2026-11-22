@@ -1,7 +1,7 @@
 # Handoff: M15.1 full run on the real file
 
-As of 2026-11-22, **M0-M14, M15.3, M15.4 and M15.6 are implemented; M15.1, the release gate's full run, is
-next**. The [project review](#project-review-before-m151)'s scopes 1 and 2 are done.
+As of 2026-11-22, **M0-M14, M15.3, M15.4 and M15.6 are implemented; M15.1, the release
+gate's full run, is next**. The [project review](#project-review-before-m151)'s scopes 1 and 2 are done.
 See [the M15.1 entry contract](#next-open-step-m151-full-run),
 [the M14.7 record](#accepted-m147-accessibility),
 [the M14.7 entry contract](#next-open-step-m147-accessibility),
@@ -655,7 +655,7 @@ What is open:
 
 <a id="project-review-before-m151"></a>
 
-### Before M15.1: an overall project review (proposed 2026-11-20; scope 1 started 2026-11-21)
+### Before M15.1: an overall project review (proposed 2026-11-20; scopes 1 and 2 done 2026-11-22)
 
 **Scope 1 is done (2026-11-21): [review_project_engine.md](review_project_engine.md)** holds
 its to-do list, findings and decisions. One P1 was found and fixed before M15.1: the
@@ -725,24 +725,39 @@ Memory should stay near the last peaks (Python 14.7 GB, Java 4.3 GB, at least 6.
 scores load one at a time, so seven more add time, not memory. The save writes the
 deep-check record, so the first read afterwards should take seconds, not 54 min.
 
-**Before starting** (checked 2026-11-20 with `genetics refs status`):
+**Before starting** (checked 2026-11-22 with `genetics refs status`, `genetics tools
+status` and `genetics doctor`, after the project review's scopes 1 and 2):
 
 1. **Choose where the network block runs** (see "What is open" above). The Windows firewall
    route needs an elevated rule that blocks the Python, Java, PLINK and R processes, and a
    check that it does, before the run. The WSL2 route needs references, tools, Java 17 and R
    installed inside Linux (the gnomAD exomes alone are 63 GB), and its timings will not be
    comparable with the table above.
-2. **Decide HLA.** The four HIBAG classifiers are `blocked-by-licence` and not fetched. To
-   include HLA: `genetics refs fetch --only <classifier> --opt-in <classifier>`, then run with
+2. **Decide HLA.** The four HIBAG classifiers are `blocked-by-licence` and not fetched; M15.4
+   confirmed that their permission is unestablished, so the opt-in is a real decision. R
+   4.6.1 and HIBAG 1.48.2 are installed and `doctor` reports them ready. To include HLA:
+   `genetics refs fetch --only <classifier> --opt-in <classifier>`, then run with
    `--hla-model-opt-in`. Without it the HLA cards say they did not run, as on 2026-11-05.
-3. **All 21 polygenic score files are fetched.** `gwas_catalog`, `panukbb_manifest` and
-   `finngen_r12` are missing; no shipped stage reads them.
-4. **Java 17** on `JAVA_HOME`: the machine's default `java` is Java 8, which the pinned bref
-   tools refuse.
+3. **References.** Every source a shipped stage reads is complete and in the committed
+   lock: all 21 polygenic score files, the Y tree (recorded at M15.4; it had been missing),
+   and PharmGKB and CPIC with their recorded opt-ins. Missing, and read by no shipped stage:
+   `gwas_catalog`, `panukbb_manifest`, `finngen_r12` and the optional gnomAD genomes.
+4. **Java 17** on `JAVA_HOME`, at
+   `%LOCALAPPDATA%/genetics-analysis/tools/java17/jdk-17.0.20.1+1-jre`: the machine's default
+   `java`, which `doctor` reports, is Java 8, and the pinned bref tools refuse it. The other
+   pinned tools (PLINK 2, PLINK 1.9, Beagle, bref3, unbref3) are installed.
 5. **Decide how to sample peak memory** across Python, Java, PLINK and R, for example a
    process sampler every few seconds that sums the run's process tree.
-6. **Run `genetics runs list --verify` first** if engine source changed since the last read
-   of a saved run, so the dashboard does not pay that check later.
+6. **Run `genetics runs list --verify` first:** engine source has changed since the last read
+   of a saved run (the review's fixes), so the dashboard would otherwise pay that check later.
+7. **The data directory must be outside the checkout.** Since M15.3 the app refuses one that
+   resolves inside it, from `GENETICS_DATA_DIR` or from `LOCALAPPDATA`. Run from an ordinary
+   shell, not a sandbox that redirects `LOCALAPPDATA`. `doctor` reported 143 GB free. The
+   `.sandbox_localappdata/` a 2026-10-16 sandbox left in the checkout holds only public
+   reference distributions and can be deleted.
+8. **Expect more `likely-artifact` tiers than on 2026-11-05.** The engine review's B1 fix lets
+   the rare-call gate fire for alleles gnomAD has seen once; that is the fix working, not a
+   regression. Record the commit the run starts from.
 
 **The command:** `genetics run --input <export> --restart`, with imputation on (the default).
 `--restart` discards parts left by an earlier interrupted run, so the timings are of a run
