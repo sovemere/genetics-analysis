@@ -87,4 +87,4 @@ eight-gene calls on the overview and gene-detail routes, including grouping/filt
 choices, unavailable stages and historical/nonstandard packs. Do not author a
 second card or infer CYP2D6 from its SNP definitions. M10.4 owns later guideline-linked
 interpretation; this review adds no dosing claims. See the
-[current handoff](handoff.md#next-open-step-m103-cyp2d6-placement).
+[current handoff](handoff_history.md#next-open-step-m103-cyp2d6-placement).

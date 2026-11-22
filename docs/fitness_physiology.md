@@ -121,7 +121,7 @@ guards, and are now rejected by five retained mutation regressions. Published
 directions and units are bound before fabricated observations and after saved
 CLI/dashboard reload. All 102 focused card tests pass; this review does not
 claim a new full-suite or native scoring run. M9.13's current entry contract
-is in the [handoff](handoff.md#next-open-step-m913-card-level-ancestry-match).
+is in the [handoff](handoff_history.md#next-open-step-m913-card-level-ancestry-match).
 
 All **2,923 unique checks pass**, with five existing Windows skips. The broad
 run passed 2,900 checks in 863.64 seconds; five failures and eighteen setup

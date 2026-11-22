@@ -91,7 +91,7 @@ checks pass, with five existing Windows skips. **M9.11 sleep and circadian is
 complete**: evening preference,
 log-transformed daily sleep including naps and ordinal sleeplessness remain
 distinct endpoints. See the [model audit](docs/sleep_circadian_prs.md) and
-[handoff](docs/handoff.md#next-open-step-m912-fitness-and-physiology).
+[handoff](docs/handoff_history.md#next-open-step-m912-fitness-and-physiology).
 All three full references, six scoring checks and six written-record reload
 validations pass, with complete models and reused full-autosomal imputation.
 All 2,885 unique checks pass with five Windows skips, all four strict type
@@ -116,7 +116,7 @@ The [M9.13 diff review](docs/review_m913_session.md) hardens frozen fit, allele
 and numeric validation and preserves damaged-run errors in card detail. All
 3,015 tests pass with five existing Windows skips; types, lint, card lint and
 fixtures pass. The
-[next-step handoff](docs/handoff.md#next-open-step-m101-pharmacogenomics-ingestion)
+[next-step handoff](docs/handoff_history.md#next-open-step-m101-pharmacogenomics-ingestion)
 records M10.1's original source-ingestion entry contract.
 
 **M10.1 pharmacogenomics ingestion is complete:** all supplied CPIC allele definitions,
@@ -128,7 +128,7 @@ licences and explicit gaps offline. All 1,354 definitions and 112,820 diplotype 
 are retained. Normalization remains partial and VKORC1 has no source phenotype table.
 The archive-specific licence audit corrects ClinPGx's non-commercial terms and records
 the CPIC database-policy scope for review. See [PGx ingestion](docs/pgx_ingestion.md)
-and the [M10.2 handoff](docs/handoff.md#next-open-step-m102-snp-tractable-diplotype-calling).
+and the [M10.2 handoff](docs/handoff_history.md#next-open-step-m102-snp-tractable-diplotype-calling).
 **M10.2 sample calling is implemented:** `genetics run` evaluates the eight
 SNP-tractable genes and freezes complete candidate evidence in bundle format 19.
 `genetics pgx calls RUN --gene CYP2C19 --json` and the dashboard inspect the same
@@ -336,7 +336,7 @@ is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the
-[M10.3 handoff](docs/handoff.md#next-open-step-m103-cyp2d6-placement).
+[M10.3 handoff](docs/handoff_history.md#next-open-step-m103-cyp2d6-placement).
 The [M10.1 diff review](docs/review_m101_session.md) fixes null guideline citation
 joins, safe atomic publication and parsing/frozen-reference validation, and updates
 the next-step contract. Complete source tables and verified mapping counts are unchanged.
@@ -344,7 +344,7 @@ Final review validation passes **3,137 native tests**, with five existing Window
 skips; four strict type targets, full card lint, fixtures, style and privacy gates pass.
 The [M9.12 diff review](docs/review_m912_session.md) adds guards against
 reversed variant claims and wrong effect units, with all 102 focused card tests
-passing. The [M9.13 handoff](docs/handoff.md#next-open-step-m913-card-level-ancestry-match)
+passing. The [M9.13 handoff](docs/handoff_history.md#next-open-step-m913-card-level-ancestry-match)
 records the ancestry context, confidence decisions and saved-run requirements.
 The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
 and pins and strengthens directed-phenotype bindings on the face and after
@@ -402,7 +402,7 @@ M8.6 adds 53 full-snapshot checks; its final native suite passed **2,524 tests**
 those same five skips, strict four-way typing, privacy gates and full card lint.
 The subsequent [diff review](docs/review_m86_session.md) fixes three validation/error
 defects and adds five regressions: **2,529 tests passed**, with the same five skips.
-The [M8.7 handoff](docs/handoff.md#m87-implementation-handoff) records its completed
+The [M8.7 handoff](docs/handoff_history.md#m87-implementation-handoff) records its completed
 acceptance matrix.
 The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
 including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture

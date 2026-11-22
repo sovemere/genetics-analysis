@@ -3,7 +3,7 @@
 Reviewed `239865f..aa75287`, the session's common-health cards, two-marker matching,
 confidence/serialization, pipeline integration, CLI/dashboard and documentation changes.
 The implementation checkpoint passed [all five CI jobs](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
-This follow-up fixes the defects below and prepares [M7.6](handoff.md#next-m76).
+This follow-up fixes the defects below and prepares [M7.6](handoff_history.md#accepted-m76-scope-retained-for-review).
 
 ## Findings and fixes
 

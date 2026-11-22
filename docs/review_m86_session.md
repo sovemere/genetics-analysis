@@ -34,7 +34,7 @@ The review does not measure biological imputation accuracy or calibrate rare cal
 ## M8.7 boundary
 
 M8.7 remains next: demonstrate that known rare observed alleles cap imputed
-findings regardless of DR2 or literature strength. The [handoff](handoff.md#m87-implementation-handoff)
+findings regardless of DR2 or literature strength. The [handoff](handoff_history.md#m87-implementation-handoff)
 specifies frequency boundaries, native sources/ploidies, incomplete frequency
 coverage, multi-marker inheritance and saved front-end parity. ClinVar retains
 original-array input; M9 owns scores, coverage and ancestry portability.

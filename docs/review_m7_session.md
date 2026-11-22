@@ -43,6 +43,6 @@ Privacy hooks remain enabled; follow-up CI exercises Windows/Linux and Python
 3.11/3.13. Its first run exposed the gzip-fixture issue recorded above; all **131
 health tests** passed after correcting that test.
 
-M7.5 is ready to start from [the handoff](handoff.md#next-m75). APOE's two-marker
+M7.5 is ready to start from [the handoff](handoff_history.md#next-m75). APOE's two-marker
 support is implementation work within M7.5; it is not already supplied by the current
 single-marker card schema. No further external prerequisite was found by this review.

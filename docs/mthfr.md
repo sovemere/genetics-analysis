@@ -212,4 +212,4 @@ These are stated with their sources, not scored:
   the Ala222Val missense, which is not pathogenic. Both skip where the indexes are absent, as
   on CI.
 
-The validation record is in the [handoff](handoff.md#accepted-m122-mthfr).
+The validation record is in the [handoff](handoff_history.md#accepted-m122-mthfr).

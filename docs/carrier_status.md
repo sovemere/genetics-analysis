@@ -372,5 +372,5 @@ reproductive --json` also gives the statement, as `current_context.sections[].ca
 
 ## Validation
 
-Recorded in the handoff: [M11.5](handoff.md#accepted-m115-carrier-status) and
-[M11.6](handoff.md#accepted-m116-carrier-screening-scope).
+Recorded in the handoff: [M11.5](handoff_history.md#accepted-m115-carrier-status) and
+[M11.6](handoff_history.md#accepted-m116-carrier-screening-scope).

@@ -71,7 +71,7 @@ and each documentation sentence against the code it describes.
   bundle; a parity run with no cards visits only the fixed searches.
 - **Handed to M14.7, not changed:** the search page carries two `role="search"` forms with
   the same label, and the `empty-query` sentence keeps the CLI's backticks. Both are in
-  the M14.5 hand-over in [the handoff](handoff.md#next-open-step-m145-qc-provenance-page).
+  the M14.5 hand-over in [the handoff](handoff_history.md#next-open-step-m145-qc-provenance-page).
 
 ## Validation
 

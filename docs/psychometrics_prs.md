@@ -198,5 +198,5 @@ synthetic tests bind the actual model before fixture substitution and verify
 evidence per card after reload; both ancestry cases reject a swapped-model
 mutation. All 51 card tests, full card lint and all six saved score/card
 revalidations pass. Native scoring and imputation were reused; the acceptance
-measurements above remain unchanged. The [M9.10 handoff](handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity)
+measurements above remain unchanged. The [M9.10 handoff](handoff_history.md#next-open-step-m910-substance-use-and-behavioural-propensity)
 records reusable private inputs and the next acceptance contract.

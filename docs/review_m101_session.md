@@ -86,7 +86,7 @@ CLI also returns the published CYP2C19 reference mapping with nine relevant
 publication rows, without computing a sample call. Raw source pins, reference
 versions and normalization counts are unchanged. Audit files stay ignored.
 
-M10.2 remains the next open item. The [handoff](handoff.md#next-open-step-m102-snp-tractable-diplotype-calling)
+M10.2 remains the next open item. The [handoff](handoff_history.md#next-open-step-m102-snp-tractable-diplotype-calling)
 starts with a versioned sample-call record and saved-bundle plan, then calling for
 the eight tractable genes. Missing markers and phase/ploidy/quality uncertainty
 must survive. Use DPYD's actual activity-score semantics, expose VKORC1's absent

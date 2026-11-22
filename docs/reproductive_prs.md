@@ -202,4 +202,4 @@ rest of the pack, with imputation on by default.
 
 ## Validation
 
-Recorded in the handoff: [M11.7](handoff.md#accepted-m117-reproductive-traits).
+Recorded in the handoff: [M11.7](handoff_history.md#accepted-m117-reproductive-traits).

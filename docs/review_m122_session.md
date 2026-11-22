@@ -78,4 +78,4 @@ checks once.
 
 ## Validation
 
-See the [handoff](handoff.md#accepted-m122-mthfr) for the reviewed state's validation.
+See the [handoff](handoff_history.md#accepted-m122-mthfr) for the reviewed state's validation.

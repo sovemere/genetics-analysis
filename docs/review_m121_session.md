@@ -85,5 +85,5 @@ checks once. That is about 54 minutes for the real imputed run. Run
 
 ## Validation
 
-See the [handoff](handoff.md#accepted-m121-nutrition-cards) for the reviewed state's
+See the [handoff](handoff_history.md#accepted-m121-nutrition-cards) for the reviewed state's
 validation.

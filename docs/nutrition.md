@@ -226,5 +226,5 @@ it is. For example, a 0.11 cups-a-day effect can rest on very strong evidence.
   ClinVar consequences of the card alleles against ClinVar. Both skip where the indexes are
   absent, as on CI.
 
-The validation record for the milestone is in the [handoff](handoff.md#accepted-m121-nutrition-cards),
+The validation record for the milestone is in the [handoff](handoff_history.md#accepted-m121-nutrition-cards),
 and the [session diff review](review_m121_session.md) records what a second read changed.

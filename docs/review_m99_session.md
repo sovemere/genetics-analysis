@@ -78,7 +78,7 @@ The unchanged renderer's browser visual check remains unavailable; existing
 synthetic HTTP and chart geometry checks pass. No new browser capture is claimed.
 No additional substantive defect was identified in the M9.9 diff.
 
-The [M9.10 handoff](handoff.md#next-open-step-m910-substance-use-and-behavioural-propensity)
+The [M9.10 handoff](handoff_history.md#next-open-step-m910-substance-use-and-behavioural-propensity)
 now specifies exact-model evidence and pre-substitution binding tests, distinct
 substance-use endpoints, reusable durable public execution inputs, full-row
 resource measurements and validation of written score/card pairs. M9.10 remains

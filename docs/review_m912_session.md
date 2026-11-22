@@ -91,5 +91,5 @@ validation emits operational pass/fail results only.
 card-level study-ancestry matching, resolve evidence-specific confidence
 policy and populate `{ancestry}` with explicit matched, mismatched, declined,
 not-run and unknown states. Selected-outcome null evidence and historical
-bundles must stay intact. The [handoff](handoff.md#next-open-step-m913-card-level-ancestry-match)
+bundles must stay intact. The [handoff](handoff_history.md#next-open-step-m913-card-level-ancestry-match)
 names current code entry points and acceptance requirements.
