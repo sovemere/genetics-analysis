@@ -565,14 +565,14 @@ vendored). This tier alone supports the great majority of planned cards.
 | **GWAS Catalog** | ~7,000 publications, 15,000+ traits, 625,000+ curated lead associations, 85,000 full summary-stat datasets, harmonised | EMBL-EBI terms; post-2021 sumstats CC0 |
 | **PGS Catalog** | 5,022 scores across 656 traits; harmonised to GRCh37 **and** GRCh38 | EBI default, **per-score varies — parse the metadata `License/Terms of Use` column (§4.8)** |
 | **ClinVar** | Full variant + classification set | US public domain |
-| **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | Free; open access |
+| **gnomAD** | v4: 62.9M SNVs, 6.2M indels with population allele frequencies — but see the build note below | **CC0** for the primary data, plus a term not to attempt re-identification (read at M15.4) |
 | **Pan-UK Biobank** | GWAS across thousands of traits, multi-ancestry | **CC BY 4.0**, explicitly unrestricted |
 | **PharmGKB + CPIC** | Clinical annotations, allele definitions, dosing guidelines. PharmGKB serves under **ClinPGx**; complete allele definitions/functions/phenotype mappings are in CPIC's database (audited M10.1, 2026-10-14) | ClinPGx archive-specific BY-SA / BY-NC-SA 4.0; CPIC curated content CC0, database additionally bound to ClinPGx policy — both database sources opt-in |
 | **1000 Genomes** | Reference panel, GRCh37, 2,504 samples / 26 populations | Open (Fort Lauderdale) |
 | **HGDP** | ~~Reference panel~~ **withdrawn by CEPH for GDPR; no GRCh37 genotype distribution survives** (checked 2026-08-22) | n/a |
 | **SGDP** | Reference panel, GRCh37 (measured), but 70 of 345 samples need a signed letter and the public 279 span 130 populations | Open (Fort Lauderdale) + per-sample gate |
 | **AADR (Allen Ancient DNA)** | v66.p1, fetched 2026-08-23. Human Origins set on disk: **584,131 markers over 27,594 individuals in 4,266 populations**, GRCh37. The 1240K set (~1.2M SNPs) is the same record if M5.6 wants it, but HO is the panel that matches an array | **CC0-1.0** (the record's own licence; this file said CC BY 4.0 until 2026-08-23) |
-| **PhyloTree 17** | mtDNA phylogeny. Parsed at M5.7 to **5,154 nodes over 4,058 rCRS positions**; frozen since 2016-02-18 | Academic use with attribution |
+| **PhyloTree 17** | mtDNA phylogeny. Parsed at M5.7 to **5,154 nodes over 4,058 rCRS positions**; frozen since 2016-02-18 | No licence stated; citation requested (read at M15.4; this row said "academic use" until then) |
 | **ISOGG Y tree via Y-LineageTracker** | Y phylogeny, **74,569 markers over 10,205 haplogroups with GRCh37 positions**. The only redistributable copy found — see §5.3 | **MIT** (the redistributor's grant; see the manifest entry for the caveat) |
 | **Europe PMC OA subset** | Full text for agent-side citation checking | CC or similar, per-article |
 
@@ -584,8 +584,11 @@ vendored). This tier alone supports the great majority of planned cards.
 2025-07-05 BY-SA release. Do not classify all archives from a catalogue-wide
 statement. CPIC's v1.60.0 release licence grants CC0 curated content, but its
 database/API paragraph also binds users to ClinPGx policy. The database manifest
-uses a separate conservative opt-in classification with this scope conflict
-retained for M15.4; it does not relicense every CPIC resource. See the
+uses a separate conservative opt-in classification; it does not relicense every CPIC
+resource. M15.4 settled the scope conflict by taking the stricter reading rather than
+choosing: the ClinPGx policy paragraph 6 points to renders only with JavaScript, and
+nothing derived from the database is committed or redistributed, so both readings are
+met. See the
 [audit and frozen reference contract](docs/pgx_ingestion.md).
 
 **gnomAD build note (measured at M2.3, 2026-08-15).** The v4 figures above describe a

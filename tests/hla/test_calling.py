@@ -841,7 +841,7 @@ def test_model_terms_and_four_pins_are_explicit() -> None:
         source = load().get("hibag_hlares_" + population + "_hg19")
         assert licence_refusal(source) is not None
         assert licence_refusal(source, [source.id]) is None
-        assert source.license.review_status == "needs-review"
+        assert source.license.review_status == "confirmed"  # read at M15.4
         assert source.files[0].sha256 and source.files[0].size_bytes
 
 

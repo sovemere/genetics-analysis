@@ -125,6 +125,32 @@ def test_gnomad_index_checkpoint_is_reported_as_resumable(
     assert source["post_process_resumable"] is True
 
 
+def test_a_complete_source_missing_from_the_lock_is_said_out_loud(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Found at M15.4: the Y tree was complete on disk and absent from the lock.
+
+    Its licence and digests were therefore recorded nowhere the licence audit reads, and
+    the human report said only "complete".
+    """
+    from genetics.refs import lock as lockfile
+    from genetics.refs import manifest
+
+    source = manifest.load().get("y_tree_isogg_grch37")
+    folder = tmp_path / source.id
+    folder.mkdir()
+    for item in source.files:
+        (folder / item.filename).touch()
+    monkeypatch.setattr("genetics.cli.refs_cmd.references_dir", lambda: tmp_path)
+    monkeypatch.setattr("genetics.cli.refs_cmd.lockfile.read", lambda path: lockfile.Lock())
+
+    row = next(r for r in run_json("refs", "status")["sources"] if r["id"] == source.id)
+    assert row["state"] == "complete" and row["in_lock"] is False
+    human = runner.invoke(app, ["refs", "status"]).stdout
+    assert "not in the committed lock" in human
+    assert f"refs fetch --only {source.id}" in " ".join(human.split())
+
+
 def test_refs_status_requires_provenance_for_every_post_process_output(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

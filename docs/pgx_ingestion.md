@@ -52,8 +52,11 @@ unavailable built-in browser; no browser verification is claimed.
 [CPIC's release licence](https://github.com/cpicpgx/cpic-data/blob/v1.60.0/LICENSE.md)
 dedicates curated content to CC0 but additionally binds database/API users to
 ClinPGx policy. The database gets a separate conservative licence classification
-and explicit `cpic` opt-in, with the scope conflict retained as `needs-review`
-for M15.4. This does not classify every CPIC resource as BY-NC-SA. Both sources
+and explicit `cpic` opt-in. M15.4 (2026-11-22) confirmed it by taking the stricter
+reading: paragraph 6 links its "these licensing and terms of use" to the ClinPGx
+policy, which could not be read, and both readings are met because the use is
+personal and non-commercial and nothing derived from the database is committed or
+redistributed. This does not classify every CPIC resource as BY-NC-SA. Both sources
 remain free to download, optional, and unvendored.
 
 ## Reference contract

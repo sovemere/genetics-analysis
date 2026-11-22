@@ -104,15 +104,13 @@
         "id": "LicenseRef-US-Government-Public-Domain",
         "name": "US Government work, public domain (NCBI)",
         "redistribution_ok": true,
-        "review_status": "needs-review",
+        "review_status": "confirmed",
         "share_alike": false,
-        "standing": "needs-review",
+        "standing": "permissive",
         "terms_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/"
       },
       "manual_step_pending": false,
-      "obligations": [
-        "classification not yet checked against the published terms (M15.4)"
-      ],
+      "obligations": [],
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "2026-08-04"
@@ -140,7 +138,7 @@
         "id": "LicenseRef-CPIC-Database-ClinPGx",
         "name": "CPIC database: CC0 curated content plus ClinPGx database/API terms",
         "redistribution_ok": true,
-        "review_status": "needs-review",
+        "review_status": "confirmed",
         "share_alike": true,
         "standing": "restricted",
         "terms_url": "https://github.com/cpicpgx/cpic-data/blob/v1.60.0/LICENSE.md"
@@ -149,8 +147,7 @@
       "obligations": [
         "attribution required on every card citing this source",
         "share-alike: derivatives inherit the licence",
-        "non-commercial use only",
-        "classification not yet checked against the published terms (M15.4)"
+        "non-commercial use only"
       ],
       "opt_in_granted": true,
       "opt_in_required": true,
@@ -179,15 +176,13 @@
         "id": "LicenseRef-US-Government-Public-Domain",
         "name": "US Government work, public domain (NCBI)",
         "redistribution_ok": true,
-        "review_status": "needs-review",
+        "review_status": "confirmed",
         "share_alike": false,
-        "standing": "needs-review",
+        "standing": "permissive",
         "terms_url": "https://www.ncbi.nlm.nih.gov/home/about/policies/"
       },
       "manual_step_pending": false,
-      "obligations": [
-        "classification not yet checked against the published terms (M15.4)"
-      ],
+      "obligations": [],
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "b157"
@@ -209,15 +204,13 @@
         "id": "LicenseRef-gnomAD-Open-Access",
         "name": "gnomAD open access (Broad Institute)",
         "redistribution_ok": true,
-        "review_status": "needs-review",
+        "review_status": "confirmed",
         "share_alike": false,
-        "standing": "needs-review",
+        "standing": "permissive",
         "terms_url": "https://gnomad.broadinstitute.org/policies"
       },
       "manual_step_pending": false,
-      "obligations": [
-        "classification not yet checked against the published terms (M15.4)"
-      ],
+      "obligations": [],
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "r2.1.1"
@@ -1037,16 +1030,15 @@
         "derivative_ok": true,
         "id": "LicenseRef-PhyloTree-Academic-Attribution",
         "name": "PhyloTree mtDNA build 17 (van Oven), citation required",
-        "redistribution_ok": true,
-        "review_status": "needs-review",
+        "redistribution_ok": false,
+        "review_status": "confirmed",
         "share_alike": false,
-        "standing": "needs-review",
+        "standing": "permissive",
         "terms_url": "https://www.phylotree.org/"
       },
       "manual_step_pending": false,
       "obligations": [
-        "attribution required on every card citing this source",
-        "classification not yet checked against the published terms (M15.4)"
+        "attribution required on every card citing this source"
       ],
       "opt_in_granted": false,
       "opt_in_required": false,
@@ -1213,19 +1205,66 @@
         "id": "LicenseRef-Fort-Lauderdale",
         "name": "Fort Lauderdale / Toronto community resource terms",
         "redistribution_ok": true,
-        "review_status": "needs-review",
+        "review_status": "confirmed",
         "share_alike": false,
-        "standing": "needs-review",
+        "standing": "permissive",
         "terms_url": "https://www.internationalgenome.org/IGSR_disclaimer"
       },
       "manual_step_pending": false,
       "obligations": [
-        "attribution required on every card citing this source",
-        "classification not yet checked against the published terms (M15.4)"
+        "attribution required on every card citing this source"
       ],
       "opt_in_granted": false,
       "opt_in_required": false,
       "version": "20130502"
+    },
+    "y_tree_isogg_grch37": {
+      "files": {
+        "ISOGG_haplogroup_info.csv": {
+          "first_seen": "2026-11-22",
+          "sha256": "a3b6c82bd61588c12d01e77aba6c13015ff1a83e627a8d140c80f63c16217ace",
+          "size_bytes": 4571406,
+          "url": "https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/ISOGG_haplogroup_info.csv"
+        },
+        "LICENSE": {
+          "first_seen": "2026-11-22",
+          "sha256": "0fa0127734439baa05f618262a97e3d46ea83f194cb58dca33a436bdae5602ee",
+          "size_bytes": 1069,
+          "url": "https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LICENSE"
+        },
+        "base_tree.nw": {
+          "first_seen": "2026-11-22",
+          "sha256": "b69285d01a77a73a882b84384ff01a2d30d3577cf3f199e8361922724c210b03",
+          "size_bytes": 221,
+          "url": "https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/base_tree.nw"
+        },
+        "haplogroup_tree_2018.txt": {
+          "first_seen": "2026-11-22",
+          "sha256": "6d074890d2bb04ac44ef75637c6a997b4d33e5e3647fcda22fd46092d05db241",
+          "size_bytes": 1168,
+          "url": "https://raw.githubusercontent.com/Shuhua-Group/Y-LineageTracker/82b14c74be95ef2d4d929ce20bf7436869f163ea/LineageTracker/Data/haplogroup_tree_2018.txt"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": true,
+        "derivative_ok": true,
+        "id": "MIT",
+        "name": "MIT License",
+        "redistribution_ok": true,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "permissive",
+        "terms_url": "https://spdx.org/licenses/MIT.html"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source"
+      ],
+      "opt_in_granted": false,
+      "opt_in_required": false,
+      "version": "82b14c74be95ef2d4d929ce20bf7436869f163ea"
     }
   }
 }

@@ -1,8 +1,7 @@
 # Handoff: M15.1 full run on the real file
 
-As of 2026-11-22, **M0-M14 and M15.3 are implemented; M15.1, the release gate's full run, is
-next**, after the [project review](#project-review-before-m151)'s remaining audits (M15.4,
-then M15.6).
+As of 2026-11-22, **M0-M14, M15.3 and M15.4 are implemented; M15.1, the release gate's full run, is
+next**, after the [project review](#project-review-before-m151)'s remaining audit, M15.6.
 See [the M15.1 entry contract](#next-open-step-m151-full-run),
 [the M14.7 record](#accepted-m147-accessibility),
 [the M14.7 entry contract](#next-open-step-m147-accessibility),
@@ -666,8 +665,11 @@ else was P3 or recorded for after M15.1. **Scope 2 (the M15.3/M15.4/M15.6 audits
 way: [review_release_audits.md](review_release_audits.md).** M15.3 closed 2026-11-21: nothing
 genotype-derived was ever committed, and two routes that could have leaked were closed (an
 in-repo `LOCALAPPDATA` was honoured as the data directory; the content scan could not see a
-genotype in JSON). Both changed engine source, which is fine before session 1. M15.4 is
-next; scopes 3–4 have not started.
+genotype in JSON). Both changed engine source, which is fine before session 1. M15.4
+closed 2026-11-22: the lock, the vendored files and the per-score PGS terms all hold; the
+Y tree was missing from the lock and is now recorded; the unreviewed licences were read.
+**Owner action before the v1 tag:** the repository has no `LICENSE` file, though
+`pyproject.toml` declares MIT. M15.6 is next; scopes 3–4 have not started.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were

@@ -15,7 +15,7 @@ identifiers and counts, never an allele.
 
 - [x] **M15.3 Privacy.** `git log --all` for any genotype-derived blob ever committed;
   `.gitignore` re-verified against every path the app writes.
-- [ ] **M15.4 Licences.** `manifest.lock` reviewed; nothing non-permissive vendored;
+- [x] **M15.4 Licences.** `manifest.lock` reviewed; nothing non-permissive vendored;
   per-score PGS licences honoured.
 - [ ] **M15.6 Citations.** Every shipped card's DOI, PMID or accession resolves.
 
@@ -124,3 +124,89 @@ A diff-driven pass over `2109b22..ef03f5a`.
   content already committed cannot land in the same commit as the fix to that content. The
   fix went first (`621ac61`), with the rest of the tree stashed so the hook saw the commit
   as it would be. `--no-verify` was not used.
+
+## M15.4 Licences (closed 2026-11-22)
+
+Terms pages were read on 2026-11-22. Two of them render only with JavaScript: gnomAD's was
+read from its source in the gnomAD browser repository, and ClinPGx's could not be read at all.
+No request carried anything about the user.
+
+### The lock
+
+**All 33 locked sources agree with the manifest and the licence registry:** licence id,
+every flag, standing, review status, version, obligations, and whether an opt-in is
+required. The two restricted sources fetched, `pharmgkb` (CC BY-NC-SA 4.0) and `cpic`, both
+record the opt-in. The lock holds public URLs, digests and licences only.
+
+- **P2, fixed: a fetched source the pipeline reads had no lock entry.** The ISOGG Y tree
+  (`y_tree_isogg_grch37`, MIT, read by the Y haplogroup caller) was complete on disk but
+  had never been in the committed lock, so its licence and digests were recorded nowhere
+  this audit reads. Git history does not show why. `genetics refs fetch --only
+  y_tree_isogg_grch37` verified the files already on disk against the manifest's pins and
+  recorded them. `refs status` now prints a line under any complete source missing from
+  the lock; a test holds it.
+
+### The worklist
+
+Nine licences were still `needs-review`, which is the worklist the registry was built to
+leave for this step. Each was read against its published terms:
+
+| Licence | Sources | Outcome |
+|---|---|---|
+| US Government public domain | ClinVar, dbSNP | **Confirmed.** NCBI "places no restrictions on the use or distribution of the data"; submitters may claim rights, and NCBI grants none of its own |
+| gnomAD | exomes (fetched), genomes | **Confirmed, and the reason corrected.** The primary data are **CC0**, plus a term CC0 does not carry: users "agree to not attempt to reidentify participants". It stays a `LicenseRef-` for that term. SpliceAI annotations (CC BY-NC) are not in the r2.1.1 VCFs read here |
+| Fort Lauderdale | 1000 Genomes (fetched); HGDP, SGDP (not) | **Confirmed.** "Available without embargo", cite; EMBL-EBI adds no restriction on use or redistribution |
+| PhyloTree | phylotree_17 (fetched) | **Confirmed, two corrections.** The site states no licence, no copyright notice and **no academic restriction**; AGENTS.md §5.1 said "academic use". `redistribution_ok` becomes false, since nothing grants it (the gate does not read it, and the tree is fetched, never vendored) |
+| FinnGen | finngen_r12 (not fetched) | **Confirmed, note corrected.** "May be freely used"; commercial use is the user's responsibility. The registry said FinnGen asks users not to re-identify participants, and the page says nothing of the kind. `redistribution_ok` becomes false |
+| CPIC database | cpic (fetched, opt-in) | **Confirmed at the stricter reading.** See below |
+| HIBAG HLARES | four classifiers (not fetched) | **Confirmed as unestablished permission.** Still no licence for the model files, which "can be used by researchers"; the opt-in stays |
+| OMIM | omim (not fetched) | **Left `needs-review`.** Never fetched, key-only, and already the most restrictive classification the table has |
+| PharmGKB BY-SA, CPIC open | none | **Not applicable.** Superseded at M10.1 and used by no source; kept so older locks and saved runs still read, now noted as such |
+
+**The CPIC scope conflict M10.1 left here:** paragraph 6 of the v1.60.0 licence says "The
+CPIC database and API are also bound by these licensing and terms of use", with the words
+linked to the ClinPGx data usage policy. That policy renders only with JavaScript and could
+not be read; ClinPGx's own archive notices say BY-NC-SA. **Decision:** keep the stricter
+classification (non-commercial, share-alike, opt-in) rather than choose between the
+readings, because this project meets both. The use is personal and non-commercial, and
+nothing derived from the database is committed or redistributed. Rejected: reclassifying
+as CC0 on the strength of the licence file's first paragraph, which paragraph 6 qualifies.
+
+After this, no source is left in `needs-review` standing (`genetics refs licenses`).
+
+### Nothing non-permissive is vendored
+
+- **Front-end:** htmx 2.0.10 (0BSD) and the Alpine CSP build 3.16.1 (MIT) match their npm
+  tarballs byte for byte. The htmx licence text matches its tarball's; Alpine's tarball ships
+  none, and the vendored text matches the repository's `LICENSE.md` at `v3.16.1`.
+- **Nothing committed is derived from a restricted source.** The PGx guideline cards hold
+  selectors and paper citations; their guideline content is read from the local fetch at
+  run time, and the PGx code embeds no allele tables. No card carries score weights. The
+  fixtures use invented frequencies.
+- **Runtime dependencies** are MIT or BSD (typer, polars, PyYAML, FastAPI, uvicorn, Jinja2).
+  PLINK, Beagle and the JRE are downloaded and executed, never vendored or linked
+  (`refs/tools.py` records why GPL does not reach output).
+
+### Per-score PGS licences were honoured
+
+The pack names 24 score ids. 21 are shipped cards' scores; three (PGS002128, PGS002215,
+PGS002822) appear only in prose as alternatives considered. **All 24 carry the EBI default
+terms** in `pgs_all_metadata_scores.csv`'s `License/Terms of Use` column, so none needs an
+opt-in. The gate holds anyway: `pgs/runner.py` refuses any score whose terms are not
+permissive before preparing its reference or reading any personal input, a run never
+grants the opt-in, and `test_not_fetched_unlicensed_and_unplaced_cards_still_render_with_reasons`
+holds the refusal. PGS000001 is fetched for the scoring tests and ships in no card.
+
+### For the owner
+
+- **The repository has no licence file.** `pyproject.toml` declares MIT and AGENTS.md
+  calls this "an MIT tree", but there is no `LICENSE`, and GitHub reports none. Without
+  one the code is all rights reserved, whatever `pyproject.toml` says. Adding one is a
+  grant only the copyright holder can make, and its first line names them, so it was not
+  done here. It belongs before the v1 tag (M15.7 or M15.8).
+
+### Effect on M15.1
+
+The lock changed (six licence blocks and the Y tree entry), and so did Python source
+(`refs/licenses.py`, `cli/refs_cmd.py`). Both are part of the saved-parts key, which is fine
+before session 1.

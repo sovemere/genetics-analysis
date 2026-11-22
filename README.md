@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M14 and M15.3 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M14, M15.3 and M15.4 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -325,10 +325,12 @@ screen reader by the title and the tier; arrow keys on a select no longer leave 
 form controls have a visible edge in both themes; and every page's markup is audited by a
 test. **M15.3, the privacy audit, is done:** nothing genotype-derived was ever committed,
 and two routes that could have leaked were closed
-([audit](docs/review_release_audits.md#m153-privacy-closed-2026-11-21)).
+([audit](docs/review_release_audits.md#m153-privacy-closed-2026-11-21)). **M15.4, the
+licence audit, is done:** the reference lock, the vendored front-end and every polygenic
+score's terms hold ([audit](docs/review_release_audits.md#m154-licences-closed-2026-11-22)).
 [M15.1, the full run on the real file](docs/handoff.md#next-open-step-m151-full-run)
 is next, after the rest of the
-[project review](docs/handoff.md#project-review-before-m151): M15.4 and M15.6 first.
+[project review](docs/handoff.md#project-review-before-m151): M15.6 first.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
 to native dosage evidence, tightens malformed-input validation and fixes error
 categories, allele uncertainty labels and reliability styling. See the

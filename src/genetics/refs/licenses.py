@@ -131,10 +131,14 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=False,
         share_alike=False,
         attribution_required=True,
-        review_status="needs-review",
+        review_status="confirmed",
         notes="Published explicitly for HLA imputation, but no separate model licence is "
         "displayed. These flags mean permission is unestablished, not an asserted prohibition. "
-        "Do not inherit the software GPL or article CC-BY. Explicit source opt-in required.",
+        "Do not inherit the software GPL or article CC-BY. Explicit source opt-in required. "
+        "Read 2026-11-22 (M15.4), page updated 2026-09-19: still no licence or terms for the "
+        "model files; they 'can be used by researchers', were estimated from GlaxoSmithKline "
+        "trials and HapMap 2, and a published analysis should cite the HIBAG papers. The "
+        "classification is confirmed as unestablished permission, which keeps the opt-in.",
     ),
     LicenseTerms(
         id="LicenseRef-HapMap-Public-Domain",
@@ -270,10 +274,13 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=False,
         attribution_required=False,
+        review_status="confirmed",
         notes=(
-            "ClinVar and dbSNP. NCBI states its databases carry no restriction on use or "
-            "redistribution; individual submitted records can carry third-party rights, "
-            "which is why the ClinVar cards cite the submitter rather than the archive."
+            "ClinVar and dbSNP. Read 2026-11-22 (M15.4): 'NCBI itself places no restrictions "
+            "on the use or distribution of the data', but submitters 'may claim patent, "
+            "copyright, or other intellectual property rights', and NCBI grants none of its "
+            "own. Hence the ClinVar cards cite the submitter rather than the archive. "
+            "Acknowledgement is requested for NLM pages, not required for the data."
         ),
     ),
     LicenseTerms(
@@ -285,11 +292,17 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=False,
         attribution_required=False,
+        review_status="confirmed",
         notes=(
-            "gnomAD publishes its aggregate frequency data for free use including "
-            "commercial, with no restriction on redistribution. Load-bearing for the "
-            "AGENTS.md 4.1 frequency gate, so a licence problem here would be a design "
-            "problem, not a fetch problem."
+            "Read 2026-11-22 (M15.4) from the policy page's source, "
+            "github.com/broadinstitute/gnomad-browser browser/about/policies/terms.md, "
+            "since the page itself renders only with JavaScript: the primary exome and "
+            "genome data are 'available free of restrictions under the Creative Commons "
+            "Zero Public Domain Dedication'; attribution is requested, not required. One "
+            "term CC0 does not carry, which is why this is not filed as CC0-1.0: 'All users "
+            "of gnomAD data agree to not attempt to reidentify participants.' SpliceAI "
+            "annotations are CC BY-NC 4.0; the r2.1.1 sites VCFs this pipeline reads carry "
+            "none. Load-bearing for the AGENTS.md 4.1 frequency gate."
         ),
     ),
     LicenseTerms(
@@ -301,10 +314,14 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=False,
         attribution_required=True,
+        review_status="confirmed",
         notes=(
-            "1000 Genomes, HGDP, SGDP. Data are unrestricted; the convention is a "
-            "publication-timing courtesy to the data producers rather than a licence "
-            "condition, and it does not constrain analysis of one's own genome."
+            "1000 Genomes, HGDP, SGDP. Read 2026-11-22 (M15.4): 1000 Genomes data are "
+            "'available without embargo, following the final publication'; use 'should be "
+            "cited'; and the EMBL-EBI terms IGSR defers to place 'no additional restrictions "
+            "on the use or redistribution of the data' beyond the original owners'. No data "
+            "licence is named. HGDP's genotypes are withdrawn and SGDP's gated samples are "
+            "not fetched; only 1000 Genomes is used under this entry."
         ),
     ),
     LicenseTerms(
@@ -353,7 +370,9 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
             "PharmGKB is the corpus behind the highest-value section in the app "
             "(AGENTS.md 3.1), so the opt-in is expected to be taken -- the point of "
             "gating it is that the share-alike obligation is recorded in the lock and "
-            "reaches M15.4, not that the data is avoided."
+            "reaches M15.4, not that the data is avoided. Superseded at M10.1, when the "
+            "October 2026 archives were found to carry BY-NC-SA notices; no source uses it, "
+            "and it stays so that a lock or saved run written before then still reads."
         ),
     ),
     LicenseTerms(
@@ -365,7 +384,11 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=False,
         attribution_required=True,
-        notes="CPIC guidelines and allele tables are freely available for any use with citation.",
+        notes=(
+            "CPIC guidelines and allele tables are freely available for any use with "
+            "citation. Superseded at M10.1 by LicenseRef-CPIC-Database-ClinPGx; no source "
+            "uses it, and it stays so that a lock or saved run written before then still reads."
+        ),
     ),
     LicenseTerms(
         id="CC-BY-NC-SA-4.0",
@@ -391,13 +414,18 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         redistribution_ok=True,
         share_alike=True,
         attribution_required=True,
-        review_status="needs-review",
+        review_status="confirmed",
         notes=(
             "Release license grants CC0 for curated content, but paragraph 6 also binds "
             "database/API users to ClinPGx data usage policy. Current ClinPGx archive notices "
-            "and site footer say BY-NC-SA; older notices say BY-SA. Conservatively gate the "
-            "database on opt-in and retain the policy conflict for M15.4. This classification "
-            "does not relicense all CPIC content as BY-NC-SA."
+            "and site footer say BY-NC-SA; older notices say BY-SA. This classification does "
+            "not relicense all CPIC content as BY-NC-SA. Settled at M15.4 (2026-11-22) by "
+            "taking the stricter reading, not by choosing between them: paragraph 6 links its "
+            "'these licensing and terms of use' to the ClinPGx policy, which renders only "
+            "with JavaScript and could not be read. Both readings are met: the use is "
+            "personal and non-commercial, nothing derived from the database is committed "
+            "(guideline cards hold selectors and paper citations, and the content is read "
+            "from the local fetch at run time), and nothing is redistributed."
         ),
     ),
     LicenseTerms(
@@ -406,10 +434,21 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         terms_url="https://www.phylotree.org/",
         commercial_ok=True,
         derivative_ok=True,
-        redistribution_ok=True,
+        redistribution_ok=False,
         share_alike=False,
         attribution_required=True,
-        notes="Build 17, frozen 2016-02-18. Cite van Oven & Kayser 2009 on every mtDNA card.",
+        review_status="confirmed",
+        notes=(
+            "Build 17, frozen 2016-02-18. Cite van Oven & Kayser 2009 on every mtDNA card. "
+            "Read 2026-11-22 (M15.4): the site states no licence, no copyright notice and no "
+            "academic or non-commercial restriction (the 'Academic' in this id predates that "
+            "reading; renaming it would change every lock and saved run that names it). It "
+            "asks for the citation and calls the tree 'a framework for evolutionary, "
+            "anthropological, medical, forensic, and genealogical researchers'. With no "
+            "grant, redistribution is not assumed; it is fetched, never vendored. What a "
+            "card takes from it is factual: which positions define which branch. Contrast "
+            "HIBAG, also unlicensed, where the model file itself is what is used."
+        ),
     ),
     LicenseTerms(
         id="LicenseRef-OMIM-No-Derivatives",
@@ -424,7 +463,9 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
             "AGENTS.md 4.8 trap 3. Forbids building a derivative database and forbids "
             "redistribution without a Johns Hopkins licence; requires a registered API key "
             "and weekly refresh. Hence user-supplied key only, never vendored, never "
-            "cached long-term -- see the manifest entry's retention policy."
+            "cached long-term -- see the manifest entry's retention policy. Left "
+            "needs-review at M15.4 (2026-11-22): never fetched, no stage reads it, and the "
+            "classification is already the most restrictive the table has."
         ),
     ),
     LicenseTerms(
@@ -433,13 +474,21 @@ _ENTRIES: tuple[LicenseTerms, ...] = (
         terms_url="https://www.finngen.fi/en/access_results",
         commercial_ok=True,
         derivative_ok=True,
-        redistribution_ok=True,
+        redistribution_ok=False,
         share_alike=False,
         attribution_required=True,
+        review_status="confirmed",
         notes=(
-            "Summary statistics only; no individual-level data is public. FinnGen asks "
-            "that the release be cited and that no attempt be made to re-identify "
-            "participants."
+            "Summary statistics only; no individual-level data is public. Read 2026-11-22 "
+            "(M15.4): 'The FinnGen results are publicly available and may be freely used by "
+            "the scientific community and other interested parties'; they 'are not intended "
+            "to serve as a basis for product development, marketing activities, or "
+            "health-related claims', and commercial use is 'the sole responsibility of the "
+            "user'. Acknowledge the study and cite Kurki et al. 2023. No licence is named and "
+            "no redistribution grant is given, so none is assumed. This note said until then "
+            "that FinnGen asked users not to re-identify participants; the page says no such "
+            "thing. The page now also offers a form that emails download instructions; the "
+            "files remain on public storage (AGENTS.md 5.2). Not fetched; no stage reads it."
         ),
     ),
 )

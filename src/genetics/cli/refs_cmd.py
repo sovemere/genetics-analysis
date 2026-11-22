@@ -229,6 +229,15 @@ def refs_status(
                 "rerun `genetics refs fetch` to resume from the last checkpoint",
                 fg=typer.colors.CYAN,
             )
+        if row["state"] == "complete" and not row["in_lock"]:
+            # Found at M15.4: the Y tree sat complete on disk with no lock entry, so its
+            # licence and digests were recorded nowhere the licence audit reads, and this
+            # report said only "complete".
+            typer.secho(
+                "                      not in the committed lock, so its licence and "
+                f"digests are unrecorded; `genetics refs fetch --only {row['id']}` records them",
+                fg=typer.colors.YELLOW,
+            )
 
     missing_required = [r for r in rows if r["required"] and r["state"] != "complete"]
     if missing_required:
