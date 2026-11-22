@@ -671,10 +671,14 @@ Y tree was missing from the lock and is now recorded; the unreviewed licences we
 **Owner action before the v1 tag:** the repository has no `LICENSE` file, though
 `pyproject.toml` declares MIT. M15.6 closed 2026-11-22: all 200 cited identifiers resolve
 to the record their card describes and none is retracted; three correction notices could
-not be read. **Scope 2 is done.** Scope 3 folds into M15.7. Scope 4 (code health) started
-2026-11-22 at the owner's request, before M15.1:
-[review_code_health.md](review_code_health.md). Its first item runs the suite across worker
-processes (17 minutes to about 3 here); its source changes land before session 1.
+not be read. **Scope 2 is done.** Scope 3 folds into M15.7. **Scope 4 (code health) is
+done** (2026-11-22, at the owner's request, before M15.1):
+[review_code_health.md](review_code_health.md). The suite runs across worker processes
+(17 minutes to about 3 here, 21 to about 8 in CI); one file lock, one computed-card
+constructor and one polygenic declaration replace copies; eight unused members are gone.
+No output changed, checked end to end on the synthetic export. Its source changes land
+before session 1. It also found that this checkout's working copy has CRLF line endings in
+60 tracked files, which a run's digests read; see item 9 of the run sheet.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were
@@ -760,6 +764,14 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
 8. **Expect more `likely-artifact` tiers than on 2026-11-05.** The engine review's B1 fix lets
    the rare-call gate fire for alleles gnomAD has seen once; that is the fix working, not a
    regression. Record the commit the run starts from.
+9. **Rewrite CRLF working copies as LF first** (found by the code health review). A run
+   digests the engine source, the knowledge pack and the tools manifest as they sit on
+   disk, and 60 tracked files here have CRLF or mixed endings, including 24 under
+   `src/genetics`, a knowledge file and `data/tools.yaml`. Git normalises them, so status is
+   clean, but the run would record digests a fresh clone of its commit cannot reproduce.
+   List them with `git ls-files --eol | grep -E "w/(crlf|mixed)"`, then delete each and
+   `git checkout -- <path>` it, before session 1 and never between sessions: an editor that
+   flips a `.py` file's endings changes `engine_sha256`, and the saved parts are not reused.
 
 **The command:** `genetics run --input <export> --restart`, with imputation on (the default).
 `--restart` discards parts left by an earlier interrupted run, so the timings are of a run

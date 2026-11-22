@@ -23,7 +23,7 @@ opened.
   `pgx/locking.py`; the computed-card assembly repeated across six modules; the polygenic
   declaration built twice.
 - [x] **3. Dead code.** Eight members removed; the rest of vulture's list is in use.
-- [ ] **4. Reconcile.** Status lines, `ci-local`, push, and the CI run.
+- [x] **4. Reconcile.** Status lines, the M15.1 run sheet's new item 9, `ci-local`, push, and the CI run.
 
 ## 1. Test-suite time (closed 2026-11-22)
 
@@ -123,6 +123,26 @@ drift apart.
 line by line in the diff). The full native suite passed: 4,518 passed, 9 skipped. It
 includes the parity tests, the saved-run round trips and the frozen historical bundles
 that are re-read and re-assembled.
+
+Then end to end: the synthetic export (`ancestry_v2_male.txt`) was run with `genetics run
+--no-impute` once on this item's code and once on `efe0ae6` (a worktree, sharing the
+installed tools and the public score-reference cache), and the two bundles compared field
+by field. Both hold the same 31 files. Every card, ClinVar, ancestry, HLA and imputation
+record is equal. What differs is the run id, its time, and digests that trace to **line
+endings, not code**: this checkout's working copy holds `knowledge/pharmacogenomics/
+guidelines.yaml` and `data/tools.yaml` with CRLF, the worktree holds them with LF, and the
+two files are byte-identical once CRLF becomes LF. So the knowledge-pack digest differs,
+and so does `tool_manifest_sha256` in each score file and the `score_sha256` and file
+digests that cover it.
+
+**Finding, for M15.1 (not a code change):** 60 tracked files in this checkout's working copy
+have CRLF or mixed line endings (24 under `src/genetics`, one knowledge file, the tools
+manifest, one file under `data/references`, the rest docs and tests). Git normalises them, so
+`git status` is clean and commits are unaffected, but a run digests the working copy. A
+run from this checkout therefore records knowledge, tool-manifest and (for `src/`) engine
+digests that a fresh clone of the same commit would not reproduce. Rewriting those files
+from the index (LF) before M15.1's first session would make the run's provenance match its
+commit. Doing it between sessions would stop saved parts from being reused.
 
 ## 3. Dead code (closed 2026-11-22)
 
