@@ -14,7 +14,6 @@ from genetics.ingest.schema import (
     Chrom,
     GenotypeTable,
     SchemaError,
-    empty_frame,
     validate_frame,
 )
 
@@ -88,7 +87,7 @@ def test_columns_match_agents_md_section_2() -> None:
 
 def test_validate_accepts_a_conforming_frame() -> None:
     validate_frame(_one_row())
-    validate_frame(empty_frame())
+    validate_frame(pl.DataFrame(schema=NORMALIZED_SCHEMA))
 
 
 def test_validate_rejects_a_missing_column() -> None:

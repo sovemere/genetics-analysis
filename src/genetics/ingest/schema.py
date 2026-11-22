@@ -194,8 +194,3 @@ class GenotypeTable(NoGenotypeRepr):
         """Rows on the given chromosomes. Convenience used all over QC."""
         wanted = [c.value for c in chroms]
         return self.frame.filter(pl.col("chrom").is_in(wanted))
-
-
-def empty_frame() -> pl.DataFrame:
-    """An empty frame with the right schema. Useful in tests and as an adapter fallback."""
-    return pl.DataFrame(schema=NORMALIZED_SCHEMA)

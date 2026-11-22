@@ -22,7 +22,7 @@ opened.
 - [x] **2. Duplication.** The file lock copied in `external/beagle.py` and
   `pgx/locking.py`; the computed-card assembly repeated across six modules; the polygenic
   declaration built twice.
-- [ ] **3. Dead code.** About four unreferenced members and about ten used only by tests.
+- [x] **3. Dead code.** Eight members removed; the rest of vulture's list is in use.
 - [ ] **4. Reconcile.** Status lines, `ci-local`, push, and the CI run.
 
 ## 1. Test-suite time (closed 2026-11-22)
@@ -123,3 +123,37 @@ drift apart.
 line by line in the diff). The full native suite passed: 4,518 passed, 9 skipped. It
 includes the parity tests, the saved-run round trips and the frozen historical bundles
 that are re-read and re-assembled.
+
+## 3. Dead code (closed 2026-11-22)
+
+**Measured first.** `vulture` at 60% confidence listed 167 names. Most are not dead: Typer
+commands, properties templates read, dataclass fields that are saved, and `_repr_fields`
+names read by `getattr`. Each name left after that was searched for across source, tests,
+scripts, templates and docs.
+
+**Removed, eight members and their eight tests:**
+
+| Member | Why it was dead |
+|---|---|
+| `refs.fetcher.cleanup_partials` | No caller. A download's `.part` is resumed or replaced by the fetcher itself |
+| `refs.manifest.Source.needs_manual_step` | No caller; it only read `manual is not None` |
+| `ingest.keys.lookup_rsids`, `add_current_rsid` | Tests only. The matcher resolves retired rsIDs itself through `MergeTable.resolve` (`engine/matcher.py`), so these were a second route nothing took |
+| `ingest.keys.locus_keys`, `MergeTable.resolve_all` | Tests only; one line each over what callers use |
+| `ingest.indels.excluded_count`, `matchable` | Tests only. `excluded_count`'s docstring said the coverage card showed it; that card counts excluded indels itself (`indel_excluded`), so the claim was stale |
+| `ingest.schema.empty_frame` | Tests only |
+| `privacy.scan_paths` | Tests only; a loop over `find_genotypes`, which the scanners call directly |
+
+**Kept, with the regression they carried.** The no-call test in `test_indels.py` (a null
+allele once made the indel mask drop every no-call from matching) and the whitelist test
+now check `matchable_mask` directly, which is what the matcher uses, instead of the removed
+wrappers.
+
+**Kept, though vulture named them:** `MergeTable.from_pairs` and `IndelPolicy.with_whitelist`
+(how tests build a merge table and AGENTS.md §4.2's explicit indel whitelist; the whitelist
+has no entries yet, so only tests build one); `Manifest.needing_opt_in` (a committed-manifest
+test reads it); `n_warnings`, `n_loci` and `n_variants` (named in `_repr_fields`);
+`ReferencePCA.n_excluded` (a result's count, tested); `resolve_all_results` (PGx calls it);
+the `modified` parameter of `_map_stats` (part of its cache key).
+
+The full native suite passed: 4,510 passed and 9 skipped, the 8 fewer being the removed
+functions' own tests.

@@ -13,10 +13,7 @@ from genetics.ingest.keys import (
     RsidResolutionStatus,
     UnresolvableRsidError,
     VariantKey,
-    add_current_rsid,
-    locus_keys,
     lookup_loci,
-    lookup_rsids,
 )
 from genetics.ingest.schema import Chrom
 from genetics.testing.fixtures import DEFAULT_FIXTURE_DIR
@@ -59,11 +56,6 @@ def test_locus_keys_are_hashable_and_ordered() -> None:
     keys = {LocusKey(Chrom.CHR2, 5), LocusKey(Chrom.CHR1, 9), LocusKey(Chrom.CHR1, 9)}
     assert len(keys) == 2
     assert sorted(keys)[0] == LocusKey(Chrom.CHR1, 9)
-
-
-def test_locus_keys_frame_has_one_row_per_marker() -> None:
-    table = read_export(fixture()).table
-    assert locus_keys(table).height == table.n_markers
 
 
 # ---------------------------------------------------------------------------
@@ -124,63 +116,9 @@ def test_unknown_rsid_is_not_an_error() -> None:
     assert table.resolve("rs999") == "rs999"
 
 
-def test_resolve_all_maps_every_input() -> None:
-    table = MergeTable.from_pairs([("rs111", "rs222")])
-    assert table.resolve_all(["rs111", "rs999"]) == {"rs111": "rs222", "rs999": "rs999"}
-
-
 # ---------------------------------------------------------------------------
 # Lookups
 # ---------------------------------------------------------------------------
-
-
-def test_add_current_rsid_preserves_the_original() -> None:
-    """A card citing a retired ID should still be able to show which marker it matched.
-    Overwriting would erase the provenance the merge table exists to supply."""
-    table = read_export(fixture()).table
-    original = table.frame.get_column("rsid").to_list()[:5]
-
-    merges = MergeTable.from_pairs([(original[0], "rs999999999")])
-    frame = add_current_rsid(table, merges)
-
-    assert frame.get_column("rsid").to_list()[:5] == original
-    assert frame.get_column("rsid_current").to_list()[0] == "rs999999999"
-    assert frame.get_column("rsid_current").to_list()[1] == original[1]
-
-
-def test_an_unresolvable_rsid_in_the_export_is_null_not_an_abort_and_not_an_identity() -> None:
-    """The third answer.
-
-    b157 carries ~23k retired IDs with zero or several current targets. Raising over one
-    of them would refuse to read a 677k-row export the user did not author; writing the
-    original back would assert the retired ID is current, which is the false identity
-    ``resolve()`` raises to prevent. Null is neither, and it propagates.
-    """
-    table = read_export(fixture()).table
-    original = table.frame.get_column("rsid").to_list()[:3]
-    merges = MergeTable(
-        {original[1]: "rs999999999"},
-        {original[0]: (RsidResolutionStatus.MULTIPLE_CURRENT_TARGETS, ("rs1", "rs2"))},
-    )
-
-    frame = add_current_rsid(table, merges)
-
-    current = frame.get_column("rsid_current").to_list()
-    assert current[0] is None
-    assert current[1] == "rs999999999"
-    assert current[2] == original[2]
-    assert frame.get_column("rsid").to_list()[:3] == original
-
-
-def test_add_current_rsid_does_not_change_the_normalized_schema() -> None:
-    """The normalized table stays the single contract; keying returns a plain frame."""
-    from genetics.ingest.schema import COLUMNS
-
-    table = read_export(fixture()).table
-    frame = add_current_rsid(table, MergeTable.empty())
-
-    assert tuple(frame.columns) == (*COLUMNS, "rsid_current")
-    assert tuple(table.frame.columns) == COLUMNS
 
 
 def test_lookup_loci_returns_the_requested_positions() -> None:
@@ -211,24 +149,3 @@ def test_lookup_loci_accepts_a_one_shot_iterable() -> None:
 def test_lookup_loci_on_an_absent_position_returns_nothing() -> None:
     table = read_export(fixture()).table
     assert lookup_loci(table, [LocusKey(Chrom.CHR1, 999_999_99)]).height == 0
-
-
-def test_lookup_rsids_resolves_a_retired_query_id() -> None:
-    """The common case: the export predates the merge, so resolution must run on both
-    sides. Resolving only the query would miss it."""
-    table = read_export(fixture()).table
-    present = str(table.frame.get_column("rsid").to_list()[0])
-
-    merges = MergeTable.from_pairs([("rs800000001", present)])
-    found = lookup_rsids(table, ["rs800000001"], merges)
-
-    assert found.height == 1
-    assert found.get_column("rsid").to_list() == [present]
-
-
-def test_lookup_rsids_without_merges_is_a_plain_lookup() -> None:
-    table = read_export(fixture()).table
-    present = str(table.frame.get_column("rsid").to_list()[0])
-
-    assert lookup_rsids(table, [present]).height == 1
-    assert lookup_rsids(table, ["rs800000001"]).height == 0

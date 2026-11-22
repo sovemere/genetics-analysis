@@ -26,7 +26,7 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from genetics.ingest.schema import INDEL_ALLELES, Chrom, GenotypeTable
+from genetics.ingest.schema import INDEL_ALLELES, Chrom
 
 
 @dataclass(frozen=True)
@@ -124,17 +124,3 @@ def matchable_mask(policy: IndelPolicy) -> pl.Expr:
     if not allowed:
         return ~is_indel_expr()
     return ~is_indel_expr() | pl.col("rsid").is_in(allowed)
-
-
-def excluded_count(table: GenotypeTable, policy: IndelPolicy) -> int:
-    """How many markers ``policy`` removes from allele matching.
-
-    Surfaced in the coverage-honesty card (M7.6): a section that silently skipped
-    thousands of markers would imply a completeness it does not have.
-    """
-    return int(table.frame.filter(~matchable_mask(policy)).height)
-
-
-def matchable(table: GenotypeTable, policy: IndelPolicy | None = None) -> pl.DataFrame:
-    """The subset of ``table`` eligible for allele matching."""
-    return table.frame.filter(matchable_mask(policy or IndelPolicy.default()))

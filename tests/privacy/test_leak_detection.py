@@ -19,7 +19,6 @@ from genetics.privacy import (
     find_genotypes,
     looks_like_genotype,
     redact,
-    scan_paths,
 )
 
 pytestmark = pytest.mark.privacy
@@ -309,11 +308,6 @@ def test_leak_error_does_not_echo_the_genotype() -> None:
         assert row not in str(exc)
     else:  # pragma: no cover
         pytest.fail("expected GenotypeLeakError")
-
-
-def test_scan_paths_returns_only_offenders() -> None:
-    findings = scan_paths([("clean.md", "no genotypes here"), ("dirty.md", ancestry_row())])
-    assert set(findings) == {"dirty.md"}
 
 
 # ---------------------------------------------------------------------------

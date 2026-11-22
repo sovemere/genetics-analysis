@@ -43,7 +43,6 @@ in one commit together, the hook fails on the old copy and cannot pass.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import ClassVar, Final
 
@@ -261,13 +260,3 @@ def assert_no_genotype(text: str, *, context: str = "") -> None:
             f"Refusing to emit genotype-like content{where}: matched {names}. "
             f"Redact it or route it through genetics.privacy.redact()."
         )
-
-
-def scan_paths(paths: Iterable[tuple[str, str]]) -> dict[str, list[Hit]]:
-    """Scan ``(label, content)`` pairs. Returns only the entries with hits."""
-    findings: dict[str, list[Hit]] = {}
-    for label, content in paths:
-        hits = find_genotypes(content)
-        if hits:
-            findings[label] = hits
-    return findings

@@ -321,10 +321,6 @@ class Source:
             return None
         return sum(f.size_bytes or 0 for f in self.files)
 
-    @property
-    def needs_manual_step(self) -> bool:
-        return self.manual is not None
-
     @classmethod
     def parse(cls, raw: Mapping[str, Any], where: str) -> Source:
         if not isinstance(raw, Mapping):

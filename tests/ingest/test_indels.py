@@ -11,9 +11,7 @@ from genetics.ingest import read_export
 from genetics.ingest.indels import (
     IndelPolicy,
     IndelRepresentation,
-    excluded_count,
     is_indel_expr,
-    matchable,
     matchable_mask,
 )
 from genetics.ingest.schema import Chrom
@@ -45,20 +43,19 @@ def representation(rsid: str = "rs900000001", source: str = "dbSNP b156") -> Ind
 
 def test_default_policy_excludes_every_indel() -> None:
     table = read_export(fixture()).table
-    kept = matchable(table, IndelPolicy.default())
+    kept = table.frame.filter(matchable_mask(IndelPolicy.default()))
 
     assert kept.filter(is_indel_expr()).height == 0
     assert kept.height < table.n_markers
 
 
-def test_excluded_count_is_the_indel_count_under_the_default() -> None:
-    """Surfaced in the coverage-honesty card (M7.6): a section that silently skipped
-    thousands of markers would imply a completeness it does not have."""
+def test_the_default_policy_excludes_exactly_the_indels() -> None:
+    """No SNP is excluded with them, and no indel is let through."""
     table = read_export(fixture()).table
     indels = table.frame.filter(is_indel_expr()).height
 
     assert indels > 0
-    assert excluded_count(table, IndelPolicy.default()) == indels
+    assert table.frame.filter(~matchable_mask(IndelPolicy.default())).height == indels
 
 
 def test_excluding_from_matching_does_not_remove_from_the_table() -> None:
@@ -78,7 +75,7 @@ def test_no_calls_are_not_excluded_by_the_indel_mask() -> None:
     set. The indel policy was quietly deciding what happens to missing genotypes.
     """
     table = read_export(fixture("ancestry_v2_high_nocall.txt")).table
-    kept = matchable(table, IndelPolicy.default())
+    kept = table.frame.filter(matchable_mask(IndelPolicy.default()))
 
     no_calls = table.frame.filter(pl.col("genotype").is_null()).height
     assert no_calls > 0
@@ -107,7 +104,8 @@ def test_whitelisted_indel_becomes_matchable() -> None:
     kept = table.frame.filter(matchable_mask(policy))
 
     assert kept.filter(pl.col("rsid") == rsid).height == 1
-    assert excluded_count(table, policy) == excluded_count(table, IndelPolicy.default()) - 1
+    excluded = table.frame.filter(~matchable_mask(policy)).height
+    assert excluded == table.frame.filter(~matchable_mask(IndelPolicy.default())).height - 1
 
 
 def test_a_representation_without_a_source_is_refused() -> None:

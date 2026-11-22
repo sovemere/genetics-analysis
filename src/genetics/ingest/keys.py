@@ -348,10 +348,6 @@ class MergeTable:
             raise UnresolvableRsidError(resolution)
         return resolution.current_rsid
 
-    def resolve_all(self, rsids: Iterable[str]) -> dict[str, str]:
-        """Resolve each rsID, raising on any dbSNP cannot resolve to a single current ID."""
-        return {rsid: self.resolve(rsid) for rsid in rsids}
-
     def resolve_all_results(self, rsids: Iterable[str]) -> dict[str, RsidResolution]:
         """Resolve each rsID, reporting rather than raising on the unresolvable ones.
 
@@ -360,44 +356,6 @@ class MergeTable:
         targets, and one of them appearing in a 677k-row file must not abort the run.
         """
         return {rsid: self.resolve_result(rsid) for rsid in rsids}
-
-
-def locus_keys(table: GenotypeTable) -> pl.DataFrame:
-    """``(chrom, pos_grch37)`` for every row, in table order."""
-    return table.frame.select("chrom", "pos_grch37")
-
-
-def add_current_rsid(table: GenotypeTable, merges: MergeTable) -> pl.DataFrame:
-    """Return the frame with a ``rsid_current`` column resolved through ``merges``.
-
-    Added as a *new* column rather than rewriting ``rsid``: the original identifier is
-    what the export actually said, and a card citing a retired ID should still be able to
-    show that this is the marker it matched. Overwriting would erase the provenance the
-    merge table exists to supply.
-
-    The normalized table's own schema is untouched -- this returns a plain frame, so
-    :data:`~genetics.ingest.schema.NORMALIZED_SCHEMA` stays the single contract.
-
-    An rsID dbSNP cannot resolve to a single current identifier gets **null**, not its
-    original value. This runs over every row of the user's export, so raising would let
-    one of b157's ~23k ambiguous retirements abort the whole ingest; but writing the
-    original back would state that the retired ID *is* current, which is the false
-    identity :meth:`MergeTable.resolve` refuses for exactly this reason. Null is the third
-    answer, and it propagates the way M1.1 made no-calls propagate.
-    """
-    if len(merges) == 0:
-        return table.frame.with_columns(pl.col("rsid").alias("rsid_current"))
-
-    mapping = merges.resolve_all_results(table.frame.get_column("rsid").unique().to_list())
-    changed: dict[str, str | None] = {
-        rsid: resolution.current_rsid
-        for rsid, resolution in mapping.items()
-        if resolution.current_rsid != rsid
-    }
-    if not changed:
-        return table.frame.with_columns(pl.col("rsid").alias("rsid_current"))
-
-    return table.frame.with_columns(pl.col("rsid").replace(changed).alias("rsid_current"))
 
 
 def lookup_loci(
@@ -425,26 +383,3 @@ def lookup_loci(
     return table.frame.with_columns(pl.col("chrom").cast(pl.String)).join(
         wanted, on=["chrom", "pos_grch37"], how="inner"
     )
-
-
-def lookup_rsids(
-    table: GenotypeTable,
-    rsids: Iterable[str],
-    merges: MergeTable | None = None,
-) -> pl.DataFrame:
-    """Rows matching any of ``rsids``, resolving retired identifiers through ``merges``.
-
-    Resolution runs on *both* sides. Resolving only the query would miss an export that
-    predates the merge -- which is the common case, since the export is fixed at the date
-    it was generated and the reference keeps moving.
-
-    The two sides handle an unresolvable identifier differently, on purpose. A *queried*
-    rsID that dbSNP says has no single current target raises: the caller asked a specific
-    question and the honest answer is that it cannot be answered. A *table* rsID gets null
-    (see :func:`add_current_rsid`): the user did not choose those 677k identifiers, and one
-    ambiguous retirement among them is not a reason to refuse to read their file.
-    """
-    table_merges = merges or MergeTable.empty()
-    frame = add_current_rsid(table, table_merges)
-    wanted = {table_merges.resolve(r) for r in rsids}
-    return frame.filter(pl.col("rsid_current").is_in(list(wanted)))

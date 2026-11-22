@@ -1407,15 +1407,3 @@ def _default_lock_path() -> Path:
     from genetics.paths import reference_lock
 
     return reference_lock()
-
-
-def cleanup_partials(root: Path) -> list[Path]:
-    """Delete every ``.part`` under ``root``. For when a resume is not wanted."""
-    removed: list[Path] = []
-    for path in sorted(root.rglob("*.part")):
-        with suppress(OSError):
-            path.unlink()
-            path.with_name(path.name + ".resume.json").unlink(missing_ok=True)
-            path.with_name(path.name + ".resume.json.tmp").unlink(missing_ok=True)
-            removed.append(path)
-    return removed
