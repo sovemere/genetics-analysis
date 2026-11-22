@@ -285,6 +285,19 @@ def _has_run(stems: Sequence[str], wanted: Sequence[str]) -> bool:
     )
 
 
+@lru_cache(maxsize=16384)
+def _passage(text: str) -> tuple[tuple[str, ...], frozenset[str], frozenset[str]]:
+    """``text``'s stems in order, its words and its stems: what scoring reads of a passage.
+
+    Cached because every query reads every passage again, and tokenizing and stemming them
+    was nearly all of a search's time. It depends on ``text`` alone, so a cached answer is
+    the answer.
+    """
+    passage = tokenize(text)
+    passage_stems = tuple(stem(word) for word in passage)
+    return passage_stems, frozenset(passage), frozenset(passage_stems)
+
+
 def _score(document: Document, query: Query) -> Hit | None:
     term_stems = tuple(stem(term) for term in query.terms)
     # The phrase is the query as typed. Matching only the searched terms would deny the
@@ -294,11 +307,9 @@ def _score(document: Document, query: Query) -> Hit | None:
     found: dict[SearchField, set[str]] = {}
     phrase = 0.0
     for field, text in document.fields:
-        passage = tokenize(text)
-        if not passage:
+        passage_stems, words, stems = _passage(text)
+        if not passage_stems:
             continue
-        passage_stems = [stem(word) for word in passage]
-        words, stems = frozenset(passage), frozenset(passage_stems)
         weight = WEIGHTS[field]
         for term, term_stem in zip(query.terms, term_stems, strict=True):
             quality = _quality(term, term_stem, words, stems)

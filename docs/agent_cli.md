@@ -649,7 +649,7 @@ follows something already settled:
   `schema` tag. Their records stay open below the top level, as `runs.show` already
   describes the same records, because each carries its own `schema_version`.
 - **JSON reachability is enough.** AGENTS.md §0 states the CLI's contract as JSON.
-- **It runs in CI as part of the suite.** `ci.yml` runs `pytest -q`, and
+- **It runs in CI as part of the suite.** `ci.yml` runs `pytest -q -n auto`, and
   `genetics ci-local` runs the same steps. `tests/test_parity.py` needs no native tool and
   no reference, so it runs on every job of the matrix.
 

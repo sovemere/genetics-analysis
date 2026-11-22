@@ -102,8 +102,9 @@ jobs:
       - name: Install HIBAG for synthetic HIBAG acceptance
         run: Rscript -e "install.packages('BiocManager')" -e "BiocManager::install('HIBAG', ask = FALSE, update = FALSE)" -e "library(HIBAG)"
 
+      # Across one worker process per core (pytest-xdist): about 17 minutes on one core.
       - name: Tests
-        run: uv run pytest -q
+        run: uv run pytest -q -n auto
         env:
           GENETICS_ROH_TEST_TOOLS: ${{ runner.temp }}/genetics-native/tools
           GENETICS_BEAGLE_TEST_TOOLS: ${{ runner.temp }}/genetics-native/tools

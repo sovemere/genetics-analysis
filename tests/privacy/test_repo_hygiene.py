@@ -38,15 +38,43 @@ def _tracked_files() -> list[str]:
     return [chunk.decode("utf-8", errors="surrogateescape") for chunk in raw.split(b"\0") if chunk]
 
 
-def _committed_blob(rel: str) -> bytes | None:
-    """Bytes of ``rel`` as git stores it, not as the working tree happens to hold it."""
-    result = subprocess.run(
-        ["git", "show", f"HEAD:{rel}"],
-        cwd=repo_root(),
+def _committed_blobs() -> dict[str, bytes]:
+    """Every file in ``HEAD`` as git stores it, not as the working tree happens to hold it.
+
+    Two git processes for the whole tree: ``ls-tree`` names each path's blob, and one
+    ``cat-file --batch`` reads them all. A ``git show`` per file cost a process each, which
+    on Windows was most of this suite's slowest privacy test.
+    """
+    root = repo_root()
+    listing = subprocess.run(
+        ["git", "ls-tree", "-r", "-z", "HEAD"], cwd=root, capture_output=True, check=True
+    ).stdout
+    blobs: dict[str, str] = {}
+    for entry in listing.split(b"\0"):
+        if not entry:
+            continue
+        meta, _, name = entry.partition(b"\t")
+        _mode, kind, object_id = meta.split(b" ")
+        if kind == b"blob":
+            blobs[name.decode("utf-8", errors="surrogateescape")] = object_id.decode("ascii")
+    stream = subprocess.run(
+        ["git", "cat-file", "--batch"],
+        cwd=root,
+        input="".join(f"{sha}\n" for sha in blobs.values()).encode("ascii"),
         capture_output=True,
-        check=False,
-    )
-    return result.stdout if result.returncode == 0 else None
+        check=True,
+    ).stdout
+    contents: dict[str, bytes] = {}
+    offset = 0
+    for path, sha in blobs.items():
+        header_end = stream.index(b"\n", offset)
+        header = stream[offset:header_end].split(b" ")
+        assert header[0].decode("ascii") == sha and header[1] == b"blob", header
+        size = int(header[2])
+        contents[path] = stream[header_end + 1 : header_end + 1 + size]
+        offset = header_end + 1 + size + 1  # the newline cat-file writes after each object
+    assert offset == len(stream), "cat-file returned more than was asked for"
+    return contents
 
 
 @requires_git
@@ -63,6 +91,7 @@ def test_no_tracked_file_contains_genotype_content() -> None:
     seeded RNG and never derived from a real export (AGENTS.md 1.2).
     """
     offenders: list[str] = []
+    committed = _committed_blobs()
 
     for rel in _tracked_files():
         if is_allowlisted(rel):
@@ -74,7 +103,7 @@ def test_no_tracked_file_contains_genotype_content() -> None:
         # git and then the bytes from disk judges the wrong thing in both directions: a
         # leak already committed passes once the working copy is cleaned, and an
         # uncommitted local edit fails CI for content that was never pushed.
-        raw = _committed_blob(rel)
+        raw = committed.get(rel)
         if raw is None:
             continue  # staged but never committed; the pre-commit guard covers that
         try:

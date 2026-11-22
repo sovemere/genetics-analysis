@@ -671,8 +671,10 @@ Y tree was missing from the lock and is now recorded; the unreviewed licences we
 **Owner action before the v1 tag:** the repository has no `LICENSE` file, though
 `pyproject.toml` declares MIT. M15.6 closed 2026-11-22: all 200 cited identifiers resolve
 to the record their card describes and none is retracted; three correction notices could
-not be read. **Scope 2 is done.** Scope 3 folds into M15.7; scope 4 has not started and is
-not needed before M15.1, which is next.
+not be read. **Scope 2 is done.** Scope 3 folds into M15.7. Scope 4 (code health) started
+2026-11-22 at the owner's request, before M15.1:
+[review_code_health.md](review_code_health.md). Its first item runs the suite across worker
+processes (17 minutes to about 3 here); its source changes land before session 1.
 
 Every milestone was reviewed on its own diff; nothing has yet looked at the project whole
 (about 63,000 lines of source, 60,000 of tests, 41 review records). Four scopes were

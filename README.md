@@ -429,7 +429,11 @@ uv venv --python 3.11
 uv pip install -e ".[dev]"
 uv run --no-sync genetics install-hooks
 uv run --no-sync genetics --help
+uv run --no-sync pytest -q -n auto
 ```
+
+`-n auto` runs the suite across one worker process per core (pytest-xdist), as CI does:
+about 3 minutes on 16 cores, against 17 on one. Leave it off to run a single test file.
 
 Before pushing, `genetics ci-local` runs the GitHub CI checks in `.github/workflows/ci.yml`
 on this machine. It reads the steps from the workflow and runs them in a fresh clone of

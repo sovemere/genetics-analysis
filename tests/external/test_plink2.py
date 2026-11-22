@@ -393,7 +393,10 @@ sys.exit(2)
 def test_a_timeout_is_reported_as_a_run_failure(
     tmp_path: Path, stub_plink2: Callable[[str], Plink2]
 ) -> None:
-    plink = stub_plink2("import time\ntime.sleep(30)\n")
+    # Three seconds, not thirty: on Windows the stub is a .cmd launcher, and killing it
+    # leaves its Python child holding the output pipes until the sleep ends, so this test
+    # took the whole sleep. The real binary has no launcher between it and the kill.
+    plink = stub_plink2("import time\ntime.sleep(3)\n")
 
     with pytest.raises(Plink2RunError) as excinfo:
         plink.run(["--pca"], out=tmp_path / "s", timeout=0.5)

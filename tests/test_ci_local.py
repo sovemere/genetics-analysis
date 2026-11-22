@@ -24,8 +24,8 @@ def test_the_real_workflow_is_fully_understood() -> None:
     assert [c for c in commands if c[0] == "mypy"] == [
         ("mypy", "--platform", platform) for platform in ci.TYPE_PLATFORMS
     ]
-    assert ("pytest", "-q") in commands
-    tests = next(step for step in steps if step.command == ("pytest", "-q"))
+    assert ("pytest", "-q", "-n", "auto") in commands
+    tests = next(step for step in steps if step.command == ("pytest", "-q", "-n", "auto"))
     assert {"GENETICS_ROH_TEST_TOOLS", "GENETICS_BEAGLE_TEST_TOOLS"} <= set(tests.env)
     installs = [step for step in steps if step.command[:3] == ("genetics", "tools", "install")]
     assert installs and all(step.env == ("GENETICS_DATA_DIR",) for step in installs)

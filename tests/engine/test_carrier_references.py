@@ -6,6 +6,7 @@ are absent, as on CI. Only public reference records are read; no genotype is inv
 
 from __future__ import annotations
 
+import functools
 import json
 import sqlite3
 from contextlib import closing
@@ -70,15 +71,38 @@ def test_the_pathogenic_allele_has_a_usable_gnomad_frequency(entry: CarrierEntry
     assert any(c["an"] and c["ac"][0] for c in counts.values()), entry.card_id
 
 
+@functools.cache
 def _scope() -> dict[str, Any]:
     scope = pack_scope(KnowledgePack.load(ROOT / "knowledge"))
     assert scope is not None
     return scope
 
 
-def _dbsnp(rsids: list[str]) -> dict[str, dict[str, Any]]:
-    rows = pl.scan_parquet(DBSNP).filter(pl.col("rsid").is_in(rsids)).collect()
+def _declared_rsids() -> frozenset[str]:
+    scope = _scope()
+    return frozenset(
+        [entry["rsid"] for entry in scope["panel"]["entries"]]
+        + [allele["rsid"] for allele in scope["declaration"]["excluded_alleles"]]
+    )
+
+
+@functools.cache
+def _dbsnp_declared() -> dict[str, dict[str, Any]]:
+    """dbSNP's record for every rsID the scope declares, read in one scan of the index.
+
+    Each test scanning the index for its own rsIDs cost about ten seconds a test.
+    """
+    wanted = sorted(_declared_rsids())
+    rows = pl.scan_parquet(DBSNP).filter(pl.col("rsid").is_in(wanted)).collect()
     return {row["rsid"]: row for row in rows.iter_rows(named=True)}
+
+
+def _dbsnp(rsids: list[str]) -> dict[str, dict[str, Any]]:
+    """dbSNP's records for ``rsids``, which must be ones the scope declares."""
+    undeclared = set(rsids) - _declared_rsids()
+    assert not undeclared, f"not declared by the scope, so not read: {sorted(undeclared)}"
+    declared = _dbsnp_declared()
+    return {rsid: declared[rsid] for rsid in rsids if rsid in declared}
 
 
 @pytest.mark.skipif(not DBSNP.is_file(), reason="pinned dbSNP index not fetched")

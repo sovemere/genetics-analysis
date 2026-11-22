@@ -57,6 +57,9 @@ dev = [
     # the CLI prints the schema and never validates against it at run time.
     "jsonschema>=4.23",
     "types-jsonschema>=4.23",
+    # Scope 4 of the pre-M15.1 project review: the suite runs its tests across worker
+    # processes (`-n auto`), taking 17 minutes on one core to a few on all of them.
+    "pytest-xdist>=3.6",
 ]
 
 [project.scripts]
