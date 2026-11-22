@@ -1,6 +1,8 @@
 # Handoff: M15.1 full run on the real file
 
-As of 2026-11-20, **M0-M14 are implemented; M15.1, the release gate's full run, is next**.
+As of 2026-11-22, **M0-M14 and M15.3 are implemented; M15.1, the release gate's full run, is
+next**, after the [project review](#project-review-before-m151)'s remaining audits (M15.4,
+then M15.6).
 See [the M15.1 entry contract](#next-open-step-m151-full-run),
 [the M14.7 record](#accepted-m147-accessibility),
 [the M14.7 entry contract](#next-open-step-m147-accessibility),

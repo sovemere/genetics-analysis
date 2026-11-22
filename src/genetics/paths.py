@@ -46,6 +46,10 @@ def user_data_dir() -> Path:
     declare, so a run bundle under some arbitrary in-repo directory is only partly
     caught -- ``x.run.json`` matches a pattern, but ``run_001/cards.json`` does not.
     Failing loudly here is the difference between an error message and a published genome.
+
+    The platform default is held to the same rule (M15.3): ``LOCALAPPDATA``,
+    ``XDG_DATA_HOME`` or a home directory that points into the checkout is refused too,
+    since a sandbox that sets one to its working directory is not unusual.
     """
     override = os.environ.get(_DATA_DIR_ENV)
     if override:
@@ -58,27 +62,31 @@ def user_data_dir() -> Path:
             )
         return resolved
 
-    if sys.platform == "win32":
-        variable = "LOCALAPPDATA"
-        base = os.environ.get(variable) or (Path.home() / "AppData" / "Local")
-    elif sys.platform == "darwin":
-        variable = "HOME"
-        base = Path.home() / "Library" / "Application Support"
+    variable = {"win32": "LOCALAPPDATA", "darwin": None}.get(sys.platform, "XDG_DATA_HOME")
+    configured = os.environ.get(variable) if variable else None
+    if configured:
+        base = Path(configured)
+        cause = variable
     else:
-        variable = "XDG_DATA_HOME"
-        base = os.environ.get(variable) or (Path.home() / ".local" / "share")
+        cause = "the home directory"
+        if sys.platform == "win32":
+            base = Path.home() / "AppData" / "Local"
+        elif sys.platform == "darwin":
+            base = Path.home() / "Library" / "Application Support"
+        else:
+            base = Path.home() / ".local" / "share"
 
     # The platform default gets the same refusal as the override (M15.3). A sandbox that
     # points LOCALAPPDATA or HOME at the working directory is ordinary, and once did here:
     # the app made its data directory inside the checkout and wrote its cache there, and a
     # run bundle under it (``runs/<id>/cards.json``) matches no ignore rule.
-    resolved = (Path(base) / APP_NAME).resolve()
+    resolved = (base / APP_NAME).resolve()
     if is_inside_repo(resolved):
         raise UnsafeDataDirError(
             f"The default data directory resolves inside the repository ({resolved}), "
-            f"because {variable} or the home directory points into the checkout. Analysis "
-            f"output is genotype data and must live outside it (AGENTS.md 1.5). Set "
-            f"{_DATA_DIR_ENV} to a path elsewhere on disk."
+            f"because {cause} points into the checkout. Analysis output is genotype data "
+            f"and must live outside it (AGENTS.md 1.5). Set {_DATA_DIR_ENV} to a path "
+            "elsewhere on disk."
         )
     return resolved
 

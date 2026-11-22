@@ -13,8 +13,8 @@ Calibration note: patterns favour precision over recall. A scanner that cries wo
 bypassed, and a bypassed scanner protects nothing. They match the *shapes* that carry
 genotypes rather than trying to spot any pair of letters.
 
-Separator forms, and why there are three
-----------------------------------------
+The shapes, and why there are five
+----------------------------------
 A genotype row reaches a file in more than one shape, and an early version of this module
 only recognised the first:
 
@@ -30,6 +30,14 @@ only recognised the first:
   none of the whitespace-separated patterns. Pasting a query result into a doc, an
   issue, or a notebook cell is a leak route, and a markdown table is the same shape.
 * **Keyed** -- ``rsid=..., a1=..., a2=...``, the shape a dataclass ``repr`` produces.
+* **Quoted keys** -- ``"rsid": ...`` beside ``"genotype": ...``, as JSON and a ``dict``
+  repr write them. Added at M15.3: it is what ``genetics runs card --json`` prints, and
+  no earlier pattern matched it.
+
+Adding a pattern can flag content that is already committed, and the repo-hygiene test
+reads the committed copy while the pre-commit hook imports this module from the working
+tree. So the flagged content is fixed in one commit and the pattern added in the next;
+in one commit together, the hook fails on the old copy and cannot pass.
 """
 
 from __future__ import annotations

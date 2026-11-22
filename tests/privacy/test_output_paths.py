@@ -89,9 +89,13 @@ def test_platform_default_inside_the_repo_is_rejected(monkeypatch: pytest.Monkey
     monkeypatch.setenv("XDG_DATA_HOME", str(inside))
     if sys.platform == "darwin":
         monkeypatch.setattr(paths.Path, "home", classmethod(lambda cls: inside))
+    cause = {"win32": "LOCALAPPDATA", "darwin": "the home directory"}.get(
+        sys.platform, "XDG_DATA_HOME"
+    )
     for factory in (user_data_dir, runs_dir, cache_dir, app_write_paths):
-        with pytest.raises(UnsafeDataDirError, match="GENETICS_DATA_DIR"):
+        with pytest.raises(UnsafeDataDirError, match="GENETICS_DATA_DIR") as raised:
             factory()
+        assert f"because {cause} points" in str(raised.value)
 
 
 def test_platform_default_outside_the_repo_is_honoured(

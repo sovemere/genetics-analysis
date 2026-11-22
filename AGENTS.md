@@ -126,7 +126,10 @@ network call that skips it.
 
 **1.5 — Default to writing outside the repo.** Analysis runs default to an OS user-data
 directory (`%LOCALAPPDATA%/genetics-analysis/runs` on Windows). In-repo paths are
-opt-in and gitignored as a second line of defense, not the first.
+opt-in and gitignored as a second line of defense, not the first. A data directory that
+resolves inside the checkout is refused, whether it comes from `GENETICS_DATA_DIR` or from
+the platform default (`LOCALAPPDATA`, `XDG_DATA_HOME`, the home directory) — a sandbox
+that points one at its working directory is ordinary (M15.3).
 
 **1.6 — Before any commit, verify.** `git status --porcelain` must not list any
 genotype-derived path. If you added a new output type, add its pattern to `.gitignore`

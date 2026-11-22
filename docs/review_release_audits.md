@@ -99,3 +99,28 @@ rule held for one route only: neither leaked anything, and either could have.
 
 **Not read:** the `tmp/` directory's older test workspaces, three of which deny listing; it
 is ignored (`/tmp/`) and nothing writes there now.
+
+### Second pass after the commit (2026-11-22)
+
+A diff-driven pass over `2109b22..ef03f5a`.
+
+- **The new pattern does not refuse correct output.** `assert_no_genotype` scans the
+  bundle's manifest, QC report and ancestry record at save time, `runs list`, `runs qc`,
+  `runs imputation`, every `cards` command, outbound requests and two dashboard partials. A
+  false positive in the save-time scans would fail M15.1 at its last stage, so each was
+  checked: none emits a quoted `rsid` beside a call key (the call keys live only in
+  `cards.run.json` and the card detail views, which are not scanned by design), and
+  `cards evidence`, text and JSON, passes for all 119 cards in the pack, as do `cards guide`
+  and `cards search`. `redact` may now cover up to 600 characters around a hit, which errs
+  toward hiding more.
+- **P3, fixed:** the refusal said "because HOME or the home directory points into the
+  checkout" on macOS, and named `LOCALAPPDATA` on Windows when it was unset and the home
+  directory was the cause. It now names whichever one it read; a test holds the wording.
+- **P3, fixed, stale:** `privacy.py`'s docstring said there were three shapes and listed
+  four; it lists five and says how to add a sixth (below). `user_data_dir`'s docstring and
+  AGENTS.md §1.5 said only the override was refused.
+- **Recorded for the next pattern:** the repo-hygiene test reads the committed copy while
+  the pre-commit hook imports `privacy.py` from the working tree, so a pattern that flags
+  content already committed cannot land in the same commit as the fix to that content. The
+  fix went first (`621ac61`), with the rest of the tree stashed so the hook saw the commit
+  as it would be. `--no-verify` was not used.
