@@ -24,7 +24,7 @@
 # session-<n>.summary.json, which is what the M15.1 record is written from: wall-clock, how
 # the session ended, whether it resumed, peak memory of the whole process tree and of each
 # program, minimum free memory, whether the block held throughout, and the progress lines
-# with each digit replaced by '#', each timed from the session start.
+# with each digest and digit masked, each timed from the session start.
 param(
     [Parameter(Mandatory)][string]$Export,
     [Parameter(Mandatory)][ValidateRange(1, 3)][int]$Session,
@@ -145,6 +145,15 @@ $script:position = 0; $script:pending = ''
 $stoppedBy = $null; $resumed = $false; $partsLine = $null
 $peakTotal = 0; $peakAt = 0; $peakByProgram = @{}; $atPeak = @{}; $minFree = [double]::MaxValue
 $blockLiftedAt = $null; $lastBlockCheck = Get-Date; $lastSummary = Get-Date
+$treePids = @{}
+
+function Hide-Detail([string]$line) {
+    # A digest (a parts folder is named by one) can single out the export; a digit can be a
+    # count, a position or an allele dose. Neither belongs in what an agent reads.
+    $hidden = ($line -replace '[0-9a-fA-F]{16,}', '<digest>') -replace '\d', '#'
+    if ($hidden.Length -gt 200) { $hidden = $hidden.Substring(0, 200) + '...' }
+    return $hidden
+}
 
 function Read-NewLines {
     if (-not (Test-Path $stderrPath)) { return @() }
@@ -181,6 +190,8 @@ function Write-Summary([bool]$final) {
         peak_tree_at_min        = $peakAt
         at_peak_by_program_gb   = $atPeak
         peak_by_program_gb      = $peakByProgram
+        # netblock.ps1 report names refusals by process id; these are the run's own.
+        tree_pids               = @($treePids.Keys | Sort-Object)
         min_free_memory_gb      = if ($minFree -lt [double]::MaxValue) { [math]::Round($minFree / 1GB, 2) } else { $null }
         events                  = $events
     } | ConvertTo-Json -Depth 4 | Set-Content -Path $summaryPath -Encoding UTF8
@@ -190,8 +201,7 @@ while (-not $proc.HasExited) {
     Start-Sleep -Seconds 5
     $elapsed = [math]::Round(((Get-Date) - $start).TotalMinutes, 2)
     foreach ($line in (Read-NewLines)) {
-        $hidden = $line -replace '\d', '#'
-        if ($hidden.Length -gt 200) { $hidden = $hidden.Substring(0, 200) + '...' }
+        $hidden = Hide-Detail $line
         [void]$events.Add([ordered]@{ t_min = $elapsed; line = $hidden })
         if ($line -match $resuming) { $resumed = $true; $partsLine = $hidden }
         if ($line -match $notResuming) {
@@ -206,6 +216,7 @@ while (-not $proc.HasExited) {
     $tree = Get-Tree $proc.Id $all
     $total = 0; $now = @{}
     foreach ($p in $tree) {
+        $treePids[[int]$p.ProcessId] = $p.Name.ToLower()
         $total += [double]$p.WorkingSetSize
         $name = $p.Name.ToLower()
         $now[$name] = [math]::Round(([double]$p.WorkingSetSize + ($now[$name] * 1GB)) / 1GB, 2)
@@ -226,7 +237,7 @@ while (-not $proc.HasExited) {
 }
 $proc.WaitForExit()
 foreach ($line in @(Read-NewLines) + @($script:pending | Where-Object { $_.Trim() })) {
-    [void]$events.Add([ordered]@{ t_min = [math]::Round(((Get-Date) - $start).TotalMinutes, 2); line = ($line -replace '\d', '#') })
+    [void]$events.Add([ordered]@{ t_min = [math]::Round(((Get-Date) - $start).TotalMinutes, 2); line = (Hide-Detail $line) })
 }
 Write-Summary $true
 $how = if ($stoppedBy) { "stopped ($stoppedBy)" } else { "ended with exit code $($proc.ExitCode)" }

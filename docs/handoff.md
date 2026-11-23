@@ -8,7 +8,9 @@ As of 2026-11-23, **M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented**, a
 scopes 1, 2 and 4 of the [project review](#project-review-before-m151). **M15.1**, the full
 run on the real file, is next; it is the owner's step, and its [run sheet](#m151-run-sheet)
 is below. [M15.2](#m152-record) passed and fixed two defects on the way, one of which
-would have stopped M15.1's first command.
+would have stopped M15.1's first command. M15.1 is prepared and waits for the owner: HLA is
+opted in, and the network block is [option A](#m151-network-block), a Windows Firewall block
+scripted in `scripts/windows/m151/` with a runner for each session.
 
 <a id="m152-record"></a>
 
@@ -134,12 +136,14 @@ What is open:
   the owner asks, and nothing from it (a card, a count that echoes a call, a log line) goes
   into a commit, an issue, a search or a prompt (§1.1, §1.3). Only wall-clock, peak memory,
   stage timings and pass or fail belong in the progress log.
-- **Where the network block runs.** The primary platform is Windows, where M4.10 skips. A
-  full run under the namespace needs Linux or WSL2 with the references and tools present
-  there; whether that is the route, or a Windows firewall rule run elevated once, is the
-  owner's decision.
-- **How peak memory is measured** (run sheet item 5) across child processes (Beagle's JVM, PLINK, R) and not
-  only the Python process.
+- **The network block is decided: option A, a Windows Firewall block (2026-11-23).** M4.10's
+  namespace skips on Windows, and the owner chose a firewall block of every outbound
+  connection on the machine, with Claude Code's own process as the one exception, over WSL2
+  or per-program rules. It is in `scripts/windows/m151/` and was tested; see
+  [the network block](#m151-network-block) below.
+- **Peak memory** is sampled across the run's whole process tree (Beagle's JVM, PLINK, R) by
+  `scripts/windows/m151/run_session.ps1`, which also runs each session (run sheet item 5).
+- **When:** the owner will start M15.1 later; it is prepared, not started.
 
 <a id="project-review-before-m151"></a>
 
@@ -188,11 +192,11 @@ deep-check record, so the first read afterwards should take seconds, not 54 min.
 **Before starting** (checked 2026-11-22 with `genetics refs status`, `genetics tools
 status` and `genetics doctor`, after the project review's scopes 1 and 2):
 
-1. **Choose where the network block runs** (see "What is open" above). The Windows firewall
-   route needs an elevated rule that blocks the Python, Java, PLINK and R processes, and a
-   check that it does, before the run. The WSL2 route needs references, tools, Java 17 and R
-   installed inside Linux (the gnomAD exomes alone are 63 GB), and its timings will not be
-   comparable with the table above.
+1. **The network block is option A (decided 2026-11-23)**: Windows Firewall refuses every
+   outbound connection except Claude Code's, for the length of each session. See
+   [the network block](#m151-network-block) for how it works, how it was tested and what it
+   does not cover. WSL2 was not chosen: it needs the references (63 GB of gnomAD exomes
+   alone), tools, Java 17 and R inside Linux, and its timings would not be comparable.
 2. **HLA is included (decided 2026-11-23).** The owner opted in to the four HIBAG
    classifiers, whose model licence M15.4 confirmed is unestablished rather than
    prohibitive; they are fetched, recorded in the lock with `opt_in_granted`, and `refs
@@ -209,8 +213,11 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
    `%LOCALAPPDATA%/genetics-analysis/tools/java17/jdk-17.0.20.1+1-jre`: the machine's default
    `java`, which `doctor` reports, is Java 8, and the pinned bref tools refuse it. The other
    pinned tools (PLINK 2, PLINK 1.9, Beagle, bref3, unbref3) are installed.
-5. **Decide how to sample peak memory** across Python, Java, PLINK and R, for example a
-   process sampler every few seconds that sums the run's process tree.
+   `run_session.ps1` sets `JAVA_HOME` and `PATH` to it for the run.
+5. **Peak memory is sampled by `run_session.ps1`**: every 5 s it sums the working set of the
+   run's whole process tree, and keeps each program's own peak as Windows tracks it
+   (`PeakWorkingSetSize`, so a spike between samples still counts) and the lowest free
+   memory seen.
 6. **Run `genetics runs list --verify` first:** engine source has changed since the last read
    of a saved run (the review's fixes), so the dashboard would otherwise pay that check later.
    It repeats the deep checks for every saved run, about an hour per imputed run, whatever
@@ -239,6 +246,30 @@ on (the default).
 from the start. Use `--restart` for the first session only; see the next paragraph. Progress goes to stderr; keep it, since it carries the stage timings.
 Until M15.2 this flag was not reachable from the command line; it is now, and a test holds it.
 
+**Each session runs through the scripts, in this order** (all in `scripts/windows/m151/`,
+started with `powershell -ExecutionPolicy Bypass -File <script> ...`):
+
+1. `netblock.ps1 apply`: a UAC prompt, then the block (see [below](#m151-network-block)).
+2. `run_session.ps1 -Export <export> -Session <n>`, from Windows PowerShell, not the Store
+   `pwsh` (which its own package rule exempts from the block). It runs the command above
+   (`--restart` in session 1 only) after refusing to start unless `netblock.ps1 check`
+   proves the block, the checkout is clean with no CRLF working copy (item 9), and, in
+   sessions 2 and 3, the commit and environment (installed packages, R and HIBAG, Java, the
+   `GENETICS_*` overrides) are those session 1 recorded. Session 1 stops itself at the
+   line in the table below; a later session stops itself at once if the run is not
+   resuming. `-StopAfterHours 4` ends session 2. Parts are written whole and renamed into
+   place, so a stop loses only the part in progress.
+3. `netblock.ps1 restore` (a UAC prompt), then `netblock.ps1 report`.
+
+`run_session.ps1` keeps the run's stdout and stderr whole under
+`%LOCALAPPDATA%\genetics-analysis\m151` and writes `session-<n>.summary.json` beside them:
+wall-clock, how the session ended, whether it resumed, peak memory, whether the block held
+throughout, the process ids of the run's tree, and each progress line timed from the start
+with every digit and digest masked. An agent reads the summary, never the raw logs. It was
+tried on 2026-11-23 on a synthetic export, without the block: session 1 stopped on time and
+took its whole process tree down; session 2 saw that nothing was saved and stopped before
+redoing work.
+
 **If a session stops on an error, resume it.** M15.2 saw one transient "PLINK reference
 scoring failed" that the same command, without `--restart`, then got past; only the score in
 progress is repeated. Record the error line (it is categorical and names no genotype).
@@ -246,13 +277,13 @@ progress is repeated. Record the error line (it is categorical and names no geno
 **Running it in sessions.** The run does not have to be one sitting. `genetics run` saves
 its long parts as they finish (`run/parts.py`): the imputation, the dose read, each
 polygenic score, and the PGx and HLA calls. Running the same command again without
-`--restart` resumes after the last one saved. There is no option to stop at a stage, so
-each session ends with Ctrl+C at a line that follows a saved part:
+`--restart` resumes after the last one saved. `genetics run` has no option to stop at a
+stage, so `run_session.ps1` ends each session at a line that follows a saved part:
 
 | Session | Covers | About | Stop at |
 |---|---|---|---|
-| 1 | score references, ingest, ancestry, imputation | 3¾–4 h | `Reading imputed doses once for card inputs, polygenic scores and PGx ...`, which is printed just after the imputation part is saved |
-| 2 | dose read, ClinVar, ROH, archaic, most scores | about 4 h | any point once the dose read is done; each score is saved as it finishes, so only the score in progress is lost |
+| 1 | score references, ingest, ancestry, imputation | 3¾–4 h | `Reading imputed doses once for card inputs, polygenic scores and PGx ...`, which is printed just after the imputation part is saved; `run_session.ps1` stops there by default |
+| 2 | dose read, ClinVar, ROH, archaic, most scores | about 4 h | any point once the dose read is done (`-StopAfterHours 4`); each score is saved as it finishes, so only the score in progress is lost |
 | 3 | the remaining scores, PGx, HLA, saving | 1½–2½ h | runs to the end; the saved parts are removed once the bundle is written |
 
 - **Start session 2 and 3 with the same command, without `--restart`.** The first line must
@@ -275,7 +306,9 @@ each session ends with Ctrl+C at a line that follows a saved part:
   not yet timed). ClinVar, ROH and archaic (about 12 min) are not saved as parts, so each
   session that gets past the dose read computes them again. Record each session's start,
   its resume overhead and its stages.
-- **The network block** must be in place for every session, not only the first.
+- **The network block** must be in place for every session, not only the first;
+  `run_session.ps1` refuses to start without it. Lift it between sessions, since it takes
+  the whole machine offline but for Claude Code.
 - **What this measures.** The stage timings stay comparable with the table above, and the
   sum of the sessions less their resume overhead estimates an uninterrupted run. It is not
   an uninterrupted wall-clock; say so in the record. It also exercises the resume path on
@@ -284,9 +317,52 @@ each session ends with Ctrl+C at a line that follows a saved part:
 **What to record, and where.** In the [progress log](progress_log.md) and the M15.1 record here: the
 commit, wall-clock in total and per stage, peak memory per process and free memory, bundle
 and cache sizes, whether every outbound request was refused by the block, and pass or fail.
+The session summaries hold all but the sizes; `netblock.ps1 report` gives the refusals,
+and the pass for the block is zero connection attempts by the run's own processes.
 Never results, card outcomes, per-sample counts or anything a stage printed about the
 genome (AGENTS.md §1.1, and the 2026-11-05 history rewrite). Then compare the stage times
 with the table above, and say which estimate was off and why if that is known.
+
+<a id="m151-network-block"></a>
+
+### M15.1 network block: option A (decided and tested 2026-11-23)
+
+**What it is.** `netblock.ps1 apply` sets every Windows Firewall profile to block outbound
+traffic by default, adds one allow rule for the Claude Code executable it is run from (so
+the agent driving the run keeps working; `-AllowProgram none` exempts nothing when the owner
+runs it alone), and turns on auditing of refused connections (Security event 5157, which
+names the program and process id). It saves the settings it replaced and schedules a
+restore as SYSTEM after 8 hours, longer than any session, which also runs after a reboot.
+`netblock.ps1 restore` puts the saved settings back exactly, removes the rule and the task,
+and exports the refusals to `%LOCALAPPDATA%\genetics-analysis\netblock`, outside the
+checkout. `netblock.ps1 check` proves the block by connecting to 192.0.2.1 (TEST-NET-1,
+routed nowhere) from the run's Python, a child of it and Rscript: the firewall refuses at
+once, while without it the attempt can only time out, so no host is contacted either way.
+
+**Why this and not the alternatives.** It covers every program, including ones nobody thought
+to list; per-program rules (option B) are only as complete as their list, and the run's
+`python.exe` is uv's launcher for a base interpreter elsewhere, which is the process that
+would connect. Airplane mode leaves no record of what tried. WSL2 is noted under item 1.
+
+**The trial.** With the block on, from both Git Bash and the Store PowerShell: Python, a
+Python child, curl and Rscript were all refused with WinError 10013 (a firewall refusal),
+every attempt appeared in the audit with its program, Claude Code kept working, and none of
+its connections was refused. The automatic restore then fired on time and left the profiles,
+rules and network as they were before.
+
+**What it does not cover, to state in the record:**
+
+- **DNS lookups still leave the machine**, through Windows' DNS client service, which a
+  built-in rule allows and Claude Code needs. A lookup carries a host name, never data, and
+  the connection after it is refused and logged. Say "every outbound connection was refused",
+  not "nothing left the machine".
+- **The Store build of PowerShell is exempt** through its package's own allow rule. The
+  pipeline never starts PowerShell (nothing in `src/` does), programs started from it were
+  refused in the trial, and `run_session.ps1` is run with Windows PowerShell for that reason.
+- **The whole machine is offline but for Claude Code** while it is on: the trial's 15 minutes
+  refused about 4,700 connections from browsers, chat, game and sync clients.
+- **Java and PLINK were not probed by name.** The block refuses every program but one, so a
+  probe of each would test the same rule; the audit would name them if they tried.
 
 What M14.7 hands over:
 

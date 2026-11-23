@@ -102,5 +102,13 @@ switch ($Command) {
         "refused in all: $($rows.Count); by the run's programs: $($run.Count), of which check probes: $($probes.Count)"
         "connection attempts by the run's programs other than probes: $($attempts.Count)"
         if ($attempts) { $attempts | Group-Object Application | Select-Object Count, Name | Format-Table -AutoSize }
+        # The run's interpreter is the same python.exe an agent's own commands use, so match
+        # refusals to a session by the process ids run_session.ps1 recorded.
+        $summaries = @(Get-ChildItem (Join-Path $env:LOCALAPPDATA 'genetics-analysis\m151') -Filter 'session-*.summary.json' -ErrorAction SilentlyContinue)
+        foreach ($f in $summaries) {
+            $pids = @((Get-Content $f.FullName -Raw | ConvertFrom-Json).tree_pids | ForEach-Object { "$_" })
+            $mine = @($attempts | Where-Object { $pids -contains $_.ProcessId })
+            "$($f.Name): refusals of the run's own processes (other than probes): $($mine.Count)"
+        }
     }
 }
