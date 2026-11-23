@@ -156,7 +156,7 @@ positional matching with the rsID only reported: all as AGENTS.md §2 requires.
   cannot tell a flip from a third allele, and the card says so in a computed caveat. On a
   forward-strand export the third-allele reading is the likelier of the two, but both are
   rare and the caveat is on the face. Left as designed.
-- **C2, P3, recorded, after M15.1:** under `AMBIGUOUS` sex the X stays diploid-called, so the
+- **C2, P3, fixed 2026-11-23 before M15.1** (at the owner's request, with the [M15.5 pre-run review](review_m155_prerun.md); `flag_unresolved_x_ploidy` in `run/pipeline.py` now adds the caveat to a homozygous-looking non-PAR X call): under `AMBIGUOUS` sex the X stays diploid-called, so the
   one chrX interpretation card (`ar_rs6152_androgenetic_alopecia`) gets no computed caveat
   that ploidy was unresolved. Its authored caveats cover the doubled-call reading. PGx G6PD
   and polygenic scoring already treat ambiguous X as unresolved.

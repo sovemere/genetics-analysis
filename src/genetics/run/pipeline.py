@@ -66,7 +66,8 @@ from genetics.pgs.engine import DosageIndex, index_dosages
 from genetics.pgs.runner import PolygenicStage
 from genetics.pgx.calling import CallingStage
 from genetics.privacy import NoGenotypeRepr
-from genetics.qc.report import QCReport
+from genetics.qc.report import InferredSex, QCReport
+from genetics.qc.sex_regions import PAR_GRCH37
 from genetics.run import checks
 from genetics.run.bundle import write_bundle
 from genetics.run.parts import RunParts, contract
@@ -147,6 +148,60 @@ class Analysis(NoGenotypeRepr):
     @property
     def with_interpretation(self) -> int:
         return sum(1 for card in self.cards if card.has_interpretation)
+
+
+UNRESOLVED_X_PLOIDY_CAVEAT = (
+    "Sex could not be inferred from this export, so whether this X-chromosome locus carries "
+    "one copy or two is unresolved. A call that reads as two copies of one allele may be a "
+    "single copy, and the finding would then describe one allele, not two."
+)
+"""Added to a homozygous-looking non-PAR X call when the sex is ambiguous (M15.5, scope 1 C2).
+
+Under ``AMBIGUOUS`` the X stays diploid-called, as for a female (``qc.metrics``), so the
+matcher cannot tell the two apart; a hemizygous male call written doubled would then read as
+a homozygote. PGx G6PD and polygenic scoring already treat an ambiguous X as unresolved; an
+interpretation card now says so too. A heterozygous call needs no caveat: it shows two copies.
+"""
+
+
+def flag_unresolved_x_ploidy(
+    pack: KnowledgePack, matches: tuple[MatchResult, ...], sex: InferredSex
+) -> tuple[MatchResult, ...]:
+    """Attach :data:`UNRESOLVED_X_PLOIDY_CAVEAT` where it applies; change nothing else."""
+    if sex is not InferredSex.AMBIGUOUS:
+        return matches
+
+    def unresolved(chrom: Chrom, position: int, match: MatchResult) -> bool:
+        genotype = match.observed_genotype or match.genotype
+        return (
+            chrom is Chrom.X
+            and not any(start <= position <= end for start, end in PAR_GRCH37["X"])
+            and match.status is MatchStatus.MATCHED
+            and genotype is not None
+            and len(set(genotype)) == 1
+        )
+
+    def flagged(match: MatchResult) -> MatchResult:
+        return replace(match, caveats=(*match.caveats, UNRESOLVED_X_PLOIDY_CAVEAT))
+
+    result = []
+    for card, match in zip(pack.cards, matches, strict=True):
+        if card.match is not None and match.markers:
+            match = replace(
+                match,
+                markers=tuple(
+                    flagged(marker)
+                    if unresolved(variant.key.chrom, variant.key.pos_grch37, marker)
+                    else marker
+                    for marker, variant in zip(match.markers, card.match.variants, strict=True)
+                ),
+            )
+        elif card.match is not None and unresolved(
+            card.match.variant.key.chrom, card.match.variant.key.pos_grch37, match
+        ):
+            match = flagged(match)
+        result.append(match)
+    return tuple(result)
 
 
 def observations(
@@ -368,7 +423,7 @@ def analyse(
             elif (card.match.variant.key.chrom.value, card.match.variant.key.pos_grch37) in imputed:
                 match = mark_imputed(match)
         updated.append(match)
-    matches = tuple(updated)
+    matches = flag_unresolved_x_ploidy(pack, tuple(updated), result.qc.sex.inferred)
     clinvar = lookup_default(result.table, progress=progress)
     frequency_index = default_index(progress=progress)
     loci = {(locus["chrom"], locus["pos_grch37"]) for locus in clinvar.loci}
