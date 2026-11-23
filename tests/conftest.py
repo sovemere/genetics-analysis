@@ -40,6 +40,34 @@ if TYPE_CHECKING:
     from genetics.qc.report import QCReport
     from genetics.testing.parity import Report
 
+GIT_LOCATION_VARIABLES = (
+    "GIT_INDEX_FILE",
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_COMMON_DIR",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_PREFIX",
+)
+"""Where git finds a repository, which a hook's environment sets and the suite never wants.
+
+The pre-commit hook runs this suite, and ``git commit -a`` hands a hook ``GIT_INDEX_FILE``
+pointing, by absolute path, at the commit's temporary index. Every test that runs git in a
+scratch repository then read and wrote the commit being made instead of its own: on
+2026-11-23 nine privacy tests failed, and the hygiene test found a scratch repository's
+fake ``AncestryDNA.txt`` "tracked" in the commit's index (the commit was refused, and the
+temporary index discarded with it). Git finds the checkout from the working directory
+without them, and ``check-staged`` runs before the suite with the hook's own environment.
+"""
+for _name in GIT_LOCATION_VARIABLES:
+    os.environ.pop(_name, None)
+
+
+@pytest.fixture
+def git_location_variables() -> tuple[str, ...]:
+    """The names cleared above, for the test that checks the clearing ran."""
+    return GIT_LOCATION_VARIABLES
+
 
 @pytest.fixture(scope="session", autouse=True)
 def _offline_session() -> Iterator[None]:

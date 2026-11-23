@@ -225,8 +225,8 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
 7. **The data directory must be outside the checkout.** Since M15.3 the app refuses one that
    resolves inside it, from `GENETICS_DATA_DIR` or from `LOCALAPPDATA`. Run from an ordinary
    shell, not a sandbox that redirects `LOCALAPPDATA`. `doctor` reported 143 GB free. The
-   `.sandbox_localappdata/` a 2026-10-16 sandbox left in the checkout holds only public
-   reference distributions and can be deleted.
+   `.sandbox_localappdata/` a 2026-10-16 sandbox left in the checkout (12 public score
+   reference distributions) was deleted on 2026-11-23.
 8. **Expect more `likely-artifact` tiers than on 2026-11-05.** The engine review's B1 fix lets
    the rare-call gate fire for alleles gnomAD has seen once; that is the fix working, not a
    regression. Record the commit the run starts from.
