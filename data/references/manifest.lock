@@ -245,6 +245,134 @@
       "opt_in_required": false,
       "version": "2013-06-08"
     },
+    "hibag_hlares_african_hg19": {
+      "files": {
+        "African-HLA4-hg19.RData": {
+          "first_seen": "2026-11-23",
+          "sha256": "e421521339586e55aa7b5d823600ef0f7828cd70e6f2c33645a88303941afcb4",
+          "size_bytes": 2599896,
+          "url": "https://hibag.s3.amazonaws.com/download/hlares_param/African-HLA4-hg19.RData"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": false,
+        "id": "LicenseRef-HIBAG-HLARES-Unspecified",
+        "name": "HIBAG HLARES published parameters; separate model terms unspecified",
+        "redistribution_ok": false,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "restricted",
+        "terms_url": "https://hibag.s3.amazonaws.com/hlares_index.html"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "no derivative works permitted",
+        "non-commercial use only"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "2012-08-05"
+    },
+    "hibag_hlares_asian_hg19": {
+      "files": {
+        "Asian-HLA4-hg19.RData": {
+          "first_seen": "2026-11-23",
+          "sha256": "e1467580925116fc11c28410a5a34ff6f734c22cdaead8466e47a114e85ce394",
+          "size_bytes": 6733464,
+          "url": "https://hibag.s3.amazonaws.com/download/hlares_param/Asian-HLA4-hg19.RData"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": false,
+        "id": "LicenseRef-HIBAG-HLARES-Unspecified",
+        "name": "HIBAG HLARES published parameters; separate model terms unspecified",
+        "redistribution_ok": false,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "restricted",
+        "terms_url": "https://hibag.s3.amazonaws.com/hlares_index.html"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "no derivative works permitted",
+        "non-commercial use only"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "2012-08-05"
+    },
+    "hibag_hlares_european_hg19": {
+      "files": {
+        "European-HLA4-hg19.RData": {
+          "first_seen": "2026-11-23",
+          "sha256": "7b23a62da4b3cf0056aaeb32184fc1b295d1e35528c0dabd4e21ddfdfc073c50",
+          "size_bytes": 14185776,
+          "url": "https://hibag.s3.amazonaws.com/download/hlares_param/European-HLA4-hg19.RData"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": false,
+        "id": "LicenseRef-HIBAG-HLARES-Unspecified",
+        "name": "HIBAG HLARES published parameters; separate model terms unspecified",
+        "redistribution_ok": false,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "restricted",
+        "terms_url": "https://hibag.s3.amazonaws.com/hlares_index.html"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "no derivative works permitted",
+        "non-commercial use only"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "2012-08-05"
+    },
+    "hibag_hlares_hispanic_hg19": {
+      "files": {
+        "Hispanic-HLA4-hg19.RData": {
+          "first_seen": "2026-11-23",
+          "sha256": "4d92eed564bcbfd121315d2d069fa4f6550baef1a5f982b351294f440c6ab319",
+          "size_bytes": 4454940,
+          "url": "https://hibag.s3.amazonaws.com/download/hlares_param/Hispanic-HLA4-hg19.RData"
+        }
+      },
+      "license": {
+        "attribution_required": true,
+        "authoritative": true,
+        "commercial_ok": false,
+        "derivative_ok": false,
+        "id": "LicenseRef-HIBAG-HLARES-Unspecified",
+        "name": "HIBAG HLARES published parameters; separate model terms unspecified",
+        "redistribution_ok": false,
+        "review_status": "confirmed",
+        "share_alike": false,
+        "standing": "restricted",
+        "terms_url": "https://hibag.s3.amazonaws.com/hlares_index.html"
+      },
+      "manual_step_pending": false,
+      "obligations": [
+        "attribution required on every card citing this source",
+        "no derivative works permitted",
+        "non-commercial use only"
+      ],
+      "opt_in_granted": true,
+      "opt_in_required": true,
+      "version": "2012-08-05"
+    },
     "pgs000001_grch37": {
       "files": {
         "PGS000001_hmPOS_GRCh37.txt.gz": {

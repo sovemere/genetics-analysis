@@ -164,7 +164,7 @@ before session 1 or wait until M15.1's bundle is saved.
 
 ### M15.1 run sheet (prepared 2026-11-20, not yet run)
 
-**Expected duration: about 9–10½ hours of unattended run**, plus HLA if it is opted in, and
+**Expected duration: about 9–10½ hours of unattended run**, plus HLA (opted in, not yet timed), and
 the network-block setup below. This is an extrapolation from the one measured real-export
 run (7 h 49 min on 2026-11-05, `e30879d`), scaled for the polygenic cards added since: 21
 now, 14 then. That run's own estimate (5¾–6 h) was about 30% low, so read the range as a
@@ -193,11 +193,14 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
    check that it does, before the run. The WSL2 route needs references, tools, Java 17 and R
    installed inside Linux (the gnomAD exomes alone are 63 GB), and its timings will not be
    comparable with the table above.
-2. **Decide HLA.** The four HIBAG classifiers are `blocked-by-licence` and not fetched; M15.4
-   confirmed that their permission is unestablished, so the opt-in is a real decision. R
-   4.6.1 and HIBAG 1.48.2 are installed and `doctor` reports them ready. To include HLA:
-   `genetics refs fetch --only <classifier> --opt-in <classifier>`, then run with
-   `--hla-model-opt-in`. Without it the HLA cards say they did not run, as on 2026-11-05.
+2. **HLA is included (decided 2026-11-23).** The owner opted in to the four HIBAG
+   classifiers, whose model licence M15.4 confirmed is unestablished rather than
+   prohibitive; they are fetched, recorded in the lock with `opt_in_granted`, and `refs
+   status` reports them complete. R 4.6.1 and HIBAG 1.48.2 are installed, `doctor` reports
+   them ready, and the native HIBAG tests (`tests/hla/test_native.py`, with
+   `GENETICS_HIBAG_TEST_REFERENCES` set to the references root) pass against the fetched
+   files. **Every session's command therefore carries `--hla-model-opt-in`**, since the
+   parts are reused only under the same options.
 3. **References.** Every source a shipped stage reads is complete and in the committed
    lock: all 21 polygenic score files, the Y tree (recorded at M15.4; it had been missing),
    and PharmGKB and CPIC with their recorded opt-ins. Missing, and read by no shipped stage:
@@ -230,7 +233,8 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
    `git checkout -- <path>` it, before session 1 and never between sessions: an editor that
    flips a `.py` file's endings changes `engine_sha256`, and the saved parts are not reused.
 
-**The command:** `genetics run --input <export> --restart`, with imputation on (the default).
+**The command:** `genetics run --input <export> --restart --hla-model-opt-in`, with imputation
+on (the default).
 `--restart` discards parts left by an earlier interrupted run, so the timings are of a run
 from the start. Use `--restart` for the first session only; see the next paragraph. Progress goes to stderr; keep it, since it carries the stage timings.
 Until M15.2 this flag was not reachable from the command line; it is now, and a test holds it.
