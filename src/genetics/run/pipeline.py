@@ -50,6 +50,8 @@ from genetics.engine.matcher import (
 from genetics.health.clinvar import ClinVarLookup, lookup_default
 from genetics.health.coverage import assemble_coverage_card
 from genetics.health.frequencies import calibrate, default_index, select_frequencies
+from genetics.health.panel_frequencies import lookup as panel_lookup
+from genetics.health.panel_frequencies import select_panel_frequencies
 from genetics.health.secondary import default_reference, surface
 from genetics.hla.calling import HLAStage
 from genetics.imputation import ImputationResult, impute
@@ -153,8 +155,13 @@ def observations(
     frequency_records: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
     imputed: dict[tuple[str, int], ImputationEvidence] | None = None,
     ancestry_context: Mapping[str, Any] | None = None,
+    panel_records: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
 ) -> dict[str, ObservationEvidence]:
     """One observation per interpretation card. See this module's docstring for why.
+
+    A card's frequency comes from gnomAD's exomes; where they return nothing, from the
+    1000 Genomes counts in ``panel_records`` under a rule that cannot price an ultra-rare
+    allele (:mod:`genetics.health.panel_frequencies`, M15.5).
 
     Computed and impossibility cards are excluded rather than given an empty observation:
     ``assemble_card`` refuses one outright, on the grounds that a card that is not
@@ -163,6 +170,18 @@ def observations(
     which is the check that catches this function drifting out of step with the pack.
     """
     by_id = {match.card_id: match for match in matches}
+
+    def priced(
+        locus: tuple[str, int], alleles: set[str], called: set[str]
+    ) -> tuple[PopulationFrequency, ...]:
+        found = select_frequencies(
+            (frequency_records or {}).get(locus, []), alleles=alleles, called=called
+        )
+        if found:
+            return found
+        return select_panel_frequencies(
+            (panel_records or {}).get(locus, []), alleles=alleles, called=called
+        )
 
     def observed(
         locus: tuple[str, int], frequencies: tuple[PopulationFrequency, ...]
@@ -187,12 +206,11 @@ def observations(
             for i, card_variant in enumerate(card.match.variants):
                 marker = match.markers[i] if match is not None else None
                 called = set(marker.genotype or "") if marker is not None else set()
-                records = (frequency_records or {}).get(
-                    (card_variant.key.chrom.value, card_variant.key.pos_grch37), []
-                )
                 frequencies = (
-                    select_frequencies(
-                        records, alleles=set(card_variant.key.alleles), called=called
+                    priced(
+                        (card_variant.key.chrom.value, card_variant.key.pos_grch37),
+                        set(card_variant.key.alleles),
+                        called,
                     )
                     if marker is not None and marker.status is MatchStatus.MATCHED
                     else ()
@@ -215,9 +233,8 @@ def observations(
         called = set(match.genotype or match.observed_genotype or "")
         if match.strand is Strand.AMBIGUOUS:
             called.update(complement(match.observed_genotype or ""))
-        records = (frequency_records or {}).get((variant.chrom.value, variant.pos_grch37), [])
-        frequencies = select_frequencies(records, alleles=set(variant.alleles), called=called)
-        result[card.id] = observed((variant.chrom.value, variant.pos_grch37), frequencies)
+        locus = (variant.chrom.value, variant.pos_grch37)
+        result[card.id] = observed(locus, priced(locus, set(variant.alleles), called))
     return result
 
 
@@ -368,8 +385,19 @@ def analyse(
     frequency_records = frequency_index.lookup(loci) if frequency_index else {}
     clinvar = calibrate(clinvar, index=frequency_index, records=frequency_records)
     clinvar = surface(clinvar, default_reference())
+    panel_records = panel_lookup(
+        {
+            (v.key.chrom.value, v.key.pos_grch37)
+            for c in pack.cards
+            if c.kind is CardKind.INTERPRETATION and c.match is not None
+            for v in c.match.variants
+        },
+        progress=progress,
+    )
     cards = assemble_pack(
-        pack, matches, observations(pack, matches, frequency_records, imputed, card_ancestry)
+        pack,
+        matches,
+        observations(pack, matches, frequency_records, imputed, card_ancestry, panel_records),
     )
     cards = tuple(
         assemble_coverage_card(c.card, clinvar.coverage)

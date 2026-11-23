@@ -68,8 +68,9 @@ M14.3 so that the command prints the same words the badges show."""
 
 TIER_BLURBS: Final[Mapping[str, str]] = {
     ConfidenceTier.WELL_ESTABLISHED.value: (
-        "Clinical-guideline or expert-curated evidence, replicated, on a call this array "
-        "makes reliably."
+        "Replicated evidence with a large effect, on a common call this array makes "
+        "reliably. The evidence may be a guideline, curation, a functional study, a cohort "
+        "or a GWAS: what sets this tier apart is the effect and the call, not the kind of study."
     ),
     ConfidenceTier.STRONG.value: "Replicated evidence with a clear effect on a reliable call.",
     ConfidenceTier.MODERATE.value: (
@@ -192,6 +193,7 @@ def _single_probes() -> list[dict[str, Any]]:
         {"evidence_tier": EvidenceTier.ANECDOTAL},
         {"replication": Replication.CONFLICTING},
         {"evidence_tier": EvidenceTier.CANDIDATE_GENE},
+        {"replication": Replication.NONE},
         {"population_allele_frequency": _below(RARE_CALL_FREQUENCY_CEILING)},
         {"population_allele_frequency": None},
         imputed,
@@ -206,6 +208,7 @@ def _polygenic_probes() -> list[dict[str, Any]]:
         {"evidence_tier": EvidenceTier.ANECDOTAL},
         {"replication": Replication.CONFLICTING},
         {"evidence_tier": EvidenceTier.CANDIDATE_GENE},
+        {"replication": Replication.NONE},
         *({"weighted_quality": _below(bound)} for bound, _ in QUALITY_CEILINGS),
         *({"weight_coverage": _below(bound)} for bound, _ in SHARE_CEILINGS),
         *({"ancestry_match": _below(bound)} for bound, _ in SHARE_CEILINGS),

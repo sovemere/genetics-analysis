@@ -353,7 +353,9 @@ variants in DTC raw data were false positives on clinical confirmation.
 Per §0.1A these findings **are shown**, but they are shown as what they are. This is a
 *labelling* requirement, not a suppression one:
 
-- Confidence must be an explicit function of population allele frequency (from gnomAD).
+- Confidence must be an explicit function of population allele frequency (from gnomAD;
+  for a card locus gnomAD's exomes do not hold, from 1000 Genomes allele counts under a
+  rule that cannot price an ultra-rare allele, added at the M15.5 review).
   Rarity **lowers** confidence — the opposite of the intuition that a rare hit is a big
   finding. This inversion is the single most important thing the UI must communicate.
 - Below the frequency threshold, the card renders with a `likely-artifact` reliability

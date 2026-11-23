@@ -334,6 +334,12 @@ def _evidence_ceilings(
         ceilings.append(
             Ceiling("evidence_tier", ConfidenceTier.MODERATE, "the evidence tier is candidate_gene")
         )
+    if replication is Replication.NONE:
+        # The reading guide defines strong as replicated evidence; without this ceiling a
+        # large enough unreplicated GWAS effect scored 0.705 and earned it (M15.5).
+        ceilings.append(
+            Ceiling("replication", ConfidenceTier.MODERATE, "the finding has not been replicated")
+        )
     return ceilings
 
 

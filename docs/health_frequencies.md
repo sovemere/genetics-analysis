@@ -102,3 +102,13 @@ references. M7.4 adds [ACMG gene-list surfacing](secondary_findings.md), preserv
 these reliability calculations and keeping clinical reportability separate.
 M7.6 adds [quantitative array/ClinVar coverage](clinvar_coverage.md), preserving the
 underlying schema generation and keeping coverage separate from measurement reliability.
+
+## Card loci outside the exomes (M15.5)
+
+The exomes left 21 of 64 interpretation cards unpriced, most of the trait section among them,
+and an unknown frequency caps a card at `moderate`. Since the M15.5 review a card locus the
+exomes do not price is counted in the 1000 Genomes phase 3 panel instead
+([`panel_frequencies.py`](../src/genetics/health/panel_frequencies.py)): a super-population
+takes part only when it holds every called allele at least twice, so an ultra-rare allele is
+never priced and the rare-call gate is untouched. Cards only, autosomes only; the ClinVar
+screen and PGx stay on gnomAD. The record is [review_m155_prerun.md](review_m155_prerun.md).

@@ -139,6 +139,8 @@ def _earlier_single_call_tier(
         tier = _weaker(tier, ConfidenceTier.LIMITED)
     elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
         tier = _weaker(tier, ConfidenceTier.MODERATE)
+    if evidence is not None and evidence.replication is Replication.NONE:
+        tier = _weaker(tier, ConfidenceTier.MODERATE)  # M15.5: strong means replicated
     if (frequency is not None and frequency < 0.00001) or (quality is not None and quality < 0.30):
         tier = ConfidenceTier.LIKELY_ARTIFACT
     elif quality is not None and quality < 0.60:
@@ -165,7 +167,7 @@ def _earlier_polygenic(
 
     if evidence.tier is EvidenceTier.ANECDOTAL or evidence.replication is Replication.CONFLICTING:
         cap(ConfidenceTier.LIMITED, "evidence")
-    elif evidence.tier is EvidenceTier.CANDIDATE_GENE:
+    elif evidence.tier is EvidenceTier.CANDIDATE_GENE or evidence.replication is Replication.NONE:
         cap(ConfidenceTier.MODERATE, "evidence")
     if quality < 0.30:
         cap(ConfidenceTier.LIKELY_ARTIFACT, "imputation_quality")
@@ -422,11 +424,11 @@ def test_the_scored_rows_add_up_to_the_score() -> None:
 
 
 def test_a_tier_set_by_its_score_names_what_the_score_lost_on() -> None:
-    block = _explain_call(_evidence(EvidenceTier.GWAS, Replication.NONE, 1.3))
+    block = _explain_call(_evidence(EvidenceTier.GWAS, Replication.SAME_COHORT, 1.3))
     assert (block["basis"], block["tier"], block["limiting"]) == ("score", "moderate", [])
     assert block["ceilings"] == []
     assert "falls in the moderate band (0.50 up to 0.70)" in block["reason"]
-    assert "lost most on replication (0.16 of a possible 0.2) and effect_size" in block["reason"]
+    assert "lost most on replication (0.13 of a possible 0.2) and effect_size" in block["reason"]
     top = _explain_call(_evidence(EvidenceTier.EXPERT_CURATED, Replication.META_ANALYSIS, 6.0))
     assert (top["basis"], top["tier"]) == ("score", "well-established")
     assert "(0.85 or more)" in top["reason"]
