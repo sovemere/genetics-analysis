@@ -157,7 +157,7 @@ before session 1 or wait until M15.1's bundle is saved.
 | Scope | State | Record |
 |---|---|---|
 | 1. Engine correctness and consistency | **Done** 2026-11-21. One P1 fixed: the likely-artifact gate could not fire for any allele gnomAD had seen, so M15.1 will screen far more rare calls as likely artifacts than the 2026-11-05 run did. P3s and later items recorded | [review_project_engine.md](review_project_engine.md) |
-| 2. Release-gate audits needing no real file (M15.3, M15.4, M15.6) | **Done** 2026-11-22. Nothing genotype-derived was ever committed and two leak routes were closed; the lock, vendored files and per-score PGS terms hold; all 200 cited identifiers resolve and none is retracted. Three correction notices are left for a browser | [review_release_audits.md](review_release_audits.md) |
+| 2. Release-gate audits needing no real file (M15.3, M15.4, M15.6) | **Done** 2026-11-22. Nothing genotype-derived was ever committed and two leak routes were closed; the lock, vendored files and per-score PGS terms hold; all 200 cited identifiers resolve and none is retracted. The three correction notices left for a browser were read on 2026-11-23; none changes a card | [review_release_audits.md](review_release_audits.md) |
 | 3. Documentation | **In part** 2026-11-23: this file and the roadmap were cut back to current state, their history moved verbatim to [handoff_history.md](handoff_history.md), [roadmap_history.md](roadmap_history.md) and [progress_log.md](progress_log.md). The README rewrite stays with M15.7, after M15.1 | this file |
 | 4. Code health | **Done** 2026-11-22. The suite takes about 3 minutes, not 17; one file lock, computed-card constructor and polygenic declaration replace copies; eight unused members are gone; no output changed. Splitting the four largest modules waits for after M15.1 | [review_code_health.md](review_code_health.md) |
 
@@ -393,5 +393,6 @@ What M14.7 hands over:
   re-run.
 - **M15.5**, the calibration review; **M15.7**, the README rewrite from what M15.1 measured;
   the owner's `LICENSE` file; then **M15.8**, the v1 tag.
-- The scope 1 items recorded for after M15.1 ([review_project_engine.md](review_project_engine.md))
-  and the three correction notices scope 2 could not read.
+- The scope 1 items recorded for after M15.1 ([review_project_engine.md](review_project_engine.md)).
+  C2 was fixed before M15.1 instead, and scope 2's three unread correction notices were
+  read on 2026-11-23.

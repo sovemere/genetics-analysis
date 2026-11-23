@@ -259,10 +259,10 @@ for whether it changes anything a card states:
 | Hung 2005, PNAS (HLA-B\*58:01) | correction | Affiliation symbols only |
 | Gregg 2021, ACMG carrier screening | correction | Non-inclusive wording replaced; recommendations unchanged |
 | ACMG 2013 MTHFR guideline | 2020 addendum | Already cited beside it by the MTHFR cards |
-| ACMG 2020 MTHFR addendum | 2020 correction | **Not read:** the publisher refuses automated access, and PubMed holds only its title |
-| Watson 2004, ACMG CF panel | errata 2004 and 2005 | **Not read**, for the same reason |
+| ACMG 2020 MTHFR addendum | 2020 correction (10.1038/s41436-020-0891-5) | Read 2026-11-23 in a browser: the authors' affiliations only |
+| Watson 2004, ACMG CF panel | errata 2004 (10.1038/gim200480) and 2005 (10.1097/00125817-200504000-00011) | Read 2026-11-23 in a browser. 2004: references 10 and 11 swap places. 2005: Table 1's 3120+1G->T should read 3120+1G->A, a variant no card uses; the G542X, W1282X, G551D, 621+1G>T, N1303K and R553X shares the cards quote are untouched |
 
-The three unread notices are left for a reading in a browser. The two CF carrier cards rest
+The three notices the publisher refused to automated access were read in a browser on 2026-11-23, after the owner passed its CAPTCHA; none changes a card. The two CF carrier cards rest
 on G542X and 621+1G>T, which are on every version of the ACMG panel.
 
 ### Fixed
