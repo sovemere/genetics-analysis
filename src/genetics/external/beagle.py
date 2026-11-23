@@ -66,6 +66,24 @@ class BeagleRunError(BeagleError):
         self.returncode = returncode
 
 
+class BeagleSparseTargetError(BeagleRunError):
+    """Beagle refused a window for holding too few typed positions (M15.2).
+
+    Beagle phases in windows of genetic distance. A target whose typed positions are spread
+    thinly enough leaves a window with one of them, or none, and Beagle stops. Raised as its
+    own type so the imputation stage can decide whether the region really is that sparse
+    (and then record it and keep its direct calls) or whether something else is wrong.
+    Recognised from the pinned build's own messages, the way a heap failure is; the
+    position a message names is never repeated.
+    """
+
+
+SPARSE_WINDOW = ("Window has only one position", "contains no reference markers")
+"""The pinned Beagle 5.5 (27Feb25) build's refusals of a window with fewer than two typed
+positions: one alone, or none at all (the second also asks whether the reference and target
+agree, which is why the stage checks the region's density before believing it)."""
+
+
 def _digest(path: Path) -> str:
     sha = hashlib.sha256()
     with path.open("rb") as handle:
@@ -554,6 +572,7 @@ class Beagle:
         pending: list[str] = []
         errors: list[Exception] = []
         heap_failure = threading.Event()
+        sparse_window = threading.Event()
         mutex = threading.Lock()
         process: subprocess.Popen[str] | None = None
         thread: threading.Thread | None = None
@@ -589,6 +608,8 @@ class Beagle:
                             handle.write(line)
                             if "OutOfMemoryError" in line:
                                 heap_failure.set()
+                            if any(words in line for words in SPARSE_WINDOW):
+                                sparse_window.set()
                             message = _progress_line(line)
                             if message is not None:
                                 with mutex:
@@ -622,6 +643,12 @@ class Beagle:
             for message in messages:
                 emit(message)
             if process.returncode != 0:
+                if sparse_window.is_set() and not heap_failure.is_set():
+                    raise BeagleSparseTargetError(
+                        "Beagle refused a window holding fewer than two typed positions: the "
+                        "target's typed calls are too sparse for its windows.",
+                        returncode=process.returncode,
+                    )
                 message = (
                     "Beagle exhausted its Java heap; increase memory_mb."
                     if heap_failure.is_set()

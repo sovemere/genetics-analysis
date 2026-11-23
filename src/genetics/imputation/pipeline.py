@@ -16,7 +16,13 @@ from typing import Any, ClassVar
 
 import polars as pl
 
-from genetics.external.beagle import Beagle, BeagleOptions, _digest, _job_lock
+from genetics.external.beagle import (
+    Beagle,
+    BeagleOptions,
+    BeagleSparseTargetError,
+    _digest,
+    _job_lock,
+)
 from genetics.ingest.schema import Chrom, GenotypeTable
 from genetics.paths import cache_dir, is_inside_repo
 from genetics.privacy import NoGenotypeRepr
@@ -27,6 +33,14 @@ from .dosages import DosageRecord, iter_records, read_output
 from .reference import PreparedReference, ReferenceMarkers, read_markers
 from .reference_compatibility import prepare_native_reference
 from .target import ImputationError, Target, prepare_target, regions
+
+SPARSE_POSITIONS_PER_MB = 1.0
+"""Below this many typed positions per megabase, Beagle refusing a window is believed (M15.2).
+
+A consumer array carries about 200 per megabase; the synthetic export that found the
+refusal carried about 0.1. Between them is a wide margin, and a real export that Beagle
+refuses still fails loudly instead of being skipped as sparse.
+"""
 
 
 @dataclass(frozen=True, repr=False)
@@ -281,33 +295,58 @@ def impute(
                 target_file = root / f"{region.name}.vcf"
                 _publish_file(pending_target, target_file)
                 emit("Phasing eligible typed observations")
-                phase = beagle.run(
-                    gt=target_file,
-                    ref=native_panel,
-                    genetic_map=maps[region.map_key],
-                    out=root / f"{region.name}.phase{native_suffix}",
-                    options=replace(
-                        options, impute=False, chrom=region.interval, target_ploidy=region.ploidy
-                    ),
-                    progress=emit,
-                    allow_in_repo=allow_in_repo,
-                )
-                phased_sites = dict(target.sites)
-                for record in read_output(phase.vcf, target, phase_only=True):
-                    phased_sites[record.pos_grch37] = replace(
-                        phased_sites[record.pos_grch37],
-                        gt=tuple(sorted(record.storage_genotype)),
+                try:
+                    phase = beagle.run(
+                        gt=target_file,
+                        ref=native_panel,
+                        genetic_map=maps[region.map_key],
+                        out=root / f"{region.name}.phase{native_suffix}",
+                        options=replace(
+                            options,
+                            impute=False,
+                            chrom=region.interval,
+                            target_ploidy=region.ploidy,
+                        ),
+                        progress=emit,
+                        allow_in_repo=allow_in_repo,
                     )
-                emit("Imputing full reference variants from phased observations")
-                result = beagle.run(
-                    gt=phase.vcf,
-                    ref=native_panel,
-                    genetic_map=maps[region.map_key],
-                    out=root / f"{region.name}.impute{native_suffix}",
-                    options=replace(options, chrom=region.interval, target_ploidy=region.ploidy),
-                    progress=emit,
-                    allow_in_repo=allow_in_repo,
-                )
+                    phased_sites = dict(target.sites)
+                    for record in read_output(phase.vcf, target, phase_only=True):
+                        phased_sites[record.pos_grch37] = replace(
+                            phased_sites[record.pos_grch37],
+                            gt=tuple(sorted(record.storage_genotype)),
+                        )
+                    emit("Imputing full reference variants from phased observations")
+                    result = beagle.run(
+                        gt=phase.vcf,
+                        ref=native_panel,
+                        genetic_map=maps[region.map_key],
+                        out=root / f"{region.name}.impute{native_suffix}",
+                        options=replace(
+                            options, chrom=region.interval, target_ploidy=region.ploidy
+                        ),
+                        progress=emit,
+                        allow_in_repo=allow_in_repo,
+                    )
+                except BeagleSparseTargetError:
+                    # Two anchors are not enough when they are far apart: Beagle phases in
+                    # windows of genetic distance and refuses one holding fewer than two
+                    # typed positions. A region that sparse is not inferred and keeps its
+                    # direct calls, like one with fewer than two; one sparse chromosome
+                    # does not end the run. A dense region Beagle refuses is something
+                    # else (Beagle's message also asks whether reference and target agree),
+                    # so it stays a failure rather than a quietly skipped region.
+                    megabases = (region.end - region.start + 1) / 1_000_000
+                    if len(target.sites) >= SPARSE_POSITIONS_PER_MB * megabases:
+                        raise ImputationError(
+                            "Beagle refused a window in a region whose typed calls are not "
+                            "sparse; the target and reference may not agree."
+                        ) from None
+                    emit(
+                        "A region's typed calls are too sparse for Beagle; keeping its direct calls"
+                    )
+                    report["status"] = "typed_calls_too_sparse"
+                    continue
                 # The second invocation must also retain calls filled by the first.
                 for _ in read_output(result.vcf, replace(target, sites=phased_sites)):
                     pass

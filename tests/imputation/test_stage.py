@@ -19,10 +19,18 @@ import pytest
 from typer.testing import CliRunner
 
 from genetics.cli.main import app
-from genetics.external.beagle import Beagle, BeagleOptions, BeagleResult, JavaRuntime, _job_lock
+from genetics.external.beagle import (
+    Beagle,
+    BeagleOptions,
+    BeagleResult,
+    BeagleSparseTargetError,
+    JavaRuntime,
+    _job_lock,
+)
 from genetics.imputation import ImputationError, PreparedReference, impute
 from genetics.imputation import pipeline as mod
 from genetics.imputation import reference as reference_mod
+from genetics.imputation.context import ImputationContext
 from genetics.imputation.dosages import read_output
 from genetics.imputation.target import Region, Target, TypedSite, prepare_target, regions
 from genetics.ingest.normalize import GRCH37_LENGTHS
@@ -676,6 +684,70 @@ def test_explicit_reference_settings_and_empty_stage_states(
         return
     with pytest.raises(ImputationError):
         run_fake(fake_stage, **kwargs)
+
+
+def test_a_region_too_sparse_for_beagle_is_recorded_and_the_stage_goes_on(
+    fake_stage: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """M15.2: two anchors far apart are not enough for Beagle's windows.
+
+    The pinned build refuses a window holding one typed position. That used to end the
+    whole run over one chromosome; the region is now recorded as too sparse, runs no job,
+    keeps its direct calls, and the record passes the context's validation on reload.
+    """
+    attempts: list[bool] = []
+
+    def refuse(*, options: BeagleOptions, **kwargs: Any) -> BeagleResult:
+        attempts.append(options.impute)
+        raise BeagleSparseTargetError("synthetic refusal", returncode=1)
+
+    monkeypatch.setattr(fake_stage["beagle"], "run", refuse)
+    events: list[str] = []
+    result = run_fake(fake_stage, progress=events.append)
+
+    assert attempts == [False]  # phasing refused; no imputation attempted
+    summary = result.summary()
+    assert summary["status"] == "no_eligible_jobs" and summary["jobs"] == 0
+    (region,) = summary["regions"]
+    assert region["status"] == "typed_calls_too_sparse" and region["called"] >= 2
+    assert not result.dosage_files and list(result.iter_dosages()) == []
+    assert any("too sparse" in event for event in events)
+    assert ImputationContext.enabled(summary).summary == summary
+
+    again = run_fake(fake_stage)
+    assert again.metadata == result.metadata
+
+
+def test_a_too_sparse_region_must_have_had_the_anchors_a_job_needs(
+    fake_stage: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def refuse(**kwargs: Any) -> BeagleResult:
+        raise BeagleSparseTargetError("synthetic refusal", returncode=1)
+
+    monkeypatch.setattr(fake_stage["beagle"], "run", refuse)
+    summary = run_fake(fake_stage).summary()
+    damaged = json.loads(json.dumps(summary))
+    damaged["regions"][0]["ploidy"] = None
+    with pytest.raises(ImputationError, match="too-sparse imputation region"):
+        ImputationContext.enabled(damaged)
+
+
+def test_a_dense_region_beagle_refuses_is_still_a_failure(
+    fake_stage: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Beagle's "no reference markers" refusal also asks whether reference and target agree.
+
+    The stage believes a refusal only for a region below SPARSE_POSITIONS_PER_MB; a region
+    as dense as a real array that Beagle refuses must not be skipped quietly as sparse.
+    """
+
+    def refuse(**kwargs: Any) -> BeagleResult:
+        raise BeagleSparseTargetError("synthetic refusal", returncode=1)
+
+    monkeypatch.setattr(fake_stage["beagle"], "run", refuse)
+    monkeypatch.setattr(mod, "SPARSE_POSITIONS_PER_MB", 0.0)
+    with pytest.raises(ImputationError, match="not sparse"):
+        run_fake(fake_stage)
 
 
 @pytest.mark.privacy

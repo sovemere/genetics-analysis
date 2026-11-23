@@ -62,6 +62,15 @@ maps and diploid biological ploidy. Non-PAR ploidy follows QC's inferred sex; am
 ploidy is reported and those intervals are not inferred. Male heterozygous non-PAR
 observations remain explicit ploidy conflicts. Intervals with fewer than two eligible
 called anchors have an `insufficient_typed_calls` state, rather than a completed job.
+Two anchors are not always enough: Beagle phases in windows of genetic distance and refuses
+a window holding one typed position, or none. When it does and the interval has fewer than
+one typed position per megabase (`SPARSE_POSITIONS_PER_MB`; a consumer array has about
+200), the interval has a `typed_calls_too_sparse` state, runs no job and keeps its direct
+calls, and the other intervals go on. A denser interval that Beagle refuses is still a
+failure, since one of the two messages also asks whether reference and target agree. This
+came from M15.2, where a synthetic export with 12 typed positions across chromosome 1 had
+ended the whole run. Both refusals are recognised from the pinned build's own messages, as
+a heap failure is, and a native test holds both wordings to the pinned build.
 Y, MT and vendor-labelled PAR have no supported reference/coordinate contract; their
 original calls remain available to the existing direct-call engines.
 

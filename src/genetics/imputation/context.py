@@ -101,6 +101,11 @@ def _validate_summary(raw: Mapping[str, Any]) -> None:
         elif status == "unresolved_ploidy":
             if ploidy is not None or written:
                 raise ImputationError("Unresolved imputation region has resolved observations.")
+        elif status == "typed_calls_too_sparse":
+            # Beagle refused the region's windows (M15.2): it had the anchors a job needs,
+            # spread too thinly, so it ran no job and supplies no dosage.
+            if ploidy is None or observed < 2:
+                raise ImputationError("A too-sparse imputation region lacks typed anchors/ploidy.")
         elif status != "insufficient_typed_calls" or observed >= 2 or ploidy is None:
             raise ImputationError("Imputation region status disagrees with its observations.")
     if (

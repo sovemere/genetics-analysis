@@ -486,3 +486,38 @@ def test_progress_goes_to_stderr_so_json_stays_one_document(
     assert json.loads(result.stdout)["ok"] is True
     assert "reference PCA" in result.stderr
     assert "reference PCA" not in result.stdout
+
+
+# ---------------------------------------------------------------------------
+# The registered command and the pipeline it wraps (M15.2)
+# ---------------------------------------------------------------------------
+
+
+def test_the_registered_run_command_declares_every_pipeline_option() -> None:
+    """`genetics run` is a thin wrapper in cli/main.py over cli/run_cmd.run.
+
+    M15.2 found `--restart` declared on the pipeline function and missing from the
+    wrapper, so the flag the M15.1 run sheet starts session 1 with was "No such option",
+    and nothing in the CLI could discard an interrupted run's parts. Every parameter the
+    pipeline takes must be one the command accepts.
+    """
+    import inspect
+
+    from genetics.cli import main, run_cmd
+
+    wrapped = set(inspect.signature(run_cmd.run).parameters)
+    declared = set(inspect.signature(main.run).parameters)
+    assert wrapped == declared, sorted(wrapped ^ declared)
+
+
+@pytest.mark.parametrize("flag", [None, "--restart"])
+def test_restart_reaches_the_pipeline(
+    export: Path, store_root: Path, monkeypatch: pytest.MonkeyPatch, flag: str | None
+) -> None:
+    from genetics.cli import run_cmd
+
+    seen: dict[str, Any] = {}
+    monkeypatch.setattr(run_cmd, "run", lambda **kwargs: seen.update(kwargs))
+    result = _run(export, *([flag] if flag else []))
+    assert result.exit_code == 0, result.output
+    assert seen["restart"] is (flag == "--restart")

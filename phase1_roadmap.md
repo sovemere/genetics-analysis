@@ -16,10 +16,11 @@ the source of truth for build state.
 
 ## Next up
 
-**M15.2, a full run on a structurally different synthetic fixture with no code changes, is
-next**, so that anything it finds is fixed before M15.1's first session. M0–M14, M15.3, M15.4
-and M15.6 are implemented. **M15.1**, the full run on the real file, follows; it is the
-owner's step, since it opens the real export. The [handoff](docs/handoff.md) holds its entry
+**M15.1, the full run on the real file, is next.** It is the owner's step, since it opens
+the real export. M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented; M15.2's run of a
+female export in the 23andMe-like layout [passed](docs/handoff.md#m152-record) with no
+adapter or analysis change, after fixing two defects it found (one sparse chromosome ended
+the whole run; `genetics run --restart`, M15.1's first command, was not reachable). The [handoff](docs/handoff.md) holds its entry
 contract and [run sheet](docs/handoff.md#m151-run-sheet): about 9–10½ hours in three
 sessions, the checks before starting, the command, and what may be recorded.
 
@@ -178,8 +179,13 @@ them are kept verbatim in [roadmap_history.md](docs/roadmap_history.md):
       [run sheet](docs/handoff.md#m151-run-sheet). Re-runs [M4.10](docs/roadmap_history.md#m4--run-bundle--first-ui)'s
       OS-level network block at full pipeline scope — imputation, PRS and HLA all shell
       out, and they are the parts M2.7's in-process guard cannot see.
-- [ ] **M15.2** Full run on a structurally different synthetic fixture (different sex,
-      different vendor layout) with **no code changes** — proves plug-and-play.
+- [x] **M15.2** Full run on a structurally different synthetic fixture (different sex,
+      different vendor layout) with **no code changes** — proves plug-and-play. Done
+      2026-11-23: a female export in the 23andMe-like layout ran end to end with no adapter,
+      analysis module or card changed, and both front-ends read it. It found two defects
+      outside the adapter seam, both fixed before M15.1: a region too sparse for Beagle's
+      windows ended the run, and `genetics run --restart` was not declared on the command.
+      See [the record](docs/handoff.md#m152-record).
 - [x] **M15.3** Privacy audit: `git log --all` reviewed for any genotype-derived blob ever
       committed; `.gitignore` re-verified against every path the app writes. Done
       2026-11-21: nothing genotype-derived was ever committed; two routes that could have

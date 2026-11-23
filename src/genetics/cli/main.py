@@ -230,6 +230,14 @@ def run(
             help="Explicitly disable default imputation; recorded in the run and cards.",
         ),
     ] = False,
+    restart: Annotated[
+        bool,
+        typer.Option(
+            "--restart",
+            help="Discard the parts an interrupted run of this export saved, and start over. "
+            "Without it, a rerun resumes after the last part saved.",
+        ),
+    ] = False,
 ) -> None:
     """Analyse an export and save it as a run bundle.
 
@@ -252,6 +260,7 @@ def run(
         knowledge=knowledge,
         as_json=as_json,
         no_impute=no_impute,
+        restart=restart,
         **hla_options,
     )
 

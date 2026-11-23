@@ -4,11 +4,100 @@ Current state only. Each earlier milestone's entry contract and acceptance recor
 to M14, is kept verbatim in [handoff_history.md](handoff_history.md); the dated record
 of every milestone is the [progress log](progress_log.md).
 
-As of 2026-11-23, **M0–M14, M15.3, M15.4 and M15.6 are implemented**, and so are scopes
-1, 2 and 4 of the [project review](#project-review-before-m151). **M15.2**, a full run on a
-structurally different synthetic fixture with no code changes, is next, so that anything it
-finds is fixed before M15.1's first session. **M15.1**, the full run on the real file, is the
-owner's step after it; its [run sheet](#m151-run-sheet) is below.
+As of 2026-11-23, **M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented**, and so are
+scopes 1, 2 and 4 of the [project review](#project-review-before-m151). **M15.1**, the full
+run on the real file, is next; it is the owner's step, and its [run sheet](#m151-run-sheet)
+is below. [M15.2](#m152-record) passed and fixed two defects on the way, one of which
+would have stopped M15.1's first command.
+
+<a id="m152-record"></a>
+
+## Accepted M15.2: a structurally different synthetic export, end to end
+
+Run on 2026-11-23 from `f3eb0a0` plus this record's fixes. **Passed**, after finding and
+fixing two defects that would otherwise have reached M15.1.
+
+**The export.** A female sample in the 23andMe-like layout (four columns, merged genotype,
+letter chromosome codes, `--` no-calls), where every earlier full run was a male
+AncestryDNA file. Rendered by the committed generator with no change to it:
+`render_fixture(FixtureSpec(name="other_vendor_layout_female.txt", sex="female",
+vendor="23andme"))` at the default seed (20260815) and 12,000 markers; written outside the
+checkout and never committed. Run with `genetics run --input <it> --restart`, imputation on,
+in a data directory of its own that shared only the installed tools and the public
+score-reference cache.
+
+**What held with no code change (the plug-and-play claim).** The vendor was sniffed as
+`23andme_like`; QC inferred female (non-PAR X heterozygosity 35%, Y call rate 0) with no
+warnings; every stage ran; all 119 cards were assembled, none dropped; the run saved, and
+every agent read (`runs list --verify`, `runs qc`, `runs imputation`, `runs show`,
+`runs clinvar`, `runs secondary`, `pgx calls`, `hla calls`, `runs card`) returned its
+schema with exit 0; all twelve dashboard pages rendered and passed the accessibility audit.
+No adapter, analysis module or card changed.
+
+**Defect 1, fixed: one sparse chromosome ended the whole run.** Synthetic positions are
+random, so chromosome 1 carried 12 typed positions across 249 Mb. That passes the "at least
+two anchors" floor, but Beagle phases in windows of genetic distance and refused a window
+holding a single position (`Window has only one position`), and on chromosome 6 a window
+holding none (`... contains no reference markers`). The stage treated both as fatal. Now
+`BeagleSparseTargetError` recognises both from the pinned build's own messages (as a heap
+failure is recognised), and a refused region below 1 typed position per megabase is
+recorded as `typed_calls_too_sparse`, runs no job and keeps its direct calls, while the
+rest of the run goes on. A denser region that Beagle refuses still fails, since the second
+message also asks whether reference and target agree: real arrays carry about 200 per
+megabase, so this can only ever skip a region that is genuinely sparse. Successful jobs
+take exactly the old path, and the policy string and static limitations are unchanged, so
+every completed imputation cache and saved run stays valid. Of this run's 27 regions, 5
+were imputed, 17 were recorded as too sparse and 5 had fewer than two anchors.
+
+**Defect 2, fixed: `genetics run --restart` was "No such option".** The flag was declared on
+`cli/run_cmd.run` but not on the command `cli/main.py` registers, so the M15.1 run sheet's
+session-1 command would have failed at once, and nothing in the CLI could discard an
+interrupted run's parts. The command now declares it, and a test requires the command to
+declare every parameter the pipeline function takes.
+
+**Not explained: one transient failure.** On the third attempt the reference distribution
+for one polygenic score failed ("PLINK reference scoring failed; no reference distribution
+accepted.") after three scores had succeeded. Resuming the same run, with identical inputs
+and no source change, scored it and the remaining 17 without fault. The error is
+categorical by design and PLINK's working files for that step are removed, so its cause
+was not recovered; with 141 GB free it was not disk space. For M15.1 the consequence is
+covered by the run sheet: a session that ends this way resumes with the same command, and
+only the score in progress is repeated.
+
+**Observed, not defects:**
+
+- **Output sizes.** For this sample `runs show` printed 450 MB and `pgx calls` 389 MB of
+  JSON, nearly all PGx guideline branches and candidate diplotypes: with so few typed calls
+  every unresolved alternative is kept, as designed. A dense export resolves most of them.
+- **`runs list --verify` always repeats the deep checks** (22 minutes here) whatever the
+  saved record says; ordinary reads use the record and took seconds.
+
+**Review of the fixes** (diff-driven, over every source and test change above):
+
+- *Regression risk for M15.1:* none found. A successful Beagle job takes exactly the old
+  path; a refusal in a region at or above the density bar raises, as every refusal did
+  before. The fix can only turn an abort into a recorded region, and only for a region a
+  real array is about 200 times too dense to be.
+- *Resume and saved runs:* the imputation contract's policy string and the static
+  limitations are untouched, so no completed imputation cache or saved snapshot stops
+  matching. A refusal repeats deterministically, so a resumed stage records the same states
+  and its metadata compares equal; a region whose phasing completed before its imputation
+  was refused keeps a checkpointed phase job and is recorded the same way.
+- *Readers of the new state:* the context validator holds it to resolved ploidy and at least
+  two anchors with no job; the snapshot reader, the QC page and the agent schema treat
+  region states generically. Older bundles never carry it.
+- *Privacy:* neither new message repeats the position Beagle named; tests assert it for
+  both stub wordings and the native refusal.
+- *Tests:* each guard was neutered in turn and its test failed: the stage's catch (two
+  stage tests), the validator branch, and the CLI flag (three CLI tests). Native tests hold
+  both refusal wordings to the pinned Beagle build and run on both CI operating systems.
+- *Left as is:* the density bar is a constant, not a model of Beagle's windows, on purpose;
+  reproducing Beagle's windowing would be more fragile than the margin it protects.
+
+**Timings** (this machine, not comparable with M15.1's): the failed first attempt ended
+after 16 minutes; the third ran 2 h 45 min through imputation, ClinVar, ROH, archaic and
+three scores; the resume took 1 h 32 min for the other 18 scores, PGx and the save.
+
 
 <a id="next-open-step-m151-full-run"></a>
 
@@ -109,6 +198,8 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
    process sampler every few seconds that sums the run's process tree.
 6. **Run `genetics runs list --verify` first:** engine source has changed since the last read
    of a saved run (the review's fixes), so the dashboard would otherwise pay that check later.
+   It repeats the deep checks for every saved run, about an hour per imputed run, whatever
+   their records say (M15.2).
 7. **The data directory must be outside the checkout.** Since M15.3 the app refuses one that
    resolves inside it, from `GENETICS_DATA_DIR` or from `LOCALAPPDATA`. Run from an ordinary
    shell, not a sandbox that redirects `LOCALAPPDATA`. `doctor` reported 143 GB free. The
@@ -130,6 +221,11 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
 **The command:** `genetics run --input <export> --restart`, with imputation on (the default).
 `--restart` discards parts left by an earlier interrupted run, so the timings are of a run
 from the start. Use `--restart` for the first session only; see the next paragraph. Progress goes to stderr; keep it, since it carries the stage timings.
+Until M15.2 this flag was not reachable from the command line; it is now, and a test holds it.
+
+**If a session stops on an error, resume it.** M15.2 saw one transient "PLINK reference
+scoring failed" that the same command, without `--restart`, then got past; only the score in
+progress is repeated. Record the error line (it is categorical and names no genotype).
 
 **Running it in sessions.** The run does not have to be one sitting. `genetics run` saves
 its long parts as they finish (`run/parts.py`): the imputation, the dose read, each

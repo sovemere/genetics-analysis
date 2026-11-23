@@ -10,7 +10,7 @@ synthetic data; reference payloads are fetched, never committed.
 
 ## Current state and handoff
 
-M0–M14, M15.3, M15.4 and M15.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
+M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
 cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
 M7.1 adds ClinVar position/allele lookup with preserved source classifications,
 ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
@@ -331,6 +331,9 @@ score's terms hold ([audit](docs/review_release_audits.md#m154-licences-closed-2
 **M15.6, the citation audit, is done:** every cited identifier resolves to the record its
 card describes, and none is retracted
 ([audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22)).
+**M15.2, a full run on a structurally different synthetic export, is done:** a female sample
+in the 23andMe-like layout ran end to end with no adapter or analysis change, after two
+defects it found were fixed ([record](docs/handoff.md#m152-record)).
 [M15.1, the full run on the real file](docs/handoff.md#next-open-step-m151-full-run)
 is next.
 The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations

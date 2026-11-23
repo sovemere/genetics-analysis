@@ -24,6 +24,7 @@ from genetics.external.beagle import (
     BeagleNotFoundError,
     BeagleOptions,
     BeagleRunError,
+    BeagleSparseTargetError,
     BeagleVersionError,
     JavaRuntime,
     locate_beagle,
@@ -58,6 +59,13 @@ if mode == 'hang':
 if mode in ('fail', 'heap'):
     print('OutOfMemoryError' if mode == 'heap' else 'Bad marker: ' + 'rs900000001' + ' AG', file=sys.stderr)
     sys.exit(4)
+if mode == 'sparse':
+    print('Exception in thread "main" java.lang.IllegalArgumentException: Window has only one position: CHROM=7 POS=' + '100', file=sys.stderr)
+    sys.exit(1)
+if mode == 'sparse-empty':
+    print('java.lang.IllegalArgumentException: The window ending at 7:' + '100', file=sys.stderr)
+    print('contains no reference markers', file=sys.stderr)
+    sys.exit(1)
 header = ['##fileformat=VCFv4.3', '\t'.join(['#CHROM','POS','ID','REF','ALT','QUAL','FILTER','INFO','FORMAT','synthetic'])]
 row = '\t'.join(['7','100','rs900000001','A','G','.','PASS','.','GT','0|1'])
 if mode == 'wrong-sample':
@@ -272,6 +280,42 @@ def test_failed_or_partial_jobs_never_publish_completion_and_can_restart(
     monkeypatch.delenv("BEAGLE_STUB_MODE")
     result = runner.run(**inputs, out=out)
     assert result.vcf.is_file() and not result.resumed
+
+
+@pytest.mark.parametrize("mode", ["sparse", "sparse-empty"])
+def test_a_window_with_too_few_typed_positions_is_its_own_error(
+    runner: Beagle,
+    inputs: BeagleInputs,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    mode: str,
+) -> None:
+    """M15.2: the pinned build refuses a window holding one typed position, or none.
+
+    The imputation stage decides whether such a region is sparse enough to record and go
+    on, so the refusal has to be told apart from any other failure, and like every Beagle
+    message it must not repeat the position Beagle named.
+    """
+    monkeypatch.setenv("BEAGLE_STUB_MODE", mode)
+    with pytest.raises(BeagleSparseTargetError) as error:
+        runner.run(**inputs, out=tmp_path / "job")
+    assert isinstance(error.value, BeagleRunError)
+    assert error.value.returncode == 1
+    assert "too sparse" in str(error.value)
+    assert "POS" not in str(error.value) and "100" not in str(error.value)
+    assert "rs900000001" not in str(error.value)
+
+
+def test_other_failures_are_not_read_as_a_sparse_target(
+    runner: Beagle,
+    inputs: BeagleInputs,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("BEAGLE_STUB_MODE", "fail")
+    with pytest.raises(BeagleRunError) as error:
+        runner.run(**inputs, out=tmp_path / "job")
+    assert not isinstance(error.value, BeagleSparseTargetError)
 
 
 def test_invalid_deflate_target_is_a_private_domain_error(
@@ -589,6 +633,61 @@ def test_native_pinned_beagle_phases_imputes_and_reuses_complete_job(
         phase_rows = [line for line in handle if not line.startswith("#")]
     assert len(phase_rows) == 100
     assert phase.provenance["contract"]["options"]["impute"] is False
+
+
+@pytest.mark.parametrize(
+    ("typed", "words"),
+    [
+        # Two typed positions close together and a third 150 cM away: it sits alone.
+        ((0, 1, 199), "Window has only one position"),
+        # Every typed position near the end: the first window holds none.
+        ((190, 195, 199), "contains no reference markers"),
+    ],
+)
+def test_native_pinned_beagle_refuses_a_sparse_target_as_its_own_error(
+    tmp_path: Path, typed: tuple[int, ...], words: str
+) -> None:
+    """M15.2: the stage relies on the pinned build's own words for a too-sparse window.
+
+    A synthetic export on the real panel hit both on chromosomes 1 and 6 and ended the run.
+    If a new Beagle build words either refusal differently, this fails rather than the stage
+    silently treating it as an ordinary crash again.
+    """
+    root = os.environ.get("GENETICS_BEAGLE_TEST_TOOLS")
+    if root is None:
+        pytest.skip("set GENETICS_BEAGLE_TEST_TOOLS for pinned native Beagle acceptance")
+    folder = tmp_path / "sparse-synthetic"
+    folder.mkdir()
+    rng = random.Random(8102)
+    header = ["##fileformat=VCFv4.2", "##reference=GRCh37"]
+    base = ["#CHROM", "POS", "ID", "REF", "ALT", "QUAL", "FILTER", "INFO", "FORMAT"]
+    reference = [*header, "\t".join(base + [f"synthetic_ref_{i}" for i in range(20)])]
+    target = [*header, "\t".join([*base, "synthetic_target_0"])]
+    for i in range(200):
+        frequency = 0.15 + (i % 7) * 0.1
+        alleles = [int(rng.random() < frequency) for _ in range(42)]
+        fields = ["7", str(1_000_000 + i * 750_000), f"rs{900000001 + i}"]
+        fields += ["A", "G", ".", "PASS", ".", "GT"]
+        reference.append(
+            "\t".join(fields + [f"{alleles[2 * j]}|{alleles[2 * j + 1]}" for j in range(20)])
+        )
+        if i in typed:
+            target.append("\t".join([*fields, f"{alleles[40]}/{alleles[41]}"]))
+    (folder / "target.vcf").write_text("\n".join(target) + "\n", encoding="utf-8")
+    (folder / "reference.vcf").write_text("\n".join(reference) + "\n", encoding="utf-8")
+    (folder / "map.tmp").write_text("7 start 0 1000000\n7 end 150 151000000\n", encoding="utf-8")
+    beagle = Beagle.discover(tools_root=Path(root))
+    with pytest.raises(BeagleSparseTargetError) as error:
+        beagle.run(
+            gt=folder / "target.vcf",
+            ref=folder / "reference.vcf",
+            genetic_map=folder / "map.tmp",
+            out=tmp_path / "sparse-job",
+            options=BeagleOptions(memory_mb=512, impute=False),
+        )
+    assert "POS" not in str(error.value)
+    (console,) = (tmp_path / "sparse-job.beagle-work").glob("attempt-*/console.log")
+    assert words in console.read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize("value", [0, 3, True, None])
