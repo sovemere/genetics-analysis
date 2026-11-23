@@ -229,7 +229,11 @@ status` and `genetics doctor`, after the project review's scopes 1 and 2):
    reference distributions) was deleted on 2026-11-23.
 8. **Expect more `likely-artifact` tiers than on 2026-11-05.** The engine review's B1 fix lets
    the rare-call gate fire for alleles gnomAD has seen once; that is the fix working, not a
-   regression. Record the commit the run starts from.
+   regression. **Expect higher tiers on the trait and nutrition cards too:** the M15.5
+   pre-run review priced their non-coding loci from 1000 Genomes, so 21 cards are no longer
+   held at `moderate` for want of a frequency (the counts are cached; about 3 min uncached).
+   `bnc2_freckling` drops to `moderate` under the new replication ceiling. Record the commit
+   the run starts from.
 9. **Rewrite CRLF working copies as LF first** (found by the code health review; done on
    2026-11-23, re-check before session 1). A run
    digests the engine source, the knowledge pack and the tools manifest as they sit on
@@ -378,8 +382,9 @@ What M14.7 hands over:
 - **`nav_page` and `nav_search_landmark`** are set by a page template with `{% with %}` around
   the nav include; they are not context keys, so parity has nothing to place.
 - **Not done:** no screen-reader session (NVDA, Narrator) was run; the audit checks markup.
-  The theme toggle's new state is not announced when pressed. Data-table captions were not
-  added to the HLA, PGx and ClinVar tables that lack one.
+  *Done 2026-11-23:* the theme toggle now says its new state in a polite live region, every
+  table has a caption (ClinVar, HLA, PGx, the polygenic and card reliability tables, four on
+  the guide, one in the carrier scope), and the audit fails a table without one.
 
 <a id="after-m151"></a>
 
@@ -391,7 +396,8 @@ What M14.7 hands over:
   refactor just before the release-gate run risks a late-pipeline failure. Any engine change
   after M15.1 means the tagged code differs from what M15.1 ran; say so in the record, or
   re-run.
-- **M15.5**, the calibration review; **M15.7**, the README rewrite from what M15.1 measured;
+- **M15.5**, the calibration review, whose half that needs no real file was done on 2026-11-23
+  ([record](review_m155_prerun.md)); **M15.7**, the README rewrite from what M15.1 measured;
   the owner's `LICENSE` file; then **M15.8**, the v1 tag.
 - The scope 1 items recorded for after M15.1 ([review_project_engine.md](review_project_engine.md)).
   C2 was fixed before M15.1 instead, and scope 2's three unread correction notices were

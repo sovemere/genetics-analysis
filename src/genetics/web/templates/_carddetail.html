@@ -257,6 +257,7 @@
       {% if card.confidence.decided %}<p class="decided">{{ card.confidence.decided }}</p>{% endif %}
       <div class="tablescroll">
         <table class="breakdown">
+          <caption class="muted">Reliability inputs for this card</caption>
           <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>
           <tbody>
             {% for row in card.confidence.rows %}

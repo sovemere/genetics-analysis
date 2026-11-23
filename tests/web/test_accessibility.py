@@ -284,6 +284,8 @@ def test_the_audit_sees_what_it_claims_to() -> None:
         '<form role="search" aria-label="s"></form><form role="search" aria-label="s"></form>': "2 search landmarks not told apart by name",
         '<button tabindex="2">b</button>': "positive tabindex on button",
         '<svg role="img"></svg>': "role=img with no name on svg",
+        "<table><tr><td>1</td></tr></table>": "table with no caption",
+        "<table><caption> </caption><tr><td>1</td></tr></table>": "table with no caption",
     }
     for markup, problem in cases.items():
         assert problem in audit(frame.format(markup)), markup
@@ -354,6 +356,19 @@ def test_the_theme_toggle_is_named_by_what_it_shows() -> None:
     assert "aria-label" not in button.split(">", 1)[0]
     assert '<span class="visually-hidden">Colour theme: </span>' in button
     assert 'class="themelabel" x-text="label">System</span>' in button
+
+
+def test_the_theme_toggle_says_the_new_theme_when_pressed() -> None:
+    """A changed button label is not reliably announced (M14.7's open item), so a polite live
+    region beside the button, in the same Alpine component, says it."""
+    base = (TEMPLATE_DIR / "base.html").read_text(encoding="utf-8")
+    component = base[base.index('<span x-data="themetoggle">') :]
+    component = component[: component.index("</button>") + 200]
+    assert 'x-on:click="cycle"' in component
+    assert 'role="status" aria-live="polite" x-text="announcement"></span>' in component
+    script = (TEMPLATE_DIR.parent / "static" / "app.js").read_text(encoding="utf-8")
+    assert "announcement: ''," in script
+    assert "this.announcement = `Colour theme: ${this.label}`;" in script
 
 
 def test_the_skip_link_lands_on_a_focusable_main(client: TestClient) -> None:

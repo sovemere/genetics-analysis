@@ -165,7 +165,8 @@ def audit(html: str, *, page: bool = True) -> list[str]:
     Everywhere: ids unique; every ``aria-labelledby``, ``aria-describedby`` and label
     ``for`` points at an id; no positive ``tabindex``; nothing focusable inside an
     ``role="img"`` or ``aria-hidden`` subtree; every link and button named; every visible
-    control labelled; every ``role="img"`` named. On a page, also: ``lang`` and a title;
+    control labelled; every ``role="img"`` named; every table captioned (M15.5,
+    finishing M14.7). On a page, also: ``lang`` and a title;
     one ``main`` with one ``h1`` and no skipped heading level in it; and landmarks of one
     role told apart by name when there is more than one.
     """
@@ -210,6 +211,11 @@ def audit(html: str, *, page: bool = True) -> list[str]:
 
         if element.get("role") == "img" and not name_of(element, ids):
             problems.append(f"role=img with no name on {element.tag}")
+
+        if element.tag == "table" and not any(
+            isinstance(c, Element) and c.tag == "caption" and c.text() for c in element.children
+        ):
+            problems.append("table with no caption")
 
     if page:
         html_element = next(e for e in elements if e.tag == "html")

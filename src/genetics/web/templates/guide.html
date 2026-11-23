@@ -59,6 +59,7 @@
     <summary>What each status badge means</summary>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">Status badges</caption>
         <thead><tr><th scope="col">Badge</th><th scope="col">Status</th></tr></thead>
         <tbody>
           {% for row in guide.reading.statuses %}
@@ -106,6 +107,7 @@
     <summary>Component scores for the evidence tier and replication</summary>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">Evidence tier components</caption>
         <thead><tr><th scope="col">Evidence tier</th><th scope="col" class="num">Component</th></tr></thead>
         <tbody>
           {% for row in confidence.evidence_components %}
@@ -116,6 +118,7 @@
     </div>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">Replication components</caption>
         <thead><tr><th scope="col">Replication</th><th scope="col" class="num">Component</th></tr></thead>
         <tbody>
           {% for row in confidence.replication_components %}
@@ -167,6 +170,7 @@
     <summary>The {{ polygenic.cards | length }} polygenic cards in this knowledge pack</summary>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">Polygenic cards in this knowledge pack</caption>
         <thead><tr><th scope="col">Card</th><th scope="col">Section</th><th scope="col">Study ancestry</th><th scope="col">Within-family estimate</th><th scope="col">Outcome rates by decile</th></tr></thead>
         <tbody>
           {% for card in polygenic.cards %}

@@ -43,6 +43,7 @@
   {% for model in pgx_report.genes.get(pgx_gene, {}).get("models", []) %}
   <h3>Observed loci · {{ model.ploidy }} copy model</h3>
   <table>
+    <caption class="muted">{{ pgx_gene }} loci observed under the {{ model.ploidy }} copy model</caption>
     <thead><tr><th>GRCh37 locus</th><th>Array probe</th><th>State</th><th>Alleles</th><th>Call source</th><th>Imputation DR2</th><th>Rarity</th></tr></thead>
     <tbody>{% for o in model.observations %}<tr>
       <td>{{ o.chrom }}:{{ o.pos_grch37 }}</td><td>{{ o.probe_ids | join(", ") }}</td><td>{{ o.state }}</td>
@@ -55,6 +56,7 @@
   {% if pgx_page > 1 %}<a href="?gene={{ pgx_gene }}&amp;page={{ pgx_page - 1 }}">Previous</a>{% endif %}
   {% if pgx_page < pgx_pages %}<a href="?gene={{ pgx_gene }}&amp;page={{ pgx_page + 1 }}">Next</a>{% endif %}
   <table>
+    <caption class="muted">{{ pgx_gene }} candidate diplotypes, page {{ pgx_page }} of {{ pgx_pages }}</caption>
     <thead><tr><th>Source alleles</th><th>Copies</th><th>Support</th><th>Missing loci</th><th>Unresolved constraints</th><th>Unassigned loci</th><th>Function gaps</th><th>Source phenotype</th><th>Activity score</th></tr></thead>
     <tbody>{% for c in pgx_candidates %}<tr>
       <td>{{ c.alleles | join(" / ") }}</td><td>{{ c.ploidy }}</td><td>{{ c.support }}</td>

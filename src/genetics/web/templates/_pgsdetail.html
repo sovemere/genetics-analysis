@@ -39,6 +39,7 @@
     </p>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">The study's outcome rate in each score decile</caption>
         <thead><tr><th scope="col">Score decile</th><th scope="col">Rate</th><th scope="col">Your interval</th></tr></thead>
         <tbody>
           {% for row in pgs.decile_rows %}
@@ -68,6 +69,7 @@
     </p>
     <div class="tablescroll">
       <table class="breakdown">
+        <caption class="muted">Reliability inputs for this score</caption>
         <thead><tr><th scope="col">Input</th><th scope="col">Observed</th><th scope="col">Score</th></tr></thead>
         <tbody>
           {% set inputs = card.computation.reliability.inputs %}

@@ -116,7 +116,8 @@
             {% for frequency_record in entry.frequency_records %}
               <p>REF {{ frequency_record.ref }}; ALT {{ frequency_record.alts | join(", ") }};
                 FILTER {{ frequency_record.filter }}.</p>
-              <table><thead><tr><th>Population</th><th>AF (fraction)</th><th>AC</th><th>AN</th><th>Homozygotes</th></tr></thead>
+              <table><caption class="muted">gnomAD frequencies by population for REF {{ frequency_record.ref }}, ALT {{ frequency_record.alts | join(", ") }}</caption>
+                <thead><tr><th>Population</th><th>AF (fraction)</th><th>AC</th><th>AN</th><th>Homozygotes</th></tr></thead>
                 <tbody>{% for population, counts in frequency_record.populations.items() %}
                   <tr><td>{{ population }}</td><td>{{ counts.af | join(", ") }}</td>
                     <td>{{ counts.ac | join(", ") }}</td><td>{{ counts.an }}</td>

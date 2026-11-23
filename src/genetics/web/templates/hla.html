@@ -53,7 +53,8 @@
   <p>{{ row.observed_markers }}/{{ row.model_markers }} model markers observed. Training samples: {{ hla_report.reference.loci[gene].training_samples }}; classifiers: {{ hla_report.reference.loci[gene].classifiers }}.</p>
   <ul>{% for state, count in row.coverage.items() %}<li>{{ state }}: {{ count }}</li>{% endfor %}</ul>
   <details><summary>Frozen marker evidence</summary>
-    <table><thead><tr><th>GRCh37 chr6 position</th><th>State</th><th>First model allele on + strand</th><th>Strand proven by</th><th>Copies</th></tr></thead>
+    <table><caption class="muted">{{ gene }} classifier markers, as the frozen evidence holds them</caption>
+    <thead><tr><th>GRCh37 chr6 position</th><th>State</th><th>First model allele on + strand</th><th>Strand proven by</th><th>Copies</th></tr></thead>
     <tbody>{% for marker in row.markers %}<tr><td>{{ marker.position }}</td><td>{{ marker.state }}</td><td>{{ marker.forward_first_allele or "unresolved" }}</td><td>{{ marker.strand_evidence | join(", ") if marker.strand_evidence else "none" }}</td><td>{{ marker.dose if marker.dose is not none else "missing" }}</td></tr>{% endfor %}</tbody></table>
   </details>
   {% endfor %}

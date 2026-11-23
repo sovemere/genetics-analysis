@@ -167,6 +167,7 @@ document.addEventListener('alpine:init', () => {
    */
   Alpine.data('themetoggle', () => ({
     theme: document.documentElement.getAttribute('data-theme') || 'system',
+    announcement: '',
     get label() {
       return { system: 'System', light: 'Light', dark: 'Dark' }[this.theme] || 'System';
     },
@@ -176,6 +177,7 @@ document.addEventListener('alpine:init', () => {
     cycle() {
       const next = { system: 'light', light: 'dark', dark: 'system' }[this.theme] || 'system';
       this.theme = next;
+      this.announcement = `Colour theme: ${this.label}`;
       if (next === 'system') {
         document.documentElement.removeAttribute('data-theme');
       } else {

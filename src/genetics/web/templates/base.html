@@ -56,10 +56,16 @@
     {# M14.7: named by its words, not an aria-label. "Colour theme" over a button that
        shows "System" is a name a speech-input user cannot say (WCAG 2.5.3), and it hid
        which theme is on from a screen reader. #}
-    <button type="button" class="themetoggle" x-data="themetoggle" x-on:click="cycle">
-      <span aria-hidden="true" x-text="icon">◐</span>
-      <span class="visually-hidden">Colour theme: </span><span class="themelabel" x-text="label">System</span>
-    </button>
+    {# M15.5, finishing M14.7: a button's changed text is not reliably announced, so the new
+       theme is also said in a polite live region beside it. It starts empty and is filled
+       only by a press, so loading a page announces nothing. #}
+    <span x-data="themetoggle">
+      <button type="button" class="themetoggle" x-on:click="cycle">
+        <span aria-hidden="true" x-text="icon">◐</span>
+        <span class="visually-hidden">Colour theme: </span><span class="themelabel" x-text="label">System</span>
+      </button>
+      <span class="visually-hidden" role="status" aria-live="polite" x-text="announcement"></span>
+    </span>
   </div>
 </header>
 

@@ -200,10 +200,14 @@ them are kept verbatim in [roadmap_history.md](docs/roadmap_history.md):
       unreviewed licences were read and confirmed, three with corrections. The repository
       itself has no `LICENSE` file, which is the owner's to add. See
       [the audit](docs/review_release_audits.md#m154-licences-closed-2026-11-22).
-- [ ] **M15.5** **Calibration review** — the most important gate. Sample cards across all
+- [~] **M15.5** **Calibration review** — the most important gate. Sample cards across all
       confidence tiers and check the stated confidence matches the actual evidence.
       Specifically verify a rare pathogenic call renders as `likely-artifact` with its
       PPV, and that no code path filters cards by confidence.
+      *Pre-run half done 2026-11-23* ([record](docs/review_m155_prerun.md)): 21 trait and
+      nutrition cards could not rise above moderate for want of a frequency, now priced from
+      1000 Genomes; an unreplicated finding can no longer be strong; no filter by confidence;
+      the PPV is on the face. The real-run half follows M15.1.
 - [x] **M15.6** Citation audit: every shipped card resolves to a real DOI/PMID/accession.
       Zero fabricated references. Done 2026-11-22: all 200 identifiers resolve to the
       record their card describes, none is retracted, and one figshare title that was a
