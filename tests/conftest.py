@@ -57,6 +57,30 @@ def _offline(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
 
 
+@pytest.fixture(autouse=True)
+def _committed_pack_caches(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """A test that substitutes the knowledge pack must not leave it cached for the next.
+
+    The dashboard reads and the reading guide cache the committed pack for the process
+    (``reads._pack_cards``, ``reads.pack_section_counts``, ``guide._committed_text``). A
+    test that replaces ``KnowledgePack.load`` and happens to be the first on its worker to
+    fill those caches left its test pack there for every later test on that worker. Found
+    when ``-n auto`` put such a test first and a section-count test then saw zero cards
+    (M15.2's CI run). Requesting ``monkeypatch`` makes this teardown run while the
+    replacement is still in place, so it can tell.
+    """
+    from genetics.engine.cards import KnowledgePack
+
+    original = KnowledgePack.__dict__["load"]
+    yield
+    if KnowledgePack.__dict__["load"] is not original:
+        from genetics.run import guide, reads
+
+        reads._pack_cards.cache_clear()
+        reads.pack_section_counts.cache_clear()
+        guide._committed_text.cache_clear()
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _no_fetched_references_for_ancestry(
     tmp_path_factory: pytest.TempPathFactory,

@@ -43,7 +43,11 @@ Java 17), the full suite passed **4,518 with 9 skips** in:
 | 4, as on a CI runner | 5 min 57 s |
 | 16 (`auto`, this machine) | 2 min 54 s to 3 min 6 s, three runs |
 
-No test failed or needed isolating in four parallel runs. The suite already gave every test
+No test failed or needed isolating in four parallel runs. *Corrected 2026-11-23:* one did, found
+at M15.2 by `ci-local` on Python 3.13: a knowledge pack three tests substitute could stay in
+the dashboard's process cache, and a later test on the same worker saw it. Parallel order
+exposed it; an autouse fixture now clears those caches (see the
+[M15.2 record](handoff.md#m152-record)). The suite already gave every test
 its own temporary directory and `GENETICS_DATA_DIR`, and the session fixtures that redirect
 run parts and checks are per worker, so there was nothing shared to collide on. **Decision:**
 `-n auto` is not in `addopts`. A single test file would then start 16 workers, each

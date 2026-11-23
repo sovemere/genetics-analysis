@@ -55,6 +55,18 @@ session-1 command would have failed at once, and nothing in the CLI could discar
 interrupted run's parts. The command now declares it, and a test requires the command to
 declare every parameter the pipeline function takes.
 
+**Defect 3, fixed, in the tests: a substituted knowledge pack outlived its test.** Found by
+`genetics ci-local` before pushing this record, on Python 3.13 only:
+`test_every_section_in_the_committed_pack_has_cards` saw zero cards in nine sections. The
+dashboard reads and the reading guide cache the committed pack for the process, and three
+tests in `tests/imputation/test_quality.py` replace `KnowledgePack.load` with a small test
+pack. Whichever ran first on a worker filled the cache with it; in one process an earlier
+test had always filled it with the real pack first, so it never showed until the suite ran
+on parallel workers (code health item 1), which vary the order. Reproduced by running
+`test_rare_imputed_snapshot_keeps_gate_native_evidence_and_scoped_ppv_in_both_views` just
+before it. An autouse fixture in `tests/conftest.py` now clears the three caches after any
+test that replaced the loader; with it the pair passes. No product code was involved.
+
 **Not explained: one transient failure.** On the third attempt the reference distribution
 for one polygenic score failed ("PLINK reference scoring failed; no reference distribution
 accepted.") after three scores had succeeded. Resuming the same run, with identical inputs
