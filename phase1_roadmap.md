@@ -181,7 +181,8 @@ them are kept verbatim in [roadmap_history.md](docs/roadmap_history.md):
       OS-level network block at full pipeline scope — imputation, PRS and HLA all shell
       out, and they are the parts M2.7's in-process guard cannot see. On Windows that block
       is **option A**, decided and tested 2026-11-23: a firewall block of every outbound
-      connection but Claude Code's, scripted with a session runner in `scripts/windows/m151/`
+      connection but the coding agent's (Google Antigravity's two programs since
+      2026-11-25), scripted with a session runner in `scripts/windows/m151/`
       ([details](docs/handoff.md#m151-network-block)). HLA is opted in. The owner starts it.
 - [x] **M15.2** Full run on a structurally different synthetic fixture (different sex,
       different vendor layout) with **no code changes** — proves plug-and-play. Done

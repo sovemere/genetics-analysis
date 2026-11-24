@@ -138,7 +138,8 @@ What is open:
   stage timings and pass or fail belong in the progress log.
 - **The network block is decided: option A, a Windows Firewall block (2026-11-23).** M4.10's
   namespace skips on Windows, and the owner chose a firewall block of every outbound
-  connection on the machine, with Claude Code's own process as the one exception, over WSL2
+  connection on the machine, with the coding agent's own programs as the one exception
+  (Claude Code then; Google Antigravity since 2026-11-25, [below](#m151-network-block)), over WSL2
   or per-program rules. It is in `scripts/windows/m151/` and was tested; see
   [the network block](#m151-network-block) below.
 - **Peak memory** is sampled across the run's whole process tree (Beagle's JVM, PLINK, R) by
@@ -193,7 +194,8 @@ deep-check record, so the first read afterwards should take seconds, not 54 min.
 status` and `genetics doctor`, after the project review's scopes 1 and 2):
 
 1. **The network block is option A (decided 2026-11-23)**: Windows Firewall refuses every
-   outbound connection except Claude Code's, for the length of each session. See
+   outbound connection except the coding agent's (Antigravity's two programs since
+   2026-11-25), for the length of each session. See
    [the network block](#m151-network-block) for how it works, how it was tested and what it
    does not cover. WSL2 was not chosen: it needs the references (63 GB of gnomAD exomes
    alone), tools, Java 17 and R inside Linux, and its timings would not be comparable.
@@ -312,7 +314,7 @@ stage, so `run_session.ps1` ends each session at a line that follows a saved par
   its resume overhead and its stages.
 - **The network block** must be in place for every session, not only the first;
   `run_session.ps1` refuses to start without it. Lift it between sessions, since it takes
-  the whole machine offline but for Claude Code.
+  the whole machine offline but for the coding agent.
 - **What this measures.** The stage timings stay comparable with the table above, and the
   sum of the sessions less their resume overhead estimates an uninterrupted run. It is not
   an uninterrupted wall-clock; say so in the record. It also exercises the resume path on
@@ -332,9 +334,10 @@ with the table above, and say which estimate was off and why if that is known.
 ### M15.1 network block: option A (decided and tested 2026-11-23)
 
 **What it is.** `netblock.ps1 apply` sets every Windows Firewall profile to block outbound
-traffic by default, adds one allow rule for the Claude Code executable it is run from (so
-the agent driving the run keeps working; `-AllowProgram none` exempts nothing when the owner
-runs it alone), and turns on auditing of refused connections (Security event 5157, which
+traffic by default, adds an allow rule for each executable of the coding agent it is run
+from, found among its parent processes (so the agent driving the run keeps working;
+`-AllowProgram <path>[;<path>...]` names them instead, and `-AllowProgram none` exempts
+nothing when the owner runs it alone), and turns on auditing of refused connections (Security event 5157, which
 names the program and process id). It saves the settings it replaced and schedules a
 restore as SYSTEM after 8 hours, longer than any session, which also runs after a reboot.
 `netblock.ps1 restore` puts the saved settings back exactly, removes the rule and the task,
@@ -354,16 +357,28 @@ every attempt appeared in the audit with its program, Claude Code kept working, 
 its connections was refused. The automatic restore then fired on time and left the profiles,
 rules and network as they were before.
 
+**The agent is now Google Antigravity (2026-11-25).** The trial above ran under Claude Code,
+whose one executable, `claude.exe`, `apply` found among its parent processes. Under
+Antigravity no `claude.exe` is there and `apply` would have refused to start. A shell here
+runs under Antigravity's `language_server.exe` (which makes the agent's model calls), under
+`Antigravity.exe`, and both hold connections of their own; `apply` now finds either agent
+and adds one allow rule for each of Antigravity's two executables (`-AllowProgram` takes a
+`;`-separated list). A rule exempts an executable path, not a process tree, so the run's
+`python.exe`, Java, PLINK and R, started from the agent's shell, are refused as before. The
+detection was checked without applying a block; **the block itself has not been re-tried
+under Antigravity**, so a short trial (apply, check, the agent keeps working, restore,
+report) belongs before session 1.
+
 **What it does not cover, to state in the record:**
 
 - **DNS lookups still leave the machine**, through Windows' DNS client service, which a
-  built-in rule allows and Claude Code needs. A lookup carries a host name, never data, and
+  built-in rule allows and the agent needs. A lookup carries a host name, never data, and
   the connection after it is refused and logged. Say "every outbound connection was refused",
   not "nothing left the machine".
 - **The Store build of PowerShell is exempt** through its package's own allow rule. The
   pipeline never starts PowerShell (nothing in `src/` does), programs started from it were
   refused in the trial, and `run_session.ps1` is run with Windows PowerShell for that reason.
-- **The whole machine is offline but for Claude Code** while it is on: the trial's 15 minutes
+- **The whole machine is offline but for the agent** while it is on: the trial's 15 minutes
   refused about 4,700 connections from browsers, chat, game and sync clients.
 - **Java and PLINK were not probed by name.** The block refuses every program but one, so a
   probe of each would test the same rule; the audit would name them if they tried.

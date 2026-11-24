@@ -1,21 +1,26 @@
 # M15.1's network block, option A (docs/handoff.md, the M15.1 run sheet): Windows Firewall
-# refuses every outbound connection on this machine except Claude Code's own, so the run
-# and every program it starts (Python, Java and Beagle, PLINK, R and HIBAG) cannot reach
-# the network, and each refusal is logged with the program that tried. Tested 2026-11-23.
+# refuses every outbound connection on this machine except the coding agent's own, so the
+# run and every program it starts (Python, Java and Beagle, PLINK, R and HIBAG) cannot reach
+# the network, and each refusal is logged with the program that tried. Tested 2026-11-23
+# with Claude Code; the agent is Google Antigravity since 2026-11-25.
 #
 #   powershell -ExecutionPolicy Bypass -File scripts\windows\m151\netblock.ps1 <command>
 #
 #   apply    UAC prompt; block, audit refusals, schedule an automatic restore
 #            (-AutoRestoreHours, default 8: longer than any session, so it never lifts
-#            mid-run). Exempts the Claude Code process this is run from, or -AllowProgram
-#            <path>, or -AllowProgram none.
+#            mid-run). Exempts the agent this is run from, found among its parent
+#            processes: Antigravity (Antigravity.exe and its language_server.exe, which
+#            makes the agent's model calls) or Claude Code (claude.exe). Or -AllowProgram
+#            <path>[;<path>...], or -AllowProgram none. A rule exempts an executable path,
+#            not a process tree, so the run's programs started by an exempt agent are still
+#            refused.
 #   check    prove the block from the run's interpreters, contacting no host (netprobe.py)
 #   status   whether a block is applied, and when it lifts by itself
 #   restore  UAC prompt; undo apply exactly and export what was refused
 #   report   the last restore's refusals, split into the run's programs and everything else
 #
 # Known and accepted: DNS lookups still leave through Windows' DNS client service, which a
-# built-in rule allows and Claude Code needs; a lookup can carry a host name, never data,
+# built-in rule allows and the agent needs; a lookup can carry a host name, never data,
 # and the connection after it is refused and logged. The Store build of PowerShell is
 # exempt through its own package rule; the pipeline never starts PowerShell, and programs
 # started from it were refused in the test.
@@ -33,13 +38,20 @@ $statePath = Join-Path $stateDir 'state.json'
 $log = Join-Path $stateDir 'netblock.log'
 $runPrograms = '\\(python|pythonw|genetics|uv|java|javaw|plink|plink2|rscript|rterm|r)\.exe$'
 
-function Find-ClaudeExe {
+# The agent's executables among this script's parent processes, nearest first: claude.exe,
+# or Antigravity's language_server.exe and Antigravity.exe. Both of Antigravity's hold their
+# own connections, so both are exempted. Nothing found returns an empty list.
+function Find-AgentExes {
+    $found = [System.Collections.Generic.List[string]]::new()
     $p = Get-CimInstance Win32_Process -Filter "ProcessId=$PID"
     while ($p) {
-        if ($p.Name -ieq 'claude.exe') { return $p.ExecutablePath }
+        $path = $p.ExecutablePath
+        $isAgent = ($p.Name -ieq 'claude.exe') -or ($p.Name -ieq 'Antigravity.exe') -or
+            ($p.Name -ieq 'language_server.exe' -and $path -match '\\antigravity\\')
+        if ($isAgent -and $path -and -not $found.Contains($path)) { $found.Add($path) }
         $p = Get-CimInstance Win32_Process -Filter "ProcessId=$($p.ParentProcessId)"
     }
-    return $null
+    return , $found.ToArray()
 }
 
 function Invoke-Elevated([string]$script, [string[]]$scriptArgs, [string]$verb) {
@@ -75,8 +87,11 @@ function Get-Status {
 switch ($Command) {
     'apply' {
         if (Test-Path $statePath) { throw "a block is already applied; see: netblock.ps1 status" }
-        $allow = if ($AllowProgram -eq 'none') { '' } elseif ($AllowProgram) { $AllowProgram } else { Find-ClaudeExe }
-        if ($null -eq $allow) { throw 'not run from Claude Code: pass -AllowProgram <path>, or -AllowProgram none' }
+        $allow = if ($AllowProgram -eq 'none') { '' } elseif ($AllowProgram) { $AllowProgram } else {
+            $agent = Find-AgentExes
+            if (-not $agent) { throw 'not run from Antigravity or Claude Code: pass -AllowProgram <path>[;<path>...], or -AllowProgram none' }
+            $agent -join ';'
+        }
         Invoke-Elevated (Join-Path $here 'netblock_apply.ps1') @(
             '-StateDir', "`"$stateDir`"", '-AllowProgram', "`"$allow`"", '-AutoRestoreHours', "$AutoRestoreHours") 'apply'
     }
