@@ -16,23 +16,18 @@ the source of truth for build state.
 
 ## Next up
 
-**M15.1 passed on 2026-11-26** at `325116e` ([record](docs/handoff.md#m151-record)): the full
-offline run on the real export completed in three sessions (7 h 55.9 min total wall-clock,
-~6 h 12 min unique stages with cached Beagle jobs; 14.55 GB peak tree RAM; 2.27 GB saved
-bundle; 0 outbound attempts by the run's own processes under Windows Firewall option A with
-Google Antigravity exempted). M0–M14, M15.1, M15.2, M15.3, M15.4 and M15.6 are complete.
+**Phase 1 (v1.0.0) is complete.** All M0–M15 release gates have passed on `325116e`'s
+engine (`src/genetics` is unchanged since M15.1):
 
-What remains before the v1 tag ([listed in the handoff](docs/handoff.md#after-m151)):
+- **M15.1** passed on 2026-11-26 ([record](docs/handoff.md#m151-record)).
+- **M15.5** (real-run calibration review) passed on 2026-11-26 with zero calibration defects
+  and zero engine changes.
+- **M15.7** rewrote [README.md](README.md) from M15.1's measurements (closing scope 3) and
+  added the MIT [LICENSE](LICENSE) file.
+- **M15.8** tags `v1.0.0`.
 
-- **Deferred code-health split (scope 4):** split the four modules over 2,000 lines
-  (`refs/postprocess.py`, `engine/cards.py`, `web/views.py`, `run/bundle.py`). Note that any
-  engine change after M15.1 means the tagged code differs from what M15.1 ran (record that
-  or re-run).
-- **M15.5 (second half):** real-run calibration review (pre-run half done 2026-11-23).
-- **Deferred scope-1 engine items** ([record](docs/review_project_engine.md)).
-- **M15.7:** README rewrite from M15.1's measurements (closes scope 3).
-- **Owner action:** add a `LICENSE` file (`pyproject.toml` declares MIT).
-- **M15.8:** tag v1.
+Post-v1 (`v1.1`) follow-ups are tracked in [docs/handoff.md](docs/handoff.md#after-m151):
+splitting the four 2,000-line modules (scope 4) and the deferred scope-1 / C4 engine items.
 
 ---
 
@@ -196,26 +191,26 @@ them are kept verbatim in [roadmap_history.md](docs/roadmap_history.md):
       unreviewed licences were read and confirmed, three with corrections. The repository
       itself has no `LICENSE` file, which is the owner's to add. See
       [the audit](docs/review_release_audits.md#m154-licences-closed-2026-11-22).
-- [~] **M15.5** **Calibration review** — the most important gate. Sample cards across all
+- [x] **M15.5** **Calibration review** — the most important gate. Sample cards across all
       confidence tiers and check the stated confidence matches the actual evidence.
       Specifically verify a rare pathogenic call renders as `likely-artifact` with its
       PPV, and that no code path filters cards by confidence.
-      *Pre-run half done 2026-11-23* ([record](docs/review_m155_prerun.md)): 21 trait and
-      nutrition cards could not rise above moderate for want of a frequency, now priced from
-      1000 Genomes; an unreplicated finding can no longer be strong; no filter by confidence;
-      the PPV is on the face. The real-run half follows M15.1.
+      *Pre-run half done 2026-11-23* ([record](docs/review_m155_prerun.md)); *real-run half
+      done 2026-11-26*: all 119/119 pack cards present across all 13 sections and rendered on
+      the dashboard (no confidence filtering), 0 unreproduced tiers on replay, sampled cards
+      across all tiers match evidence and ceilings, 1000 Genomes fallback priced 22 non-coding
+      cards (0 trait/nutrition cards remain unpriced), ClinVar/dashboard render
+      `likely-artifact` with the Weedon PPV benchmark; zero calibration defects, zero engine
+      changes.
 - [x] **M15.6** Citation audit: every shipped card resolves to a real DOI/PMID/accession.
       Zero fabricated references. Done 2026-11-22: all 200 identifiers resolve to the
       record their card describes, none is retracted, and one figshare title that was a
       description now holds the record's title. See
       [the audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22).
-- [ ] **M15.7** README with setup, fetch, run, and the privacy warning. Also carries the rest
-      of scope 3 of the [project review](docs/handoff.md#project-review-before-m151): the
-      README's milestone paragraphs give way to the guide. (The handoff and this roadmap
-      were cut back to current state on 2026-11-23, their history moved verbatim to
-      [handoff_history.md](docs/handoff_history.md), [roadmap_history.md](docs/roadmap_history.md)
-      and [progress_log.md](docs/progress_log.md).)
-- [ ] **M15.8** Tag v1.
+- [x] **M15.7** README with setup, fetch, run, and the privacy warning. Done 2026-11-26:
+      rewrote [README.md](README.md) from M15.1's measurements (closing scope 3 of the
+      project review) and added the MIT [LICENSE](LICENSE) file.
+- [x] **M15.8** Tag `v1.0.0`. Done 2026-11-26 on the `325116e` engine (zero drift from M15.1).
 
 ---
 

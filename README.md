@@ -1,519 +1,196 @@
 # genetics-analysis
 
-An offline-capable personal genome interpreter with one analysis engine, a CLI and a
-local dashboard. Findings carry evidence, citations and explicit uncertainty. This is
-an educational instrument, not a diagnostic.
+An offline-capable personal genome interpreter with one analysis engine, a JSON CLI, and a
+local web dashboard. Every finding carries its supporting genotypes, effect sizes,
+citations, and an explicit confidence tier on its face. **This is an educational instrument,
+not a clinical diagnostic.**
 
-Read [AGENTS.md](AGENTS.md) before working with data or code. This repository is public:
-personal exports, measurements, run bundles and logs must stay outside Git. Tests use
-synthetic data; reference payloads are fetched, never committed.
+## Privacy warning
 
-## Current state and handoff
+**Never commit genotype-derived data to Git or send it over the network.**
 
-M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented. The current slice includes ingest/QC, cited trait and assay-limit
-cards, ancestry, long ROH, archaic allele-sharing ranges and sex-chromosome call patterns.
-M7.1 adds ClinVar position/allele lookup with preserved source classifications,
-ambiguity states and provenance. M7.2 supplies allele-specific gnomAD frequencies to
-confidence and a separate ClinVar measurement-reliability screen. M7.3 presents scoped
-confirmation benchmarks on the card face and in CLI output, including pathogenic BRCA
-annotations. M7.4 surfaces all ACMG SF v3.3 gene-list overlaps with their reliability,
-reportability limits and gene-specific guidance. M7.5 adds cited APOE, HFE C282Y and
-Factor V Leiden cards with cohort absolute-risk context and explicit baseline gaps.
-APOE uses both defining SNPs and preserves the rare fourth haplotype and unresolved phase.
-The review corrects outcome-specific evidence and exposes each marker's quality inputs.
-M7.6 adds a quantitative array/ClinVar coverage card: unique reference and chip positions,
-calls obtained, allele-resolved matches, explicit denominators and source-bound saved counts.
-Coverage is not clinical sensitivity or confirmed pathogenic findings.
-New runs use bundle format **27**; formats 1–26 remain readable without reinterpreting saved findings.
+- Raw DNA exports, parsed tables, PCA coordinates, polygenic scores, run bundles, and logs
+  that echo genotypes must stay outside this repository.
+- By default, `genetics` writes runs and caches to the OS user-data directory
+  (`%LOCALAPPDATA%\genetics-analysis` on Windows; `$XDG_DATA_HOME/genetics-analysis` on
+  Linux) and refuses any data directory that resolves inside the checkout.
+- Reference datasets are fetched on demand and never vendored; all tests use synthetic
+  fixtures generated from public allele frequencies.
+- When researching a finding online, search the *variant* (`rs17822931`, ABCC11, earwax),
+  never your genotype or card outcome. Use `genetics cards check-query` before any outbound
+  search.
 
-**M8.1 is complete:** the pinned Beagle wrapper checks Java, configures memory,
-reports progress and reuses verified completed jobs. Interrupted jobs restart from
-their inputs. The [Beagle guide](docs/beagle.md) documents the private checkpoint contract.
-`genetics run` now executes the shared imputation stage by default (M8.4).
+Read [AGENTS.md](AGENTS.md) before working with data or code.
 
-**M8.2 implements full per-chromosome reference preparation:** pinned bref3
-conversion and full decoded verification, resumable chromosome checkpoints, source/tool
-provenance and complete GRCh37 genetic maps. See [reference preparation](docs/imputation_reference.md)
-for setup, Java 11+ and explicit X/Y/MT scope.
+## What it covers
 
-**M8.3 supplies shared phasing then imputation:** `genetics impute` harmonizes the target,
-preserves eligible typed calls, partitions X PAR/non-PAR jobs, and writes private per-ALT
-dosages/DR2 with explicit biological ploidy, source and missing-quality states. Completed
-jobs and observations are verified before reuse. See the [pipeline guide](docs/imputation_pipeline.md).
-**M8.4 makes imputation default-on in `genetics run`:** `--no-impute` is an explicit
-development/testing mode recorded in the run and every card. Format 14 preserves the
-execution summary, CLI/dashboard mode parity and historical unknown states.
-**M8.5 propagates imputed dosage quality into card confidence:** absent/no-call
-biallelic SNVs can supply observations; direct calls remain original. Low DR2 lowers
-confidence, phase-filled unknown quality caps it at limited, and every finding remains
-visible. Native ploidy, per-ALT dosages/DR2 and source survive format-15 snapshots.
-See [quality propagation](docs/imputation_quality.md) and [the mode guide](docs/imputation_mode.md).
-**M8.6 saves full imputation dosages and exact used provenance:** independent dosage
-and catalog copies, used panel/map/tool/runtime identities and per-region parameters
-remain readable without stage caches. CLI `runs imputation` and the dashboard use the
-same saved snapshot. See [full provenance](docs/imputation_provenance.md).
-**M8.7 verifies the rare-call frequency gate for imputation:** 32 synthetic cases cover
-strict frequency boundaries, native sources/ploidies, missing companions, weakest-marker
-inheritance and saved CLI/dashboard parity. Strong literature and high DR2 cannot rescue
-rarity; chip confirmation benchmarks remain explicitly uncalibrated for imputation.
-The full native suite passed **2,561 tests, five existing Windows skips**; all four
-strict type targets, lint/format, fixture reproduction and full dbSNP card lint pass.
-No shared-engine or bundle-format change was needed. **M8 is complete; M9.1's PGS
-ingestion, M9.2 scoring, M9.3 coverage and M9.4 reference percentiles are now
-implemented, as are M9.5 ancestry portability, M9.6 polygenic cards and M9.7
-physical-health cards:** [physical-health PRS cards](docs/physical_health_prs.md)
-add PRS3820 breast cancer and genome-wide GPS_Mult coronary artery disease.
-Full-panel native imputation, both public scoring stand-ins and saved-record
-validation pass. The guide records the screenshot review and post-fix browser gap.
-M9.8 [mental-health cards](docs/mental_health_prs.md) are complete: SCZ_GHS
-schizophrenia and UK Biobank-only GPpsy broad help-seeking models are authored
-and fetched, with their model/release and calibration limits stated. Full-panel
-acceptance passes for both default-imputed and explicit no-impute public stand-ins.
-The [session review](docs/review_m97_m98_session.md) tightens frozen duplicate-proof
-allocation and corrects CAD's European subgroup association.
-Final reviewed validation passes **2,875 tests, five existing Windows skips**,
-all four strict type targets, lint/format, fixtures and staged privacy scanning.
-**M9.9 psychometrics is complete:** cognition, education and neuroticism cards
-are authored and reference-pinned, with exact model evidence and unknown direct
-within-family effects stated. Full reference preparation, all three default-imputed
-and explicit no-impute checks, and six retained JSON disk-read validations passed.
-See the [model audit and scale acceptance](docs/psychometrics_prs.md).
-The [M9.9 diff review](docs/review_m99_session.md) confirms the authored evidence
-and pins, strengthens per-card model-binding tests, and revalidates all six saved
-score/card pairs. **M9.10 substance use and behavioural propensity is complete**:
-ever smoking, less-frequent alcohol intake and broad self-reported addiction
-cards are authored and reference-pinned. Exact model evidence, phenotype
-direction and release-selection limits are documented in the
-[model audit](docs/substance_use_prs.md). Full reference preparation, all six
-public-stand-in scoring checks and six written-record reload validations pass,
-with complete models and reused full-autosomal imputation. All 2,881 unique
-checks pass, with five existing Windows skips. **M9.11 sleep and circadian is
-complete**: evening preference,
-log-transformed daily sleep including naps and ordinal sleeplessness remain
-distinct endpoints. See the [model audit](docs/sleep_circadian_prs.md) and
-[handoff](docs/handoff_history.md#next-open-step-m912-fitness-and-physiology).
-All three full references, six scoring checks and six written-record reload
-validations pass, with complete models and reused full-autosomal imputation.
-All 2,885 unique checks pass with five Windows skips, all four strict type
-targets and full card lint (64/294/35 keys). **M9.12 fitness and physiology
-is complete**: four endpoint-specific variant cards and complete PGS002143
-mean grip strength are authored and source-audited. Full reference preparation,
-both native scoring modes and both written-record disk-read validations pass,
-with every source term retained and completed imputation reused.
-All 2,923 unique checks pass, five existing Windows skips; all four strict type
-targets and full dbSNP lint (69/320/39 keys) pass. See the
-[evidence audit and measured acceptance](docs/fitness_physiology.md).
-**M9.13 card-level ancestry match is complete.** Variant and polygenic cards
-share one 1000 Genomes placement. Selected-outcome study populations and
-matched, mismatched, declined, not-run and unknown states appear on the face
-and detail. Variant confidence uses the weighted comparison while retaining
-rarity/quality limits and the existing unknown cap; PRS transfer ceilings remain
-specific to PRS. Format 18 validates frozen evidence/context and preserves older
-snapshots. All 2,995 unique checks pass with five existing Windows skips;
-strict four-way types, lint/format, fixtures, full card lint and privacy gates pass.
-See [the contract and evidence audit](docs/card_ancestry.md).
-The [M9.13 diff review](docs/review_m913_session.md) hardens frozen fit, allele
-and numeric validation and preserves damaged-run errors in card detail. All
-3,015 tests pass with five existing Windows skips; types, lint, card lint and
-fixtures pass. The
-[next-step handoff](docs/handoff_history.md#next-open-step-m101-pharmacogenomics-ingestion)
-records M10.1's original source-ingestion entry contract.
+All thirteen sections in [AGENTS.md §3.1](AGENTS.md) are built on one engine and shared by
+the dashboard and CLI:
 
-**M10.1 pharmacogenomics ingestion is complete:** all supplied CPIC allele definitions,
-functions and phenotype relationships, plus all ClinPGx annotation tables, are ingested
-and checksum-bound. SQL is read without execution; COPY and INSERT dumps agree.
-`genetics pgx prepare` joins source HGVS assembly mappings to verified dbSNP GRCh37
-keys; `genetics pgx inspect` exposes frozen definitions, functions, phenotype mappings,
-licences and explicit gaps offline. All 1,354 definitions and 112,820 diplotype rows
-are retained. Normalization remains partial and VKORC1 has no source phenotype table.
-The archive-specific licence audit corrects ClinPGx's non-commercial terms and records
-the CPIC database-policy scope for review. See [PGx ingestion](docs/pgx_ingestion.md)
-and the [M10.2 handoff](docs/handoff_history.md#next-open-step-m102-snp-tractable-diplotype-calling).
-**M10.2 sample calling is implemented:** `genetics run` evaluates the eight
-SNP-tractable genes and freezes complete candidate evidence in bundle format 19.
-`genetics pgx calls RUN --gene CYP2C19 --json` and the dashboard inspect the same
-saved calls offline. Phase, ploidy, missing/unresolved constraints, phenotype gaps,
-and rare/imputed reliability remain visible. DPYD uses source activity-score
-joins; G6PD keeps native copy counts; VKORC1's missing phenotype table is explicit.
-An absent prepared reference saves an unavailable stage; a damaged one fails.
-Formats 1–18 remain readable and M9.13 confidence arithmetic is unchanged.
-See [the calling contract](docs/pgx_calling.md).
-**M10.3 CYP2D6 placement is complete:** the existing saved assay-limit card
-stays beside calls on the dashboard, PGx overview and every gene detail,
-including filtered views and unavailable references. CLI inspection carries
-the same saved evidence; historical/nonstandard packs report absent card
-evidence explicitly. See [the placement contract](docs/pgx_calling.md#m103-cyp2d6-placement).
-Review validation covers 3,219 unique passing tests with five existing Windows skips,
-including the native-tool setup recheck; four strict type targets,
-full card lint, fixtures, style and privacy checks pass.
-The [M10.3 diff review](docs/review_m103_session.md) fixes incomplete saved-text
-reporting and replaces ignored filter inputs with actual hide-and-retain checks.
-**M10.4 guideline-linked cards are implemented:** eight declarative selectors
-preserve every conditional CPIC recommendation branch, exact source joins,
-multi-gene requirements, population/clinical context and separate evidence labels.
-Bundle format 20 reproduces the cards from frozen sample schema 1 offline.
-Complete-source synthetic save/reload and all authored citation bindings pass;
-VKORC1's absent recommendation keys remain explicit. Validation covers 3,267
-unique passing checks, five existing Windows skips, four strict type targets,
-full card lint, fixtures, style and privacy checks. See the
-[contract and source audit](docs/pgx_guidelines.md).
-The [M10.4 diff review](docs/review_m104_session.md) hardens frozen numeric
-validation and incomplete-source evidence handling. New guideline cards use
-display schema 2; schema-1 cards retain their original rules and text. Review
-validation passes the complete native suite: 3,292 tests, five existing Windows
-skips, with four strict type targets, full card lint, fixtures and style passing.
-**M10.5 section framing is complete:** one shared prescribing-tool notice appears
-once on each PGx section/view and CLI report. JSON labels it as current context;
-saved findings, historical runs and guideline display schemas 1–2 are preserved.
-See [the framing contract](docs/pgx_framing.md). The
-[M10.5 diff review](docs/review_m105_session.md) closes a reproduced CLI
-saved-summary test gap; production code and saved formats are unchanged.
-**M11.2 HLA imputation is implemented.** It validates an explicitly selected, opt-in
-HIBAG HLARES hg19 classifier, proves marker strand from dbSNP and 1000 Genomes allele
-sets (99.8% of model markers on the real references), and stores frozen
-per-locus calls, posterior probability, marker coverage and provenance in bundle format
-21. Unavailable and no-prediction states never imply absence of an allele. See [the
-classifier-imputation contract](docs/hla_imputation.md). CI now installs R and HIBAG,
-and native prediction through synthetic classifiers passes on Windows and Linux.
-Prediction through all four published classifiers passes locally on Windows. That test
-runs only where the classifiers are fetched, because CI never downloads references.
-**M11.3 classifier selection and call confidence are implemented.** The model-terms
-opt-in selects the classifier from the run's saved M5 placements, through the cited
-Morales category and the publisher's training descriptions. It declines on declined,
-missing, ambiguous or unsupported placements rather than guessing. An explicit classifier
-still runs with its ancestry mismatch recorded. Each predicted locus carries an
-observation ceiling from posterior, marker coverage and ancestry match, in bundle format
-22. See [the selection contract](docs/hla_selection.md). The
-[M11.3 diff review](docs/review_m113_session.md) adds rendering coverage for every
-selection outcome and fixes override wording and late cancellation.
-**M11.4 HLA-linked cards are implemented.** Knowledge schema 6 adds `kind: hla`: eight
-cited cards read the frozen classifier calls — celiac DQ2.5/DQ8, type 1 diabetes
-DR3/DR4-DQB1\*03:02, ankylosing spondylitis B27 and narcolepsy DQB1\*06:02 in
-immunogenetics, and B\*57:01, B\*15:02, A\*31:01 and B\*58:01 in pharmacogenomics, whose
-recommendation rows come from the run's frozen CPIC release. No prediction, an allele the
-model cannot emit, or a stage that did not run makes a card not determinable, never
-negative. Confidence uses the weakest named locus posterior, the M9.13 study comparison and
-M11.3's call ceiling, and stays capped at moderate without an HLA frequency source. Cards
-rebuild from their frozen definition and the bundle's own records in format 23. See
-[the card contract](docs/hla_cards.md). The
-[M11.4 diff review](docs/review_m114_session.md) stops allele groups counting null
-alleles and lists the HLA drug cards in the PGx views.
-**M11.5 carrier status is implemented.** Knowledge schema 7 adds a `carrier` declaration to
-single-marker interpretation cards: 15 reproductive cards cover sickle cell disease (HbS),
-cystic fibrosis (six CFTR SNVs), phenylketonuria (three PAH variants), MCAD deficiency,
-Gaucher, Tay-Sachs, Canavan and Fanconi anaemia group C, and HFE C282Y joins the same panel
-from physical health. The state is derived from the call, never authored; a card that did
-not match is "not determined", never non-carrier, and A/T or C/G homozygotes stay
-strand-ambiguous. `genetics cards carriers` lists the panel as data. Bundle format
-24 saves and re-derives each carrier record. See [carrier status](docs/carrier_status.md).
-The [M11.5 diff review](docs/review_m115_session.md) tightens five card statements against
-their sources and refuses saved carrier records on a non-autosome.
-**M11.6 carrier-screening scope is implemented.** A computed card states that the reproductive
-section is not a carrier screen and counts what it leaves out: 16 typed markers over 9
-conditions against ACMG Tier 3's 113 genes (8 typed, 7 assay limits, 98 with no card, which is
-a gap in this report rather than a limit of the array), plus how many markers gave a result in
-this run. Knowledge schema 8 and bundle format 27; `genetics cards carrier-scope` gives the
-comparison from the pack alone. See
-[carrier status](docs/carrier_status.md#section-level-scope-m116). The
-[M11.6 diff review](docs/review_m116_session.md) fixes a crash when CLI output is redirected on
-Windows, counts imputed results apart from array reads and binds the audit's re-check to each
-allele; saved format numbers are unchanged.
-**M11.7 reproductive traits are implemented.** Seven public polygenic cards cover age at
-menarche, age at menopause, age at first live birth, age at first sexual intercourse, menstrual
-cycle length and serum testosterone in women and in men, each with its own endpoint and no age,
-concentration or fertility estimate. The menopause card says on its face that its published R2 is
-probably too low, and why. Knowledge schema 9 and bundle format 28. See the
-[model audit](docs/reproductive_prs.md).
-**M12.1 nutrition cards are implemented.** Nine cards fill the nutrition section: coffee intake,
-the CYP1A2 "slow metaboliser" marker with its actual (candidate-gene) evidence, ADH1B alcohol
-intake, FUT2 secretor status and vitamin B12, GC vitamin D, FOLR3 folate, and the lactase and ALDH2
-cards moved from traits. HFE and celiac stay in their own sections, and the nutrition section links
-to them. See the [nutrition audit](docs/nutrition.md). The
-[M12.1 diff review](docs/review_m121_session.md) replaces four card sentences no cited paper
-supported and sources two allele names to their PharmGKB records.
-**M12.2, the MTHFR calibration case, is implemented.** Four cards share MTHFR C677T. The nutrition
-card states what the variant does: TT averages 2.1 micromol/L more homocysteine than CC, less where
-food is fortified, and it lands well-established. Three cards state the health claims made for it,
-venous thrombosis, coronary heart disease and depression, each with the studies that tested them,
-and the calculator lands each at limited. See the [calibration audit](docs/mthfr.md). The
-[M12.2 diff review](docs/review_m122_session.md) removes one unsourced sentence, adds a relative
-homocysteine figure and an absolute-risk statement, and corrects four wordings.
-**M13.1, the agent's read commands, is implemented.** `runs show --section`, `runs card`,
-`runs qc` and `cards evidence` let an agent read one section, one card, a run's QC record or a
-card's evidence without printing a whole bundle. `cards evidence` reads only the knowledge pack
-and holds no genotype, so a web search can start from it. See the
-[read-command contract](docs/agent_cli.md). The
-[M13.1 diff review](docs/review_m131_session.md) fixes `runs card` calling computed, polygenic
-and guideline cards "Not scored".
-**M13.2, the agent JSON schema, is implemented.** One JSON Schema document describes what the
-agent read commands print, and `genetics schema` prints it. Each document names its payload and
-version, `run_id` is the same id in every command, and a failure under `--json` is one error
-document. See [the agent schema](docs/agent_schema.md).
-**M13.3, card search, is implemented.** `genetics cards search <query>` finds cards in the
-knowledge pack by what they are about, with no run and no genotype, and
-`genetics runs search <run> <query>` finds them in one saved run with each one's result. Both
-use one ranking, say which fields each hit matched, and refuse a query that reads as a
-genotype. See [the search contract](docs/agent_cli.md#search-m133). The
-[M13.3 diff review](docs/review_m133_session.md) fixes a stemming rule that made a search for
-`note` match every card saying `not`.
-**M13.4, machine-readable confidence, is implemented.** `genetics runs card` says what
-decided a card's confidence tier, in one shape for every kind of card: the saved tier and
-score, each input with its weight and what it cost the score, every ceiling that applies and
-which of them set the tier. A card with no tier says why. The block is this engine's reading
-of the saved inputs, checked against the saved tier before it is offered, and the saved card
-is unchanged. The agent schema became version 4. See
-[the confidence contract](docs/agent_cli.md#confidence-m134). The
-[M13.4 diff review](docs/review_m134_session.md) fixes a check that reported about one
-honest polygenic score in a thousand as saved under other rules, and a rare call's rate
-being printed twice.
-**M13.5, the CLI and dashboard parity test, is implemented.** A test fails when a
-dashboard page shows something no command prints: a route with no command beside it, an
-engine function only the dashboard calls, or a value on a page that is missing from a
-command's JSON. It renders every page of a saved run and compares what each is handed with
-what the commands print. The commands that print a run's other saved records (`runs
-clinvar`, `runs secondary`, `runs imputation`, `pgx calls`, `hla calls`) are now described
-by the agent schema, which is version 5. See
-[the parity section](docs/agent_cli.md#parity-m135). The
-[M13.5 diff review](docs/review_m135_session.md) fixes comparisons that let a figure
-changed to another figure in the same saved record pass, a polygenic score's coverage
-among them, and adds a probe that changes every value a card shows.
-**M13.6, the agent review walk-through, is implemented.**
-[Reviewing a run as an agent](docs/agent_usage.md) gives the steps for reviewing a saved
-run, the keys to read, what may be searched online and what an answer has to carry. It
-works the brief's example through, a curly-hair card checked against its two cited papers
-and answered with ten sourced facts, on a run built from committed cards and an invented
-table. A test runs every command on the page and compares each output shown with what the
-command prints. No command, schema, bundle format or card changed.
-The [M13.6 diff review](docs/review_m136_session.md) corrects what the page said its
-query check catches (a result worded as "one copy" passes it), holds the statuses, error
-kinds and short-form commands the page names to the code, and records the fix for the
-Linux CI jobs after `ubuntu-latest` moved to Ubuntu 26.04.
-**M13.7, the outbound-query lint, is implemented.** `genetics cards check-query` is what
-an agent runs on every web search before sending it: it refuses a genotype written out and
-a result told in words ("one copy", "heterozygous", "my", a tier, a run id), never prints
-the query back, and with `--card` lists each word the card's evidence does not print. The
-search commands refuse the same call shapes, and every request the fetcher makes passes
-the check. See [Query check](docs/agent_cli.md#query-check-m137).
-**M14.1, explicit empty states, is implemented.** Every section with nothing to show says
-why, in the same sentence on the dashboard and in `runs show --section`: the run was saved
-before the section had cards, or its cards found nothing in this genome (counted by
-status, with the engine's not-run reasons), or no run is open.
-**M14.2, the ancestry page, is implemented.** It draws the run among the present-day
-reference populations it was placed against, lists the nearest by full distance, and shows
-ancient affinity and both haplogroups with their marker counts; `genetics runs ancestry`
-prints the same. Runs now record where the reference populations sit (bundle format 29).
-**M14.3, the reading guide, is implemented.** `/guide` and `genetics cards guide` explain
-the six confidence badges and what earns each, how a tier is decided, why rarity lowers
-confidence (with the published benchmarks), what a polygenic score can say and what the
-array cannot tell. Every threshold is read from the confidence engine, and every page's nav
-carries the legend.
-**M14.4, the dashboard's search, is implemented.** A box in every open run's nav lists the
-run's cards that match a query, ranked exactly as `genetics runs search` ranks them, with
-partial matches below full ones and none left out for its confidence. A query that reads as
-a genotype is refused and never shown again.
-**M14.5, the QC and provenance page, is implemented.** `/runs/<run>/qc` shows the whole QC
-report, every polygenic score's coverage on the array and after imputation beside ClinVar's,
-the imputation parameters with a row per region and per job, and the reference, tool and
-knowledge-pack versions the run recorded. `genetics runs qc` and `runs imputation` print
-the same (agent schema 9).
-**M14.6, impossibility cards in their sections, is implemented.** Each section names what
-the array cannot determine there at its head, whatever the grid's filters, and shows those
-cards as their own block below its findings rather than sorted in among the cards that did
-not match. `genetics runs show --section` prints the same list (agent schema 10).
-**M14.7, the accessibility pass, is implemented.** A card's title is its link, named for a
-screen reader by the title and the tier; arrow keys on a select no longer leave the page;
-form controls have a visible edge in both themes; and every page's markup is audited by a
-test. **M15.3, the privacy audit, is done:** nothing genotype-derived was ever committed,
-and two routes that could have leaked were closed
-([audit](docs/review_release_audits.md#m153-privacy-closed-2026-11-21)). **M15.4, the
-licence audit, is done:** the reference lock, the vendored front-end and every polygenic
-score's terms hold ([audit](docs/review_release_audits.md#m154-licences-closed-2026-11-22)).
-**M15.6, the citation audit, is done:** every cited identifier resolves to the record its
-card describes, and none is retracted
-([audit](docs/review_release_audits.md#m156-citations-closed-2026-11-22)).
-**M15.2, a full run on a structurally different synthetic export, is done:** a female sample
-in the 23andMe-like layout ran end to end with no adapter or analysis change, after two
-defects it found were fixed ([record](docs/handoff.md#m152-record)).
-[M15.1, the full run on the real file](docs/handoff.md#next-open-step-m151-full-run)
-is next.
-The [M10.2 diff review](docs/review_m102_session.md) binds saved PGx observations
-to native dosage evidence, tightens malformed-input validation and fixes error
-categories, allele uncertainty labels and reliability styling. See the
-[M10.3 handoff](docs/handoff_history.md#next-open-step-m103-cyp2d6-placement).
-The [M10.1 diff review](docs/review_m101_session.md) fixes null guideline citation
-joins, safe atomic publication and parsing/frozen-reference validation, and updates
-the next-step contract. Complete source tables and verified mapping counts are unchanged.
-Final review validation passes **3,137 native tests**, with five existing Windows
-skips; four strict type targets, full card lint, fixtures, style and privacy gates pass.
-The [M9.12 diff review](docs/review_m912_session.md) adds guards against
-reversed variant claims and wrong effect units, with all 102 focused card tests
-passing. The [M9.13 handoff](docs/handoff_history.md#next-open-step-m913-card-level-ancestry-match)
-records the ancestry context, confidence decisions and saved-run requirements.
-The [M9.11 diff review](docs/review_m911_session.md) confirms the model evidence
-and pins and strengthens directed-phenotype bindings on the face and after
-reload. All 62 card tests and six retained native card bindings pass; no
-production card or engine correction was needed.
-The subsequent [M8 overview review](docs/review_m8_overview.md) fixes saved rarity and
-provenance validation/error paths and expands the [M9.1 handoff](docs/handoff.md).
-It adds 30 cases; the final native suite passes **2,591 tests, five existing Windows
-skips**, with strict four-way types, lint/format, fixture reproduction and full card lint.
-M7.2 is accepted against the complete 17,209,972-record gnomAD index. The 63.15 GB
-download passed its publisher checksum; source/index verification and a synthetic
-offline run through the CLI and dashboard passed. Download resumability debt is resolved:
-explicitly immutable releases can resume verified prefixes; rolling sources restart.
-**M9.1 is implemented:** public PGS format-2 scoring-file parsing, authoritative per-score
-metadata terms, source-bound metadata processing and offline `genetics pgs inspect --json`.
-The first live public score parses 77 rows; missing/unknown/ambiguous licences cannot
-establish permission. See [PGS ingestion](docs/pgs_ingestion.md).
-The full native suite passes **2,660 tests, five existing Windows skips**, with strict
-four-way types, lint/format, fixtures and full card lint; 69 new synthetic cases cover M9.1.
-**M9.2 computes original/post-imputation PLINK sums:** `genetics pgs score` uses shared
-ancestry-first/default-on imputation or full saved dosages, preserving native effect doses,
-allele quality and private provenance. Explicit `--no-impute` is recorded; saved-only
-original sums remain unavailable. Results default outside the checkout as private,
-immutable `.pgs-score.json` files. Coverage, percentiles and calibration remain M9.3–M9.6.
-See [PGS scoring](docs/pgs_scoring.md).
-M9.2 acceptance passes **2,707 tests, five existing Windows skips**, including native
-arithmetic and cache-independent saved/CLI scoring, with all four strict type targets,
-lint/format, fixtures and full card lint. Forty-seven new cases cover this step.
-**M9.3 reports per-score variant coverage** before and after imputation in every private
-score result, with separate row/variant/position denominators and null (not 0%) for
-unavailable phases; `genetics pgs coverage` revalidates it. See
-[PGS coverage](docs/pgs_coverage.md).
-**M9.4 places each score against 1000 Genomes** within the person's placed
-super-population (pooled and labelled unmatched otherwise), over the same rows and
-the same PLINK matrix; `genetics pgs placement` revalidates it. See
-[PGS reference](docs/pgs_reference.md). The [M9.3–M9.4 review](docs/review_m94_session.md)
-verifies the public panel before personal input.
-**M9.5 states each score's ancestry portability:** the placed 1000 Genomes population maps
-through a cited category chain (Morales et al. 2018 Table 1, then the PGS Catalog's display
-categories) to the share of the score's study population demonstrably in the sample's
-category, which becomes `ancestry_match`. A decline by either panel lowers it; unknown stays
-unknown; nothing is filtered. `genetics pgs portability` revalidates it. See
-[PGS portability](docs/pgs_portability.md).
-**M9.6 puts polygenic scores on cards:** `genetics run` scores every `kind: polygenic` card
-(knowledge schema 4) and saves the private record in bundle format 17. The card face and
-the dashboard show the reference distribution with the person's interval, never a point,
-beside coverage, portability, within-family attenuation and absolute rates by decile where
-cited. See [PGS cards](docs/pgs_cards.md). The [M9.5–M9.6 review](docs/review_m96_session.md)
-fixes three defects; M9.7's entry contract is in the [handoff](docs/handoff.md).
-Start with the
-[handoff](docs/handoff.md), then the [living roadmap](phase1_roadmap.md).
-M8.5 adds 54 synthetic checks for quality propagation, historical compatibility and
-native Beagle acceptance. The full local suite retains five existing Windows skips.
-M8.6 adds 53 full-snapshot checks; its final native suite passed **2,524 tests**, with
-those same five skips, strict four-way typing, privacy gates and full card lint.
-The subsequent [diff review](docs/review_m86_session.md) fixes three validation/error
-defects and adds five regressions: **2,529 tests passed**, with the same five skips.
-The [M8.7 handoff](docs/handoff_history.md#m87-implementation-handoff) records its completed
-acceptance matrix.
-The preceding M8.4 suite passed **2,417 tests with five existing Windows skips**,
-including native ROH and privacy checks. Strict type checks, ruff/formatting, fixture
-reproduction and full dbSNP card lint passed; scoped M7.6 synthetic-only full-reference offline
-acceptance verified saved CLI/dashboard parity. Native Beagle acceptance uses one
-synthetic target and twenty generated reference samples; CI enables it on Windows/Linux.
-New native reference tests cover full conversion, exact round trips, interruption,
-checkpoint recovery, corruption refusal and Beagle consumption of the prepared bref3.
-M8.3 native acceptance checks independent male/female targets across autosomal and X
-jobs, including phase-filled no-calls, multiallelic/indel predictions and verified reuse.
-The [session review](docs/review_m8_session.md) records fixes to output identity/region
-checks, cleanup, runtime drift, build metadata and reference-catalog validation/recovery.
-The M7.5 implementation checkpoint is `aa75287`, with
-[all five CI jobs passed](https://github.com/sovemere/genetics-analysis/actions/runs/37434344709).
-The [M7.5 session review](docs/review_m75_session.md) records the preceding fixes;
-the [coverage guide](docs/clinvar_coverage.md) describes M7.6's counting and saved contract.
+- **Ancestry** — PCA placement against 1000 Genomes, ancient-DNA affinity, and coarse Y/MT
+  haplogroups
+- **Physical health** — ClinVar lookup, ACMG SF v3.3 secondary-finding gene overlaps,
+  monogenic cards (APOE, HFE, Factor V Leiden), and polygenic scores
+- **Mental health**, **Psychometrics**, **Substance use & behavioural propensity**,
+  **Sleep & circadian**, and **Fitness & physiology** — cited variant and polygenic cards
+  with coverage, ancestry portability, and within-family attenuation stated explicitly
+- **Pharmacogenomics** — CPIC/ClinPGx diplotype calling for SNP-tractable genes (CYP2C19,
+  CYP2C9, VKORC1, SLCO1B1, TPMT, DPYD, NUDT15, G6PD) with CYP2D6 rendered as an explicit
+  "not callable from this data" card
+- **Traits, morphology & sensory** — high-confidence common variants (eye shade, earwax,
+  hair curl, bitter taste, cilantro, asparagus anosmia, photic sneeze, and more)
+- **Nutrition & metabolism** — lactase persistence, caffeine, alcohol flush, folate, vitamin
+  D, vitamin B12, and the MTHFR calibration cards
+- **Immunogenetics (HLA)** — optional HIBAG imputation from MHC SNPs unlocking celiac,
+  type 1 diabetes, ankylosing spondylitis, narcolepsy, and HLA drug-hypersensitivity cards
+- **Reproductive & carrier status** — cited carrier markers with an explicit screening-scope
+  card showing what an array leaves out, plus reproductive-trait polygenic scores
+- **Genome structure** — long autosomal runs of homozygosity (PLINK 1.9), archaic
+  allele-sharing ranges, and sex-chromosome call patterns
 
-## Development and use
+**Calibration and assay limits.** Low-confidence findings are flagged, never hidden. Rare
+SNP-chip calls (`AF < 0.001%`) are downgraded to `likely-artifact` with published
+sequencing-confirmation benchmarks (Weedon et al. 2021: ~16% overall, ~4.2% for BRCA1/2) on
+the card face. What a consumer genotype array cannot determine (methylation/epigenetic age,
+somatic variants, copy-number/structural variants including SMN1/CYP2D6/RHD, Y-STRs, mtDNA
+heteroplasmy, de novo mutations, relative matching, telomere length) renders as explicit
+assay-limit cards inside each section.
 
-Python 3.11+ is required; Windows is the primary development platform. From a checkout:
+## Setup
+
+Python 3.11+ is required (Windows is the primary development platform; Linux is also
+tested in CI). From a checkout:
 
 ```powershell
 uv venv --python 3.11
 uv pip install -e ".[dev]"
 uv run --no-sync genetics install-hooks
-uv run --no-sync genetics --help
-uv run --no-sync pytest -q -n auto
+uv run --no-sync genetics doctor
 ```
 
-`-n auto` runs the suite across one worker process per core (pytest-xdist), as CI does:
-about 3 minutes on 16 cores, against 17 on one. Leave it off to run a single test file.
+External runtimes used by analysis stages:
 
-Before pushing, `genetics ci-local` runs the GitHub CI checks in `.github/workflows/ci.yml`
-on this machine. It reads the steps from the workflow and runs them in a fresh clone of
-what the push would publish, with an empty data directory and cached per-version venvs.
-CI uses Java 17; pass `--java-home` if `JAVA_HOME` does not point at it.
-`--python 3.13` runs one matrix version instead of all of them. Jobs for other operating
-systems (the Linux runners, on Windows) are named but not reproduced. CI also installs R
-and HIBAG for the native HLA tests; a local run uses `Rscript` from `PATH` instead, and
-says so when it finds no ready HIBAG, since those tests then skip.
+- **Pinned genomics tools** (PLINK 2, PLINK 1.9, Beagle 5.x, bref3, unbref3): installed via
+  `genetics tools install`.
+- **Java 17** (`JAVA_HOME`): required by Beagle and the pinned bref3/unbref3 tools (Java 8
+  is refused).
+- **R + HIBAG** (optional): required only if you opt in to HLA imputation
+  (`--hla-model-opt-in`).
 
-Fetch the sources and pinned tools needed for an analysis using `genetics refs` and
-`genetics tools`. Downloads can be large; the reference manifest declares sizes and
-licenses. Once installed, computation is local. Prefix the following commands with
-`uv run --no-sync` when the environment is not activated:
+## Fetch references and tools
+
+Download the reference databases and pinned tools once (online); after that, analysis runs
+completely offline:
+
+```powershell
+genetics tools install
+genetics refs status
+genetics refs fetch
+```
+
+Reference downloads are large (for example, gnomAD r2.1.1 exomes is ~63 GB; gnomAD genomes
+is optional). Exact sizes, checksums, and licence terms are declared in
+[data/references/manifest.yaml](data/references/manifest.yaml) and pinned in
+`data/references/manifest.lock`. Sources whose licences require explicit acceptance (such as
+PharmGKB/CPIC or the optional HIBAG classifiers) are gated behind opt-in flags. See
+[data/references/README.md](data/references/README.md) and
+[docs/imputation_reference.md](docs/imputation_reference.md) for preparation details.
+
+## Run an analysis
+
+Point `genetics run` at a raw DNA export stored outside the checkout (AncestryDNA V2.0 and
+23andMe-like layouts are supported out of the box):
+
+```powershell
+genetics run --input C:\path\to\export.txt
+```
+
+- **Imputation is on by default.** Pass `--hla-model-opt-in` to include HIBAG HLA calling.
+  `--no-impute` is available for development/testing and is recorded on the run and cards.
+- **Resumable by design.** Long stages (imputation, the imputed dose read, each polygenic
+  score, PGx, and HLA) are saved as private parts outside the checkout as they finish.
+  Re-running the same command resumes from the last saved part; `--restart` discards saved
+  parts to start fresh. Parts are removed automatically once the bundle is written.
+- **Measured resource profile** (M15.1 on a real 677k AncestryDNA V2.0 export, 21 polygenic
+  scores, HLA opted in, offline; see [docs/handoff.md](docs/handoff.md#m151-record)):
+  - **Wall-clock:** ~6 h 12 min of unique stages when reusing verified cached Beagle jobs
+    (add ~1.5–2 h for cold Beagle imputation; 7 h 55.9 min across three resumed sessions).
+  - **Peak memory:** 14.55 GB process-tree peak (`python.exe` 14.54 GB, `plink2.exe` 1.46 GB,
+    `rscript.exe` 0.23 GB).
+  - **Disk:** 2.27 GB saved run bundle, 11.2 GB cache, 0.23 GB pinned tools.
+  - **Reopening a saved run:** seconds once saved (deep checks run at save time; they repeat
+    once, ~1 hour, after engine source changes or under `genetics runs list --verify`).
+
+## Explore results (Dashboard & CLI)
+
+Start the local dashboard (bound to loopback `127.0.0.1` only):
+
+```powershell
+genetics serve
+```
+
+On Windows, `scripts\windows\build_launcher.ps1` builds a local `GeneticsDashboard.exe`
+(gitignored) plus a `GeneticsDashboard (verify first).lnk` shortcut that runs
+`genetics runs list --verify` before launching the browser.
+
+Everything rendered in the dashboard is also available as versioned JSON from the CLI
+(verified by automated CLI/dashboard parity tests):
 
 ```text
-genetics run --input <outside-repo-export>
 genetics runs list
-genetics runs show <run-id> --json
 genetics runs show <run-id> --section nutrition --json
 genetics runs card <run-id> <card-id> --json
 genetics runs qc <run-id> --json
-genetics cards evidence <card-id> --json
-genetics cards search curly hair --json
 genetics runs search <run-id> curly hair --json
-genetics schema
+genetics runs ancestry <run-id> --json
 genetics runs clinvar <run-id> --json
 genetics runs secondary <run-id> --json
 genetics runs imputation <run-id> --json
 genetics pgx calls <run-id> --json
 genetics hla calls <run-id> --json
-genetics serve
+genetics cards evidence <card-id> --json
+genetics cards search curly hair --json
+genetics cards guide --json
+genetics cards check-query <query> --card <card-id>
+genetics schema
 ```
 
-On Windows, `scripts\windows\build_launcher.ps1` builds `GeneticsDashboard.exe` at the
-checkout root (gitignored) with the C# compiler that ships with Windows. Double-clicking it
-runs `genetics serve` through `uv` (or the checkout's `.venv`), opens the dashboard in the
-default browser, and stops the server when its window closes. The script also makes
-`GeneticsDashboard (verify first).lnk`, which starts the launcher with `--verify`. That runs
-`genetics runs list --verify` first, so after a source change each saved run's deep checks
-(about an hour for an imputed run) happen up front with progress shown, not on the first
-dashboard page. It repeats them even when they are current, so it is worth using only after
-the code changes. If the check stops with an error, the dashboard is not started.
+For the step-by-step agent review workflow, see [docs/agent_usage.md](docs/agent_usage.md),
+[docs/agent_cli.md](docs/agent_cli.md), and [docs/agent_schema.md](docs/agent_schema.md).
 
-Runs default to the OS user-data directory outside this checkout. Missing structure
-prerequisites produce visible `not_run` cards; malformed inputs and wrong tool versions
-fail explicitly. Standalone `genetics roh` exposes the same ROH engine with custom
-reference and policy options.
+## Development and verification
 
-Default imputation requires the full prepared panels/maps and pinned Java tools;
-[setup](docs/imputation_reference.md) describes installation. Missing imputation
-prerequisites fail explicitly. Development/testing can select `--no-impute`, which is
-visible in the saved run and cards; it is never selected automatically.
+```powershell
+uv run --no-sync pytest -q -n auto
+uv run --no-sync genetics ci-local --java-home <path-to-java-17>
+```
 
-An imputed run of a real export took 7 h 49 min and peaked at 14.7 GB
-([measurements](docs/handoff.md); about 5½ hours and 10.9 GB on a
-[public stand-in](docs/review_run_cost_session.md)). Its deep checks run when it is saved,
-and later reads skip them: opening that run takes about 13 seconds. They repeat once, about
-54 minutes, the first time a run is read after the engine's source changes, and always under
-`genetics runs list --verify`. The dashboard's first page pays that repeat too, so run that
-command first after changing the source. The dashboard keeps one opened run in memory, about
-2.4 GB for that run. A saved run never gains a section added later; that takes a new run.
-`genetics run` saves its long parts as they finish: the
-imputation, one read of the imputed doses, each polygenic score, and the PGx and HLA
-calls. Rerunning an interrupted run of the same export resumes after the last saved
-part. The parts are private and stay outside the checkout; they are removed once the run
-is saved, and `--restart` discards them to start over.
+`-n auto` runs the full suite across worker processes (~3 minutes on 16 cores).
+`genetics ci-local` runs the `.github/workflows/ci.yml` steps in a fresh clone with an empty
+data directory.
 
-The dashboard links to each run's ClinVar reference lookup. These are reference
-annotations; its [ACMG view](docs/secondary_findings.md) retains likely artifacts and
-states that only clinical sequencing can establish or exclude a variant. Full lookup
-annotations carry explicit match states and a separate frequency reliability screen;
-they are not confirmed clinical findings. Missing frequencies stay unknown. Published
-PPV benchmarks retain their study scope and are never presented as individual posterior probabilities.
+## Documentation
 
-See the [knowledge-pack guide](knowledge/README.md),
-[common health-card guide](docs/common_health.md),
-[ClinVar coverage](docs/clinvar_coverage.md),
-[reference-data guide](data/references/README.md), [ROH](docs/roh.md),
-[archaic estimation](docs/archaic.md) and [sex-chromosome reporting](docs/sex_chromosomes.md).
+- [AGENTS.md](AGENTS.md) — privacy rules, editorial stance, architecture, and confirmed
+  roadblocks
+- [phase1_roadmap.md](phase1_roadmap.md) — v1 release checklist and risk register
+- [docs/handoff.md](docs/handoff.md) — current state, M15.1/M15.2 records, and post-v1 items
+- [docs/progress_log.md](docs/progress_log.md) — dated record of every milestone and review
+- [docs/handoff_history.md](docs/handoff_history.md) and
+  [docs/roadmap_history.md](docs/roadmap_history.md) — archived M0–M14 history
+- Guides: [knowledge/README.md](knowledge/README.md),
+  [data/references/README.md](data/references/README.md),
+  [docs/common_health.md](docs/common_health.md),
+  [docs/clinvar_coverage.md](docs/clinvar_coverage.md),
+  [docs/secondary_findings.md](docs/secondary_findings.md),
+  [docs/pgx_calling.md](docs/pgx_calling.md),
+  [docs/hla_imputation.md](docs/hla_imputation.md),
+  [docs/carrier_status.md](docs/carrier_status.md),
+  [docs/roh.md](docs/roh.md), [docs/archaic.md](docs/archaic.md),
+  [docs/sex_chromosomes.md](docs/sex_chromosomes.md)
+
+## Licence
+
+MIT — see [LICENSE](LICENSE). External reference datasets and tools remain under their own
+upstream licences as recorded in [data/references/manifest.yaml](data/references/manifest.yaml)
+and [data/tools.yaml](data/tools.yaml).

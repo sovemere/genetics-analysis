@@ -1,18 +1,16 @@
-# Handoff: post-M15.1 (code-health split, M15.5 real-run calibration, M15.7, M15.8)
+# Handoff: v1.0.0 release (post-v1 / v1.1 items)
 
 Current state only. Each earlier milestone's entry contract and acceptance record, M7
 to M14, is kept verbatim in [handoff_history.md](handoff_history.md); the dated record
 of every milestone is the [progress log](progress_log.md).
 
-As of 2026-11-26, **M0–M14, M15.1, M15.2, M15.3, M15.4 and M15.6 are complete**, and so are
-scopes 1, 2 and 4 (except the deferred four-module split) of the
-[project review](#project-review-before-m151). **[M15.1](#m151-record) passed** on the real
-export in three offline sessions at `325116e` (`--hla-model-opt-in`, Windows Firewall option
-A with Google Antigravity exempted). What remains before the v1 tag is under
-[After M15.1](#after-m151): the deferred four-module code-health split (which the owner asked
-to be reminded of as soon as M15.1 finished), the real-run half of **M15.5** (calibration
-review), deferred scope-1 engine items, **M15.7** (README rewrite from M15.1's measurements),
-the owner's `LICENSE` file, and **M15.8** (tag v1).
+As of 2026-11-26, **all v1 milestones (M0–M15.7) are complete**, and `src/genetics` is
+frozen byte-identical to `325116e` (the exact code [M15.1](#m151-record) proved end to end).
+**M15.5** (real-run calibration review) passed on 2026-11-26 with zero calibration defects
+and zero engine changes; **M15.7** rewrote [README.md](../README.md) from M15.1's
+measurements (closing scope 3) and added the MIT [LICENSE](../LICENSE) file. **M15.8** tags
+`v1.0.0`. The deferred code-health split and non-critical scope-1/C4 items wait for `v1.1`
+([below](#after-m151)).
 
 <a id="m151-record"></a>
 
@@ -457,17 +455,11 @@ What M14.7 hands over:
 
 <a id="after-m151"></a>
 
-### After M15.1
+### After v1.0.0 (deferred to v1.1)
 
-- **Remaining code health work (scope 4), which the owner asked to be reminded of as soon as
-  M15.1 is done:** split the four modules over 2,000 lines, `refs/postprocess.py`,
-  `engine/cards.py`, `web/views.py` and `run/bundle.py`. It was deferred because a large
-  refactor just before the release-gate run risks a late-pipeline failure. Any engine change
-  after M15.1 means the tagged code differs from what M15.1 ran; say so in the record, or
-  re-run.
-- **M15.5**, the calibration review, whose half that needs no real file was done on 2026-11-23
-  ([record](review_m155_prerun.md)); **M15.7**, the README rewrite from what M15.1 measured;
-  the owner's `LICENSE` file; then **M15.8**, the v1 tag.
-- The scope 1 items recorded for after M15.1 ([review_project_engine.md](review_project_engine.md)).
-  C2 was fixed before M15.1 instead, and scope 2's three unread correction notices were
-  read on 2026-11-23.
+- **Remaining code health work (scope 4):** split the four modules over 2,000 lines,
+  `refs/postprocess.py`, `engine/cards.py`, `web/views.py` and `run/bundle.py`. Deferred past
+  the `v1.0.0` tag so v1 ships on the exact `src/genetics` that passed M15.1.
+- **Deferred scope-1 engine items** ([review_project_engine.md](review_project_engine.md))
+  and **M15.5 C4** (carrier cards scoring an allele share as an effect size,
+  [review_m155_prerun.md](review_m155_prerun.md)).
