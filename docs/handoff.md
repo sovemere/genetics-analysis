@@ -1,16 +1,70 @@
-# Handoff: M15.1 full run on the real file
+# Handoff: post-M15.1 (code-health split, M15.5 real-run calibration, M15.7, M15.8)
 
 Current state only. Each earlier milestone's entry contract and acceptance record, M7
 to M14, is kept verbatim in [handoff_history.md](handoff_history.md); the dated record
 of every milestone is the [progress log](progress_log.md).
 
-As of 2026-11-23, **M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented**, and so are
-scopes 1, 2 and 4 of the [project review](#project-review-before-m151). **M15.1**, the full
-run on the real file, is next; it is the owner's step, and its [run sheet](#m151-run-sheet)
-is below. [M15.2](#m152-record) passed and fixed two defects on the way, one of which
-would have stopped M15.1's first command. M15.1 is prepared and waits for the owner: HLA is
-opted in, and the network block is [option A](#m151-network-block), a Windows Firewall block
-scripted in `scripts/windows/m151/` with a runner for each session.
+As of 2026-11-26, **M0–M14, M15.1, M15.2, M15.3, M15.4 and M15.6 are complete**, and so are
+scopes 1, 2 and 4 (except the deferred four-module split) of the
+[project review](#project-review-before-m151). **[M15.1](#m151-record) passed** on the real
+export in three offline sessions at `325116e` (`--hla-model-opt-in`, Windows Firewall option
+A with Google Antigravity exempted). What remains before the v1 tag is under
+[After M15.1](#after-m151): the deferred four-module code-health split (which the owner asked
+to be reminded of as soon as M15.1 finished), the real-run half of **M15.5** (calibration
+review), deferred scope-1 engine items, **M15.7** (README rewrite from M15.1's measurements),
+the owner's `LICENSE` file, and **M15.8** (tag v1).
+
+<a id="m151-record"></a>
+
+## Accepted M15.1: full offline run on the real export
+
+Run on 2026-11-26 from `325116e` (`--hla-model-opt-in`, imputation on, `--restart` in session
+1 only), under Windows Firewall option A (`scripts/windows/m151/`) with Google Antigravity
+exempted. **Passed** (exit 0 in session 3; bundle written outside the checkout; all saved
+parts removed).
+
+**Antigravity block trial (2026-11-25, before session 1).** Applied with `-AutoRestoreHours
+0.5`, verified with `netblock.ps1 check` (Python, a Python child, and Rscript all refused),
+confirmed Antigravity kept working on the PC and through phone remote control, and restored
+cleanly: 0 refusals of Antigravity programs, 982 refusals of background apps over ~1.5 min.
+
+**Sessions and wall-clock (not uninterrupted).** Total across three sessions: **475.9 min
+(7 h 55.9 min)**, exercising the resume path across all saved parts on the real export:
+
+| Session | Local window | Wall-clock | Resumed from | How it ended | Peak tree / min free |
+|---|---|---|---|---|---|
+| 1 | 08:41 → 11:06 | 145.5 min | fresh (`--restart`) | stopped at `Reading imputed doses once` | 4.09 GB / 13.37 GB |
+| 2 | 13:27 → 17:27 | 240.1 min | `imputation` | stopped on `time: 4 h` (partway through save checks) | 14.55 GB / 0.81 GB |
+| 3 | 18:02 → 19:33 | 90.3 min | `imputation`, dose read, 21 PGS, PGx, HLA | exit 0; bundle saved, parts removed | 13.87 GB / 3.94 GB |
+
+**Stage timings vs the run-sheet estimate** (unique stages once: **~372.4 min / 6 h 12 min**):
+
+| Stage | Expected | Measured | Notes |
+|---|---|---|---|
+| Score references, ingest, ancestry, HIBAG check | 10–30 min | 9.1 min | 7.2 min score refs + ingest, 1.9 min ancestry + HIBAG metadata/strand |
+| Imputation (23 regions / 46 Beagle jobs) | ~3.5 h | 136.4 min | All 46 Beagle jobs matched and were reused from the verified Beagle job cache; time was reference marker reads, job verification, and saving the part (a cold run without cached Beagle jobs would add ~1.5–2 h) |
+| One read of the imputed doses | ~50 min | 31.9 min | Faster than the 2026-11-05 baseline |
+| ClinVar coverage, ROH, archaic | ~12 min | 11.0 min | Repeated in session 3 (`11.9 min`), as expected since these are not saved as parts |
+| Polygenic scores (21) | ~3 h | 121.6 min | ~5.8 min/score vs the ~8.5 min/score estimate; zero transient PLINK failures |
+| PGx + HLA (HIBAG) | seconds + untimed | ~10 s | First timed real-export HLA run; `rscript.exe` peaked at 0.23 GB |
+| Saving & deep checks | ~75 min | 62.2 min | Session 3 (`28.1 → 90.3 min`), writing the deep-check record and removing parts |
+
+**Peak memory and disk sizes.** Process-tree peak across all three sessions: **14.55 GB**
+(session 2, minute 199.3). Per-program peaks: `python.exe` `14.54 GB`, `plink2.exe`
+`1.46 GB`, `java.exe` `0.38 GB` (low because Beagle jobs were reused), `rscript.exe`
+`0.23 GB`. Lowest free memory seen: `0.81 GB` (session 2). Disk sizes after completion:
+saved bundle **2.27 GB**, cache **11.2 GB** (`0` saved parts remaining), tools **0.23 GB**.
+
+**Network block (option A).** Verified by `netblock.ps1 check` before every session, held
+without lifting across all three (`block_lifted_at: null` in all three summaries), and
+restored cleanly after each. **Zero** outbound connection attempts by the run's own processes
+in all three sessions (session 3's CSV contained 2 `python.exe` refusals outside the run's
+process tree). Caveats to keep on the record: (1) Windows' default Security event log wrapped
+under high-volume background app traffic, so the exported refusal CSVs covered the final 15 s
+of session 1 (24,565 events), the final 11 s of session 2 (24,585 events), and 86 of 90.3 min
+of session 3 (22,711 events); (2) DNS lookups via Windows' DNS client and the Store `pwsh`
+package remain outside the firewall block, as documented below. Every outbound connection by
+the run's processes was refused (none attempted).
 
 <a id="m152-record"></a>
 
@@ -364,10 +418,10 @@ runs under Antigravity's `language_server.exe` (which makes the agent's model ca
 `Antigravity.exe`, and both hold connections of their own; `apply` now finds either agent
 and adds one allow rule for each of Antigravity's two executables (`-AllowProgram` takes a
 `;`-separated list). A rule exempts an executable path, not a process tree, so the run's
-`python.exe`, Java, PLINK and R, started from the agent's shell, are refused as before. The
-detection was checked without applying a block; **the block itself has not been re-tried
-under Antigravity**, so a short trial (apply, check, the agent keeps working, restore,
-report) belongs before session 1.
+`python.exe`, Java, PLINK and R, started from the agent's shell, are refused as before. The detection was checked without applying a block, and the block itself was **tried under
+Antigravity on 2026-11-25** (0.5 h auto-restore, `netblock.ps1 check` passed, Antigravity
+kept working on PC and via phone remote control, 0 refusals of Antigravity, clean restore)
+before M15.1 ran on 2026-11-26.
 
 **What it does not cover, to state in the record:**
 

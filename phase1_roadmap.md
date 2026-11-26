@@ -16,26 +16,23 @@ the source of truth for build state.
 
 ## Next up
 
-**M15.1, the full run on the real file, is next.** It is the owner's step, since it opens
-the real export. It is prepared and waits for the owner: HLA is opted in, and the network
-block is option A, a Windows Firewall block scripted in `scripts/windows/m151/`. M0–M14, M15.2, M15.3, M15.4 and M15.6 are implemented; M15.2's run of a
-female export in the 23andMe-like layout [passed](docs/handoff.md#m152-record) with no
-adapter or analysis change, after fixing two defects it found (one sparse chromosome ended
-the whole run; `genetics run --restart`, M15.1's first command, was not reachable). The [handoff](docs/handoff.md) holds its entry
-contract and [run sheet](docs/handoff.md#m151-run-sheet): about 9–10½ hours in three
-sessions, the checks before starting, the command, and what may be recorded.
+**M15.1 passed on 2026-11-26** at `325116e` ([record](docs/handoff.md#m151-record)): the full
+offline run on the real export completed in three sessions (7 h 55.9 min total wall-clock,
+~6 h 12 min unique stages with cached Beagle jobs; 14.55 GB peak tree RAM; 2.27 GB saved
+bundle; 0 outbound attempts by the run's own processes under Windows Firewall option A with
+Google Antigravity exempted). M0–M14, M15.1, M15.2, M15.3, M15.4 and M15.6 are complete.
 
-The [project review](docs/handoff.md#project-review-before-m151) before M15.1 has done
-scopes 1 (engine, [record](docs/review_project_engine.md)), 2 (the M15.3, M15.4 and M15.6
-audits, [record](docs/review_release_audits.md)) and 4 (code health,
-[record](docs/review_code_health.md)). Of scope 3, this file and the handoff were cut back to
-current state on 2026-11-23; their history is in [roadmap_history.md](docs/roadmap_history.md),
-[handoff_history.md](docs/handoff_history.md) and the [progress log](docs/progress_log.md).
-The README rewrite stays with M15.7. What follows M15.1, including the deferred code health
-work, is [listed in the handoff](docs/handoff.md#after-m151). One owner action remains
-before the v1 tag: the repository has no `LICENSE` file. Any further engine change lands
-before M15.1's first session, since one between sessions stops the saved parts being
-reused.
+What remains before the v1 tag ([listed in the handoff](docs/handoff.md#after-m151)):
+
+- **Deferred code-health split (scope 4):** split the four modules over 2,000 lines
+  (`refs/postprocess.py`, `engine/cards.py`, `web/views.py`, `run/bundle.py`). Note that any
+  engine change after M15.1 means the tagged code differs from what M15.1 ran (record that
+  or re-run).
+- **M15.5 (second half):** real-run calibration review (pre-run half done 2026-11-23).
+- **Deferred scope-1 engine items** ([record](docs/review_project_engine.md)).
+- **M15.7:** README rewrite from M15.1's measurements (closes scope 3).
+- **Owner action:** add a `LICENSE` file (`pyproject.toml` declares MIT).
+- **M15.8:** tag v1.
 
 ---
 
@@ -175,15 +172,13 @@ them are kept verbatim in [roadmap_history.md](docs/roadmap_history.md):
 
 ## M15 — v1 release gate
 
-- [ ] **M15.1** Full run on the real file, offline, start to finish. Record wall-clock and
-      peak memory in the progress log. Prepared, not run: see the
-      [run sheet](docs/handoff.md#m151-run-sheet). Re-runs [M4.10](docs/roadmap_history.md#m4--run-bundle--first-ui)'s
-      OS-level network block at full pipeline scope — imputation, PRS and HLA all shell
-      out, and they are the parts M2.7's in-process guard cannot see. On Windows that block
-      is **option A**, decided and tested 2026-11-23: a firewall block of every outbound
-      connection but the coding agent's (Google Antigravity's two programs since
-      2026-11-25), scripted with a session runner in `scripts/windows/m151/`
-      ([details](docs/handoff.md#m151-network-block)). HLA is opted in. The owner starts it.
+- [x] **M15.1** Full run on the real file, offline, start to finish. Record wall-clock and
+      peak memory in the progress log. **Done 2026-11-26** at `325116e` (`--hla-model-opt-in`,
+      imputation on, Windows Firewall option A with Google Antigravity exempted): 3 sessions,
+      7 h 55.9 min total wall-clock (~6 h 12 min unique stages with cached Beagle jobs),
+      14.55 GB peak tree RAM (0.81 GB min free), 2.27 GB saved bundle, 0 outbound attempts by
+      the run's own processes (with the Security-log wrap and DNS/Store-`pwsh` caveats
+      recorded). See [the record](docs/handoff.md#m151-record).
 - [x] **M15.2** Full run on a structurally different synthetic fixture (different sex,
       different vendor layout) with **no code changes** — proves plug-and-play. Done
       2026-11-23: a female export in the 23andMe-like layout ran end to end with no adapter,
